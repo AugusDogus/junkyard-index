@@ -8,6 +8,7 @@ import {
   searchNotificationIntent,
   user,
 } from "~/schema";
+import { SEARCH_ALERT_CHECK_STALE_MS } from "./search-alert-check";
 
 interface ClaimNotificationIntentGroupParams {
   database: LibSQLDatabase;
@@ -48,6 +49,25 @@ const ownerFinished = sql`(
   )
 )`;
 
+/**
+ * While today's alert check is matching, a recipient's earlier intents wait
+ * for it, so they share today's one digest with its matches instead of using
+ * up the daily allowance first. A check that stopped progressing (Algolia
+ * failing, or stuck) releases them. Intents already grouped into a digest
+ * are not held: nothing new can join their group.
+ */
+function heldForTodaysCheck(now: Date) {
+  return sql`(
+    ${searchNotificationIntent.deliveryGroupId} is null
+    and exists (
+      select 1 from ${searchAlertCheck} today
+      where today.day = ${IngestionDay.key(now)}
+        and today.status = 'running'
+        and today.last_progress_at >= ${now.getTime() - SEARCH_ALERT_CHECK_STALE_MS}
+    )
+  )`;
+}
+
 function claimValues(params: ClaimNotificationIntentGroupParams) {
   return {
     status: "sending",
@@ -63,6 +83,7 @@ function deliverableNotificationIntent(params: { now: Date; leaseMs: number }) {
   return and(
     claimableNotificationIntent(params),
     ownerFinished,
+    sql`not ${heldForTodaysCheck(params.now)}`,
     sql`(
         ${searchNotificationIntent.status} in ('retry', 'sending')
         or not exists (

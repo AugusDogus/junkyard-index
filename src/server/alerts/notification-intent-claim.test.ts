@@ -1,6 +1,6 @@
 import { createTestClient } from "../ingestion/durable-ingestion-test-fixtures";
 import { describe, expect, test } from "bun:test";
-import { drizzle } from "drizzle-orm/libsql";
+import { drizzle, type LibSQLDatabase } from "drizzle-orm/libsql";
 import {
   cancelClaimedNotificationIntents,
   claimNotificationIntentGroup,
@@ -19,7 +19,9 @@ const TEST_SCHEMA = `
 
   create table search_alert_check (
     id text primary key,
-    status text not null
+    day text not null default '',
+    status text not null,
+    last_progress_at integer not null default 0
   );
 
   create table search_notification_intent (
@@ -504,53 +506,97 @@ describe("notification intent claims", () => {
     }
   });
 
-  test("claims a daily alert check's intents together once the check stops running", async () => {
-    const { client, cleanup } = createTestClient();
-    try {
-      await client.executeMultiple(`${TEST_SCHEMA}
-        insert into search_alert_check (id, status)
-        values ('check-running', 'running'), ('check-superseded', 'superseded');
-        insert into search_notification_intent (id, run_id, alert_check_id, saved_search_id)
-        values
-          ('running-1', null, 'check-running', 'search-1'),
-          ('running-2', null, 'check-running', 'search-2'),
-          ('superseded-1', null, 'check-superseded', 'search-3');
-      `);
-      const database = drizzle(client);
-      const claim = (claimToken: string) =>
-        claimNotificationIntentGroup({
-          channel: "email",
-          database,
-          now: new Date("2026-08-22T07:00:00.000Z"),
-          leaseMs: 15 * 60 * 1000,
-          claimToken,
-        });
+  describe("while today's alert check runs", () => {
+    const now = new Date("2026-11-20T19:00:00.000Z");
+    const leaseMs = 15 * 60 * 1000;
+    // A holdover from an earlier day: its run released, it never went out.
+    const SETUP = (todayProgressAt: number) => `${TEST_SCHEMA}
+      insert into search_alert_check (id, day, status, last_progress_at) values
+        ('yesterday', '2026-11-19', 'running', ${now.getTime()}),
+        ('today', '2026-11-20', 'running', ${todayProgressAt});
+      insert into search_notification_intent (id, run_id, alert_check_id, saved_search_id, created_at)
+      values
+        ('held', 'run-1', null, 'search-1', 1),
+        ('today-1', null, 'today', 'search-2', 2);
+    `;
 
-      // A superseded check wrote these with their advanced windows.
-      expect((await claim("claim-a")).map((row) => row.id)).toEqual([
-        "superseded-1",
-      ]);
-      await client.execute(
-        "update search_notification_intent set status = 'delivered', claim_token = null where id = 'superseded-1'",
-      );
-      // The day's digest waits until every search has been checked.
-      expect(
-        await hasDeliverableNotificationIntent({
+    async function deliver(
+      database: LibSQLDatabase,
+      claimToken: string,
+    ) {
+      const claimed = await claimNotificationIntentGroup({
+        channel: "email",
+        database,
+        now,
+        leaseMs,
+        claimToken,
+      });
+      if (claimed.length > 0)
+        await markNotificationGroupDelivered({
           database,
-          now: new Date("2026-08-22T07:00:00.000Z"),
-          leaseMs: 15 * 60 * 1000,
-        }),
-      ).toBe(false);
-      await client.execute(
-        "update search_alert_check set status = 'complete' where id = 'check-running'",
-      );
-      expect((await claim("claim-b")).map((row) => row.id).sort()).toEqual([
-        "running-1",
-        "running-2",
-      ]);
-    } finally {
-      cleanup();
+          userId: "user-1",
+          channel: "email",
+          intentIds: claimed.map((row) => row.id),
+          claimToken,
+          now,
+        });
+      return claimed;
     }
+
+    test("an earlier intent waits and goes out in one digest with today's matches", async () => {
+      const { client, cleanup } = createTestClient();
+      try {
+        await client.executeMultiple(SETUP(now.getTime() - 5 * 60 * 1000));
+        const database = drizzle(client);
+        // Only today's check holds intents; yesterday's running row does not.
+        expect(
+          await hasDeliverableNotificationIntent({ database, now, leaseMs }),
+        ).toBe(false);
+        expect(await deliver(database, "early")).toHaveLength(0);
+
+        await client.execute(
+          "update search_alert_check set status = 'complete' where id = 'today'",
+        );
+        const delivered = await deliver(database, "digest");
+        expect(delivered.map((row) => row.id).sort()).toEqual([
+          "held",
+          "today-1",
+        ]);
+        expect(new Set(delivered.map((row) => row.deliveryGroupId)).size).toBe(
+          1,
+        );
+        expect(
+          (
+            await client.execute(
+              "select count(*) as n from search_notification_intent where status = 'pending'",
+            )
+          ).rows[0]?.n,
+        ).toBe(0);
+      } finally {
+        cleanup();
+      }
+    });
+
+    test("a check that stopped progressing no longer holds earlier intents", async () => {
+      const { client, cleanup } = createTestClient();
+      try {
+        // Algolia has failed every attempt for two hours.
+        await client.executeMultiple(SETUP(now.getTime() - 2 * 60 * 60 * 1000));
+        const database = drizzle(client);
+        const delivered = await deliver(database, "holdover");
+        expect(delivered.map((row) => row.id)).toEqual(["held"]);
+        // The check's own matches still wait for it to finish.
+        expect(
+          (
+            await client.execute(
+              "select status from search_notification_intent where id = 'today-1'",
+            )
+          ).rows[0]?.status,
+        ).toBe("pending");
+      } finally {
+        cleanup();
+      }
+    });
   });
 
   test("claims all Discord searches in one recipient group", async () => {
