@@ -41,7 +41,9 @@ bun test src         # bun test runner — all unit/integration tests
 
 - Uses Turso (remote libSQL) via `drizzle-orm/libsql/web`. The client in `src/lib/db.ts` uses the **HTTP** transport (`@libsql/client/web`).
 - Schema is defined in `schema.ts` at the repo root.
-- `drizzle-kit push` requires real `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN` (the drizzle config imports from `src/env.js` which validates).
+- Schema changes ship only as generated migrations (`bun run db:generate`). Production and preview builds apply them with `db:migrate` before `next build` (`scripts/vercel-build.ts`). There is no `db:push`: it changes the database outside the journal, so later migrations no longer match it.
+- **Expand, then contract.** Old and new deployments share the database during a rollout, and workflow runs stay pinned to the deployment that started them. A migration may only add: tables, nullable or defaulted columns, and indexes. Drop or rename a column or table in a later PR, once no live deployment reads or writes it and no workflow run from an older deployment is still running. To change what a column means, add a new column instead of rewriting the old one.
+- **Journal order.** `src/server/migration-journal.test.ts` requires each entry's `idx` to match its position, `when` to strictly increase, a `.sql` file per entry, and an unbroken snapshot `prevId` chain. The libSQL migrator silently skips an entry whose `when` is not after the newest applied migration. When two branches each add a migration, regenerate the one that merges second on top of the other, so it gets the next `idx`, a later `when` and the right `prevId`.
 - Make and model pages (`/cars`, its makes and models, and their sitemap) read the `inventory_snapshot` table, never aggregate `vehicle` themselves; yard lists read `yard_inventory`. Deploys store the snapshot after migrating and each ingestion pass refreshes it. Against a fresh database, run `bun run inventory:project` once (it reads every vehicle, about a minute).
 
 ### Key gotchas
