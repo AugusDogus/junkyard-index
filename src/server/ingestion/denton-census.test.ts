@@ -67,6 +67,9 @@ function yard() {
   /** Extra cards a model page lists beyond its menu badge (a menu served
    * from a stale page cache while the model page is fresh). */
   const surplus = new Map<number, number>();
+  /** Models whose page lists only its first card while the menu badge still
+   * counts every row. */
+  const cut = new Set<number>();
   const calls: string[] = [];
   const staged: string[] = [];
   const body = (url: string) => {
@@ -96,12 +99,15 @@ function yard() {
       { length: surplus.get(Number(model)) ?? 0 },
       (_, i): Donor => [Number(model), 500 + i],
     );
+    const listed = [...(list ?? []), ...extra];
     return (
       list &&
       dentonTestInventory(
         (unreachable.has(Number(model))
           ? ""
-          : [...list, ...extra].map(card).join("")) || empty,
+          : (cut.has(Number(model)) ? listed.slice(0, 1) : listed)
+              .map(card)
+              .join("")) || empty,
       )
     );
   };
@@ -119,6 +125,7 @@ function yard() {
     read,
     unreachable,
     surplus,
+    cut,
     staged,
     setArrivals: (next: Donor[]) => {
       arrivals = next;
@@ -359,6 +366,64 @@ test("Denton caps each model's cards at its badge, so a surplus page cannot hide
     `Denton model pages list ${1800 - 150 * broken.length} of 1800 cards`,
   );
   expect(native.staged).toHaveLength(staged);
+}, 30_000);
+
+test("Denton rejects a run whose sweep slice is cut to one card per model while menus keep their badges", async () => {
+  // Day 602's slice holds three small models, so cutting each to one card
+  // keeps 95.96% of today's badges (above the 95% badge floor) while the
+  // replay floor over their last accepted cards must still fail the run.
+  const broken = sweep(602);
+  expect(broken.length).toBeGreaterThan(1);
+  const native = yard();
+  for (const model of models)
+    native.rows.set(model, donors(model, broken.includes(model) ? 20 : 150));
+  const cold = await census(native, 600, null);
+  for (const model of broken) native.cut.add(model);
+  const before = native.calls.length;
+  const staged = native.staged.length;
+  const lost = 19 * broken.length;
+  const total = 150 * (models.length - broken.length) + 20 * broken.length;
+  expect((total - lost) / total).toBeGreaterThan(0.95);
+  await expect(
+    census(native, 602, cold.terminal, cold.vins.length),
+  ).rejects.toThrow(
+    `Denton model pages list ${total - lost} of ${total} cards that the last accepted census listed for models whose counts did not change, below the 97% coverage floor`,
+  );
+  expect(native.staged).toHaveLength(staged);
+  // Only the slice was read, then confirmed at closing (each cut page differs
+  // from its badge), before the union was rejected.
+  expect(
+    native.calls.slice(before).filter((url) => /\/M\d+\/$/.test(url)),
+  ).toEqual([...broken, ...broken].map(modelUrl));
+}, 30_000);
+
+test("Denton confirms a surplus page that falls to its badge at closing and re-reads it on the next run", async () => {
+  // Model 0 lists ten cards beyond its badge (placeholder or surplus rows).
+  const [model] = sweep(603);
+  if (model === undefined)
+    throw new Error("Expected a model in day 603's slice");
+  expect(sweep(604)).not.toContain(model);
+  const native = yard();
+  native.surplus.set(model, 10);
+  const cold = await census(native, 600, null);
+  // Day 603: its page loses ten real cards and now lists exactly its badge.
+  // A cards === badge check would neither confirm nor re-read it; it fell
+  // below the 80 cards it is expected to list, so closing re-reads it.
+  native.surplus.delete(model);
+  const lost = await census(native, 603, cold.terminal, cold.vins.length);
+  expect(lost.models).toEqual([model, model]);
+  expect(lost.vins).toEqual(native.vins());
+  // That re-read cannot tell a real loss from a transient one, so the page is
+  // never carried: day 604 reads it again even though no rule but the short
+  // page rule fires.
+  const next = await census(native, 604, lost.terminal, lost.vins.length);
+  expect(next.models).toEqual([model]);
+  expect(next.warnings.at(-1)).toBe(
+    "Denton Read 1 of 12 model pages (short 1); carried 11.",
+  );
+  // Once read at its badge again, it is expected at its badge and carried.
+  const idle = await census(native, 605, next.terminal, next.vins.length);
+  expect(idle.models).toEqual(sweep(605));
 }, 30_000);
 
 test("Denton treats an unreadable or incompatible previous cursor as a warned cold census", async () => {

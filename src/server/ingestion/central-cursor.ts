@@ -11,6 +11,7 @@ import {
   ModelCensus,
   type ModelCensusControl,
   type ModelCensusDecision,
+  type ModelCensusRun,
 } from "./model-census";
 import {
   CENTRAL_ROOT,
@@ -29,7 +30,7 @@ const scope = centralHash({
   version: 1,
   yard: CENTRAL_YARD,
   contract:
-    "DD15/literal-premium-model-graph/all-required-destination-conflicts-quarantined/incremental-model-census-v2",
+    "DD15/literal-premium-model-graph/all-required-destination-conflicts-quarantined/incremental-model-census-v3",
 });
 /** Every model page read by an accepted run, carried forward by the next one.
  * Each page must still match its own card fingerprint. */
@@ -81,23 +82,22 @@ export type CentralClosingControl =
     };
 
 /** Closing re-reads ownership, the make directory and every model read this
- * run whose cards differ from its badge, so a short page that does not repeat
- * is never carried forward. Other per-model changes during the run surface as
- * count changes in the next run's opening menus. */
+ * run whose cards differ from its badge or fall below its expected count
+ * (ModelCensus.closingReads), so a short page that does not repeat is never
+ * carried forward. Other per-model changes during the run surface as count
+ * changes in the next run's opening menus. */
 export function centralClosingControls(
   state: Pick<CentralProgress, "makes" | "pages" | "previous" | "day">,
 ): CentralClosingControl[] {
   const models = centralModels(state.makes);
-  const decisions = centralCensusPlan(state);
+  if (state.pages.length > models.length)
+    throw new Error("Central closing model is outside the published graph");
   return [
     { kind: "root", url: CENTRAL_ROOT },
     { kind: "directory", url: CENTRAL_MAKES },
-    ...state.pages.flatMap((page, index) => {
+    ...ModelCensus.closingReads(centralCensusRun(state)).flatMap((index) => {
       const entry = models[index];
-      if (!entry)
-        throw new Error("Central closing model is outside the published graph");
-      return decisions[index]?.kind === "read" &&
-        page.records.length !== entry.model.count
+      return entry
         ? [
             {
               kind: "model",
@@ -138,23 +138,42 @@ export function centralCensusPlan(
 
 /** Cards a model page lists, the count closing compares with its badge. */
 const centralCards = (page: CentralPage) => page.records.length;
+
+/** This run's controls, pages, decisions and the census it planned from. */
+function centralCensusRun(
+  state: Pick<CentralProgress, "makes" | "pages" | "previous" | "day">,
+): ModelCensusRun<CentralPage> {
+  return {
+    controls: centralCensusControls(state.makes),
+    pages: state.pages,
+    decisions: centralCensusPlan(state),
+    previous: state.previous,
+    cards: centralCards,
+  };
+}
+
 /** Every model in the saved 535-model census lists at least its badge (6,463
  * of 6,463 badge cards covered; the 44 mismatches are all surplus cards). A
  * fault that leaves each model of one sweep slice with a single card drops
- * coverage to between 81.9% and 89.9% across the six slices. */
+ * badge coverage to between 81.9% and 89.9% across the six slices, and replay
+ * coverage of the last accepted cards to between 81.8% and 89.9%. */
 export const CENTRAL_MINIMUM_BADGE_COVERAGE = 0.95;
 
 /** Fails a run whose read and carried model cards fall short of today's model
- * badges, before anything is published. */
+ * badges or of the last accepted cards of models whose badge is unchanged,
+ * before anything is published. */
 export function centralCoverageError(
-  state: Pick<CentralProgress, "makes" | "pages">,
+  state: Pick<CentralProgress, "makes" | "pages" | "previous">,
 ): string | null {
   const models = centralModels(state.makes);
   return ModelCensus.coverage(
     "Central",
-    centralCensusControls(state.makes),
-    state.pages,
-    centralCards,
+    {
+      controls: centralCensusControls(state.makes),
+      pages: state.pages,
+      previous: state.previous,
+      cards: centralCards,
+    },
     CENTRAL_MINIMUM_BADGE_COVERAGE,
     (index) => {
       const entry = models[index];
@@ -169,13 +188,9 @@ export function centralCensus(state: CentralProgress): CentralCensus {
   return ModelCensus.accept(
     scope,
     state.day,
-    centralCensusControls(state.makes),
-    state.pages,
-    centralCensusPlan(state),
-    // Closing re-reads every page read this run whose cards differ from its
-    // badge and fails on a change.
+    centralCensusRun(state),
+    // Closing re-reads every page closingReads names and fails on a change.
     "confirmed",
-    centralCards,
   );
 }
 

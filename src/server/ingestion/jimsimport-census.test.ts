@@ -19,7 +19,11 @@ import {
   JIMSIMPORT_ORIGIN,
   JIMSIMPORT_OWNER,
 } from "./jimsimport-yard-metadata";
-import { MODEL_CENSUS_DAY_MS, ModelCensus } from "./model-census";
+import {
+  MODEL_CENSUS_DAY_MS,
+  MODEL_CENSUS_REPLAY_MINIMUM,
+  ModelCensus,
+} from "./model-census";
 
 const fixture = jimsimportOpeningFixture();
 const MODELS = fixture.pages.length;
@@ -35,6 +39,9 @@ function yard() {
   // Model paths whose page renders the native empty result while the menus
   // still count their donors.
   const broken = new Set<string>();
+  // Model paths whose page renders only its first card while the menus still
+  // count every donor.
+  const cut = new Set<string>();
   const html = new Map<string, string>();
   const urls: string[] = [];
   const body = (url: string) => {
@@ -47,6 +54,8 @@ function yard() {
     if (!page) return undefined;
     if (!page.records.length || broken.has(path))
       return jimsimportFixture("empty").body;
+    if (cut.has(path))
+      return nativeModelPage({ ...page, records: page.records.slice(0, 1) });
     const cached = html.get(path) ?? nativeModelPage(page);
     html.set(path, cached);
     return cached;
@@ -54,6 +63,7 @@ function yard() {
   return {
     urls,
     broken,
+    cut,
     readPage: (url: string) => {
       urls.push(url);
       const value = body(url);
@@ -138,6 +148,10 @@ const KEYS = jimsimportModels(fixture.menus).map(({ make, model }, index) => {
     throw new Error("Fixture pages must follow published model order");
   return JSON.stringify([make.path, make.label, model.path, model.label]);
 });
+
+/** Published badge and saved cards per fixture model. */
+const BADGES = jimsimportModels(fixture.menus).map(({ model }) => model.count);
+const CARDS = fixture.pages.map((page) => page.records.length);
 
 /** Fixture models whose saved cards differ from their published badge. */
 const MISMATCHED = jimsimportModels(fixture.menus).flatMap(({ model }, i) =>
@@ -378,4 +392,158 @@ test("Jim's Import carries short pages its closing confirmed and re-reads unconf
     throw new Error("Expected a terminal census");
   expect(next.census.models[model]?.confirmed).toBe(true);
   expect(next.census.models[model]?.readDay).toBe(day);
+}, 240_000);
+
+test("Jim's Import fails an incremental run whose sweep slice lists one card per model", async () => {
+  // A site fault renders only the first card of each model page in today's
+  // sweep slice while the menus keep their counts. Closing would confirm the
+  // short pages, and five sixths are carried, so only coverage catches it.
+  const native = yard();
+  const cold = await census(native, 600, null);
+  // The lightest slice leaves the most cards: the hardest one to catch.
+  const listed = (day: number) =>
+    CARDS.map((cards, i) =>
+      slice(day).includes(i) ? Math.min(cards, 1) : cards,
+    );
+  const covered = (day: number) =>
+    listed(day).reduce(
+      (sum, cards, i) => sum + Math.min(cards, BADGES[i] ?? 0),
+      0,
+    );
+  const day = [601, 602, 603, 604, 605].reduce((best, d) =>
+    covered(d) > covered(best) ? d : best,
+  );
+  expect(slice(day).length).toBeGreaterThan(0);
+  for (const i of slice(day)) {
+    const path = fixture.pages[i]?.modelPath;
+    if (path) native.cut.add(path);
+  }
+  const before = native.urls.length;
+  let published = 0;
+  let cursor: unknown = undefined;
+  await expect(
+    (async () => {
+      for (;;) {
+        const result = await Effect.runPromise(
+          streamJimsimportInventory({
+            previousUniqueInventory: cold.vins.length,
+            startCursor: cursor,
+            previousCursor: cold.terminal,
+            now: () => day * MODEL_CENSUS_DAY_MS,
+            readPage: native.readPage,
+            onBatch: (batch) =>
+              Effect.sync(() => {
+                published += batch.length;
+              }),
+            onYards: () =>
+              Effect.sync(() => {
+                published++;
+              }),
+          }),
+        );
+        if (result.cursor.phase === "complete") return;
+        cursor = JSON.parse(JSON.stringify(result.cursor));
+      }
+    })(),
+  ).rejects.toThrow(
+    `promised by today's model counts, below the ${JIMSIMPORT_MINIMUM_BADGE_COVERAGE * 100}% coverage floor`,
+  );
+  expect(published).toBe(0);
+  // The run stops at the end of the opening: no closing re-reads.
+  expect(native.urls.slice(before).at(-1)).toBe(
+    JIMSIMPORT_ORIGIN + fixture.pages[slice(day).at(-1) ?? -1]?.modelPath,
+  );
+  // Independently of badge accuracy, the replay floor alone rejects the same
+  // pages against the last accepted census.
+  const terminal = JimsimportCursor.parse(cold.terminal);
+  if (terminal.phase !== "complete" || !terminal.census)
+    throw new Error("Expected a terminal census");
+  expect(
+    ModelCensus.coverage(
+      "Jim's Import",
+      {
+        controls: KEYS.map((key, i) => ({ key, count: BADGES[i] ?? 0 })),
+        pages: fixture.pages.map((page, i) =>
+          slice(day).includes(i)
+            ? { ...page, records: page.records.slice(0, 1) }
+            : page,
+        ),
+        previous: terminal.census,
+        cards: (page) => page.records.length,
+      },
+      0,
+      (i) => fixture.pages[i]?.modelPath ?? "?",
+    ),
+  ).toContain(
+    `below the ${Math.round(MODEL_CENSUS_REPLAY_MINIMUM * 1000) / 10}% coverage floor`,
+  );
+}, 120_000);
+
+test("Jim's Import re-reads a surplus page that lost donors down to its badge", async () => {
+  // Some model pages list more cards than their badge. One that loses real
+  // donors down to exactly its badge passes the cards-versus-badge closing
+  // comparison, so closing re-reads it and the next run reads it again
+  // instead of carrying the loss for up to six days.
+  const native = yard();
+  const cold = await census(native, 600, null);
+  const published = new Set(cold.vins);
+  const lost = (i: number) =>
+    native
+      .page(i)
+      .records.slice(0, (CARDS[i] ?? 0) - (BADGES[i] ?? 0))
+      .flatMap((r) => (r.vin && published.has(r.vin) ? [r.vin] : []));
+  const target = [601, 602, 603, 604]
+    .flatMap((day) =>
+      slice(day).map((model) => ({ day, model, lost: lost(model) })),
+    )
+    .find(
+      ({ model, lost }) =>
+        (BADGES[model] ?? 0) > 0 &&
+        (CARDS[model] ?? 0) > (BADGES[model] ?? 0) &&
+        lost.length > 0,
+    );
+  if (!target) throw new Error("Fixture needs a surplus page with donors");
+  const { day, model } = target;
+  const badge = BADGES[model] ?? 0;
+  const before = native.page(model);
+  native.setPage(
+    model,
+    { ...before, records: before.records.slice(before.records.length - badge) },
+    badge,
+  );
+  const dropped = await census(native, day, cold.terminal);
+  expect(dropped.models).toEqual(slice(day));
+  // The page now matches its badge but fell below its last accepted cards.
+  expect(dropped.rereads).toContain(model);
+  expect(dropped.rereads).toEqual(mismatched(slice(day)));
+  expect(dropped.requests).toBe(
+    2 + 33 + slice(day).length + 2 + mismatched(slice(day)).length,
+  );
+  expect(dropped.vins).toEqual(native.vins());
+  for (const vin of target.lost) expect(dropped.vins).not.toContain(vin);
+  const accepted = JimsimportCursor.parse(dropped.terminal);
+  if (accepted.phase !== "complete" || !accepted.census)
+    throw new Error("Expected a terminal census");
+  const evidence = accepted.census.models[model];
+  expect({
+    readDay: evidence?.readDay,
+    expected: evidence?.expected,
+    confirmed: evidence?.confirmed,
+  }).toEqual({
+    readDay: day,
+    expected: before.records.length,
+    confirmed: false,
+  });
+
+  // The next run reads it again although it is outside that day's slice.
+  const next = await census(native, day + 1, dropped.terminal);
+  expect(next.models).toEqual([...slice(day + 1), model].sort((a, b) => a - b));
+  expect(next.warnings.at(-1)).toContain("short 1");
+  expect(next.vins).toEqual(native.vins());
+  const settled = JimsimportCursor.parse(next.terminal);
+  if (settled.phase !== "complete" || !settled.census)
+    throw new Error("Expected a terminal census");
+  // Once re-read, the badge-sized page is its own expectation and carries.
+  expect(settled.census.models[model]?.expected).toBe(badge);
+  expect(settled.census.models[model]?.readDay).toBe(day + 1);
 }, 240_000);

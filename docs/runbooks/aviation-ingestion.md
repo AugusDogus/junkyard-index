@@ -62,17 +62,24 @@ from YMM, fetches hidden inventory links, individual details or images, submits
 lookups, follows redirects or retries a failed request.
 
 Closing checks repeat official ownership, the root-configured make directory and
-every model list read this run whose card count differs from its badge, so a
-short page that does not repeat is never carried forward. Carried model lists
+every model list read this run whose card count differs from its badge or falls
+below its expected count (`ModelCensus.closingReads`), so a short page that does
+not repeat is never carried forward. A model's expected count is its badge, or
+its last accepted card count when that was higher and the badge is unchanged
+(about 32 lists carry surplus cards). A list that only fell below that higher
+count is read again on the next run. Carried model lists
 were confirmed on the run that read them; other per-model changes surface as
 badge changes in the next run's opening menus. Changed graph/list fingerprints
 fail before emission.
 Before the snapshot, read and carried model cards, each model capped at its own
 badge, must cover at least 95% of today's model badges
 (`AVIATION_MINIMUM_BADGE_COVERAGE`). The November 12 capture covers 2,482 of
-2,482 (surplus cards never offset another model's shortfall). A sweep slice cut
-to one card per model leaves 82.8% to 88.6%, so a fault that breaks pages a
-sixth at a time fails its first run and publishes nothing.
+2,482 (surplus cards never offset another model's shortfall). Models whose
+badge is unchanged must also list at least 97% of their last accepted cards
+(`MODEL_CENSUS_REPLAY_MINIMUM`). A sweep slice cut to one card per model leaves
+82.8% to 88.6% of the badges and 82.7% to 88.8% of the 2,524 replayed cards, so
+a fault that breaks pages a sixth at a time fails its first run and publishes
+nothing.
 The saved qualification has nine byte-stable live closing bodies: `/parts/`,
 KIA and Pontiac make directories, and the Rio, Tahoe, Mercedes C-Class,
 Mercedes GLC-Class, Yukon and Enclave model lists. Its final root has one rolling

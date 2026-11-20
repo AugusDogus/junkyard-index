@@ -27,10 +27,15 @@ conflicts share the existing connected quarantine rules. No inventory is emitted
 until closing root, directory, every make, first/last model and every contradictory
 model witnesses match. Model pages follow the shared incremental census
 (`model-census.ts`); a short page is carried only after its closing re-read
-confirmed it. Before anything is published, read and carried cards, each model
-capped at its badge, must cover at least 95% of today's model badges. The saved
+confirmed it. Closing also re-reads a page that fell below the higher card count
+the last census listed under an unchanged badge, and the next run reads it
+again. Before anything is published, read and carried cards, each model capped
+at its badge, must cover at least 95% of today's model badges, and models with
+unchanged badges must list at least 97% of their last accepted cards. The saved
 census covers 99.63% (6,934 of 6,960); emptying any one sweep slice of it
-leaves 76.0% to 88.9%. The 1% unrecovered rule still applies. Checkpoints
+leaves 76.0% to 88.9%. Cutting any one sweep slice to one card per model leaves
+77.0% to 89.6% of badges and 77.3% to 90.0% of last accepted cards, so both
+floors fail it. The 1% unrecovered rule still applies. Checkpoints
 retain the complete native claims and validate contiguous graph prefixes,
 request counts, context and hashes.
 

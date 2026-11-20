@@ -30,7 +30,7 @@ const scope = jimsimportHash({
   catalog: JIMSIMPORT_CATALOG,
   yard: JIMSIMPORT_YARD,
   floor: 1_216,
-  census: "incremental-model-census-v2",
+  census: "incremental-model-census-v3",
 });
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
 /** Every model page of an accepted run, carried forward by the next one. */
@@ -131,21 +131,27 @@ const jimsimportCards = (page: JimsimportPage) => page.records.length;
 /** Badges are diagnostic, not exact card counts: on the saved Nov 15 census
  * 23 of 334 models disagree, but cards capped at each badge cover 3,980 of
  * 3,981 (99.97%). An empty sweep slice leaves at most 86.7% (3,453 of 3,981
- * on the lightest slice), so it fails on its first day. */
+ * on the lightest slice) and one cut to a single card per model at most 88.1%
+ * (3,507 of 3,981), so either fails on its first day. */
 export const JIMSIMPORT_MINIMUM_BADGE_COVERAGE = 0.95;
 
 /** Fails a complete opening whose read and carried model cards fall short of
- * today's model badges, before any snapshot or callback. */
+ * today's model badges or of the last accepted cards of models whose badge is
+ * unchanged, before any snapshot or callback. */
 export function jimsimportCoverageError(state: {
   menus: readonly JimsimportMenu[];
   opening: readonly JimsimportPage[];
+  previous: JimsimportCensus | null;
 }): string | null {
   const models = jimsimportModels(state.menus);
   return ModelCensus.coverage(
     "Jim's Import",
-    censusControls(state.menus),
-    state.opening,
-    jimsimportCards,
+    {
+      controls: censusControls(state.menus),
+      pages: state.opening,
+      previous: state.previous,
+      cards: jimsimportCards,
+    },
     JIMSIMPORT_MINIMUM_BADGE_COVERAGE,
     (index) => models[index]?.model.path ?? "?",
   );
@@ -158,11 +164,12 @@ export interface JimsimportClosingModel {
   index: number;
 }
 
-/** Model pages read this run whose cards differ from their badge, re-read
- * after the make directory so a short page is confirmed before it can be
- * carried. Carried pages were confirmed on the run that read them; other
- * per-model changes surface as count changes in the next run's opening
- * menus. Derived only from cursor contents of a complete opening. */
+/** Model pages read this run whose cards differ from their badge or fall
+ * below their expected count (ModelCensus.closingReads), re-read after the
+ * make directory so a short page is confirmed before it can be carried.
+ * Carried pages were confirmed on the run that read them; other per-model
+ * changes surface as count changes in the next run's opening menus. Derived
+ * only from cursor contents of a complete opening. */
 export function jimsimportClosingModels(state: {
   menus: readonly JimsimportMenu[];
   opening: readonly JimsimportPage[];
@@ -170,15 +177,19 @@ export function jimsimportClosingModels(state: {
   day: number | null;
 }): JimsimportClosingModel[] {
   const models = jimsimportModels(state.menus);
-  const decisions = jimsimportCensusPlan(state);
-  return state.opening.flatMap((page, index) => {
+  if (state.opening.length > models.length)
+    throw new Error(
+      "Jim's Import closing model is outside the published graph",
+    );
+  return ModelCensus.closingReads({
+    controls: censusControls(state.menus),
+    pages: state.opening,
+    decisions: jimsimportCensusPlan(state),
+    previous: state.previous,
+    cards: jimsimportCards,
+  }).flatMap((index) => {
     const entry = models[index];
-    if (!entry)
-      throw new Error(
-        "Jim's Import closing model is outside the published graph",
-      );
-    return decisions[index]?.kind === "read" &&
-      page.records.length !== entry.model.count
+    return entry
       ? [{ url: JIMSIMPORT_ORIGIN + entry.model.path, ...entry, index }]
       : [];
   });
@@ -195,13 +206,17 @@ export function jimsimportCensus(state: {
   return ModelCensus.accept(
     scope,
     state.day,
-    censusControls(state.menus),
-    state.opening,
-    jimsimportCensusPlan(state),
+    {
+      controls: censusControls(state.menus),
+      pages: state.opening,
+      decisions: jimsimportCensusPlan(state),
+      previous: state.previous,
+      cards: jimsimportCards,
+    },
     // Closing re-reads every model read this run whose cards differ from its
-    // badge and fails on any required-donor change.
+    // badge or fall below its expected count and fails on any required-donor
+    // change.
     "confirmed",
-    jimsimportCards,
   );
 }
 

@@ -74,10 +74,14 @@ function yard() {
   );
   const arrival = { model: 0, stock: "S0A" };
   // Models whose page renders the native empty result, omits its last donor,
-  // or lists one donor beyond its badge, while the menus keep their counts.
+  // lists one donor beyond its badge, or lists only its first donor, while the
+  // menus keep their counts.
   const broken = new Set<number>();
   const short = new Set<number>();
   const extra = new Set<number>();
+  const cut = new Set<number>();
+  // Menu badges that differ from the model's donors.
+  const badges = new Map<number, number>();
   const document = (url: string): string | undefined => {
     if (url === CALTON_ROOT) {
       const model = models[arrival.model];
@@ -106,7 +110,11 @@ function yard() {
         `<div id="menumodellist">${models
           .filter((m) => m.make === make)
           .map((m) =>
-            control(`/parts/${m.make}/${m.label}`, m.label, m.stocks.length),
+            control(
+              `/parts/${m.make}/${m.label}`,
+              m.label,
+              badges.get(models.indexOf(m)) ?? m.stocks.length,
+            ),
           )
           .join("")}</div>`,
         "/parts/" + make,
@@ -119,9 +127,11 @@ function yard() {
       return caltonFixtureDocument(CALTON_EMPTY_REGION, path);
     const stocks = short.has(index)
       ? model.stocks.slice(0, -1)
-      : extra.has(index)
-        ? [...model.stocks, `S${index}X`]
-        : model.stocks;
+      : cut.has(index)
+        ? model.stocks.slice(0, 1)
+        : extra.has(index)
+          ? [...model.stocks, `S${index}X`]
+          : model.stocks;
     return caltonFixtureDocument(
       `<div id="iiscont"><div class="aps-la-grid">${stocks
         .map((stock) => card(model, stock))
@@ -129,7 +139,7 @@ function yard() {
       path,
     );
   };
-  return { models, arrival, broken, short, extra, document };
+  return { models, arrival, broken, short, extra, cut, badges, document };
 }
 type Yard = ReturnType<typeof yard>;
 
@@ -516,5 +526,79 @@ test("a run fails when today's swept model pages render empty while their badges
   );
   expect(String(failure)).toContain("Calton model badge coverage");
   expect(String(failure)).toContain("below the 95% coverage floor");
+  expect(published).toEqual([]);
+});
+
+test("a surplus page that drops to its badge is read again on the next run", async () => {
+  // 22 live models list one row above their badge. A swept page that loses
+  // that row lists exactly its badge, which neither the badge nor the badge
+  // coverage can see. It falls below its previous card count, so the next run
+  // reads it again instead of carrying it for up to six days.
+  const site = yard();
+  // Four donors per model keep the one lost row above the replay floor.
+  site.models.forEach((model, index) =>
+    model.stocks.push(`S${index}C`, `S${index}D`),
+  );
+  const sweep = sweepAt(site, D + 1);
+  const surplus = sweep[0];
+  if (surplus === undefined) throw new Error("fixture needs a swept model");
+  site.extra.add(surplus);
+  const cold = await runDay(site, D, null);
+  expect(cold.published).toContain(vin(`S${surplus}X`));
+  // Day D + 1 sweeps the surplus page, which now lists exactly its badge.
+  site.extra.clear();
+  const dropped = await runDay(site, D + 1, cold.terminal);
+  expect(dropped.modelReads).toEqual(urlsAt(site, sweep));
+  expect(dropped.published).not.toContain(vin(`S${surplus}X`));
+  if (dropped.cursor.phase !== "complete" || !dropped.cursor.census)
+    throw new Error("Expected a terminal census");
+  expect(dropped.cursor.census.models[surplus]).toMatchObject({
+    count: 4,
+    expected: 5,
+    confirmed: false,
+  });
+  expect(dropped.cursor.census.models[surplus]?.page.records).toHaveLength(4);
+  // Day D + 2: the badge is unchanged, but the page is read again (short).
+  const nextSweep = sweepAt(site, D + 2);
+  expect(nextSweep).not.toContain(surplus);
+  const next = await runDay(site, D + 2, dropped.terminal);
+  expect(next.modelReads).toEqual(
+    urlsAt(
+      site,
+      [...nextSweep, surplus].sort((a, b) => a - b),
+    ),
+  );
+  expect(next.warnings).toContain(
+    `Calton Read ${nextSweep.length + 1} of ${MODEL_COUNT} model pages (${sweepAndOne(nextSweep, surplus, "short")}); carried ${MODEL_COUNT - nextSweep.length - 1}.`,
+  );
+  // That read agrees with its badge and its previous page, so it carries again.
+  const settled = await runDay(site, D + 3, next.terminal);
+  expect(settled.modelReads).toEqual(urlsAt(site, sweepAt(site, D + 3)));
+  expect([...settled.published].sort()).toEqual(expectedVins(site));
+});
+
+test("a run fails when today's swept pages list one card each while their badges hold", async () => {
+  // Badges below their pages' rows (as on Calton's surplus models) keep badge
+  // coverage at 100% when those pages are cut to one card each. Only the
+  // replay of the last accepted card counts sees the broken sweep slice.
+  const site = yard();
+  const sweep = sweepAt(site, D + 1);
+  expect(sweep.length).toBeGreaterThan(0);
+  for (const index of sweep) {
+    site.models[index]?.stocks.push(`S${index}C`);
+    site.badges.set(index, 1);
+  }
+  const cold = await runDay(site, D, null);
+  expect([...cold.published].sort()).toEqual(expectedVins(site));
+  for (const index of sweep) site.cut.add(index);
+  const published: string[] = [];
+  const failure = await runDay(site, D + 1, cold.terminal, published).then(
+    () => null,
+    (error: unknown) => error,
+  );
+  expect(String(failure)).toContain("Calton model badge coverage");
+  expect(String(failure)).toContain(
+    "that the last accepted census listed for models whose counts did not change, below the 97% coverage floor",
+  );
   expect(published).toEqual([]);
 });

@@ -23,7 +23,7 @@ export const oemHash = (value: unknown) =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
 /** Parser, traversal and closing contract for carried model evidence. */
 const OEM_CENSUS_CONTRACT =
-  "oem/OH40/literal-model-graph/arrival-union/make-directory-closing/incremental-model-census-v3-confirmed-short-pages";
+  "oem/OH40/literal-model-graph/arrival-union/make-directory-closing/incremental-model-census-v4-expected-surplus-replay";
 /** Every model page of an accepted run, carried forward by the next one. */
 export const OemCensusSchema = ModelCensus.schema(OemPageSchema, 1024);
 export type OemCensus = z.infer<typeof OemCensusSchema>;
@@ -100,10 +100,11 @@ export type OemClosingControl =
       index: number;
     };
 /** Closing re-reads the make directory (every page already proves OH40
- * ownership) and every model read this run whose cards differ from its badge,
- * so a short page is confirmed before it can be carried. Carried pages were
- * confirmed on the run that read them; other per-model changes surface as badge
- * changes in the next run's opening menus. */
+ * ownership) and every model read this run whose cards differ from its badge or
+ * fall below its expected count (ModelCensus.closingReads), so a short page is
+ * confirmed before it can be carried. Carried pages were confirmed on the run
+ * that read them; other per-model changes surface as badge changes in the next
+ * run's opening menus. */
 export function oemClosingControls(
   state: Pick<
     OemCensusState,
@@ -111,14 +112,17 @@ export function oemClosingControls(
   >,
 ): OemClosingControl[] {
   const models = oemModels(state.menus);
-  const decisions = oemCensusPlan(state);
   return [
     { kind: "makes", url: OEM_MAKES },
-    ...state.pages.flatMap((page, index) => {
+    ...ModelCensus.closingReads({
+      controls: oemCensusControls(state.menus),
+      pages: state.pages,
+      decisions: oemCensusPlan(state),
+      previous: state.previous,
+      cards: oemCards,
+    }).flatMap((index) => {
       const entry = models[index];
-      return entry &&
-        decisions[index]?.kind === "read" &&
-        page.records.length !== entry.model.count
+      return entry
         ? [
             {
               kind: "model" as const,
@@ -199,19 +203,25 @@ const oemCards = (page: OemPage) => page.records.length;
  * census listed 2,167 cards under 2,428 badges (89.25%, each model capped at
  * its badge). Emptying any one of its six sweep slices drops that to 70.5% to
  * 79.0%, so 82% leaves about 7 points for extra lag and still fails the first
- * run whose swept pages break. */
+ * run whose swept pages break. Cutting a slice to one card per model leaves
+ * 73.0% to 80.6% of badges, close to this floor; on incremental runs the replay
+ * floor (ModelCensus.coverage) catches that cut at 81.8% to 90.3% of the last
+ * accepted cards. */
 export const OEM_MINIMUM_BADGE_COVERAGE = 0.82;
 /** Fails a run whose read and carried model cards fall short of today's model
  * badges, before anything is published. */
 export function oemCoverageError(
-  state: Pick<OemCensusState, "menus" | "pages">,
+  state: Pick<OemCensusState, "menus" | "pages" | "previous">,
 ): string | null {
   const models = oemModels(state.menus);
   return ModelCensus.coverage(
     "OEM",
-    oemCensusControls(state.menus),
-    state.pages,
-    oemCards,
+    {
+      controls: oemCensusControls(state.menus),
+      pages: state.pages,
+      previous: state.previous,
+      cards: oemCards,
+    },
     OEM_MINIMUM_BADGE_COVERAGE,
     (index) => {
       const entry = models[index];
@@ -224,12 +234,15 @@ export function oemCensus(state: OemCensusState): OemCensus {
   return ModelCensus.accept(
     OEM_CENSUS_CONTRACT,
     state.day,
-    oemCensusControls(state.menus),
-    state.pages,
-    oemCensusPlan(state),
+    {
+      controls: oemCensusControls(state.menus),
+      pages: state.pages,
+      decisions: oemCensusPlan(state),
+      previous: state.previous,
+      cards: oemCards,
+    },
     // Closing re-reads every short page read this run and fails on a change.
     "confirmed",
-    oemCards,
   );
 }
 const cursor = z

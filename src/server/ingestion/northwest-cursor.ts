@@ -29,7 +29,7 @@ const scope = northwestHash({
   version: 1,
   yard: NORTHWEST_YARD,
   contract:
-    "AK01/legacy-model-graph/all-identity-conflicts-quarantined/one-percent-unrecovered/incremental-model-census-v2",
+    "AK01/legacy-model-graph/all-identity-conflicts-quarantined/one-percent-unrecovered/incremental-model-census-v3",
 });
 // Census pages are written from parsed pages, so every defaulted record field
 // is present; requiring them keeps the census page type equal to NorthwestPage.
@@ -90,26 +90,30 @@ export type NorthwestClosingControl =
     };
 
 /** Closing re-reads ownership, the make directory and every model read this
- * run whose cards differ from its badge, so a short page is confirmed before it
- * can be carried. Carried pages were confirmed on the run that read them; make
+ * run whose cards differ from its badge or fall below its expected count
+ * (ModelCensus.closingReads), so a short page is confirmed before it can be
+ * carried. Carried pages were confirmed on the run that read them; make
  * menu and other model changes during the run surface as model badge changes
  * in the next run's opening menus, which are all read. */
 export function northwestClosingControls(
   state: Pick<NorthwestProgress, "makes" | "pages" | "previous" | "day">,
 ): NorthwestClosingControl[] {
   const models = northwestModels(state.makes);
-  const decisions = northwestCensusPlan(state);
+  if (state.pages.length > models.length)
+    throw new Error("Northwest closing model is outside the published graph");
+  const reads = ModelCensus.closingReads({
+    controls: northwestCensusControls(state.makes),
+    pages: state.pages,
+    decisions: northwestCensusPlan(state),
+    previous: state.previous,
+    cards: northwestCards,
+  });
   return [
     { kind: "root", url: NORTHWEST_ROOT },
     { kind: "directory", url: NORTHWEST_MAKES },
-    ...state.pages.flatMap((page, index) => {
+    ...reads.flatMap((index) => {
       const entry = models[index];
-      if (!entry)
-        throw new Error(
-          "Northwest closing model is outside the published graph",
-        );
-      return decisions[index]?.kind === "read" &&
-        page.records.length !== entry.model.count
+      return entry
         ? [
             {
               kind: "model",
@@ -170,20 +174,26 @@ export function northwestCensusPlan(
 /** Cards the closing compares with the model badge. */
 const northwestCards = (page: NorthwestPage) => page.records.length;
 /** The saved 334-model census lists 6,934 of 6,960 model-badge cards (99.63%).
- * Emptying any one sweep slice of it leaves 76.0% to 88.9%. */
+ * Emptying any one sweep slice of it leaves 76.0% to 88.9%; cutting one to a
+ * single card per model leaves 77.0% to 89.6% (and 77.3% to 90.0% of the
+ * replayed cards, below the shared 97% replay floor). */
 export const NORTHWEST_MINIMUM_BADGE_COVERAGE = 0.95;
 
 /** Fails a run whose read and carried model cards fall short of today's model
- * badges, before anything is published. */
+ * badges or of the last accepted cards of models with unchanged badges, before
+ * anything is published. */
 export function northwestCoverageError(
-  state: Pick<NorthwestProgress, "makes" | "pages">,
+  state: Pick<NorthwestProgress, "makes" | "pages" | "previous">,
 ): string | null {
   const models = northwestModels(state.makes);
   return ModelCensus.coverage(
     "Northwest",
-    northwestCensusControls(state.makes),
-    state.pages,
-    northwestCards,
+    {
+      controls: northwestCensusControls(state.makes),
+      pages: state.pages,
+      previous: state.previous,
+      cards: northwestCards,
+    },
     NORTHWEST_MINIMUM_BADGE_COVERAGE,
     (index) => {
       const entry = models[index];
@@ -198,13 +208,16 @@ export function northwestCensus(state: NorthwestProgress): NorthwestCensus {
   return ModelCensus.accept(
     scope,
     state.day,
-    northwestCensusControls(state.makes),
-    state.pages,
-    northwestCensusPlan(state),
+    {
+      controls: northwestCensusControls(state.makes),
+      pages: state.pages,
+      decisions: northwestCensusPlan(state),
+      previous: state.previous,
+      cards: northwestCards,
+    },
     // Closing re-reads every page read this run whose cards differ from its
-    // badge and fails the run on any change.
+    // badge or fall below its expected count and fails the run on any change.
     "confirmed",
-    northwestCards,
   );
 }
 

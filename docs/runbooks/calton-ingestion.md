@@ -29,12 +29,18 @@ response are preserved. No atomic provider-wide snapshot is claimed.
 Daily runs read every menu, then only new, recounted, arrival-triggered, stale
 or swept model pages, and carry the rest from the last accepted census. Calton
 has no closing pass, so a model page read short of its badge is read again on
-the next run instead of being carried. Rows above the badge are not short.
-Before the snapshot, read and carried model cards, each model capped at its own
-badge, must cover at least 95% of today's model badges
-(`CALTON_MINIMUM_BADGE_COVERAGE`). The November 13 capture covers 12,856 of
-12,857; only `CHEVROLET_PASS.` is short. Emptying one sweep slice leaves 78.6%
-to 87.9%, so that fault fails its first run and publishes nothing.
+the next run instead of being carried. Rows above the badge are not short, but
+22 captured models list one row above their badge, and a page that falls below
+its last accepted card count while its badge holds is also read again on the
+next run. Before the snapshot, read and carried model cards, each model capped
+at its own badge, must cover at least 95% of today's model badges
+(`CALTON_MINIMUM_BADGE_COVERAGE`), and models with unchanged badges must still
+list 97% of their last accepted cards (the shared replay floor). The November 13
+capture covers 12,856 of 12,857; only `CHEVROLET_PASS.` is short. Emptying one
+sweep slice leaves 78.6% to 87.9% of badges. Cutting one slice to a single card
+per model leaves 79.4% to 88.8% of badges and of the 12,879 accepted cards (the
+lightest slice, 111 models and 1,554 cards, keeps 11,413 of 12,857 badges and
+11,435 of 12,879 cards). Either fault fails its first run and publishes nothing.
 
 Required VIN or supported historical serial, year, make, model and owned donor
 destination come from native claims. No VIN decoder fills or changes identity.
