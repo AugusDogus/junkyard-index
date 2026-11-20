@@ -3,27 +3,35 @@ import {
   aplusHash,
   AplusControlSchema,
   AplusPageSchema,
-  type AplusControl,
+  type AplusPage,
 } from "./aplus-parser";
 import { aplusModels, type AplusMake } from "./aplus-snapshot";
+import {
+  ModelCensus,
+  type ModelCensusControl,
+  type ModelCensusDecision,
+} from "./model-census";
 import {
   APLUS_CONTACT,
   APLUS_MAKES,
   APLUS_ORIGIN,
-  APLUS_ROOT,
   APLUS_YARD,
   aplusBrowsePath,
 } from "./aplus-yard-metadata";
 
-export const APLUS_MAX_CURSOR_BYTES = 1024 * 1024;
+// Room for the previous census plus this run's pages (about 0.3 MiB each today).
+export const APLUS_MAX_CURSOR_BYTES = 4 * 1024 * 1024;
 export const APLUS_MAX_REQUESTS = 1024;
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
 const scope = aplusHash({
   version: 1,
   yard: APLUS_YARD,
   authority:
-    "literal-model-graph/native-arrival-union/all-conflicts-quarantined-v1",
+    "literal-model-graph/native-arrival-union/all-conflicts-quarantined/incremental-model-census-v1",
 });
+/** Every model page read by an accepted run, carried forward by the next one. */
+export const AplusCensusSchema = ModelCensus.schema(AplusPageSchema, 512);
+export type AplusCensus = z.infer<typeof AplusCensusSchema>;
 const MakeSchema = AplusControlSchema.extend({
   models: z.array(AplusControlSchema).max(128).nullable(),
 });
@@ -44,36 +52,50 @@ const progress = z
     contact: hash.nullable(),
     makes: z.array(MakeSchema).max(64),
     pages: z.array(AplusPageSchema).max(512),
-    arrivals: z.array(AplusPageSchema).max(2),
+    arrivals: z.array(AplusPageSchema).max(1),
     closing: z.number().int().min(0).max(1024),
     requests: z.number().int().min(0).max(APLUS_MAX_REQUESTS),
+    /** UTC run day fixed before the first request; null only in the initial cursor. */
+    day: z.number().int().nonnegative().safe().nullable(),
+    /** Compatible census from the last accepted run, or null for a cold census. */
+    previous: AplusCensusSchema.nullable(),
   })
   .strict();
 export type AplusProgress = z.infer<typeof progress>;
 export type AplusClosingControl =
   | { kind: "contact"; url: typeof APLUS_CONTACT }
-  | { kind: "directory"; url: typeof APLUS_MAKES }
-  | { kind: "make"; url: string; make: AplusMake }
-  | {
-      kind: "model";
-      url: string;
-      make: AplusMake;
-      model: AplusControl;
-      index: number;
-    }
-  | { kind: "root"; url: typeof APLUS_ROOT };
+  | { kind: "directory"; url: typeof APLUS_MAKES };
 
-export function aplusClosingControls(
-  state: Pick<AplusProgress, "makes" | "pages" | "arrivals">,
-): AplusClosingControl[] {
+/** Closing re-reads ownership and the make directory only. Per-model changes
+ * during the run surface as count changes in the next run's opening menus. */
+export function aplusClosingControls(): AplusClosingControl[] {
+  return [
+    { kind: "contact", url: APLUS_CONTACT },
+    { kind: "directory", url: APLUS_MAKES },
+  ];
+}
+
+function aplusCensusControls(
+  makes: readonly AplusMake[],
+): ModelCensusControl[] {
+  return aplusModels(makes).map(({ make, model }) => ({
+    key: JSON.stringify([make.path, make.label, model.path, model.label]),
+    count: model.count,
+  }));
+}
+
+/** Read or carry each published model. A carried model is also read when an
+ * opening arrival names it but its carried page lacks that donor. */
+export function aplusCensusPlan(
+  state: Pick<AplusProgress, "makes" | "arrivals" | "previous" | "day">,
+): ModelCensusDecision<AplusPage>[] {
+  if (state.day === null) throw new Error("Aplus census plan needs a run day");
+  const controls = aplusCensusControls(state.makes);
   const models = aplusModels(state.makes);
-  const selected = new Set<number>(models.length ? [0, models.length - 1] : []);
-  state.pages.forEach((page, index) => {
-    if (page.records.length !== models[index]?.model.count) selected.add(index);
-  });
-  // Close every literal model containing an arrival absent from its own list.
-  // A native arrival-only model with no published control remains in the union;
-  // its detail URL is not repurposed into an invented browse route.
+  const carried = new Map(
+    (state.previous?.models ?? []).map((m) => [m.key, m.page]),
+  );
+  const triggers = new Set<string>();
   for (const record of state.arrivals[0]?.records ?? []) {
     const path = record[4].startsWith(APLUS_ORIGIN)
       ? record[4].slice(APLUS_ORIGIN.length)
@@ -82,40 +104,23 @@ export function aplusClosingControls(
     const index = models.findIndex(
       (m) => m.model.path.replace(/\/$/, "") === parent,
     );
-    if (
-      index >= 0 &&
-      !state.pages[index]?.records.some((r) => r[0] === record[0])
-    )
-      selected.add(index);
+    const key = controls[index]?.key;
+    if (key && !carried.get(key)?.records.some((r) => r[0] === record[0]))
+      triggers.add(key);
   }
-  const modelControls = [...selected]
-    .sort((a, b) => a - b)
-    .map((index) => {
-      const value = models[index];
-      if (!value)
-        throw new Error("Aplus closing model is outside the published graph");
-      return {
-        kind: "model",
-        url: APLUS_ORIGIN + value.model.path,
-        make: value.make,
-        model: value.model,
-        index,
-      } satisfies AplusClosingControl;
-    });
-  return [
-    { kind: "contact", url: APLUS_CONTACT },
-    { kind: "directory", url: APLUS_MAKES },
-    ...state.makes.map(
-      (make) =>
-        ({
-          kind: "make",
-          url: APLUS_ORIGIN + make.path,
-          make,
-        }) satisfies AplusClosingControl,
-    ),
-    ...modelControls,
-    { kind: "root", url: APLUS_ROOT },
-  ];
+  return ModelCensus.plan(controls, state.previous, state.day, triggers);
+}
+
+/** Terminal census for a fully closed run. */
+export function aplusCensus(state: AplusProgress): AplusCensus {
+  if (state.day === null) throw new Error("Aplus census has no run day");
+  return ModelCensus.accept(
+    scope,
+    state.day,
+    aplusCensusControls(state.makes),
+    state.pages,
+    aplusCensusPlan(state),
+  );
 }
 
 function checksum(state: Omit<AplusProgress, "checksum"> | AplusProgress) {
@@ -130,6 +135,8 @@ function checksum(state: Omit<AplusProgress, "checksum"> | AplusProgress) {
     arrivals: state.arrivals,
     closing: state.closing,
     requests: state.requests,
+    day: state.day,
+    previous: state.previous,
   });
 }
 
@@ -140,6 +147,8 @@ export const AplusCursorSchema = z
         source: z.literal("aplus"),
         version: z.literal(1),
         phase: z.literal("complete"),
+        // Pre-incremental terminal cursors stay readable but seed a cold census.
+        census: AplusCensusSchema.optional(),
       })
       .strict(),
     progress,
@@ -167,13 +176,7 @@ export const AplusCursorSchema = z
       ).length;
       if (
         (stage === 0) !== (state.contact === null) ||
-        (stage < 2
-          ? state.arrivals.length !== 0
-          : state.arrivals.length !==
-            (state.phase === "closing" &&
-            state.closing === aplusClosingControls(state).length
-              ? 2
-              : 1))
+        state.arrivals.length !== (stage < 2 ? 0 : 1)
       )
         throw new Error("Aplus owner/root phase evidence is inconsistent");
       if (
@@ -196,8 +199,29 @@ export const AplusCursorSchema = z
       )
         throw new Error("Aplus model page phase/order is inconsistent");
       if (
+        state.day === null
+          ? state.requests !== 0 || state.previous !== null
+          : state.previous !== null &&
+            (state.previous.contract !== scope ||
+              state.previous.day > state.day)
+      )
+        throw new Error("Aplus run day or previous census is inconsistent");
+      // Carried pages are exactly the previous census evidence and cost no GET.
+      let readPages = 0;
+      if (stage >= 4) {
+        const decisions = aplusCensusPlan(state);
+        state.pages.forEach((page, index) => {
+          const decision = decisions[index];
+          if (decision?.kind === "read") readPages++;
+          else if (decision?.evidence.page.hash !== page.hash)
+            throw new Error("Aplus carried model page differs from its census");
+        });
+        if (stage === 4 && decisions[state.pages.length]?.kind !== "read")
+          throw new Error("Aplus next model page is not due for a read");
+      }
+      if (
         (stage < 5 && state.closing !== 0) ||
-        (stage === 5 && state.closing > aplusClosingControls(state).length)
+        (stage === 5 && state.closing > aplusClosingControls().length)
       )
         throw new Error("Aplus closing control prefix is inconsistent");
       if (
@@ -206,9 +230,8 @@ export const AplusCursorSchema = z
           state.arrivals.length +
           (state.makes.length ? 1 : 0) +
           completedMakes +
-          state.pages.length +
-          state.closing -
-          (state.arrivals.length === 2 ? 1 : 0)
+          readPages +
+          state.closing
       )
         throw new Error("Aplus request accounting is inconsistent");
       if (
@@ -255,13 +278,15 @@ const initial: Omit<AplusProgress, "checksum"> = {
   arrivals: [],
   closing: 0,
   requests: 0,
+  day: null,
+  previous: null,
 };
 export const AplusCursor = {
   initial: { ...initial, checksum: checksum(initial) },
   parse(value: string): AplusCursor {
     if (Buffer.byteLength(value) > APLUS_MAX_CURSOR_BYTES)
       throw new Error(
-        "Aplus cursor wire payload exceeds 1 MiB; keep the last validated checkpoint",
+        "Aplus cursor wire payload exceeds 4 MiB; keep the last validated checkpoint",
       );
     let candidate: unknown;
     try {
@@ -277,9 +302,38 @@ export const AplusCursor = {
     const value = JSON.stringify(AplusCursorSchema.parse(cursor));
     if (Buffer.byteLength(value) > APLUS_MAX_CURSOR_BYTES)
       throw new Error(
-        "Aplus cursor wire payload exceeds 1 MiB; keep the last validated checkpoint",
+        "Aplus cursor wire payload exceeds 4 MiB; keep the last validated checkpoint",
       );
     return value;
+  },
+  /** Fixes the run day and adopts the last accepted census before the first
+   * request. Anything unusable starts a cold census with a warning. */
+  begin(
+    cursor: AplusProgress,
+    now: number,
+    previousCursor: unknown,
+  ): { cursor: AplusProgress; warning: string | null } {
+    if (cursor.day !== null) return { cursor, warning: null };
+    const day = ModelCensus.day(now);
+    const parsed = AplusCursorSchema.safeParse(previousCursor ?? undefined);
+    const previous =
+      parsed.success && parsed.data.phase === "complete"
+        ? ModelCensus.previous(parsed.data.census, scope, day)
+        : {
+            kind: "cold" as const,
+            warning:
+              previousCursor === null || previousCursor === undefined
+                ? null
+                : "Previous Aplus checkpoint is not a readable terminal census; reading every model page.",
+          };
+    return {
+      cursor: AplusCursor.checkpoint({
+        ...cursor,
+        day,
+        previous: previous.kind === "incremental" ? previous.census : null,
+      }),
+      warning: previous.kind === "cold" ? previous.warning : null,
+    };
   },
   checkpoint(
     state: Omit<AplusProgress, "checksum"> | AplusProgress,
@@ -297,6 +351,11 @@ export const AplusCursor = {
   initial: AplusProgress;
   parse: (value: string) => AplusCursor;
   serialize: (cursor: AplusCursor) => string;
+  begin: (
+    cursor: AplusProgress,
+    now: number,
+    previousCursor: unknown,
+  ) => { cursor: AplusProgress; warning: string | null };
   checkpoint: (
     state: Omit<AplusProgress, "checksum"> | AplusProgress,
   ) => AplusProgress;

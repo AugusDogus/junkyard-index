@@ -1,0 +1,200 @@
+import { afterEach, expect, test } from "bun:test";
+import { Effect } from "effect";
+import { streamAplusInventoryWithRequestGate } from "./aplus-connector";
+import { AplusCursor } from "./aplus-cursor";
+import type { AplusControl, AplusRecord } from "./aplus-parser";
+import {
+  APLUS_CONTACT,
+  APLUS_MAKES,
+  APLUS_ORIGIN,
+  APLUS_ROOT,
+} from "./aplus-yard-metadata";
+import {
+  aplusFixtureContact,
+  aplusFixtureDirectory,
+  aplusFixtureModelPage,
+  aplusFixtureRoot,
+} from "./aplus-test-fixtures";
+import { MODEL_CENSUS_DAY_MS } from "./model-census";
+
+const originalFetch = globalThis.fetch;
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+});
+const gate = <A, E, R>(request: Effect.Effect<A, E, R>) => request;
+const make: AplusControl = { path: "/parts/ACURA", label: "ACURA", count: 0 };
+const label = (i: number) => "M" + i;
+const record = (model: number, n: number): AplusRecord => [
+  "1HGCM82633A" + String(model * 1000 + n).padStart(6, "0"),
+  "2003",
+  "ACURA " + label(model),
+  "ST" + model + "-" + n,
+  `/parts/ACURA/${label(model)}/ST${model}-${n}/2003`,
+  null,
+  null,
+];
+
+const donors = (model: number, n = 40) =>
+  Array.from({ length: n }, (_, i) => record(model, i + 1));
+
+/** Twelve models with 40 donors each (above the 407 floor); `rows` can be
+ * edited between runs. */
+function yard() {
+  const rows = new Map(Array.from({ length: 12 }, (_, i) => [i, donors(i)]));
+  // Arrivals always list at least one card; this donor is already on M0.
+  let arrivals: AplusRecord[] = [record(0, 1)];
+  const urls: string[] = [];
+  const models = () =>
+    [...rows].map(
+      ([i, list]): AplusControl => ({
+        path: `/parts/ACURA/${label(i)}/`,
+        label: label(i),
+        count: list.length,
+      }),
+    );
+  globalThis.fetch = Object.assign(
+    async (input: string | URL | Request) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+      urls.push(url);
+      const total = [...rows.values()].reduce((n, l) => n + l.length, 0);
+      const model = /\/parts\/ACURA\/M(\d+)\/$/.exec(url);
+      const body =
+        url === APLUS_CONTACT
+          ? aplusFixtureContact
+          : url === APLUS_ROOT
+            ? aplusFixtureRoot(arrivals)
+            : url === APLUS_MAKES
+              ? aplusFixtureDirectory([{ ...make, count: total }], "makes")
+              : url === APLUS_ORIGIN + make.path
+                ? aplusFixtureDirectory(models(), "models")
+                : model
+                  ? aplusFixtureModelPage(
+                      rows.get(Number(model[1])) ?? [],
+                      `Used ACURA ${label(Number(model[1]))} Parts`,
+                    )
+                  : undefined;
+      if (body === undefined) throw new Error("Unexpected request " + url);
+      return new Response(body, {
+        status: 200,
+        headers: { "content-type": "text/html" },
+      });
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  return {
+    rows,
+    urls,
+    setArrivals: (next: AplusRecord[]) => {
+      arrivals = next;
+    },
+  };
+}
+
+/** One full run on `day`, seeded by the previous terminal cursor. */
+async function census(
+  native: ReturnType<typeof yard>,
+  day: number,
+  previousCursor: unknown,
+) {
+  const before = native.urls.length;
+  let cursor: AplusCursor = AplusCursor.initial;
+  const vins: string[] = [];
+  const warnings: string[] = [];
+  while (cursor.phase !== "complete") {
+    const result = await Effect.runPromise(
+      streamAplusInventoryWithRequestGate(
+        {
+          startCursor: cursor,
+          // Only the first chunk may adopt a census; later chunks must not.
+          previousCursor,
+          now: () => day * MODEL_CENSUS_DAY_MS + 7 * 60 * 60 * 1000,
+          maxPages: 3,
+          onBatch: (batch) =>
+            Effect.sync(() => {
+              vins.push(...batch.map((v) => v.vin));
+            }),
+        },
+        gate,
+      ),
+    );
+    warnings.push(...result.warnings);
+    cursor = AplusCursor.parse(AplusCursor.serialize(result.cursor));
+  }
+  const models = native.urls
+    .slice(before)
+    .flatMap((url) => /\/parts\/ACURA\/M(\d+)\/$/.exec(url)?.[1] ?? [])
+    .map(Number);
+  return {
+    terminal: JSON.parse(AplusCursor.serialize(cursor)) as unknown,
+    requests: native.urls.length - before,
+    models,
+    vins: vins.sort(),
+    warnings,
+  };
+}
+
+const allVins = (native: ReturnType<typeof yard>) =>
+  [...native.rows.values()]
+    .flat()
+    .map((r) => r[0])
+    .sort();
+
+test("A Plus cold start reads every model and publishes its census", async () => {
+  const native = yard();
+  const cold = await census(native, 600, null);
+  expect(cold.models).toEqual(Array.from({ length: 12 }, (_, i) => i));
+  // contact, arrivals, makes, one menu, 12 models, closing contact and makes.
+  expect(cold.requests).toBe(18);
+  expect(cold.vins).toEqual(allVins(native));
+  expect(cold.warnings.at(-1)).toBe(
+    "Aplus Read 12 of 12 model pages (cold 12); carried 0.",
+  );
+  // An unreadable previous checkpoint is a warned cold census, not a failure.
+  const fallback = await census(native, 601, { source: "aplus", junk: true });
+  expect(fallback.models).toHaveLength(12);
+  expect(fallback.warnings[0]).toContain("reading every model page");
+});
+
+test("A Plus carries unread models, rotates the sweep and reads changes", async () => {
+  const native = yard();
+  const cold = await census(native, 600, null);
+  // Day 601: only the sweep slice (ordinal % 6 === 601 % 6) is read.
+  const next = await census(native, 601, cold.terminal);
+  expect(next.models).toEqual([1, 7]);
+  expect(next.requests).toBe(8);
+  // Carried donors are still published in full.
+  expect(next.vins).toEqual(allVins(native));
+
+  // Day 602: a sold donor changes model 4's count; on model 9 a donor is
+  // swapped for an arrival at the same count, which only the arrival reveals.
+  native.rows.set(4, donors(4, 39));
+  const arrival = record(9, 41);
+  native.rows.set(9, [...donors(9).slice(1), arrival]);
+  native.setArrivals([arrival]);
+  const changed = await census(native, 602, next.terminal);
+  expect(changed.models).toEqual([2, 4, 8, 9]);
+  expect(changed.vins).toEqual(allVins(native));
+  expect(changed.warnings.at(-1)).toBe(
+    "Aplus Read 4 of 12 model pages (sweep 2, count 1, trigger 1); carried 8.",
+  );
+});
+
+test("A Plus re-reads every model within six days, even across missed runs", async () => {
+  const native = yard();
+  let previous = (await census(native, 600, null)).terminal;
+  const lastRead = new Map<number, number>();
+  for (let i = 0; i < 12; i++) lastRead.set(i, 600);
+  // Skip day 601 and 602 entirely, then run daily.
+  for (const day of [603, 604, 605, 606, 607, 608, 609, 610, 611, 612]) {
+    const run = await census(native, day, previous);
+    for (const model of run.models) lastRead.set(model, day);
+    for (const read of lastRead.values()) expect(day - read).toBeLessThan(6);
+    expect(run.vins).toEqual(allVins(native));
+    previous = run.terminal;
+  }
+});

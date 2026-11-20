@@ -8,6 +8,7 @@ import { streamUrgiisInventoryFromProvider } from "./urgiis-connector";
 import { streamCstruckInventory } from "./cstruck-connector";
 import { streamByotInventoryFromProvider } from "./byot-connector";
 import { loadByotPublishedCursor } from "./byot-history";
+import { loadPublishedSourceCursor } from "./published-source-cursor";
 import { loadUrgiisPublishedCursor } from "./urgiis-history";
 import { db } from "~/lib/db";
 import { streamAlliedInventoryFromProvider } from "./allied-connector";
@@ -884,10 +885,20 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
       await runIngestionEffect(
         streamAplusInventory({
           startCursor: cursor,
+          previousCursor:
+            cursor.phase !== "complete" && cursor.day === null
+              ? await loadPublishedSourceCursor(db, "aplus")
+              : null,
           maxPages: context.maxPages,
           onBatch: context.onBatch,
           onYards: context.onYards,
-        }),
+        }).pipe(
+          Effect.tap((result) =>
+            Effect.sync(() => {
+              for (const warning of result.warnings) console.warn(warning);
+            }),
+          ),
+        ),
       ),
       (next) => next,
       context.vehiclesByVin,

@@ -73,11 +73,11 @@ function transport(
   return { bodies, urls, rows };
 }
 
-test("Aplus resumes serialized chunks and quarantines late required conflicts before any callbacks", async () => {
+test("Aplus resumes serialized chunks and quarantines required conflicts before any callbacks", async () => {
   const conflict = aplusFixtureRecord(1);
   conflict[2] = "ACURA RDX";
-  const arrivals = [aplusFixtureRecord(2), aplusFixtureRecord(1001)];
-  const native = transport(arrivals, [...arrivals, conflict]);
+  const arrivals = [aplusFixtureRecord(2), aplusFixtureRecord(1001), conflict];
+  const native = transport(arrivals);
   let cursor: AplusCursor = AplusCursor.initial;
   const vehicles: AplusCanonicalVehicle[] = [];
   let yards = 0;
@@ -121,8 +121,10 @@ test("Aplus resumes serialized chunks and quarantines late required conflicts be
     cursor = AplusCursor.parse(AplusCursor.serialize(result.cursor));
     chunks++;
   }
-  expect(chunks).toBe(5);
-  expect(native.urls).toHaveLength(10);
+  // Opening contact, arrivals, makes, one menu and one model; closing contact
+  // and makes.
+  expect(chunks).toBe(4);
+  expect(native.urls).toHaveLength(7);
   expect(vehicles).toHaveLength(1000);
   expect(vehicles.some((vehicle) => vehicle.vin === conflict[0])).toBe(false);
   expect(
@@ -179,16 +181,12 @@ test("Aplus keeps a chunk alive when one model page misses its deadline once", a
     }).pipe(Effect.provide(TestContext.TestContext)),
   );
   expect(result._tag).toBe("Right");
-  if (result._tag !== "Right") throw new Error("Expected a paused chunk");
-  expect(result.right.status).toBe("paused");
-  expect(result.right.count).toBe(0);
-  // The stalled attempt and its retry; the eight-page chunk pauses before the
-  // closing model control.
+  if (result._tag !== "Right") throw new Error("Expected a completed chunk");
+  // The stalled attempt and its retry; the chunk still closes the census.
   expect(native.urls.filter((url) => url === modelUrl)).toHaveLength(2);
-  expect(result.right.pagesProcessed).toBe(8);
-  if (result.right.cursor.phase !== "closing")
-    throw new Error("Expected the retried model page to be checkpointed");
-  expect(result.right.cursor.pages[0]?.records).toHaveLength(1000);
+  expect(result.right.pagesProcessed).toBe(7);
+  expect(result.right.status).toBe("complete");
+  expect(result.right.count).toBe(1000);
 });
 
 test("Aplus rejects checksum, noncontiguous prefix and foreign graph before further fetching", async () => {
@@ -240,20 +238,18 @@ test("Aplus rejects checksum, noncontiguous prefix and foreign graph before furt
   expect(native.urls).toHaveLength(before);
 });
 
-test("Aplus changed closing donor controls fail without callbacks or accepting a new checkpoint", async () => {
+test("Aplus changed closing make directory fails without callbacks or accepting a new checkpoint", async () => {
   const native = transport();
   const first = await Effect.runPromise(
     streamAplusInventoryWithRequestGate(
-      { maxPages: 8, onBatch: () => Effect.void },
+      { maxPages: 5, onBatch: () => Effect.void },
       gate,
     ),
   );
   const wire = AplusCursor.serialize(first.cursor);
-  const changed = aplusFixtureRecord(1);
-  changed[6] = "2026-10-22";
   native.bodies.set(
-    APLUS_ORIGIN + aplusFixtureModel.path,
-    aplusFixtureModelPage([changed, ...native.rows.slice(1)]),
+    APLUS_MAKES,
+    aplusFixtureDirectory([{ ...aplusFixtureMake, count: 1001 }], "makes"),
   );
   let callbacks = 0;
   const callback = () =>
@@ -267,7 +263,7 @@ test("Aplus changed closing donor controls fail without callbacks or accepting a
         gate,
       ),
     ),
-  ).rejects.toThrow("Closing Aplus model list");
+  ).rejects.toThrow("Closing Aplus make directory");
   expect(callbacks).toBe(0);
   expect(AplusCursor.serialize(first.cursor)).toBe(wire);
   expect(first.status).toBe("paused");
@@ -309,7 +305,7 @@ test("A Plus callback failures return no completed checkpoint and preserve the o
   transport();
   const first = await Effect.runPromise(
     streamAplusInventoryWithRequestGate(
-      { maxPages: 8, onBatch: () => Effect.void },
+      { maxPages: 6, onBatch: () => Effect.void },
       gate,
     ),
   );
@@ -333,7 +329,7 @@ test("A Plus callback failures return no completed checkpoint and preserve the o
 });
 
 test("A Plus rejects oversized wire cursors before decoding and refuses invalid HTTP envelopes without retry", async () => {
-  expect(() => AplusCursor.parse(" ".repeat(1024 * 1024 + 1))).toThrow(
+  expect(() => AplusCursor.parse(" ".repeat(4 * 1024 * 1024 + 1))).toThrow(
     "wire payload exceeds",
   );
   expect(() => AplusCursor.parse("{")).toThrow("not valid JSON");
@@ -405,7 +401,7 @@ test("Aplus keeps advancing when every shared host turn waits minutes", async ()
     expect(chunk.turns.every((turn) => turn.releasedAt !== null)).toBe(true);
   }
   expect(cursor.phase).toBe("complete");
-  expect(pages).toEqual([2, 2, 2, 2, 2]);
-  expect(native.urls).toHaveLength(10);
+  expect(pages).toEqual([2, 2, 2, 1]);
+  expect(native.urls).toHaveLength(7);
   expect(vehicles).toBe(1000);
 }, 120_000);
