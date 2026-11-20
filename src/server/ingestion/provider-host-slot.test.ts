@@ -7,6 +7,8 @@ import { Effect, Fiber, TestClock, TestContext } from "effect";
 import {
   RELEASE_HOST_SLOT,
   RESERVE_HOST_SLOT,
+  ProviderHostKeyspace,
+  providerHostKeys,
   redisProviderHostStore,
   withProviderHostSlot,
   type ProviderHostPolicy,
@@ -21,6 +23,81 @@ const policy: ProviderHostPolicy = {
   pollMs: 1000,
   gapMs: 3500,
 };
+
+// Redis Cluster hashes only the text inside a key's first {...}, or the whole
+// key without one.
+const hashSlotText = (key: string) => /\{([^}]+)\}/.exec(key)?.[1] ?? key;
+
+test("production host gates keep the keys older deployments use", () => {
+  expect(providerHostKeys(policy, "production")).toEqual({
+    lease: "ingestion:host:offline:v1",
+    lane: [
+      "ingestion:host:offline:v1",
+      "{ingestion:host:offline:v1}:queue",
+      "{ingestion:host:offline:v1}:deadlines",
+      "{ingestion:host:offline:v1}:sequence",
+    ],
+    ready: [
+      "{ingestion:host:offline:v1}:ready",
+      "{ingestion:host:offline:v1}:ready-deadlines",
+    ],
+    readySequence: "{ingestion:host:offline:v1}:ready-sequence",
+    active: "{ingestion:host:offline:v1}:active",
+  });
+  const grouped = providerHostKeys(
+    { ...policy, key: "urg:first", group: { key: "urg", activeLanes: 1 } },
+    "production",
+  );
+  expect(grouped.lease).toBe("{ingestion:host-group:urg:v1}:lane:urg:first");
+  expect(grouped.active).toBe("{ingestion:host-group:urg:v1}:active");
+});
+
+test.each(["preview", "development", "local"] as const)(
+  "%s host gates never share a key with production and keep one hash slot",
+  (keyspace) => {
+    const productionKeys = new Set(
+      [policy, { ...policy, group: { key: "urg", activeLanes: 1 } }].flatMap(
+        (lanePolicy) => {
+          const keys = providerHostKeys(lanePolicy, "production");
+          return [...keys.lane, ...keys.ready, keys.readySequence, keys.active];
+        },
+      ),
+    );
+    for (const lanePolicy of [
+      policy,
+      { ...policy, group: { key: "urg", activeLanes: 1 } },
+    ]) {
+      const keys = providerHostKeys(lanePolicy, keyspace);
+      const all = [
+        ...keys.lane,
+        ...keys.ready,
+        keys.readySequence,
+        keys.active,
+      ];
+      for (const key of all) {
+        expect(key).toContain(`${keyspace}:ingestion:`);
+        expect(productionKeys.has(key)).toBe(false);
+      }
+      const slots = new Set(
+        (lanePolicy.group ? all : keys.lane).map(hashSlotText),
+      );
+      expect(slots.size).toBe(1);
+    }
+  },
+);
+
+test.each([
+  ["production", "production"],
+  ["preview", "preview"],
+  ["development", "development"],
+  [undefined, "local"],
+  ["", "local"],
+] as const)(
+  "VERCEL_ENV=%p uses the %p host keyspace",
+  (vercelEnv, keyspace) => {
+    expect(ProviderHostKeyspace.parse(vercelEnv)).toBe(keyspace);
+  },
+);
 
 test("an interrupted waiter cancels its queue entry without releasing an uncertain lease", async () => {
   const cancelled: string[] = [];
@@ -264,10 +341,12 @@ test.skipIf(!hasRedis)(
         const first = redisProviderHostStore(
           { ...policy, key: "urg:first", group },
           redis,
+          "production",
         );
         const second = redisProviderHostStore(
           { ...policy, key: "urg:second", group },
           redis,
+          "production",
         );
         const tag = "{ingestion:host-group:urg:v1}";
         expect(await first.reserve("first-1", 90_000)).toBe(true);
@@ -281,7 +360,7 @@ test.skipIf(!hasRedis)(
         expect(await second.reserve("second-2", 90_000)).toBe(true);
         expect(command("GET", `${tag}:lane:urg:second`)).toBe("second-2");
         // Ungrouped lanes keep their existing keys.
-        const plain = redisProviderHostStore(policy, redis);
+        const plain = redisProviderHostStore(policy, redis, "production");
         expect(await plain.reserve("plain-1", 90_000)).toBe(true);
         expect(command("GET", "ingestion:host:offline:v1")).toBe("plain-1");
         expect(await plain.release("plain-1")).toBe(true);
