@@ -670,6 +670,14 @@ async function runMissingBatch(
       ],
     });
   }
+  // An observation can restore a VIN another source owns. That source is not
+  // reconciled in this run, so refresh its yard summary here, which the
+  // published counts are read from.
+  const restoredSet = new Set(restoredVins);
+  const restoredOwners = rows
+    .filter((row) => restoredSet.has(row.vin) && !reconciled.has(row.source))
+    .map((row) => row.source);
+  statements.push(...yardInventoryRefreshStatements(restoredOwners, now));
   const missingUpdate = missingUpdateStatement({
     runId: params.runId,
     cursor: params.cursor,
