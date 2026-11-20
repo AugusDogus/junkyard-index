@@ -13,21 +13,28 @@ import {
   DENTON_MAX_REQUESTS,
   DENTON_MAX_TOTAL_BYTES,
   DENTON_MINIMUM_INVENTORY,
+  dentonCensusPlan,
   dentonNextUrl,
   dentonReady,
+  type DentonProgress,
 } from "./denton-cursor";
 import { DentonError, dentonBoundary, type DentonResult } from "./denton-html";
 import { DentonSnapshot } from "./denton-snapshot";
-import { dentonHash, dentonPage, dentonTasks } from "./denton-traversal";
+import { dentonPage, dentonTasks } from "./denton-traversal";
 import {
   transformDentonVehicle,
   type DentonCanonicalVehicle,
 } from "./denton-transform";
 import { DENTON_YARD } from "./denton-yard-metadata";
+import { ModelCensus } from "./model-census";
 
 export interface DentonOptions<E, R> {
   previousAcceptedCount: number | null;
   startCursor?: unknown;
+  /** Terminal cursor of the last accepted, published run; read only when the
+   * start cursor has not begun a census yet. */
+  previousCursor?: unknown;
+  now?: () => number;
   /** One unit is one physical GET, including the native slash HTTP 301. */
   maxPages?: number;
   readPage: (url: string) => Effect.Effect<DentonResponse, DentonError>;
@@ -49,44 +56,23 @@ export interface DentonStreamResult {
 const unwrap = <T>(result: DentonResult<T>): Effect.Effect<T, DentonError> =>
   result.ok ? Effect.succeed(result.value) : Effect.fail(result.error);
 
-export function dentonCompleteSnapshot(cursor: DentonCursor) {
+/** Union of every read and carried model page plus the opening arrivals. */
+export function dentonCompleteSnapshot(cursor: DentonProgress) {
   return dentonBoundary("complete donor union", () => {
     if (!dentonReady(cursor))
       throw new Error("Opening/details/closing proof is incomplete");
     const tasks = dentonTasks(cursor.opening);
-    const pages = cursor.opening.flatMap((entry, index) => {
-      const task = tasks[index];
-      if (!task) throw new Error("Opening entry lost its literal task");
-      return entry.kind === "model" || entry.kind === "arrivals"
-        ? [dentonPage(entry, task, cursor.opening)]
-        : [];
-    });
-    const arrivalIndex = tasks.findIndex((task) => task.kind === "arrivals");
-    const opening = cursor.opening[arrivalIndex],
-      closing = cursor.closing[arrivalIndex],
-      task = tasks[arrivalIndex];
-    if (opening?.kind !== "arrivals" || closing?.kind !== "arrivals" || !task)
-      throw new Error("Arrival union is missing an opening or closing surface");
-    // Repeated captures do not manufacture duplicate observations. Preserve
-    // actual within-surface multiplicity and every changed/rejected row.
-    const seen = new Map<string, number>();
-    for (const row of opening.page.records) {
-      const key = dentonHash(row);
-      seen.set(key, (seen.get(key) ?? 0) + 1);
-    }
-    const arrivals = dentonPage(closing, task, cursor.opening);
-    arrivals.records = arrivals.records.filter(
-      ({ fields, destinations, images }) => {
-        const key = dentonHash({ fields, destinations, images }),
-          count = seen.get(key) ?? 0;
-        if (count > 0) {
-          seen.set(key, count - 1);
-          return false;
-        }
-        return true;
-      },
+    if (!tasks.some((task) => task.kind === "arrivals"))
+      throw new Error("Arrival union is missing its opening surface");
+    return DentonSnapshot.build(
+      cursor.opening.flatMap((entry, index) => {
+        const task = tasks[index];
+        if (!task) throw new Error("Opening entry lost its literal task");
+        return entry.kind === "model" || entry.kind === "arrivals"
+          ? [dentonPage(entry, task, cursor.opening)]
+          : [];
+      }),
     );
-    return DentonSnapshot.build([...pages, arrivals]);
   });
 }
 
@@ -113,7 +99,16 @@ export function streamDentonInventory<E, R>(options: DentonOptions<E, R>) {
               options.startCursor,
               options.previousAcceptedCount,
             );
-    let cursor = yield* unwrap(initial);
+    let cursor: DentonCursor = yield* unwrap(initial);
+    const begun = yield* unwrap(
+      DentonCursor.begin(
+        cursor,
+        (options.now ?? Date.now)(),
+        options.previousCursor,
+        options.previousAcceptedCount,
+      ),
+    );
+    cursor = begun.cursor;
     const summary: DentonStreamResult = {
       source: "denton",
       status: "paused",
@@ -121,7 +116,7 @@ export function streamDentonInventory<E, R>(options: DentonOptions<E, R>) {
       count: 0,
       pagesProcessed: 0,
       errors: [],
-      warnings: [],
+      warnings: begun.warning ? [begun.warning] : [],
       observedVins: [],
       rejections: [],
       accounting: {
@@ -133,7 +128,8 @@ export function streamDentonInventory<E, R>(options: DentonOptions<E, R>) {
     };
     while (cursor.phase !== "complete") {
       if (dentonReady(cursor)) {
-        const snapshot = yield* unwrap(dentonCompleteSnapshot(cursor));
+        const ready = cursor;
+        const snapshot = yield* unwrap(dentonCompleteSnapshot(ready));
         yield* unwrap(
           DentonSnapshot.validate(snapshot, {
             terminal: true,
@@ -142,7 +138,10 @@ export function streamDentonInventory<E, R>(options: DentonOptions<E, R>) {
           }),
         );
         const complete = yield* unwrap(
-          DentonCursor.complete(cursor, options.previousAcceptedCount),
+          DentonCursor.complete(ready, options.previousAcceptedCount),
+        );
+        const plan = yield* unwrap(
+          dentonBoundary("census summary", () => dentonCensusPlan(ready)),
         );
         if (options.onYards) yield* options.onYards([{ ...DENTON_YARD }]);
         yield* options.onBatch(snapshot.vehicles.map(transformDentonVehicle));
@@ -151,7 +150,9 @@ export function streamDentonInventory<E, R>(options: DentonOptions<E, R>) {
         summary.observedVins = snapshot.observedVins;
         summary.rejections = snapshot.rejections;
         summary.warnings = [
-          "Denton retained required rejects, all valid rejected/conflicting identities and the AD80068 destination quarantine. Badge counts are diagnostic; optional metadata is nullable.",
+          ...summary.warnings,
+          "Denton retained required rejects, all valid rejected/conflicting identities and the AD80068 destination quarantine. Model badge counts only select census reads; optional metadata is nullable.",
+          "Denton " + ModelCensus.summary(plan),
         ];
         cursor = complete;
       } else {

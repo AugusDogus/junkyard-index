@@ -87,7 +87,9 @@ export function dentonTestGraph(
   const read = (url: string): Effect.Effect<DentonResponse, DentonError> =>
     Effect.suspend((): Effect.Effect<DentonResponse, DentonError> => {
       calls.push(url);
-      if (url === makes)
+      // The native server answers any unslashed catalog control with its
+      // exact slash 301.
+      if (!url.endsWith("/") && pages.has(url + "/"))
         return Effect.succeed({
           kind: "redirect",
           url,

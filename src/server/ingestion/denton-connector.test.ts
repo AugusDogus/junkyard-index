@@ -64,7 +64,7 @@ async function collect(
 }
 
 // The full saved census and checkpoint replays can exceed five seconds in CI.
-test("Denton serializes every chunk, counts redirects, stages only terminal data and makes completed reentry inert", async () => {
+test("Denton serializes every chunk, stages only terminal data and makes completed reentry inert", async () => {
   const graph = dentonTestGraph();
   const result = await collect(graph);
   expect(DENTON_MINIMUM_INVENTORY).toBe(765);
@@ -75,10 +75,11 @@ test("Denton serializes every chunk, counts redirects, stages only terminal data
     duplicateVehicles: 0,
     recordsExcluded: 0,
   });
-  expect(result.final.cursor.requests).toBe(22);
   expect(isDurableSourceCursorTerminal("denton", result.wire)).toBe(true);
-  expect(graph.calls).toHaveLength(22);
-  expect(result.chunks).toBe(8);
+  // Opening about, contact, makes, one slash menu, arrivals and five models;
+  // closing about, contact and makes.
+  expect(graph.calls).toHaveLength(13);
+  expect(result.chunks).toBe(5);
   expect(result.batches).toBe(1);
   expect(result.yards).toBe(1);
   const again = await Effect.runPromise(
@@ -92,29 +93,43 @@ test("Denton serializes every chunk, counts redirects, stages only terminal data
   );
   expect(again.status).toBe("complete");
   expect(again.pagesProcessed).toBe(0);
-  expect(graph.calls).toHaveLength(22);
+  expect(graph.calls).toHaveLength(13);
 }, 15_000);
 
-test("Denton resumes pending slash canonicalization with no hidden logical request", async () => {
+test("Denton requests make menus at the slash URL and resumes a pending slash redirect with no hidden logical request", async () => {
   const graph = dentonTestGraph();
+  const menu = "https://dentonauto.com/used-parts/ACURA/";
+  const body = graph.pages.get(menu);
+  if (!body) throw new Error("Missing fixture");
+  // An unslashed model control still costs the native slash 301.
+  graph.pages.set(menu, body.replace('MDX0/"', 'MDX0"'));
   const first = await Effect.runPromise(
     streamDentonInventory({
       previousAcceptedCount: 2000,
       readPage: graph.read,
-      maxPages: 4,
+      maxPages: 6,
       onBatch: () => Effect.void,
     }),
   );
-  expect(first.cursor.pending?.target).toBe(
-    "https://dentonauto.com/used-parts/ACURA/",
-  );
+  // The make control is published unslashed, but its menu costs one GET.
+  expect(graph.calls.slice(0, 5)).toEqual([
+    "https://dentonauto.com/about-us/",
+    "https://dentonauto.com/contact/",
+    "https://dentonauto.com/used-parts/makes/",
+    menu,
+    "https://dentonauto.com/iislatestarrivals/",
+  ]);
+  expect(graph.calls).not.toContain("https://dentonauto.com/used-parts/ACURA");
+  if (first.cursor.phase !== "active")
+    throw new Error("Expected a paused checkpoint");
+  expect(first.cursor.pending?.target).toBe(menu + "MDX0/");
   const encoded = DentonCursor.serialize(first.cursor, 2000);
   if (!encoded.ok) throw new Error(encoded.error.message);
   const restored = DentonCursor.fromWire(encoded.value, 2000);
   if (!restored.ok) throw new Error(restored.error.message);
   expect(dentonNextUrl(restored.value)).toEqual({
     ok: true,
-    value: "https://dentonauto.com/used-parts/ACURA/",
+    value: menu + "MDX0/",
   });
   expect(DentonCursor.fromWire(encoded.value, null).ok).toBe(false);
   const signed = { ...first.cursor, requests: 3, checksum: undefined };
@@ -146,37 +161,37 @@ test("Denton source floor, rejection, duplicate and prior drift guards apply to 
 }, 20_000);
 
 // The full saved census and checkpoint replays can exceed five seconds in CI.
-test("Denton closing proof catches middle donor drift, loss of controls and geography changes before callbacks", async () => {
-  for (const kind of ["model", "menu", "contact"] as const) {
+test("Denton closing proof catches make directory and geography changes before callbacks", async () => {
+  for (const kind of ["makes", "contact"] as const) {
     const graph = dentonTestGraph();
     let start: unknown;
-    for (let i = 0; i < 4; i++) {
+    // The whole opening: fixed pages, menu, arrivals and five model pages.
+    for (let i = 0; i < 2; i++) {
       const part = await Effect.runPromise(
         streamDentonInventory({
           previousAcceptedCount: null,
           startCursor: start,
           readPage: graph.read,
-          maxPages: 3,
+          maxPages: 5,
           onBatch: () => Effect.die("unexpected staging"),
         }),
       );
       start = part.cursor;
     }
     const url =
-      kind === "model"
-        ? "https://dentonauto.com/used-parts/ACURA/MDX2/"
-        : kind === "menu"
-          ? "https://dentonauto.com/used-parts/ACURA/"
-          : "https://dentonauto.com/contact/";
+      kind === "makes"
+        ? "https://dentonauto.com/used-parts/makes/"
+        : "https://dentonauto.com/contact/";
     const body = graph.pages.get(url);
     if (!body) throw new Error("Missing fixture");
     graph.pages.set(
       url,
-      kind === "model"
-        ? body.replace("2017", "2018")
-        : kind === "menu"
-          ? body.replace(/<a\b[^>]*>MDX2[\s\S]*?<\/a>/, "")
-          : body.replace("-95.686134", "-95.0"),
+      kind === "makes"
+        ? body.replace(
+            "</a></div>",
+            '</a><a href="https://dentonauto.com/used-parts/BMW">BMW <span class="badge">1</span></a></div>',
+          )
+        : body.replace("-95.686134", "-95.0"),
     );
     const run = Effect.gen(function* () {
       for (let i = 0; i < 10; i++) {
@@ -196,7 +211,7 @@ test("Denton closing proof catches middle donor drift, loss of controls and geog
 test("Denton does not return a terminal checkpoint when the final staging callback fails", async () => {
   const graph = dentonTestGraph();
   let start: unknown;
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 2; i++) {
     const part = await Effect.runPromise(
       streamDentonInventory({
         previousAcceptedCount: null,
@@ -343,7 +358,7 @@ afterEach(() => {
 
 test("Denton keeps advancing when every GET waits two minutes for a shared host turn", async () => {
   // Production URG queue on 2026-11-19: about 20 sources shared one lease, so
-  // each request, including the native slash 301, waited about two minutes.
+  // each request waited about two minutes.
   const graph = dentonTestGraph();
   globalThis.fetch = Object.assign(
     async (input: string | URL | Request) => {
@@ -403,8 +418,8 @@ test("Denton keeps advancing when every GET waits two minutes for a shared host 
       break;
     }
   }
-  expect(pages.reduce((sum, value) => sum + value, 0)).toBe(22);
+  expect(pages.reduce((sum, value) => sum + value, 0)).toBe(13);
   expect(pages.every((value) => value > 0)).toBe(true);
-  expect(graph.calls).toHaveLength(22);
+  expect(graph.calls).toHaveLength(13);
   expect(batches).toBe(1);
 }, 120_000);

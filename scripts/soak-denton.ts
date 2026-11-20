@@ -32,6 +32,8 @@ export async function soakDentonInventory(
       (chunk.status === "complete") !== (parsed.value.phase === "complete") ||
       (chunk.status === "paused" &&
         (chunk.pagesProcessed === 0 ||
+          parsed.value.phase !== "active" ||
+          cursor.phase !== "active" ||
           parsed.value.requests <= cursor.requests ||
           chunk.count !== 0))
     )

@@ -2,8 +2,10 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { stringify } from "devalue";
 import { z } from "zod";
-import { DentonCursor } from "../src/server/ingestion/denton-cursor";
-import { dentonHash } from "../src/server/ingestion/denton-traversal";
+import {
+  DentonEntrySchema,
+  dentonHash,
+} from "../src/server/ingestion/denton-traversal";
 import { Effect } from "effect";
 import { drizzle } from "drizzle-orm/libsql";
 import { BrandywineCursor } from "../src/server/ingestion/brandywine-cursor";
@@ -141,22 +143,40 @@ try {
       let wire = readFileSync(join(evidenceRoot, file), "utf8");
       let evidence = file;
       if (source === "denton") {
-        // Historical capture binds an earlier contract hash. For sizing only,
-        // rebind its unchanged graph to today's scope, then validate all fields.
-        // This report never writes an operational database or provider state.
-        const initial = DentonCursor.initial(null);
-        if (!initial.ok) throw new Error(initial.error.message);
-        const captured = z
-          .record(z.string(), z.unknown())
-          .parse(JSON.parse(wire));
-        const rebound = {
-          ...captured,
-          scope: initial.value.scope,
+        // Historical capture is a two-pass checkpoint from an earlier contract.
+        // For sizing only, carry its unchanged model pages as the terminal
+        // census a run now persists, then validate all fields. An in-run
+        // cursor holds about this plus one pass. This report never writes an
+        // operational database or provider state.
+        const day = 20_000;
+        const unsigned = {
+          source: "denton",
+          version: 1,
           checksum: undefined,
+          phase: "complete",
+          census: {
+            contract: "historical-capture-sizing",
+            day,
+            models: z
+              .object({ opening: z.array(DentonEntrySchema) })
+              .parse(JSON.parse(wire))
+              .opening.flatMap((page) =>
+                page.kind === "model"
+                  ? [
+                      {
+                        key: page.receipt.url,
+                        count: page.page.records.length,
+                        readDay: day,
+                        page,
+                      },
+                    ]
+                  : [],
+              ),
+          },
         };
-        wire = JSON.stringify({ ...rebound, checksum: dentonHash(rebound) });
+        wire = JSON.stringify({ ...unsigned, checksum: dentonHash(unsigned) });
         evidence +=
-          " (unchanged graph, current scope/hash for offline sizing only)";
+          " (historical model pages as a terminal census, sizing only)";
       }
       await measure(parseDurableSourceCursor(source, wire), evidence);
     }
