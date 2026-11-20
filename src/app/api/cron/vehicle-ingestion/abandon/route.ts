@@ -26,31 +26,17 @@ export async function POST(request: Request) {
     );
   }
   try {
-    const workflowRunId = await abandonDurableIngestion(
-      parsed.data.runId,
-      parsed.data.force,
-    );
-    let workflowCancellation: "cancelled" | "not_attached" | "failed" =
-      "not_attached";
-    if (workflowRunId) {
-      try {
-        await getRun(workflowRunId).cancel();
-        workflowCancellation = "cancelled";
-      } catch (error) {
-        workflowCancellation = "failed";
-        console.error("Failed to cancel abandoned ingestion Workflow", {
-          runId: parsed.data.runId,
-          workflowRunId,
-          error,
-        });
-      }
-    }
+    const result = await abandonDurableIngestion({
+      runId: parsed.data.runId,
+      force: parsed.data.force,
+      cancelWorkflow: (workflowRunId) => getRun(workflowRunId).cancel(),
+    });
     return Response.json({
       message: "Ingestion run abandoned",
       runId: parsed.data.runId,
       forced: parsed.data.force,
-      workflowRunId,
-      workflowCancellation,
+      workflowRunId: result.abandoned.workflowRunId,
+      ...result,
     });
   } catch (error) {
     return Response.json(
