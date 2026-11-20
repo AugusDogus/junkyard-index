@@ -13,12 +13,25 @@ import { hydrateRoot } from "react-dom/client";
 import { renderToReadableStream, renderToStaticMarkup } from "react-dom/server";
 import superjson from "superjson";
 import { SearchPageContent } from "~/components/search/SearchPageContent";
+import { SearchServerRender } from "~/lib/search-server-render";
 import { api } from "~/trpc/react";
+import { serverSearches } from "./shared-search-client";
 
 const params = new URLSearchParams(
   typeof window === "undefined" ? process.argv[2] : window.location.search,
 );
 const isLoggedIn = params.get("fixtureGuest") !== "1";
+// With fixtureUserAgent, the page's own decision runs on the non-fixture params.
+const fixtureUserAgent = params.get("fixtureUserAgent");
+const serverSearch: SearchServerRender =
+  fixtureUserAgent === null
+    ? "search"
+    : SearchServerRender.decide({
+        userAgent: fixtureUserAgent,
+        params: Object.fromEntries(
+          [...params].filter(([key]) => !key.startsWith("fixture")),
+        ),
+      });
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: Infinity, retry: false } },
 });
@@ -121,7 +134,7 @@ function Fixture() {
                     isLoggedIn={isLoggedIn}
                     initialIsMobile={params.get("fixtureMobile") === "1"}
                     knownYardNames={["RTP Pick-A-Part - Hebron, KY"]}
-                    serverSearch="search"
+                    serverSearch={serverSearch}
                   />
                   <HydrationMarker />
                 </Suspense>
@@ -148,7 +161,7 @@ if (typeof document === "undefined") {
     .map((callback) => renderToStaticMarkup(<>{callback()}</>))
     .join("");
   process.stdout.write(
-    `<!doctype html><html><head><meta charset="utf-8"></head><body><div id="root">${markup}</div>${scripts}<script>globalThis.process={env:{NODE_ENV:"production"}}</script><script type="module" src="/app.js"></script></body></html>`,
+    `<!doctype html><html><head><meta charset="utf-8"><meta name="fixture-server-searches" content="${serverSearches.count}"></head><body><div id="root">${markup}</div>${scripts}<script>globalThis.process={env:{NODE_ENV:"production"}}</script><script type="module" src="/app.js"></script></body></html>`,
   );
 } else {
   const root = document.getElementById("root");

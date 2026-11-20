@@ -192,3 +192,43 @@ for (const key of ["yards", "yards[]"]) {
     ).toEqual([yard]);
   }, 15_000);
 }
+
+const PERSON_USER_AGENT =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+const GOOGLEBOT_USER_AGENT =
+  "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
+
+function serverSearchCount(html: string) {
+  const count = html.match(
+    /<meta name="fixture-server-searches" content="(\d+)">/,
+  )?.[1];
+  if (count === undefined) throw new Error("Missing server search count");
+  return Number(count);
+}
+
+for (const [label, query] of [
+  [
+    "a crawler's specific search",
+    `fixtureGuest=1&q=toyota&fixtureUserAgent=${encodeURIComponent(GOOGLEBOT_USER_AGENT)}`,
+  ],
+  [
+    "a person's default page",
+    `fixtureGuest=1&utm_source=newsletter&fixtureUserAgent=${encodeURIComponent(PERSON_USER_AGENT)}`,
+  ],
+] as const) {
+  test(`${label} renders the skeleton without a server search`, async () => {
+    const html = await renderSharedSearchFixture(query);
+    expect(serverSearchCount(html)).toBe(0);
+    expect(html).not.toContain("InstantSearchInitialResults");
+    expect(html).not.toContain("Toyota Venza");
+  }, 15_000);
+}
+
+test("a person's specific search still renders results on the server", async () => {
+  const html = await renderSharedSearchFixture(
+    `fixtureGuest=1&q=toyota&fixtureUserAgent=${encodeURIComponent(PERSON_USER_AGENT)}`,
+  );
+  expect(serverSearchCount(html)).toBeGreaterThan(0);
+  expect(html).toContain("InstantSearchInitialResults");
+  expect(html).toContain("Toyota Venza");
+}, 15_000);

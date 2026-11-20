@@ -127,6 +127,26 @@ test("SSR sends one full visitor page with eager images and no teasers", async (
   }
 }, 30_000);
 
+test("a person on the default page gets results after hydration without a server search", async () => {
+  const userAgent =
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+  const { page, html } = await open(
+    `fixtureGuest=1&fixtureUserAgent=${encodeURIComponent(userAgent)}`,
+  );
+  try {
+    expect(html).toContain('<meta name="fixture-server-searches" content="0">');
+    expect(html).not.toContain("InstantSearchInitialResults");
+    await page.getByRole("heading", { name: "2011 Toyota Venza" }).waitFor();
+    expect(
+      (await requestLog(page)).some(
+        ({ params }) => (params.hitsPerPage ?? 0) > 0,
+      ),
+    ).toBe(true);
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
+
 test("visitor pages include a free radius and stop after 24 results", async () => {
   const { page, html } = await open(
     "q=pagination&sort=distance&radius=100&fixtureGuest=1",

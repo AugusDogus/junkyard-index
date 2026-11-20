@@ -75,12 +75,16 @@ type SearchParams = {
 };
 type SearchRequest = { indexName: string; params?: SearchParams };
 
+/** Searches the server render ran. Production pays quota for each one. */
+export const serverSearches = { count: 0 };
+
 const client = {
   async search(
     input:
       | SearchRequest[]
       | { requests: (SearchParams & { indexName: string })[] },
   ) {
+    if (typeof document === "undefined") serverSearches.count += 1;
     if (typeof document !== "undefined") {
       const previous = Number(
         document.documentElement.dataset.searchRequests ?? 0,
