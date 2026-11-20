@@ -28,7 +28,7 @@ const scope = aplusHash({
   version: 1,
   yard: APLUS_YARD,
   authority:
-    "literal-model-graph/native-arrival-union/all-conflicts-quarantined/incremental-model-census-v2",
+    "literal-model-graph/native-arrival-union/all-conflicts-quarantined/incremental-model-census-v3",
 });
 /** Every model page read by an accepted run, carried forward by the next one. */
 export const AplusCensusSchema = ModelCensus.schema(AplusPageSchema, 512);
@@ -75,7 +75,8 @@ export type AplusClosingControl =
     };
 
 /** Closing re-reads ownership, the make directory and every model read this
- * run whose cards differ from its badge, so a short page is confirmed before it
+ * run whose cards differ from its badge or fall below its expected count
+ * (ModelCensus.closingReads), so a short page is confirmed before it
  * can be carried. Carried pages were confirmed on the run that read them; other
  * per-model changes surface as count changes in the next run's opening menus. */
 export function aplusClosingControls(
@@ -89,22 +90,28 @@ export function aplusClosingControls(
     state.day === null || state.pages.length !== models.length
       ? []
       : aplusCensusPlan(state);
-  const mismatched = decisions.flatMap((decision, index) => {
-    const value = models[index];
-    return decision.kind === "read" &&
-      value &&
-      state.pages[index]?.records.length !== value.model.count
-      ? [
-          {
-            kind: "model" as const,
-            url: APLUS_ORIGIN + value.model.path,
-            make: value.make,
-            model: value.model,
-            index,
-          },
-        ]
-      : [];
-  });
+  const mismatched = decisions.length
+    ? ModelCensus.closingReads({
+        controls: aplusCensusControls(state.makes),
+        pages: state.pages,
+        decisions,
+        previous: state.previous,
+        cards: aplusCards,
+      }).flatMap((index) => {
+        const value = models[index];
+        return value
+          ? [
+              {
+                kind: "model" as const,
+                url: APLUS_ORIGIN + value.model.path,
+                make: value.make,
+                model: value.model,
+                index,
+              },
+            ]
+          : [];
+      })
+    : [];
   return [
     { kind: "contact", url: APLUS_CONTACT },
     { kind: "directory", url: APLUS_MAKES },
@@ -162,9 +169,12 @@ export function aplusCoverageError(state: AplusProgress): string | null {
   const models = aplusModels(state.makes);
   return ModelCensus.coverage(
     "Aplus",
-    aplusCensusControls(state.makes),
-    state.pages,
-    aplusCards,
+    {
+      controls: aplusCensusControls(state.makes),
+      pages: state.pages,
+      previous: state.previous,
+      cards: aplusCards,
+    },
     APLUS_MINIMUM_BADGE_COVERAGE,
     (index) => {
       const value = models[index];
@@ -179,12 +189,15 @@ export function aplusCensus(state: AplusProgress): AplusCensus {
   return ModelCensus.accept(
     scope,
     state.day,
-    aplusCensusControls(state.makes),
-    state.pages,
-    aplusCensusPlan(state),
+    {
+      controls: aplusCensusControls(state.makes),
+      pages: state.pages,
+      decisions: aplusCensusPlan(state),
+      previous: state.previous,
+      cards: aplusCards,
+    },
     // Closing re-reads every short page read this run and fails on a change.
     "confirmed",
-    aplusCards,
   );
 }
 

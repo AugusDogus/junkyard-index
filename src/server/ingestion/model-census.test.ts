@@ -46,11 +46,8 @@ function run(
     census: ModelCensus.accept(
       contract,
       day,
-      models,
-      pages,
-      decisions,
+      { controls: models, pages, decisions, previous, cards },
       options.shortPages ?? "confirmed",
-      cards,
     ),
   };
 }
@@ -262,7 +259,12 @@ describe("ModelCensus", () => {
     const label = (i: number) => "M" + i;
     const full = models.map((m) => page(m.key, 100, 10));
     expect(
-      ModelCensus.coverage("Fixture", models, full, cards, 0.95, label),
+      ModelCensus.coverage(
+        "Fixture",
+        { controls: models, pages: full, previous: null, cards },
+        0.95,
+        label,
+      ),
     ).toBeNull();
     // Surplus cards on one model never hide an empty model elsewhere.
     const shifted = full.map((p, i) =>
@@ -274,17 +276,105 @@ describe("ModelCensus", () => {
     );
     const message = ModelCensus.coverage(
       "Fixture",
-      models,
-      shifted,
-      cards,
+      { controls: models, pages: shifted, previous: null, cards },
       0.95,
       label,
     );
     expect(message).toContain("90 of 100 cards");
     expect(message).toContain("M1 (10)");
     expect(
-      ModelCensus.coverage("Fixture", models, shifted, cards, 0.9, label),
+      ModelCensus.coverage(
+        "Fixture",
+        { controls: models, pages: shifted, previous: null, cards },
+        0.9,
+        label,
+      ),
     ).toBeNull();
+  });
+
+  test("replay coverage catches a slice cut to one card even when badges overcount", () => {
+    // Badges promise 10 per model but healthy pages list 9: a 90% badge
+    // baseline, as on yards whose badges overcount. The badge floor must sit
+    // below it, so only the replay floor can see a slice cut to one card.
+    const models = controls(30, 10);
+    const label = (i: number) => "M" + i;
+    const nine = new Map(models.map((m) => [m.key, 9]));
+    const cold = run(models, null, 100, undefined, { listed: nine });
+    const healthy = models.map((m) => page(m.key, 101, 9));
+    expect(
+      ModelCensus.coverage(
+        "Fixture",
+        { controls: models, pages: healthy, previous: cold.census, cards },
+        0.75,
+        label,
+      ),
+    ).toBeNull();
+    const broken = healthy.map((p, i) =>
+      i < 5 ? page(models[i]?.key ?? "", 101, 1) : p,
+    );
+    // 5 of 30 models (a sixth) list one card: 230 of 300 badge cards is still
+    // above a 75% badge floor ...
+    expect(
+      ModelCensus.coverage(
+        "Fixture",
+        { controls: models, pages: broken, previous: null, cards },
+        0.75,
+        label,
+      ),
+    ).toBeNull();
+    // ... but only 230 of the 270 cards last accepted.
+    expect(
+      ModelCensus.coverage(
+        "Fixture",
+        { controls: models, pages: broken, previous: cold.census, cards },
+        0.75,
+        label,
+      ),
+    ).toContain("230 of 270 cards that the last accepted census listed");
+  });
+
+  test("a surplus page that loses cards without its count dropping is re-read, never carried", () => {
+    // A badge of 3 whose healthy page lists 4 (a placeholder row).
+    const models = controls(12, 3);
+    const label = new Map([["model-2", 4]]);
+    const cold = run(models, null, 100, undefined, { listed: label });
+    expect(cold.census.models[2]?.expected).toBe(3);
+    const day = [101, 102, 103, 104, 105].find(
+      (d) => ModelCensus.slice("model-2") === d % MODEL_CENSUS_SWEEP_DAYS,
+    );
+    if (day === undefined) throw new Error("fixture needs model-2's slice day");
+    // Its sweep read lists exactly its badge: one real donor is gone.
+    const dropped = run(models, cold.census, day, undefined, {
+      listed: new Map([["model-2", 3]]),
+    });
+    expect(dropped.decisions[2]).toEqual({ kind: "read", reason: "sweep" });
+    // Closing must re-read it even though cards equal the badge.
+    expect(
+      ModelCensus.closingReads({
+        controls: models,
+        pages: dropped.pages,
+        decisions: dropped.decisions,
+        previous: cold.census,
+        cards,
+      }),
+    ).toContain(2);
+    expect(dropped.census.models[2]).toMatchObject({
+      expected: 4,
+      confirmed: false,
+    });
+    // The next run re-reads it rather than carrying the drop.
+    const next = run(models, dropped.census, day + 1);
+    expect(next.decisions[2]).toEqual({ kind: "read", reason: "short" });
+    // Healthy surplus pages and pages matching their badge need no closing read.
+    expect(
+      ModelCensus.closingReads({
+        controls: models,
+        pages: next.pages,
+        decisions: next.decisions,
+        previous: dropped.census,
+        cards,
+      }),
+    ).toEqual([]);
   });
 
   test("a second run on the same day carries what the first run read", () => {
@@ -325,11 +415,14 @@ describe("ModelCensus", () => {
       ModelCensus.accept(
         contract,
         101,
-        models,
-        [],
-        next.decisions,
+        {
+          controls: models,
+          pages: [],
+          decisions: next.decisions,
+          previous: null,
+          cards,
+        },
         "confirmed",
-        cards,
       ),
     ).toThrow("cannot close");
   });
