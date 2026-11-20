@@ -141,7 +141,10 @@ test("a shared host turn around raw requests covers one request, and every reque
       .filter((file) => file.endsWith(".ts") && !file.endsWith(".test.ts"))
       .map((file) => [file, readFileSync(join(import.meta.dir, file), "utf8")]),
   );
-  const raw = (source: string) => /(?<![.\w])fetch\(/.test(source);
+  const raw = (source: string) =>
+    /(?<![.\w])(fetch|fetchProviderResponse|fetchProviderText|fetchProviderJson)\(/.test(
+      source,
+    );
   const slotted = (source: string) =>
     source.includes("sharedProviderHostSlot(");
   const rawTurns: string[] = [];
