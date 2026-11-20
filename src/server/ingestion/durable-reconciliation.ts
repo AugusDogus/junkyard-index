@@ -93,22 +93,58 @@ function guardSql(stage: "reconcile_upsert" | "reconcile_missing") {
   `;
 }
 
-function changeInsertStatement(params: {
-  runId: string;
-  stage: "reconcile_upsert" | "reconcile_missing";
-  cursor: string | null;
-  changes: Array<{ vin: string; changeType: "upsert" | "missing" | "delete" }>;
-  now: number;
-}): InStatement | null {
+/** A vehicle row as the missing batch read it: its VIN and owning source. */
+type ReadVehicle = { vin: string; source: string };
+
+/**
+ * Restricts a missing-phase write to rows still owned by the source the batch
+ * read, so a run only ages, restores or deletes its reconciled sources' rows.
+ */
+function readVehicleFilter(rows: readonly ReadVehicle[]): {
+  sql: string;
+  args: InValue[];
+} {
+  return {
+    sql: `(vin, source) in (values ${rows.map(() => "(?, ?)").join(", ")})`,
+    args: rows.flatMap((row) => [row.vin, row.source]),
+  };
+}
+
+type VehicleChangeType = "upsert" | "missing" | "delete";
+
+/**
+ * Upsert changes describe the run's own listings. Missing-phase changes
+ * describe rows the batch read, and are queued only while that source still
+ * owns the row, matching the scoped writes they accompany.
+ */
+type VehicleChanges =
+  | {
+      stage: "reconcile_upsert";
+      changes: Array<{ vin: string; changeType: "upsert" }>;
+    }
+  | {
+      stage: "reconcile_missing";
+      changes: Array<ReadVehicle & { changeType: VehicleChangeType }>;
+    };
+
+function changeInsertStatement(
+  params: VehicleChanges & {
+    runId: string;
+    cursor: string | null;
+    now: number;
+  },
+): InStatement | null {
   if (params.changes.length === 0) return null;
+  const scoped = params.stage === "reconcile_missing";
   return {
     sql: `
       insert into vehicle_change_v2 (
         run_id, vin, change_type, payload, payload_version, created_at
       )
       select ?, column1, column2, null, 1, ?
-      from (values ${params.changes.map(() => "(?, ?)").join(", ")})
+      from (values ${params.changes.map(() => (scoped ? "(?, ?, ?)" : "(?, ?)")).join(", ")})
       where ${guardSql(params.stage)}
+        ${scoped ? "and exists (select 1 from vehicle where vehicle.vin = column1 and vehicle.source = column3)" : ""}
       on conflict(run_id, vin, change_type)
         where processed_at is null
         do nothing
@@ -116,7 +152,13 @@ function changeInsertStatement(params: {
     args: [
       params.runId,
       params.now,
-      ...params.changes.flatMap(({ vin, changeType }) => [vin, changeType]),
+      ...(params.stage === "reconcile_missing"
+        ? params.changes.flatMap(({ vin, changeType, source }) => [
+            vin,
+            changeType,
+            source,
+          ])
+        : params.changes.flatMap(({ vin, changeType }) => [vin, changeType])),
       params.runId,
       params.cursor,
     ],
@@ -431,21 +473,24 @@ async function runUpsertBatch(
   };
 }
 
+type ScopedTransition = MissingVehicleTransition & { source: string };
+
 function missingUpdateStatement(params: {
   runId: string;
   cursor: string | null;
-  transitions: MissingVehicleTransition[];
+  transitions: ScopedTransition[];
 }): InStatement | null {
   const missing = params.transitions.filter(
     (transition) => transition.changeType === "missing",
   );
   if (missing.length === 0) return null;
+  const filter = readVehicleFilter(missing);
   return {
     sql: `
       update vehicle
       set missing_since_at = case vin ${missing.map(() => "when ? then ?").join(" ")} else missing_since_at end,
           missing_run_count = case vin ${missing.map(() => "when ? then ?").join(" ")} else missing_run_count end
-      where vin in (${missing.map(() => "?").join(", ")})
+      where ${filter.sql}
         and ${guardSql("reconcile_missing")}
     `,
     args: [
@@ -457,7 +502,7 @@ function missingUpdateStatement(params: {
         transition.vin,
         transition.missingRunCount,
       ]),
-      ...missing.map((transition) => transition.vin),
+      ...filter.args,
       params.runId,
       params.cursor,
     ],
@@ -467,19 +512,20 @@ function missingUpdateStatement(params: {
 function deleteStatement(params: {
   runId: string;
   cursor: string | null;
-  transitions: MissingVehicleTransition[];
+  transitions: ScopedTransition[];
 }): InStatement | null {
-  const vins = params.transitions
-    .filter((transition) => transition.changeType === "delete")
-    .map((transition) => transition.vin);
-  if (vins.length === 0) return null;
+  const deleted = params.transitions.filter(
+    (transition) => transition.changeType === "delete",
+  );
+  if (deleted.length === 0) return null;
+  const filter = readVehicleFilter(deleted);
   return {
     sql: `
       delete from vehicle
-      where vin in (${vins.map(() => "?").join(", ")})
+      where ${filter.sql}
         and ${guardSql("reconcile_missing")}
     `,
-    args: [...vins, params.runId, params.cursor],
+    args: [...filter.args, params.runId, params.cursor],
   };
 }
 
@@ -551,17 +597,14 @@ async function runMissingBatch(
         (vin) => inventory.vehicles.has(vin) || inventory.observedVins.has(vin),
       ),
   );
-  const observedVins = rows
-    .map((row) => row.vin)
-    .filter((vin) => inventory.observedVins.has(vin));
-  const observedSet = new Set(observedVins);
-  const restoredVins = rows
-    .filter(
-      (row) =>
-        observedSet.has(row.vin) &&
-        (row.missingSinceAt !== null || (row.missingRunCount ?? 0) !== 0),
-    )
-    .map((row) => row.vin);
+  const restoreRows = rows.filter((row) => inventory.observedVins.has(row.vin));
+  const observedSet = new Set(restoreRows.map((row) => row.vin));
+  const restoredRows = rows.filter(
+    (row) =>
+      observedSet.has(row.vin) &&
+      (row.missingSinceAt !== null || (row.missingRunCount ?? 0) !== 0),
+  );
+  const readSource = new Map(rows.map((row) => [row.vin, row.source] as const));
   const transitions = planMissingVehicleTransitions({
     presentVins,
     existingRows: rows.filter(
@@ -574,6 +617,14 @@ async function runMissingBatch(
     runTimestamp: params.runTimestamp,
     acceptedSources: reconciled,
     deleteAfterMs: MISSING_DELETE_AFTER_MS,
+  }).map((transition): ScopedTransition => {
+    const source = readSource.get(transition.vin);
+    if (source === undefined) {
+      throw new Error(
+        `Missing reconciliation for ${params.runId} planned a ${transition.changeType} for VIN ${transition.vin}, which its batch did not read. Nothing was written; retrying the step re-reads the batch.`,
+      );
+    }
+    return { ...transition, source };
   });
 
   const finishing = candidates.length < RECONCILIATION_BATCH_SIZE;
@@ -585,23 +636,32 @@ async function runMissingBatch(
     stage: "reconcile_missing",
     cursor: params.cursor,
     changes: [
-      ...transitions.map(({ vin, changeType }) => ({ vin, changeType })),
-      ...restoredVins.map((vin) => ({ vin, changeType: "upsert" as const })),
+      ...transitions.map(({ vin, changeType, source }) => ({
+        vin,
+        changeType,
+        source,
+      })),
+      ...restoredRows.map(({ vin, source }) => ({
+        vin,
+        source,
+        changeType: "upsert" as const,
+      })),
     ],
     now,
   });
   if (changes) statements.push(changes);
-  if (observedVins.length > 0) {
+  if (restoreRows.length > 0) {
+    const filter = readVehicleFilter(restoreRows);
     statements.push({
       sql: `
         update vehicle
         set missing_since_at = null, missing_run_count = 0, last_seen_at = ?
-        where vin in (${observedVins.map(() => "?").join(", ")})
+        where ${filter.sql}
           and ${guardSql("reconcile_missing")}
       `,
       args: [
         params.runTimestamp.getTime(),
-        ...observedVins,
+        ...filter.args,
         params.runId,
         params.cursor,
       ],
@@ -698,7 +758,7 @@ async function runMissingBatch(
         `,
     args: finishing
       ? [
-          restoredVins.length,
+          restoredRows.length,
           deletedCount,
           params.runId,
           now,
@@ -708,7 +768,7 @@ async function runMissingBatch(
         ]
       : [
           nextCursor,
-          restoredVins.length,
+          restoredRows.length,
           deletedCount,
           now,
           params.runId,
