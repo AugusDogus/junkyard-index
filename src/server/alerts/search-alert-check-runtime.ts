@@ -4,8 +4,8 @@ import { env } from "~/env";
 import { db, dbClient } from "~/lib/db";
 import { getAlertMatchStatsBatch } from "./algolia-alert-search";
 import {
-  isSearchAlertCheckPending,
   runSearchAlertCheckBatch,
+  searchAlertCheckState,
   type SearchAlertCheckContext,
 } from "./search-alert-check";
 
@@ -20,6 +20,6 @@ export function runDailySearchAlertCheckBatch(day: string) {
   return runSearchAlertCheckBatch(context, day, new Date());
 }
 
-export function isDailySearchAlertCheckPending(day: string) {
-  return isSearchAlertCheckPending(db, day);
+export function dailySearchAlertCheckState(day: string) {
+  return searchAlertCheckState(db, day);
 }

@@ -149,13 +149,23 @@ export async function openSearchAlertCheck(
   return created;
 }
 
-/** Whether the day still needs a check run, so a trigger can skip a no-op. */
-export async function isSearchAlertCheckPending(
+/**
+ * A running check that has not progressed for this long is treated as
+ * failed or stuck: delivery stops holding recipients' earlier intents for it
+ * (see notification-intent-claim). A batch normally takes seconds.
+ */
+export const SEARCH_ALERT_CHECK_STALE_MS = 60 * 60 * 1000;
+
+/** missing: not created yet. running: still matching (or failing). */
+export type SearchAlertCheckState = "missing" | "running" | "finished";
+
+export async function searchAlertCheckState(
   database: LibSQLDatabase,
   day: string,
-): Promise<boolean> {
+): Promise<SearchAlertCheckState> {
   const check = await loadCheck(database, day);
-  return check === undefined || check.status === "running";
+  if (check === undefined) return "missing";
+  return check.status === "running" ? "running" : "finished";
 }
 
 /** Whether the vehicles a batch reads (or read) may be incomplete. */

@@ -1,5 +1,8 @@
 import { IngestionDay } from "~/server/ingestion/ingestion-day";
-import type { SearchAlertCheckBatchResult } from "./search-alert-check";
+import type {
+  SearchAlertCheckBatchResult,
+  SearchAlertCheckState,
+} from "./search-alert-check";
 
 // 18:00 UTC. Passes usually finish by 16:00 UTC, including a failing
 // source's third attempt; the deadline keeps a stuck source from holding
@@ -13,29 +16,34 @@ export interface DailySearchAlertsTriggered {
 
 /**
  * Starts the day's saved-search alert check while it is pending, and
- * delivery whenever a notification can go out. Delivery is independent of
- * the check: intents still owned by a running check are held back by the
- * delivery claim, while retries, daily-limit holdovers and earlier checks'
- * intents must not wait for a check that keeps failing. A past day starts
- * no check; the current day's check covers its vehicles. Callers pass the
- * lookups and workflow starts, so this stays out of the workflow bundle's
- * runtime imports.
+ * delivery when a notification can go out. The check delivers when it
+ * finishes; starting delivery here as well keeps retries, daily-limit
+ * holdovers and earlier checks' intents moving when today's check keeps
+ * failing. While today's check is progressing, the delivery claim holds
+ * recipients' earlier intents so they share today's digest. Before the check
+ * exists nothing holds them yet, so delivery is left to the check, which
+ * delivers once it finishes or the next trigger finds it. A past day starts no check; the current day's check covers its
+ * vehicles. Callers pass the lookups and workflow starts, so this stays out
+ * of the workflow bundle's runtime imports.
  */
 export async function startDailySearchAlerts(
   day: string,
   operations: {
     now: Date;
-    isCheckPending(day: string): Promise<boolean>;
+    checkState(day: string): Promise<SearchAlertCheckState>;
     hasDeliverableIntents(): Promise<boolean>;
     startCheck(day: string): Promise<unknown>;
     startDelivery(): Promise<unknown>;
   },
 ): Promise<DailySearchAlertsTriggered> {
-  const check =
-    IngestionDay.key(operations.now) === day &&
-    (await operations.isCheckPending(day));
+  const state =
+    IngestionDay.key(operations.now) === day
+      ? await operations.checkState(day)
+      : "finished";
+  const check = state !== "finished";
   if (check) await operations.startCheck(day);
-  const delivery = await operations.hasDeliverableIntents();
+  const delivery =
+    state !== "missing" && (await operations.hasDeliverableIntents());
   if (delivery) await operations.startDelivery();
   return { check, delivery };
 }

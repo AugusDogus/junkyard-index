@@ -4,15 +4,21 @@ import {
   runSearchAlertCheck,
   startDailySearchAlerts,
 } from "./daily-search-alert-trigger";
-import type { SearchAlertCheckBatchResult } from "./search-alert-check";
+import type {
+  SearchAlertCheckBatchResult,
+  SearchAlertCheckState,
+} from "./search-alert-check";
 
-function trigger(state: { pending: boolean; deliverable: boolean }) {
+function trigger(state: {
+  check: SearchAlertCheckState;
+  deliverable: boolean;
+}) {
   const started: string[] = [];
   return {
     started,
     operations: (now: Date) => ({
       now,
-      isCheckPending: async () => state.pending,
+      checkState: async () => state.check,
       hasDeliverableIntents: async () => state.deliverable,
       startCheck: async (day: string) => {
         started.push(`check:${day}`);
@@ -28,9 +34,21 @@ const DAY = "2026-11-20";
 const DURING_DAY = new Date("2026-11-20T19:00:00Z");
 
 describe("daily search alert trigger", () => {
-  test("starts a pending check and, independently, delivery of intents that can go out", async () => {
+  test("leaves delivery to a check that does not exist yet, so earlier intents join its digest", async () => {
     const { started, operations } = trigger({
-      pending: true,
+      check: "missing",
+      deliverable: true,
+    });
+    expect(await startDailySearchAlerts(DAY, operations(DURING_DAY))).toEqual({
+      check: true,
+      delivery: false,
+    });
+    expect(started).toEqual([`check:${DAY}`]);
+  });
+
+  test("restarts a running check and starts delivery, which the claim holds while the check progresses", async () => {
+    const { started, operations } = trigger({
+      check: "running",
       deliverable: true,
     });
     expect(await startDailySearchAlerts(DAY, operations(DURING_DAY))).toEqual({
@@ -41,13 +59,13 @@ describe("daily search alert trigger", () => {
   });
 
   test("a finished check only starts delivery, and only when something can go out", async () => {
-    const finished = trigger({ pending: false, deliverable: true });
+    const finished = trigger({ check: "finished", deliverable: true });
     expect(
       await startDailySearchAlerts(DAY, finished.operations(DURING_DAY)),
     ).toEqual({ check: false, delivery: true });
     expect(finished.started).toEqual(["delivery"]);
 
-    const idle = trigger({ pending: false, deliverable: false });
+    const idle = trigger({ check: "finished", deliverable: false });
     expect(
       await startDailySearchAlerts(DAY, idle.operations(DURING_DAY)),
     ).toEqual({ check: false, delivery: false });
@@ -56,7 +74,7 @@ describe("daily search alert trigger", () => {
 
   test("a past day starts no check but still delivers", async () => {
     const { started, operations } = trigger({
-      pending: true,
+      check: "missing",
       deliverable: true,
     });
     // 07:00 UTC starts the next ingestion day.
