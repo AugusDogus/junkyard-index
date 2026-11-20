@@ -360,3 +360,25 @@ test("Aviation checkpoints reject carried pages that differ from the census and 
   // The sweep models, then closing contact and makes.
   expect(native.urls.length - before).toBe(due.length + 2);
 });
+
+test("Aviation starts a warned cold census when a carried page fails its fingerprint", async () => {
+  const native = yard();
+  const cold = await census(native, 600, null);
+  const terminal = AviationCursor.parse(JSON.stringify(cold.terminal));
+  if (terminal.phase !== "complete" || !terminal.census)
+    throw new Error("Expected a terminal census");
+  const [first, ...rest] = terminal.census.models;
+  if (!first) throw new Error("Expected census evidence");
+  // Bypass the codec: a stored page whose hash no longer matches its records.
+  const tampered = {
+    ...terminal,
+    census: {
+      ...terminal.census,
+      models: [{ ...first, page: { ...first.page, records: [] } }, ...rest],
+    },
+  };
+  const next = await census(native, 600 + 1, tampered);
+  expect(next.models).toHaveLength(12);
+  expect(next.warnings[0]).toContain("reading every model page");
+  expect(next.vins).toEqual(allVins(native));
+});
