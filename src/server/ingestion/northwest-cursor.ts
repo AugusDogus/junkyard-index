@@ -3,9 +3,15 @@ import {
   northwestHash,
   NorthwestControlSchema,
   NorthwestPageSchema,
-  type NorthwestControl,
+  type NorthwestPage,
 } from "./northwest-parser";
+import { NorthwestRecordSchema } from "./northwest-record";
 import { northwestModels, type NorthwestMake } from "./northwest-catalog";
+import {
+  ModelCensus,
+  type ModelCensusControl,
+  type ModelCensusDecision,
+} from "./model-census";
 import {
   NORTHWEST_ROOT,
   NORTHWEST_MAKES,
@@ -14,15 +20,38 @@ import {
   northwestBrowsePath,
 } from "./northwest-yard-metadata";
 
-export const NORTHWEST_MAX_CURSOR_BYTES = 8 * 1024 * 1024;
+// Room for the previous census plus this run's pages (about 4 MiB each today).
+export const NORTHWEST_MAX_CURSOR_BYTES = 16 * 1024 * 1024;
 export const NORTHWEST_MAX_REQUESTS = 1600;
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
 const scope = northwestHash({
   version: 1,
   yard: NORTHWEST_YARD,
   contract:
-    "AK01/legacy-model-graph/all-identity-conflicts-quarantined/one-percent-unrecovered-v1",
+    "AK01/legacy-model-graph/all-identity-conflicts-quarantined/one-percent-unrecovered/incremental-model-census-v1",
 });
+// Census pages are written from parsed pages, so every defaulted record field
+// is present; requiring them keeps the census page type equal to NorthwestPage.
+const strings = z.array(z.string());
+const CensusPageSchema = NorthwestPageSchema.extend({
+  records: z
+    .array(
+      NorthwestRecordSchema.extend({
+        inquiries: strings,
+        stockNumbers: strings,
+        imageUrls: strings,
+        availableDates: strings,
+        colors: strings,
+        sections: strings,
+        rows: strings,
+        spaces: strings,
+      }),
+    )
+    .max(1000),
+});
+/** Every model page read by an accepted run, carried forward by the next one. */
+export const NorthwestCensusSchema = ModelCensus.schema(CensusPageSchema, 1024);
+export type NorthwestCensus = z.infer<typeof NorthwestCensusSchema>;
 const progress = z
   .object({
     source: z.literal("northwest"),
@@ -41,56 +70,61 @@ const progress = z
     pages: z.array(NorthwestPageSchema).max(1024),
     closing: z.number().int().min(0).max(1100),
     requests: z.number().int().min(0).max(NORTHWEST_MAX_REQUESTS),
+    /** UTC run day fixed before the first request; null only in the initial cursor. */
+    day: z.number().int().nonnegative().safe().nullable(),
+    /** Compatible census from the last accepted run, or null for a cold census. */
+    previous: NorthwestCensusSchema.nullable(),
   })
   .strict();
 export type NorthwestProgress = z.infer<typeof progress>;
 export type NorthwestClosingControl =
   | { kind: "root"; url: typeof NORTHWEST_ROOT }
-  | { kind: "directory"; url: typeof NORTHWEST_MAKES }
-  | { kind: "make"; url: string; make: NorthwestMake }
-  | {
-      kind: "model";
-      url: string;
-      make: NorthwestMake;
-      model: NorthwestControl;
-      index: number;
-    };
+  | { kind: "directory"; url: typeof NORTHWEST_MAKES };
 
-export function northwestClosingControls(
-  state: Pick<NorthwestProgress, "makes" | "pages">,
-): NorthwestClosingControl[] {
-  const models = northwestModels(state.makes);
-  const selected = new Set<number>(models.length ? [0, models.length - 1] : []);
-  state.pages.forEach((page, index) => {
-    if (page.records.length !== models[index]?.model.count) selected.add(index);
-  });
+/** Closing re-reads ownership and the make directory only. Make menu and model
+ * changes during the run surface as model badge changes in the next run's
+ * opening menus, which are all read. */
+export function northwestClosingControls(): NorthwestClosingControl[] {
   return [
     { kind: "root", url: NORTHWEST_ROOT },
     { kind: "directory", url: NORTHWEST_MAKES },
-    ...state.makes.map(
-      (make) =>
-        ({
-          kind: "make",
-          url: NORTHWEST_ORIGIN + make.path,
-          make,
-        }) satisfies NorthwestClosingControl,
-    ),
-    ...[...selected]
-      .sort((a, b) => a - b)
-      .map((index) => {
-        const entry = models[index];
-        if (!entry)
-          throw new Error(
-            "Northwest closing model is outside the published graph",
-          );
-        return {
-          kind: "model",
-          url: NORTHWEST_ORIGIN + entry.model.path,
-          ...entry,
-          index,
-        } satisfies NorthwestClosingControl;
-      }),
   ];
+}
+
+// The model parser binds make and model paths and labels into every card.
+function northwestCensusControls(
+  makes: readonly NorthwestMake[],
+): ModelCensusControl[] {
+  return northwestModels(makes).map(({ make, model }) => ({
+    key: JSON.stringify([make.path, make.label, model.path, model.label]),
+    count: model.count,
+  }));
+}
+
+/** Read or carry each published model. Latest arrivals are not read (the
+ * native list is stale and misses new donors), so nothing triggers a read. */
+export function northwestCensusPlan(
+  state: Pick<NorthwestProgress, "makes" | "previous" | "day">,
+): ModelCensusDecision<NorthwestPage>[] {
+  if (state.day === null)
+    throw new Error("Northwest census plan needs a run day");
+  return ModelCensus.plan(
+    northwestCensusControls(state.makes),
+    state.previous,
+    state.day,
+  );
+}
+
+/** Terminal census for a fully closed run. */
+export function northwestCensus(state: NorthwestProgress): NorthwestCensus {
+  if (state.day === null) throw new Error("Northwest census has no run day");
+  return ModelCensus.accept(
+    scope,
+    state.day,
+    northwestCensusControls(state.makes),
+    state.pages,
+    northwestCensusPlan(state),
+  );
 }
 
 function checksum(
@@ -106,6 +140,8 @@ function checksum(
     pages: state.pages,
     closing: state.closing,
     requests: state.requests,
+    day: state.day,
+    previous: state.previous,
   });
 }
 
@@ -116,6 +152,8 @@ export const NorthwestCursorSchema = z
         source: z.literal("northwest"),
         version: z.literal(1),
         phase: z.literal("complete"),
+        // Pre-incremental terminal cursors stay readable but seed a cold census.
+        census: NorthwestCensusSchema.optional(),
       })
       .strict(),
     progress,
@@ -128,7 +166,7 @@ export const NorthwestCursorSchema = z
         state.checksum !== checksum(state)
       )
         throw new Error(
-          "Northwest checkpoint exceeds 8 MiB or its integrity changed",
+          "Northwest checkpoint exceeds 16 MiB or its integrity changed",
         );
       const stage = ["root", "directory", "makes", "models", "closing"].indexOf(
         state.phase,
@@ -156,17 +194,42 @@ export const NorthwestCursorSchema = z
         (stage === 3 && state.pages.length >= models.length) ||
         (stage === 4 && state.pages.length !== models.length) ||
         (stage < 4 && state.closing !== 0) ||
-        (stage === 4 && state.closing > northwestClosingControls(state).length)
+        (stage === 4 && state.closing > northwestClosingControls().length)
       )
         throw new Error(
           "Northwest model or closing checkpoint prefix is inconsistent",
         );
       if (
+        state.day === null
+          ? state.requests !== 0 || state.previous !== null
+          : state.previous !== null &&
+            (state.previous.contract !== scope ||
+              state.previous.day > state.day)
+      )
+        throw new Error(
+          "Northwest run day or previous model census is inconsistent",
+        );
+      // Carried pages are exactly the previous census evidence and cost no GET.
+      let readPages = 0;
+      if (stage >= 3) {
+        const decisions = northwestCensusPlan(state);
+        state.pages.forEach((page, index) => {
+          const decision = decisions[index];
+          if (decision?.kind === "read") readPages++;
+          else if (decision?.evidence.page.hash !== page.hash)
+            throw new Error(
+              "Northwest carried model page differs from its census",
+            );
+        });
+        if (stage === 3 && decisions[state.pages.length]?.kind !== "read")
+          throw new Error("Northwest next model page is not due for a read");
+      }
+      if (
         state.requests !==
         (state.root === null ? 0 : 1) +
           (state.makes.length ? 1 : 0) +
           completed +
-          state.pages.length +
+          readPages +
           state.closing
       )
         throw new Error(
@@ -236,13 +299,15 @@ const initial: Omit<NorthwestProgress, "checksum"> = {
   pages: [],
   closing: 0,
   requests: 0,
+  day: null,
+  previous: null,
 };
 export const NorthwestCursor = {
   initial: { ...initial, checksum: checksum(initial) },
   parse(value: string): NorthwestCursor {
     if (Buffer.byteLength(value) > NORTHWEST_MAX_CURSOR_BYTES)
       throw new Error(
-        "Northwest cursor exceeds 8 MiB; retain the last validated checkpoint",
+        "Northwest cursor exceeds 16 MiB; retain the last validated checkpoint",
       );
     const candidate: unknown = JSON.parse(value);
     return NorthwestCursorSchema.parse(candidate);
@@ -251,9 +316,38 @@ export const NorthwestCursor = {
     const value = JSON.stringify(NorthwestCursorSchema.parse(cursor));
     if (Buffer.byteLength(value) > NORTHWEST_MAX_CURSOR_BYTES)
       throw new Error(
-        "Northwest cursor exceeds 8 MiB; retain the last validated checkpoint",
+        "Northwest cursor exceeds 16 MiB; retain the last validated checkpoint",
       );
     return value;
+  },
+  /** Fixes the run day and adopts the last accepted census before the first
+   * request. Anything unusable starts a cold census with a warning. */
+  begin(
+    cursor: NorthwestProgress,
+    now: number,
+    previousCursor: unknown,
+  ): { cursor: NorthwestProgress; warning: string | null } {
+    if (cursor.day !== null) return { cursor, warning: null };
+    const day = ModelCensus.day(now);
+    const parsed = NorthwestCursorSchema.safeParse(previousCursor ?? undefined);
+    const previous =
+      parsed.success && parsed.data.phase === "complete"
+        ? ModelCensus.previous(parsed.data.census, scope, day)
+        : {
+            kind: "cold" as const,
+            warning:
+              previousCursor === null || previousCursor === undefined
+                ? null
+                : "Previous Northwest checkpoint is not a readable terminal census; reading every model page.",
+          };
+    return {
+      cursor: NorthwestCursor.checkpoint({
+        ...cursor,
+        day,
+        previous: previous.kind === "incremental" ? previous.census : null,
+      }),
+      warning: previous.kind === "cold" ? previous.warning : null,
+    };
   },
   checkpoint(
     state: Omit<NorthwestProgress, "checksum"> | NorthwestProgress,
