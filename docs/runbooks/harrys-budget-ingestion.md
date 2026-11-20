@@ -199,6 +199,4 @@ bun test --timeout 15000 src
 
 The soak serializes every checkpoint and discards vehicles. It does not publish
 or modify production. `--max-pages` bounds native requests and returns paused
-for an incomplete census; it excludes Sucuri challenge overhead. Do not use the
-opt-in ingestion smoke test for read-only qualification because that workflow
-can publish data and send alerts.
+for an incomplete census; it excludes Sucuri challenge overhead.
