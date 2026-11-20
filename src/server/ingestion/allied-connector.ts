@@ -15,6 +15,9 @@ import {
 import { AlliedResult, type AlliedError } from "./allied-result";
 import { alliedSnapshot, validateAlliedSnapshot } from "./allied-snapshot";
 import type { AlliedCanonicalVehicle } from "./allied-transform";
+import { ALLIED_UNREACHABLE_MODEL_ROUTES } from "./allied-configuration";
+import { IisModelRoute } from "./iis-model-route";
+import { validationRejection } from "./ingestion-validation";
 import { ProviderChunkClock } from "./provider-chunk-clock";
 import { sharedProviderHostTurn } from "./shared-provider-host";
 
@@ -85,6 +88,17 @@ export function streamAlliedInventory<E, R>(options: AlliedOptions<E, R>) {
     };
     while (cursor.phase !== "complete") {
       if (cursor.phase === "ready") {
+        const coverage = IisModelRoute.coverage(
+          cursor.menus,
+          cursor.pages,
+          ALLIED_UNREACHABLE_MODEL_ROUTES,
+        );
+        if (!coverage.ok)
+          return yield* Effect.fail(
+            validationRejection(
+              AlliedResult.error("advertised model coverage", coverage.detail),
+            ),
+          );
         const snapshot = alliedSnapshot(
           cursor.pages,
           cursor.arrivals,
@@ -108,6 +122,7 @@ export function streamAlliedInventory<E, R>(options: AlliedOptions<E, R>) {
         summary.warnings = [
           `Allied skipped ${snapshot.accounting.recordsExcluded} records with nonstandard stock codes, outside the rejection denominator. ${snapshot.accounting.recordsRejected} normal-stock observations were rejected.`,
           ...alliedCountWarnings(cursor),
+          ...coverage.value.warnings,
         ];
         cursor = yield* unwrap(
           AlliedCursor.checkpoint(

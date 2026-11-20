@@ -12,7 +12,7 @@ import {
   streamAlliedInventoryFromProvider,
 } from "./allied-connector";
 import { AlliedResult } from "./allied-result";
-import { ALLIED_ORIGIN } from "./allied-html";
+import { ALLIED_ORIGIN, alliedClass, alliedElements } from "./allied-html";
 import { runWithQueuedHost } from "./provider-host-test-support";
 
 // Reduce real native directories for traversal tests only. The census test
@@ -181,6 +181,49 @@ test("Allied applies the unchanged previous complete inventory drift guard befor
     );
     expect(result._tag).toBe(previousUniqueInventory === 80 ? "Right" : "Left");
     expect(h.batches).toHaveLength(previousUniqueInventory === 80 ? 1 : 0);
+  }
+});
+
+test("Allied refuses to publish when a badged model or make reads as an explicit empty", async () => {
+  const ilx = alliedFixture("model-ilx");
+  const deck = alliedElements(ilx, "div", (tag) =>
+    alliedClass(tag, "card-deck"),
+  )[0];
+  if (!deck) throw new Error("Saved ILX card deck missing");
+  const empty = ilx.replace(
+    deck.body,
+    '<div class="alert alert-warning" role="alert"><h3>No Results Found. Try Browsing Our Parts Or Search Again</h3></div>',
+  );
+  for (const [route, detail] of [
+    [
+      ALLIED_ORIGIN + "/parts/ACURA/ILX/",
+      "model /parts/ACURA/ILX/ advertises 1 donor but /parts/ACURA/ILX/ returned an explicit",
+    ],
+    [
+      ALLIED_ORIGIN + "/parts/ACURA",
+      "make /parts/ACURA advertises 11 donors but its model directory is an explicit",
+    ],
+  ] as const) {
+    const h = harness();
+    h.docs.set(route, empty);
+    let cursor: unknown = undefined;
+    let outcome: Either.Either<unknown, { message: string }> | null = null;
+    while (outcome === null) {
+      const chunk = await Effect.runPromise(
+        Effect.either(
+          streamAlliedInventory({ ...h.options, startCursor: cursor }),
+        ),
+      );
+      if (Either.isLeft(chunk) || chunk.right.status === "complete")
+        outcome = chunk;
+      else cursor = chunk.right.cursor;
+    }
+    expect(Either.isLeft(outcome)).toBe(true);
+    if (Either.isLeft(outcome)) {
+      expect(outcome.left.message).toContain(detail);
+      expect(outcome.left.message).toContain("Prior inventory is preserved");
+    }
+    expect(h.batches).toEqual([]);
   }
 });
 

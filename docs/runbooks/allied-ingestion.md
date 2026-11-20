@@ -18,6 +18,34 @@ and part-search destination. Published category badges are diagnostic, since
 their sums disagree with each other and with the actual card enumeration.
 The final warnings report each count without inventing an advertised yard total.
 
+Model controls that publish an ampersand as `_-and_` (for example
+`/parts/CHRYSLER/TOWN_-and_COUNTRY/`) return an explicit "No Results Found"
+page. The connector keeps the published path in checkpoints and closing
+comparisons, requests the raw `_&_` spelling, and checks donor links against
+the `_and__` spelling the site uses (`/parts/CHRYSLER/TOWN_and__COUNTRY/<stock>/<year>`).
+A badged model page or badged make menu that still reads as an explicit empty
+fails the run before publication and names the route and badge. The only
+exception is `ALLIED_UNREACHABLE_MODEL_ROUTES`, the exact routes that live
+probes on November 20, 2026 proved list nothing under any spelling:
+`/parts/CHRYSLER/NEW_YORKER_(FWD)/` (literal refused with HTTP 403, `%28/%29`
+empty) and `/parts/PLYMOUTH/PLYMOUTH_PASS./` and `/parts/SUBARU/SUBARU_PASS./`
+(menu label "PASS/"; literal, `%2E` and `%2F` all empty). Their empties are
+reported in the run warnings by route and badge and fail only above 1% of the
+advertised model badges (3 of 3,389 in the November 15 census). Parentheses
+keep the percent-encoded spelling the November 15 census used (it listed donors
+on `BLAZER.JIMMY_(FULL_SIZE)` and `SPRINT_(CHEV)`), except on
+`ALLIED_LITERAL_PARENTHESIS_ROUTES`: literal `ISUZU_PUP_(PICKUP)` and
+`SAFARI_(GMC)` each listed their one card on November 20 while their `%28/%29`
+spellings returned explicit empties. Both cards have nonstandard stocks
+(`CORMTR`, `NOF`) and no VIN, so they are excluded as before. Change a route's
+spelling, or add it to the unreachable list, only after probing it.
+Badges can be stale: that census has `/parts/AUDI/AUDI_ALLROAD/` at badge 4
+with one card. If the last card on an ordinary route leaves while its badge
+stays positive, every run fails on that route until the badge clears. Probe the
+route before changing its spelling, and escalate a stale badge instead of
+loosening the check. The coverage check repeats on a resumed checkpoint, so
+start a new run after any fix.
+
 Only stock codes matching `^\d{1,2}[A-L]\d{3}$` enter donor validation. Other
 records, including blank stock codes, are counted as `recordsExcluded` and
 reported as skipped. Some may represent real trucks that cannot be identified;
@@ -39,6 +67,9 @@ The 86 rejects include 48 invalid VIN observations and 38 quarantined identity
 conflicts. Make badges sum to 3,181, model badges to 3,389, and 23 model pages
 disagree with their badges. These discrepancies remain warnings. The complete
 ordered Brotli response archive preserves separate opening and closing controls.
+The replay serves November 19 raw-ampersand captures for Town & Country and
+Lincoln & Town Car in place of their explicit empties. They add 25 cards and
+19 accepted donors, for 2,526 in total.
 Compression retains the raw HTML, including repeated URLs; tests never replace
 closing responses with opening responses.
 
