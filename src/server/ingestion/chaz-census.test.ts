@@ -642,6 +642,15 @@ test("Chaz fails a steady-state run whose routine sweep slice, read at age six, 
       "Chaz model pages list 1042 of 1107 cards that the last accepted census listed for models whose counts did not change, below the 97% coverage floor.",
     ),
   ).toBe(0);
+  // Rejected runs accept nothing, so the previous census stays at D + 10 and
+  // the broken slice ages past six days. Every retry with a gap of 2 to 5
+  // days from the last accepted run must still be rejected: one card per
+  // page covers 93.5% of badges, above the 92% badge floor, so only the
+  // replay floor stops it.
+  for (let retryDay = D + 12; retryDay <= D + 15; retryDay++)
+    expect(
+      await failing(retryDay, previous, "below the 97% coverage floor."),
+    ).toBe(0);
   // Once the pages recover, a retry from the same accepted census publishes
   // every donor; its routine slice reads are all age six.
   native.cut.clear();
@@ -650,7 +659,40 @@ test("Chaz fails a steady-state run whose routine sweep slice, read at age six, 
   expect(retry.warnings.at(-1)).toBe(
     "Chaz Read 30 of 240 model pages (stale 30); carried 210.",
   );
-}, 120_000);
+}, 300_000);
+
+test("Chaz judges a run like a full read once the last accepted run is six days old", async () => {
+  // A real drop that stays rejected: after six days without an accepted run
+  // every page is read again and the run is judged on the 92% badge floor,
+  // so the yard is never stuck. One card per page on slice 5 covers 93.5% of
+  // badges and publishes as the new truth.
+  const native = nov18Yard();
+  let previous = (await census(native, D, null)).terminal;
+  for (let day = D + 1; day <= D + 10; day++)
+    previous = (await census(native, day, previous)).terminal;
+  for (const model of native.models)
+    if (ModelCensus.slice(model.key) === 5) native.cut.add(model.key);
+  const recovered = await census(native, D + 16, previous);
+  expect(recovered.warnings.at(-1)).toBe(
+    "Chaz Read 240 of 240 model pages (stale 240); carried 0.",
+  );
+  expect(recovered.vins).toHaveLength(1042);
+}, 300_000);
+
+test("Chaz rejects a broken due slice after a missed run", async () => {
+  // Accepted daily to D + 10, no run on D + 11, then D + 12 reads the slice
+  // due on D + 11 (now age seven) and its own. The D + 11 slice lists one card
+  // per page and must still be judged against its last accepted cards.
+  const native = nov18Yard();
+  let previous = (await census(native, D, null)).terminal;
+  for (let day = D + 1; day <= D + 10; day++)
+    previous = (await census(native, day, previous)).terminal;
+  for (const model of native.models)
+    if (ModelCensus.slice(model.key) === 5) native.cut.add(model.key);
+  expect(await failing(D + 12, previous, "below the 97% coverage floor.")).toBe(
+    0,
+  );
+}, 300_000);
 
 test("Chaz re-reads a surplus model page that loses a donor down to its badge, at closing and on the next run", async () => {
   // A badge of 40 whose page lists 41 (a placeholder or surplus row). Losing a

@@ -452,6 +452,75 @@ describe("ModelCensus", () => {
     ).toContain("last accepted census");
   });
 
+  test("a replay rejection holds on every later run until the last accepted run is six days old", () => {
+    // 60 models, badges and healthy pages at 10. Daily runs to day 110 are
+    // accepted. From day 111 the slice due that day lists one card per page
+    // (85% of badges, above a 0.8 badge floor). Rejected runs accept nothing,
+    // so the previous census stays at day 110 and the broken models age past
+    // six days; they must keep their replay reference until the outage path.
+    const models = controls(60, 10);
+    const label = (i: number) => "M" + i;
+    let census = run(models, null, 100).census;
+    for (let day = 101; day <= 110; day++)
+      census = run(models, census, day).census;
+    const broken = new Set(
+      models
+        .filter(
+          (m) => ModelCensus.slice(m.key) === 111 % MODEL_CENSUS_SWEEP_DAYS,
+        )
+        .map((m) => m.key),
+    );
+    expect(broken.size).toBeGreaterThan(0);
+    const attempt = (today: number) => {
+      const decisions = ModelCensus.plan(models, census, today, { cards });
+      const pages = decisions.map((d, i) => {
+        const key = models[i]?.key ?? "";
+        if (d.kind === "carry") return d.evidence.page;
+        return page(key, today, broken.has(key) ? 1 : 10);
+      });
+      return ModelCensus.coverage(
+        "Fixture",
+        { controls: models, pages, previous: census, day: today, cards },
+        0.8,
+        label,
+      );
+    };
+    // The first broken day and every retry with gaps of 2 to 5 days.
+    for (const today of [111, 112, 113, 114, 115])
+      expect(attempt(today)).toContain("last accepted census");
+    // Once the last accepted run is six days old the run is judged like a
+    // cold run: a real drop clears within that bound instead of blocking.
+    expect(attempt(116)).toBeNull();
+  });
+
+  test("a missed run never lets a broken due slice skip the replay floor", () => {
+    // Accepted daily to day 110, no run on day 111, then day 112 reads both
+    // the day 111 slice (now age seven) and its own; the day 111 slice lists
+    // one card per page.
+    const models = controls(60, 10);
+    const label = (i: number) => "M" + i;
+    let census = run(models, null, 100).census;
+    for (let day = 101; day <= 110; day++)
+      census = run(models, census, day).census;
+    const late = (m: ModelCensusControl) =>
+      ModelCensus.slice(m.key) === 111 % MODEL_CENSUS_SWEEP_DAYS;
+    const decisions = ModelCensus.plan(models, census, 112, { cards });
+    const pages = decisions.map((d, i) => {
+      const model = models[i];
+      if (!model) throw new Error("fixture decision has no model");
+      if (d.kind === "carry") return d.evidence.page;
+      return page(model.key, 112, late(model) ? 1 : 10);
+    });
+    expect(
+      ModelCensus.coverage(
+        "Fixture",
+        { controls: models, pages, previous: census, day: 112, cards },
+        0.8,
+        label,
+      ),
+    ).toContain("last accepted census");
+  });
+
   test("a recovery run after a six-day outage is judged like a cold run", () => {
     // Badges 10, healthy pages 10, accepted on day 100. After a six-day gap
     // every page is read and lists 9: above an 85% badge floor, below replay.
