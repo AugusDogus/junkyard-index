@@ -307,6 +307,36 @@ describe("daily search alert check", () => {
     }
   });
 
+  test("stops before a run released with search publication skipped until a rebuild publishes it", async () => {
+    const { client, cleanup, calls, context } = await setup();
+    try {
+      // Released at its final reconciliation batch; its changes await a rebuild.
+      await insertRun(client, {
+        id: "skipped",
+        status: "success",
+        stage: "released",
+        activeSlot: null,
+        commitStartedAt: Date.parse("2026-11-20T14:00:00.250Z"),
+        fullReindexRequired: true,
+        publicationSequence: 30,
+      });
+      await insertSearch(
+        client,
+        "search-a",
+        Date.parse("2026-11-19T18:00:00Z"),
+      );
+      await runSearchAlertCheckBatch(context, DAY, NOW);
+      expect(calls[0]?.bound.checkedThrough).toEqual(
+        new Date("2026-11-20T13:59:59.999Z"),
+      );
+      expect(await searchWindows(client)).toEqual([
+        ["search-a", Date.parse("2026-11-20T13:59:59.999Z")],
+      ]);
+    } finally {
+      cleanup();
+    }
+  });
+
   test("counts an unclaimed local run from its start", async () => {
     const { client, cleanup, calls, context } = await setup();
     try {

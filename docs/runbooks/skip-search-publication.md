@@ -41,11 +41,12 @@ never skip.
 
 ## Alerts while it is on
 
-No skipped run enters `match_alerts`, so saved searches are not checked
+Source runs never match saved searches; the daily alert check does. A
+skipped run keeps `full_reindex_required = 1`, and any run with it bounds the
+check's window before that run's commit, so saved searches are not checked
 against a search index that lacks the skipped vehicles, and their
-`last_checked_at` windows do not advance past them. Under the daily alert
-check (PR #229), any run with `full_reindex_required = 1` bounds the check's
-window before that run's commit, so checks wait for the same rebuild.
+`last_checked_at` windows do not advance past them. Checks resume covering
+those vehicles once the rebuild publishes.
 
 ## When it turns off
 
