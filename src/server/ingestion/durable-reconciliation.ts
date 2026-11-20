@@ -16,6 +16,7 @@ import type {
   DurableIngestionResult,
   DurableReconciliationBatchResult,
 } from "./durable-ingestion-types";
+import type { SearchPublicationMode } from "./search-publication-flag";
 import {
   parseAcceptedSources,
   parseDurableRunStage,
@@ -53,6 +54,8 @@ interface ReconciliationContext {
   batchClient: BatchClient;
   /** Loads the run's staged inventory at most once per step. */
   inventory: () => Promise<RunSnapshotInventory>;
+  /** Whether the final batch hands the run to search or releases it. */
+  searchPublication: SearchPublicationMode;
 }
 
 /**
@@ -274,6 +277,91 @@ function vehicleUpsertStatement(params: {
       params.cursor,
     ],
   };
+}
+
+const PUBLICATION_SET_SQL = `
+  reconciliation_cursor = null,
+  vehicles_upserted = coalesce(vehicles_upserted, 0) + ?,
+  vehicles_deleted = coalesce(vehicles_deleted, 0) + ?,
+  inventory_outcome = case
+    when (select count(*) from ingestion_source_run
+          where run_id = ? and acceptance_status = 'rejected') > 0
+      then 'published_degraded'
+    else 'published'
+  end,
+  publication_sequence = (
+    select coalesce(max(publication_sequence), 0) + 1
+    from ingestion_run
+    where publication_sequence is not null
+  ),
+  inventory_published_at = ?,
+  last_progress_at = ?
+`;
+
+const PUBLICATION_GUARD_SQL = `
+  where id = ?
+    and status = 'running'
+    and active_slot = 1
+    and stage = 'reconcile_missing'
+    and reconciliation_cursor is ?
+`;
+
+/**
+ * The final batch's checkpoint, which publishes the run's inventory. Inline,
+ * the run keeps the commit for search: it projects its changes, or rebuilds
+ * when it carries `full_reindex_required`. Skipped, the run releases here
+ * without touching search. It keeps its unprocessed change rows and records
+ * `full_reindex_required`, which the next run to claim the commit inherits,
+ * so the first inline run after the switch turns off rebuilds the index from
+ * Turso and covers every skipped change. It records its published totals
+ * here because no later stage does.
+ *
+ * Inline args: upserted, deleted, runId, now, now, runId, cursor.
+ * Skipped args: runId, now, now, then the inline args.
+ */
+function publicationStatementSql(mode: SearchPublicationMode): string {
+  if (mode === "inline") {
+    return `
+      update ingestion_run
+      set stage = case
+            when full_reindex_required = 1 then 'full_reindex_prepare'
+            else 'project_changes'
+          end,
+          ${PUBLICATION_SET_SQL}
+      ${PUBLICATION_GUARD_SQL}
+    `;
+  }
+  return `
+    update ingestion_run
+    set status = 'success',
+        stage = 'released',
+        active_slot = null,
+        full_reindex_required = case
+          when full_reindex_required = 1 or exists (
+            select 1 from vehicle_change_v2
+            where run_id = ? and processed_at is null
+          ) then 1
+          else 0
+        end,
+        published_vehicle_count = (select count(*) from vehicle),
+        published_yard_count = (
+          select count(distinct location_code) from vehicle
+        ),
+        released_at = ?,
+        completed_at = ?,
+        ${PUBLICATION_SET_SQL}
+    ${PUBLICATION_GUARD_SQL}
+  `;
+}
+
+/** A run whose final batch released it with search publication skipped. */
+function releasedWithoutSearch(run: typeof ingestionRun.$inferSelect) {
+  return (
+    run.status === "success" &&
+    run.stage === "released" &&
+    run.inventoryPublishedAt !== null &&
+    run.searchPublishedAt === null
+  );
 }
 
 async function buildResult(
@@ -716,34 +804,7 @@ async function runMissingBatch(
   ).length;
   statements.push({
     sql: finishing
-      ? `
-          update ingestion_run
-          set stage = case
-                when full_reindex_required = 1 then 'full_reindex_prepare'
-                else 'project_changes'
-              end,
-              reconciliation_cursor = null,
-              vehicles_upserted = coalesce(vehicles_upserted, 0) + ?,
-              vehicles_deleted = coalesce(vehicles_deleted, 0) + ?,
-              inventory_outcome = case
-                when (select count(*) from ingestion_source_run
-                      where run_id = ? and acceptance_status = 'rejected') > 0
-                  then 'published_degraded'
-                else 'published'
-              end,
-              publication_sequence = (
-                select coalesce(max(publication_sequence), 0) + 1
-                from ingestion_run
-                where publication_sequence is not null
-              ),
-              inventory_published_at = ?,
-              last_progress_at = ?
-          where id = ?
-            and status = 'running'
-            and active_slot = 1
-            and stage = 'reconcile_missing'
-            and reconciliation_cursor is ?
-        `
+      ? publicationStatementSql(params.searchPublication)
       : `
           update ingestion_run
           set reconciliation_cursor = ?,
@@ -758,6 +819,9 @@ async function runMissingBatch(
         `,
     args: finishing
       ? [
+          ...(params.searchPublication === "skipped"
+            ? [params.runId, now, now]
+            : []),
           restoredRows.length,
           deletedCount,
           params.runId,
@@ -794,6 +858,7 @@ async function runMissingBatch(
     return {
       status: "complete",
       result: await buildResult(params.runId, params.database),
+      search: params.searchPublication === "skipped" ? "skipped" : "pending",
     };
   }
   return { status: "paused", phase: "missing", cursor: nextCursor };
@@ -808,6 +873,14 @@ async function reconcileBatch(
     .where(eq(ingestionRun.id, params.runId))
     .limit(1);
   if (!run) throw new Error(`Ingestion run ${params.runId} does not exist.`);
+  // A retried step finds the run its final batch already released.
+  if (releasedWithoutSearch(run)) {
+    return {
+      status: "complete",
+      result: await buildResult(params.runId, params.database),
+      search: "skipped",
+    };
+  }
   if (run.status !== "running" || run.activeSlot !== 1) {
     return { status: "stopped" };
   }
@@ -825,6 +898,7 @@ async function reconcileBatch(
     return {
       status: "complete",
       result: await buildResult(params.runId, params.database),
+      search: "pending",
     };
   }
   if (stage === "sources") {
@@ -860,12 +934,15 @@ export async function reconcileDurableIngestionRun(params: {
   batchClient: BatchClient;
   snapshotStore: IngestionSnapshotStore;
   budgetMs?: number;
+  /** Defaults to inline search publication. */
+  searchPublication?: SearchPublicationMode;
 }): Promise<DurableReconciliationBatchResult> {
   let inventory: Promise<RunSnapshotInventory> | null = null;
   const context: ReconciliationContext = {
     runId: params.runId,
     database: params.database,
     batchClient: params.batchClient,
+    searchPublication: params.searchPublication ?? "inline",
     inventory: () =>
       (inventory ??= loadRunSnapshotInventory({
         runId: params.runId,

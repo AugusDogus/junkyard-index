@@ -211,7 +211,22 @@ export async function publishFullReindexForRun(params: {
     .where(
       and(
         eq(ingestionRun.fullReindexRequired, true),
-        lte(ingestionRun.startedAt, params.runStartedAt),
+        or(
+          lte(ingestionRun.startedAt, params.runStartedAt),
+          // Released before this run claimed the commit, whenever it started
+          // (such as a run released with search publication skipped while
+          // this one waited): its writes are in this generation.
+          sql`${ingestionRun.releasedAt} <= (
+            select publishing_run.commit_started_at from ingestion_run as publishing_run
+            where publishing_run.id = ${params.runId}
+          )`,
+          // Not claimed yet, so it wrote nothing. Its claim inherits any
+          // repair a later run still leaves.
+          and(
+            eq(ingestionRun.activeSlot, 1),
+            isNull(ingestionRun.commitStartedAt),
+          ),
+        ),
         ne(ingestionRun.id, params.runId),
         sql`exists (
           select 1 from ingestion_run as publishing_run

@@ -235,6 +235,21 @@ async function runSourceIngestion(runId: string) {
     });
     if (ingestionResult.status === "stopped") return ingestionResult;
 
+    // With search publication switched off, the final reconciliation batch
+    // already released the run and left its changes for a later rebuild.
+    // Nothing here may call Algolia.
+    if (ingestionResult.search === "skipped") {
+      await reportProviderStatusStep(runId);
+      await drainDurableCleanup(() =>
+        cleanupDurableIngestionStateBatchStep(runId),
+      );
+      return {
+        status: "completed" as const,
+        ingestion: ingestionResult.ingestion,
+        search: "skipped" as const,
+      };
+    }
+
     const publicationResult = await runDurablePublicationLifecycle({
       runId,
       project: () =>

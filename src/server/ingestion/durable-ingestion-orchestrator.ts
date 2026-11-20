@@ -7,6 +7,7 @@ import type {
 import type {
   DurableIngestionResult,
   DurableReconciliationBatchResult,
+  DurableSearchPublication,
 } from "./durable-ingestion-types";
 import type { DurableSourceValidationSummary } from "./durable-source-validation";
 // Type-only: this module runs in the workflow sandbox, which cannot load
@@ -53,6 +54,7 @@ export interface DurableIngestionOperations {
 export type DurableIngestionCompletion = {
   status: "completed";
   ingestion: DurableIngestionResult;
+  search: DurableSearchPublication;
 };
 
 export type DurableIngestionExecution =
@@ -233,7 +235,11 @@ export async function commitDurableIngestion(params: {
       const reconciliation = await reconcile(params.runId);
       if (reconciliation.status === "stopped") return reconciliation;
       if (reconciliation.status === "complete") {
-        return { status: "completed", ingestion: reconciliation.result };
+        return {
+          status: "completed",
+          ingestion: reconciliation.result,
+          search: reconciliation.search,
+        };
       }
     }
   });

@@ -153,6 +153,7 @@ function makeOperations(
     reconcile: async () => ({
       status: "complete",
       result: COMPLETED_INGESTION,
+      search: "pending",
     }),
     markRunFailed: async () => undefined,
     ...overrides,
@@ -437,7 +438,11 @@ describe("durable ingestion lifecycle", () => {
         reconcile: async function (this: unknown) {
           expect(this).toBeUndefined();
           events.push("reconcile");
-          return { status: "complete", result: COMPLETED_INGESTION };
+          return {
+            status: "complete",
+            result: COMPLETED_INGESTION,
+            search: "pending",
+          };
         },
       }),
     });
@@ -445,6 +450,7 @@ describe("durable ingestion lifecycle", () => {
     expect(result).toEqual({
       status: "completed",
       ingestion: COMPLETED_INGESTION,
+      search: "pending",
     });
     expect(events.slice(0, 2)).toEqual(["cleanup-stale", "initialize"]);
     const sourcePhaseEnd = 2 + DURABLE_INGESTION_SOURCES.length;
@@ -484,7 +490,11 @@ describe("durable ingestion lifecycle", () => {
         validateSources: async () => ({ status: "stopped" }),
         reconcile: async () => {
           reconciled = true;
-          return { status: "complete", result: COMPLETED_INGESTION };
+          return {
+            status: "complete",
+            result: COMPLETED_INGESTION,
+            search: "pending",
+          };
         },
       }),
     });
@@ -522,13 +532,18 @@ describe("durable ingestion lifecycle", () => {
         operations: makeOperations({
           reconcile: async () => {
             events.push("reconcile");
-            return { status: "complete", result: COMPLETED_INGESTION };
+            return {
+              status: "complete",
+              result: COMPLETED_INGESTION,
+              search: "pending",
+            };
           },
         }),
       });
       expect(result).toEqual({
         status: "completed",
         ingestion: COMPLETED_INGESTION,
+        search: "pending",
       });
       expect(events).toEqual(["reconcile"]);
     } finally {
