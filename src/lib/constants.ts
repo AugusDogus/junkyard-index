@@ -1,13 +1,23 @@
+import { AlgoliaDeployment } from "~/lib/algolia-deployment";
+
 // Algolia
-export const ALGOLIA_INDEX_NAME = "vehicles";
+// next.config.js inlines NEXT_PUBLIC_VERCEL_ENV for the browser; the server
+// also reads VERCEL_ENV, so both name the same indices.
+const ALGOLIA_DEPLOYMENT = AlgoliaDeployment.parse(
+  process.env.NEXT_PUBLIC_VERCEL_ENV || process.env.VERCEL_ENV,
+);
+const algoliaIndexName = (baseName: string) =>
+  AlgoliaDeployment.indexName(ALGOLIA_DEPLOYMENT, baseName);
+/** "vehicles" in production; Vercel previews use "preview_vehicles". */
+export const ALGOLIA_INDEX_NAME = algoliaIndexName("vehicles");
 export const ALGOLIA_PAGINATION_LIMIT = 10000;
 // UI/saved-search alias only. Requests use the primary index, not a replica.
 export const ALGOLIA_DISTANCE_SORT_ALIAS = "vehicles_distance";
 export const ALGOLIA_REPLICA_INDEX_NAMES = [
-  "vehicles_oldest",
-  "vehicles_year_desc",
-  "vehicles_year_asc",
-  "vehicles_newest",
+  algoliaIndexName("vehicles_oldest"),
+  algoliaIndexName("vehicles_year_desc"),
+  algoliaIndexName("vehicles_year_asc"),
+  algoliaIndexName("vehicles_newest"),
 ] as const;
 export const ALGOLIA_SEARCH_INDEX_NAMES = [
   ALGOLIA_INDEX_NAME,

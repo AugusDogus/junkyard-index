@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { algoliaAdminClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia";
+import { ALGOLIA_INDEX_NAME, getAlgoliaAdminClient } from "~/lib/algolia";
 import { AlgoliaError } from "./algolia-error";
 import { applyAlgoliaSettingsPlan } from "./algolia-settings-plan";
 import type { AlgoliaVehicleRecord } from "./types";
@@ -70,7 +70,7 @@ function waitForTaskEffect(
 ): Effect.Effect<void, AlgoliaError> {
   return Effect.tryPromise({
     try: () =>
-      algoliaAdminClient.waitForTask({
+      getAlgoliaAdminClient().waitForTask({
         indexName,
         taskID,
       }),
@@ -85,7 +85,7 @@ function saveObjectsBatchEffect(
 ): Effect.Effect<unknown, AlgoliaError> {
   return Effect.tryPromise({
     try: () =>
-      algoliaAdminClient.saveObjects({
+      getAlgoliaAdminClient().saveObjects({
         indexName,
         objects: [...objects],
         waitForTasks: false,
@@ -101,7 +101,7 @@ function deleteObjectsBatchEffect(
 ): Effect.Effect<unknown, AlgoliaError> {
   return Effect.tryPromise({
     try: () =>
-      algoliaAdminClient.deleteObjects({
+      getAlgoliaAdminClient().deleteObjects({
         indexName,
         objectIDs,
         waitForTasks: false,
@@ -121,7 +121,7 @@ function waitForFinalTask(
       return;
     }
 
-    if (!hasWaitForTask(algoliaAdminClient)) {
+    if (!hasWaitForTask(getAlgoliaAdminClient())) {
       yield* Effect.logWarning(
         "[Algolia] Client does not expose waitForTask(); skipping explicit wait",
       );
@@ -146,7 +146,7 @@ export function configureAlgoliaIndexEffect(): Effect.Effect<
   return Effect.gen(function* () {
     yield* Effect.logInfo("[Algolia] Configuring index settings...");
     yield* Effect.tryPromise({
-      try: () => applyAlgoliaSettingsPlan(algoliaAdminClient),
+      try: () => applyAlgoliaSettingsPlan(getAlgoliaAdminClient()),
       catch: (cause) =>
         AlgoliaError.classify({ operation: "setSettings" }, cause),
     });
