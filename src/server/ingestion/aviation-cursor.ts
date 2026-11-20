@@ -171,7 +171,7 @@ export const AVIATION_MINIMUM_BADGE_COVERAGE = 0.95;
  * counts or of the last accepted cards of unchanged models, before anything is
  * published. */
 export function aviationCoverageError(
-  state: Pick<AviationProgress, "makes" | "pages" | "previous">,
+  state: Pick<AviationProgress, "makes" | "pages" | "previous" | "day">,
 ): string | null {
   const models = aviationModels(state.makes);
   return ModelCensus.coverage(
@@ -179,6 +179,7 @@ export function aviationCoverageError(
     {
       controls: aviationCensusControls(state.makes),
       pages: state.pages,
+      day: state.day,
       previous: state.previous,
       cards: aviationCards,
     },

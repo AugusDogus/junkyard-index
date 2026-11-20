@@ -207,6 +207,7 @@ export function chazCoverageError(state: ChazProgress): string | null {
     {
       controls: chazCensusControls(state.makes),
       pages: state.pages,
+      day: state.day,
       previous: state.previous,
       cards: chazCards,
     },

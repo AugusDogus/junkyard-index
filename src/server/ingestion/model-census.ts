@@ -9,9 +9,9 @@ import { z } from "zod";
  * arrival), its evidence reached the age ceiling, or it falls in today's sweep
  * slice. Every other model carries its last accepted page forward unchanged.
  *
- * A model's expected card count is its published count, or the previous
- * accepted page's card count when that was higher and the published count has
- * not changed (some pages list placeholders or surplus rows). A page with fewer
+ * A model's expected card count is its published count plus any surplus its
+ * previous accepted page listed above that page's own count (some pages list
+ * placeholders or surplus rows). A page with fewer
  * cards than its published count is carried only when the run that read it
  * confirmed it with an identical re-read. Any other page below its expected
  * count (an unconfirmed short page, or a surplus page that lost cards without
@@ -22,7 +22,10 @@ import { z } from "zod";
  * `coverage` separately bounds the whole union of read and carried cards, both
  * against today's published counts (a per-source floor that also holds on cold
  * runs) and against the last accepted card counts of models whose published
- * count is unchanged (a fixed replay floor, independent of badge accuracy).
+ * count is unchanged and whose evidence is under six days old (a fixed replay
+ * floor, independent of badge accuracy). After a long outage every reference
+ * has aged out, so the recovery run is judged like a cold run instead of
+ * failing against a frozen census every day.
  * Pages that break a sixth at a time, emptied or cut to one card each, fail the
  * run on the first broken day.
  *
@@ -164,8 +167,10 @@ function schema<Page>(page: z.ZodType<Page>, maxModels: number) {
     });
 }
 
-/** Expected cards per published model: its count, or the previous accepted
- * page's card count when that is higher and the count is unchanged. */
+/** Expected cards per published model: today's count plus any surplus the
+ * previous accepted page listed above its own count (placeholder or surplus
+ * rows). The surplus carries across a count change, so a placeholder page that
+ * loses a donor on the same day its count moves is still caught. */
 function expected<Page>(
   controls: readonly ModelCensusControl[],
   previous: ModelCensus<Page> | null,
@@ -174,8 +179,8 @@ function expected<Page>(
   const evidence = new Map((previous?.models ?? []).map((m) => [m.key, m]));
   return controls.map((control) => {
     const before = evidence.get(control.key);
-    return before && before.count === control.count
-      ? Math.max(control.count, cards(before.page))
+    return before
+      ? control.count + Math.max(0, cards(before.page) - before.count)
       : control.count;
   });
 }
@@ -354,18 +359,22 @@ export const ModelCensus = {
    * - against today's published counts, at the connector's `minimum`, which
    *   must allow for that source's healthy badge accuracy and holds on cold runs;
    * - against the last accepted card counts of models whose published count is
-   *   unchanged, at MODEL_CENSUS_REPLAY_MINIMUM for every source.
+   *   unchanged and whose evidence is under six days old, at
+   *   MODEL_CENSUS_REPLAY_MINIMUM for every source. Older evidence is read
+   *   again anyway (stale), so after a long outage this check steps aside and
+   *   the recovery run is judged like a cold run.
    * Carried pages keep floors and drift guards satisfied while pages break a
    * sixth at a time; these checks fail the first such run. Returns null or an
    * error message naming the largest shortfalls.
    */
   coverage<Page>(
     source: string,
-    run: Omit<ModelCensusRun<Page>, "decisions">,
+    // `day` is null only before a census begins; it then has no references.
+    run: Omit<ModelCensusRun<Page>, "decisions"> & { day: number | null },
     minimum: number,
     label: (index: number) => string,
   ): string | null {
-    const { controls, pages, previous, cards } = run;
+    const { controls, pages, previous, cards, day: today } = run;
     const evidence = new Map((previous?.models ?? []).map((m) => [m.key, m]));
     const listed = controls.map((_, index) => {
       const page = pages[index];
@@ -403,7 +412,10 @@ export const ModelCensus = {
       check(
         controls.map((control) => {
           const before = evidence.get(control.key);
-          return before && before.count === control.count
+          return before &&
+            today !== null &&
+            before.count === control.count &&
+            today - before.readDay < MODEL_CENSUS_SWEEP_DAYS
             ? cards(before.page)
             : null;
         }),

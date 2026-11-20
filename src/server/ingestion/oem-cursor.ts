@@ -211,7 +211,7 @@ export const OEM_MINIMUM_BADGE_COVERAGE = 0.82;
 /** Fails a run whose read and carried model cards fall short of today's model
  * badges, before anything is published. */
 export function oemCoverageError(
-  state: Pick<OemCensusState, "menus" | "pages" | "previous">,
+  state: Pick<OemCensusState, "menus" | "pages" | "previous" | "day">,
 ): string | null {
   const models = oemModels(state.menus);
   return ModelCensus.coverage(
@@ -219,6 +219,7 @@ export function oemCoverageError(
     {
       controls: oemCensusControls(state.menus),
       pages: state.pages,
+      day: state.day,
       previous: state.previous,
       cards: oemCards,
     },

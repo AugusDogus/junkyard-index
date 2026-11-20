@@ -172,6 +172,7 @@ export function scottsCoverageError(state: ScottsProgress): string | null {
     {
       controls: scottsCensusControls(state.makes),
       pages: state.pages,
+      day: state.day,
       previous: state.previous,
       cards: scottsCards,
     },

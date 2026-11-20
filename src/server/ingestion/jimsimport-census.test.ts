@@ -469,6 +469,7 @@ test("Jim's Import fails an incremental run whose sweep slice lists one card per
             : page,
         ),
         previous: terminal.census,
+        day,
         cards: (page) => page.records.length,
       },
       0,

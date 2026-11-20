@@ -494,6 +494,7 @@ export const CaltonCursor = {
         {
           controls: censusControls(cursor.menus),
           pages: cursor.pages,
+          day: cursor.day,
           previous: cursor.previous,
           cards: caltonCards,
         },

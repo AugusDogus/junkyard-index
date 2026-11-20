@@ -245,6 +245,7 @@ export function dentonBadgeCoverage(state: DentonProgress) {
       {
         controls: censusControls(models),
         pages,
+        day: state.day,
         previous: state.previous,
         cards: dentonCards,
       },

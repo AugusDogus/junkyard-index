@@ -574,3 +574,47 @@ test("Scotts re-reads an NOF placeholder page that lost a donor while it still m
   expect(next.warnings.at(-1)).toContain("short 1");
   expect(next.vins).toEqual(allVins(native));
 });
+
+test("Scotts re-reads an NOF placeholder page that lost a donor on the day its badge changed", async () => {
+  // Badge 3, healthy page 3 donors plus the NOF card. On a day that does not
+  // sweep it, an arrival raises the badge to 4 while one real donor is hidden,
+  // so the page lists 4 cards, exactly its new badge.
+  const native = yard();
+  const day = sweepDays(native, 600)[0];
+  if (day === undefined) throw new Error("Fixture needs a non-empty sweep day");
+  const quiet = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].find(
+    (m) =>
+      !sweep(native, day).includes(m) && !sweep(native, day + 1).includes(m),
+  );
+  if (quiet === undefined)
+    throw new Error("Fixture needs a model outside two sweep days");
+  expect(day + 1 - 600).toBeLessThan(MODEL_CENSUS_SWEEP_DAYS);
+  native.rows.set(quiet, donors(3));
+  native.placeholders.add(quiet);
+  const cold = await census(native, 600, null);
+  expect(cold.vins).toEqual(allVins(native));
+
+  native.rows.set(
+    quiet,
+    donors(4).filter((_, i) => i !== 1),
+  );
+  native.badges.set(quiet, 4);
+  const changed = await census(native, day, cold.terminal);
+  // Read for its count change, then re-read at closing although its cards
+  // equal its new badge.
+  expect(changed.models.filter((m) => m === quiet)).toHaveLength(2);
+  const parsed = ScottsCursorSchema.parse(changed.terminal);
+  if (parsed.phase !== "complete" || !parsed.census)
+    throw new Error("Expected a terminal census");
+  const evidence = parsed.census.models.find((m) => m.key === key(quiet));
+  expect(evidence?.page.records).toHaveLength(4);
+  expect(evidence?.expected).toBe(5);
+  expect(evidence?.confirmed).toBe(false);
+
+  // The next run re-reads it as short instead of carrying the hidden donor away.
+  native.rows.set(quiet, donors(4));
+  const next = await census(native, day + 1, changed.terminal);
+  expect(next.models).toContain(quiet);
+  expect(next.warnings.at(-1)).toContain("short 1");
+  expect(next.vins).toEqual(allVins(native));
+});

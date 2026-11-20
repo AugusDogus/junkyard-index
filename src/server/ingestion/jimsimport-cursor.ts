@@ -142,6 +142,7 @@ export function jimsimportCoverageError(state: {
   menus: readonly JimsimportMenu[];
   opening: readonly JimsimportPage[];
   previous: JimsimportCensus | null;
+  day: number | null;
 }): string | null {
   const models = jimsimportModels(state.menus);
   return ModelCensus.coverage(
@@ -149,6 +150,7 @@ export function jimsimportCoverageError(state: {
     {
       controls: censusControls(state.menus),
       pages: state.opening,
+      day: state.day,
       previous: state.previous,
       cards: jimsimportCards,
     },
