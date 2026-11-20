@@ -106,3 +106,26 @@ test("cold census heartbeats require a new accepted tenant and never repeat prog
     client.close();
   }
 });
+
+test("recovery runs, which share the three-day deadline, heartbeat each newly accepted tenant", async () => {
+  const { client } = createTestClient();
+  const database = drizzle(client);
+  let pings = 0;
+  const recovery = (cursor: UrgiisCursor) =>
+    UrgiisCursor.checkpoint({ ...cursor, runKind: "recovery" });
+  try {
+    await client.executeMultiple(TEST_SCHEMA);
+    await reportUrgiisCensusProgress({
+      database,
+      runId: "current",
+      before: recovery(initial),
+      result: chunk(recovery(completed)),
+      ping: async () => {
+        pings++;
+      },
+    });
+    expect(pings).toBe(1);
+  } finally {
+    client.close();
+  }
+});

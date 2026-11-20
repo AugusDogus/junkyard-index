@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { UrgiisCensus } from "./urgiis-census";
+import { UrgiisCensus, urgiisRunKind } from "./urgiis-census";
 import { UrgiisCursor } from "./urgiis-cursor";
 import { urgiisError } from "./urgiis-client";
 import { urgiisFingerprint } from "./urgiis-traversal";
@@ -73,7 +73,7 @@ export function resumeUrgiisCensus(
             {
               ...cursor,
               startedAt: now,
-              runKind: census.tenants.length ? "incremental" : "cold",
+              runKind: urgiisRunKind(census, tenants, now),
               asOf: now,
               statePath,
               stateHash: census.tenants.length

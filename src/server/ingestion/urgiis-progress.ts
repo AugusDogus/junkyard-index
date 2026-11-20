@@ -18,7 +18,7 @@ export async function reportUrgiisCensusProgress(params: {
   if (
     before.source !== "urgiis" ||
     after.source !== "urgiis" ||
-    after.runKind !== "cold" ||
+    (after.runKind !== "cold" && after.runKind !== "recovery") ||
     params.result.status === "failed" ||
     after.completed.length !== before.completed.length + 1
   )
