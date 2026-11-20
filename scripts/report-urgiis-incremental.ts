@@ -26,6 +26,7 @@ import {
   URGIIS_DAY_MS,
   UrgiisCensus,
   urgiisCarry,
+  urgiisCarryMs,
 } from "../src/server/ingestion/urgiis-census";
 
 // Offline request accounting. The latency scenario is explicit, not a live timing
@@ -195,7 +196,9 @@ for (const tenant of URGIIS_TENANTS) {
       (t) => t.kind === "owner" || t.kind === "makes" || t.kind === "menu",
     ).length;
     const requests: number[] = [];
-    for (let day = 1; day <= 7; day++) {
+    // Days 1-7 are incremental. Day 8 is a recovery run, which another
+    // tenant's missing census forces: it carries only under four days.
+    for (let day = 1; day <= 8; day++) {
       const today: UrgiisEntry[] = [];
       let count = closingRequests;
       tasks.forEach((task, index) => {
@@ -206,6 +209,7 @@ for (const tenant of URGIIS_TENANTS) {
           today,
           previous,
           start + day * URGIIS_DAY_MS,
+          day === 8 ? urgiisCarryMs("recovery") : undefined,
         );
         today.push(
           carry ??
@@ -231,6 +235,7 @@ for (const tenant of URGIIS_TENANTS) {
         start + day * URGIIS_DAY_MS,
       ).tenants[0];
     }
+    const recoveryRequests = requests.pop() ?? 0;
     const average = requests.reduce((a, b) => a + b, 0) / 7;
     const modelStocks = new Set(
       entries.flatMap((e) =>
@@ -284,6 +289,8 @@ for (const tenant of URGIIS_TENANTS) {
         60
       ).toFixed(1),
       afterMinutes: +((average * seconds) / 60).toFixed(1),
+      recoveryRequests,
+      recoveryMinutes: +((recoveryRequests * seconds) / 60).toFixed(1),
       modelStocks: modelStocks.size,
       arrivalStocks: arrivalStocks.size,
       purchaseDatedArrivals: arrivals.filter(
@@ -302,6 +309,23 @@ for (const tenant of URGIIS_TENANTS) {
     archive.close();
   }
 }
+// Typed once every row is pushed.
+const finished = rows.slice();
+const worstRecovery = finished
+  .map((missing) => ({
+    tenant: missing.tenant,
+    requests: finished.reduce(
+      (n, r) => n + (r === missing ? r.fullRequests : r.recoveryRequests),
+      0,
+    ),
+    minutes: +finished
+      .reduce(
+        (n, r) => n + (r === missing ? r.beforeMinutes : r.recoveryMinutes),
+        0,
+      )
+      .toFixed(1),
+  }))
+  .reduce((worst, run) => (run.requests > worst.requests ? run : worst));
 console.log(
   JSON.stringify(
     {
@@ -322,6 +346,9 @@ console.log(
           .toFixed(1),
         afterMinutes: +rows.reduce((n, r) => n + r.afterMinutes, 0).toFixed(1),
         censusBytes: rows.reduce((n, r) => n + r.censusBytes, 0),
+        // The largest recovery run: one tenant missing from the census reads
+        // in full while every other tenant runs a recovery day.
+        worstRecovery,
       },
     },
     null,
