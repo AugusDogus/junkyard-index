@@ -54,24 +54,30 @@ The excluded Lexington listing receives neither this census nor a second yard.
 ## Runtime contract
 
 The connector reads official homepage ownership, latest arrivals, the make
-directory, every literal make and every literal model. Only owned HTTPS browse
+directory and every literal make on every run. Model pages follow the shared
+incremental census (`model-census.ts`): a model is read when it is new, its
+badge changed, an opening arrival names it but its carried page lacks that
+donor, its evidence is six run days old, or it falls in that day's stable
+one-sixth sweep slice. Every other model carries its last accepted page from
+the terminal cursor of the newest accepted, search-published run. A missing,
+incompatible or corrupt census starts a full (cold) census. Only owned HTTPS browse
 URLs are allowed. It never fetches donor details, images, parts searches or
 inferred routes. All supplier declarations must agree on `QQ91`. Complete
 HTML, native owner, physical address and a recognized native phone are checked.
 Phone equality across surfaces is not required. HTTP must be complete,
 unredirected 200 text/html. Failures receive no automatic retry.
 
-Closing controls repeat ownership, the make directory, every make directory,
-the first and last model, models with badge/card discrepancies, and published
-models missing an opening arrival VIN. Final arrivals join the temporal union.
-Changed closing graph/list fingerprints stop emission. These controls do not
-claim simultaneous stability of every unrefetched model page. Explicit empty
+Closing controls repeat ownership, the make directory and every model read
+this run whose cards differ from its badge. Carried models are not re-read;
+other per-model changes surface as badge changes in the next run's opening
+menus. Changed closing fingerprints stop emission. These controls do not claim
+simultaneous stability of every unrefetched model page. Explicit empty
 pages must bind their native h1 and lack donor continuation.
 
 Chunks perform at most eight serial GETs under a three-minute deadline.
 Each request and complete body share a 20-second deadline. Transport waits
 1.6 seconds after body consumption on success and failure, including across
-chunks. Runs stop at 1,024 GETs. Bounds are 2 MiB HTML, 1 MiB cursor,
+chunks. Runs stop at 1,024 GETs. Bounds are 2 MiB HTML, 4 MiB cursor,
 64 makes, 512 models, 128 models per make, 1,000 cards per page and
 10,000 raw model rows. Exceeding a bound preserves prior inventory.
 
