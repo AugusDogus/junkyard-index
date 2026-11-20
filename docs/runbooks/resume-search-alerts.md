@@ -33,22 +33,47 @@ the backlog.
 2. **Confirm no pre-flag alert workflow is live.** Workflow runs stay pinned to
    the deployment that started them, and runs from deployments before the flag
    (#247) have no gate. A pass still running there would start an unflagged
-   check and delivery at its end. List the live runs and check each run's
-   deployment, using the `deploymentId` in the JSON or the Vercel dashboard's
-   Workflows view:
+   check and delivery at its end.
+   - **Why a plain listing is not enough.** `workflow inspect runs --json`
+     prints one page (20 runs, newest first) and ignores `--all`. A pass fans
+     out dozens of `vehicleIngestionWorkflow` runs, so older pass runs land on
+     later pages. The Vercel backend also lists only the last 24 hours unless
+     `--since` is given.
+   - **What the loop does.** It queries each alert-related workflow by name,
+     looks back two weeks, and follows `cursor` until `hasMore` is false. It
+     prints each live run's ID, workflow, status, deployment and start time.
 
    ```sh
-   npx workflow inspect runs --backend vercel --env production \
-     --status running --json
-   npx workflow inspect runs --backend vercel --env production \
-     --status pending --json
+   for name in vehicleIngestionPassWorkflow searchAlertCheckWorkflow \
+     vehicleNotificationDeliveryWorkflow; do
+     for status in running pending; do
+       cursor=""
+       while :; do
+         page=$(npx workflow inspect runs --backend vercel --env production \
+           -n "$name" --status "$status" --since 14d --limit 100 --json \
+           ${cursor:+--cursor "$cursor"})
+         echo "$page" | jq -r '.data[] |
+           [.runId, .workflowName, .status, .deploymentId, .createdAt] | @tsv'
+         [ "$(echo "$page" | jq -r .hasMore)" = true ] || break
+         cursor=$(echo "$page" | jq -r .cursor)
+       done
+     done
+   done
    ```
 
-   Look for `vehicleIngestionPassWorkflow`, `searchAlertCheckWorkflow` and
-   `vehicleNotificationDeliveryWorkflow` runs on an older deployment. Cancel one
-   (`npx workflow cancel <run-id>`) only with the owner's approval. A pass
-   from an earlier day stops at its next plan, and the hourly cron starts the
-   day's pass on the current deployment.
+   - **What to look for.** Any row whose `deploymentId` is older than the
+     deployment that shipped the flag. Compare against the production
+     deployment in the Vercel dashboard. Source runs (`vehicleIngestionWorkflow`)
+     don't matter here: no source run starts alert work.
+   - **Cancelling.** Cancel only with the owner's approval, and target
+     production explicitly. `workflow cancel` defaults to the local backend:
+
+     ```sh
+     npx workflow cancel <run-id> --backend vercel --env production
+     ```
+
+   - **Old passes.** A pass from an earlier day stops at its next plan, and the
+     hourly cron starts the day's pass on the current deployment.
 
 3. **Advance every window to the relaunch time.** Do this right away, even
    while Algolia is still blocked. Use the current time or an earlier one,
