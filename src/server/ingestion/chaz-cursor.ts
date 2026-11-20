@@ -3,6 +3,7 @@ import {
   chazHash,
   ChazControlSchema,
   ChazPageSchema,
+  type ChazControl,
   type ChazPage,
 } from "./chaz-parser";
 import { chazModels, type ChazMake } from "./chaz-snapshot";
@@ -28,7 +29,7 @@ const scope = chazHash({
   version: 1,
   yard: CHAZ_YARD,
   authority:
-    "literal-model-graph/native-arrival-union/all-conflicts-quarantined/incremental-model-census-v1",
+    "literal-model-graph/native-arrival-union/all-conflicts-quarantined/incremental-model-census-v2",
 });
 /** Every model page read by an accepted run, carried forward by the next one. */
 // A page failing its fingerprint makes the terminal cursor unreadable, so the
@@ -76,15 +77,53 @@ const progress = z
 export type ChazProgress = z.infer<typeof progress>;
 export type ChazClosingControl =
   | { kind: "contact"; url: typeof CHAZ_CONTACT }
-  | { kind: "directory"; url: typeof CHAZ_MAKES };
+  | { kind: "directory"; url: typeof CHAZ_MAKES }
+  | {
+      kind: "model";
+      url: string;
+      make: ChazMake;
+      model: ChazControl;
+      index: number;
+    };
 
-/** Closing re-reads ownership and the make directory only. Per-model changes
- * during the run surface as badge changes in the next run's opening menus, and
- * a page whose cards differ from its badge is re-read by the next run. */
-export function chazClosingControls(): ChazClosingControl[] {
+/** Closing re-reads ownership, the make directory and every model read this
+ * run whose cards differ from its badge, so a short page is confirmed before it
+ * can be carried. Carried pages were confirmed on the run that read them; other
+ * per-model changes surface as badge changes in the next run's opening menus.
+ * Persistent discrepancies, such as the dead `&` routes, re-read identically. */
+export function chazClosingControls(
+  state: Pick<
+    ChazProgress,
+    "makes" | "pages" | "arrivals" | "previous" | "day"
+  >,
+): ChazClosingControl[] {
+  const models = chazModels(state.makes);
+  const decisions =
+    state.day === null || state.pages.length !== models.length
+      ? []
+      : chazCensusPlan(state);
+  const mismatched = decisions.flatMap((decision, index) => {
+    const value = models[index];
+    const page = state.pages[index];
+    return decision.kind === "read" &&
+      value &&
+      page &&
+      chazCards(page) !== value.model.count
+      ? [
+          {
+            kind: "model" as const,
+            url: CHAZ_ORIGIN + value.model.path,
+            make: value.make,
+            model: value.model,
+            index,
+          },
+        ]
+      : [];
+  });
   return [
     { kind: "contact", url: CHAZ_CONTACT },
     { kind: "directory", url: CHAZ_MAKES },
+    ...mismatched,
   ];
 }
 
@@ -104,13 +143,8 @@ function enterDay(value: string | null): number | null {
 }
 
 /**
- * Read or carry each published model. A carried model is also read when its
- * carried page's card count differs from the badge it was read under, so a
- * transient short or empty page is retried on the next run instead of being
- * carried for up to six days (this replaces the closing badge/card re-read).
- * Persistent discrepancies, such as the dead `&` routes, cost one GET per run.
- *
- * A carried model is also read when a recent arrival whose own destination
+ * Read or carry each published model. A carried model is also read when a
+ * recent arrival whose own destination
  * binds to it is missing from its carried page and was entered no earlier than
  * the day before the previous accepted run. About 15% of arrivals never reach
  * their model page, so an unbounded trigger would re-read those models every
@@ -127,9 +161,6 @@ export function chazCensusPlan(
   const previous = state.previous;
   const triggers = new Set<string>();
   if (previous) {
-    for (const evidence of previous.models)
-      if (evidence.page.records.length !== evidence.count)
-        triggers.add(evidence.key);
     const carried = new Map(previous.models.map((m) => [m.key, m.page]));
     for (const record of state.arrivals[0]?.records ?? []) {
       const entered = enterDay(record[6]);
@@ -146,7 +177,35 @@ export function chazCensusPlan(
         triggers.add(key);
     }
   }
-  return ModelCensus.plan(controls, previous, state.day, triggers);
+  return ModelCensus.plan(controls, previous, state.day, {
+    cards: chazCards,
+    triggers,
+  });
+}
+
+const chazCards = (page: ChazPage) => page.records.length;
+/** Healthy captures cover 94.2% (Nov 12, 1,106 of 1,174 badge cards; 68
+ * unexplained overcounts on 46 models) and 99.3% (Nov 18 opening, 1,108 of
+ * 1,116 with the unread 73-model tail at its badge; only the dead TOWN & COUNTRY
+ * route short). Emptying one sweep slice drops those to at most 86.2% and
+ * 90.9% (the smallest slice holds 8 to 9% of badge cards). */
+export const CHAZ_MINIMUM_BADGE_COVERAGE = 0.92;
+
+/** Fails a run whose read and carried model cards fall short of today's model
+ * counts, before anything is published. */
+export function chazCoverageError(state: ChazProgress): string | null {
+  const models = chazModels(state.makes);
+  return ModelCensus.coverage(
+    "Chaz",
+    chazCensusControls(state.makes),
+    state.pages,
+    chazCards,
+    CHAZ_MINIMUM_BADGE_COVERAGE,
+    (index) => {
+      const value = models[index];
+      return value ? value.make.label + " " + value.model.label : "?";
+    },
+  );
 }
 
 /** Terminal census for a fully closed run. */
@@ -158,6 +217,9 @@ export function chazCensus(state: ChazProgress): ChazCensus {
     chazCensusControls(state.makes),
     state.pages,
     chazCensusPlan(state),
+    // Closing re-reads every short page read this run and fails on a change.
+    "confirmed",
+    chazCards,
   );
 }
 
@@ -259,7 +321,7 @@ export const ChazCursorSchema = z
       }
       if (
         (stage < 5 && state.closing !== 0) ||
-        (stage === 5 && state.closing > chazClosingControls().length)
+        (stage === 5 && state.closing > chazClosingControls(state).length)
       )
         throw new Error("Chaz closing control prefix is inconsistent");
       if (

@@ -12,6 +12,7 @@ import {
   chazCensus,
   chazCensusPlan,
   chazClosingControls,
+  chazCoverageError,
   type ChazProgress,
 } from "./chaz-cursor";
 import { ModelCensus } from "./model-census";
@@ -95,7 +96,7 @@ function nextUrl(state: ChazProgress): string {
       return CHAZ_ORIGIN + next.model.path;
     }
     case "closing": {
-      const control = chazClosingControls()[state.closing];
+      const control = chazClosingControls(state)[state.closing];
       if (!control) throw new Error("Missing Chaz closing control");
       return control.url;
     }
@@ -155,7 +156,7 @@ function advance(state: ChazProgress, raw: string): ChazProgress {
       break;
     }
     case "closing": {
-      const control = chazClosingControls()[state.closing];
+      const control = chazClosingControls(state)[state.closing];
       if (!control) throw new Error("Missing Chaz closing native context");
       switch (control.kind) {
         case "contact":
@@ -166,6 +167,13 @@ function advance(state: ChazProgress, raw: string): ChazProgress {
             state.makes.map(({ models: _models, ...make }) => make),
             parseChazDirectory(raw, "makes"),
             "make directory",
+          );
+          break;
+        case "model":
+          same(
+            state.pages[control.index]?.hash,
+            parseChazModel(raw, control.make, control.model).hash,
+            "model list " + control.model.label,
           );
           break;
       }
@@ -239,9 +247,11 @@ export function streamChazInventoryWithRequestGate<E, R>(
       summary.pagesProcessed++;
       if (
         advanced.phase === "closing" &&
-        advanced.closing === chazClosingControls().length
+        advanced.closing === chazClosingControls(advanced).length
       ) {
         const snapshot = yield* attempt("complete native union", () => {
+          const shortfall = chazCoverageError(advanced);
+          if (shortfall) throw new Error(shortfall);
           const snapshot = chazSnapshot(
             advanced.makes,
             advanced.pages,
