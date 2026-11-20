@@ -166,6 +166,30 @@ test("a turn waits once and keeps the gap between its requests", async () => {
   expect(run.turns[0]?.releasedAt).toBe(137_000);
 }, 60_000);
 
+test("a turn holds the policy gap after requests that took no host slot of their own", async () => {
+  // URG IIS takes a turn around its raw fetch. Releasing the lease when the
+  // body ends let the next URG source hit the shared backend at once.
+  const raw = Effect.sleep("2 seconds").pipe(
+    Effect.andThen(Clock.currentTimeMillis),
+  );
+  for (const turn of [
+    providerHostTurn(policy, 1, raw),
+    deadline(providerHostTurn(policy, 1, raw)),
+    // A raw request after a slotted one in the same turn.
+    deadline(
+      providerHostTurn(policy, 2, page("slot").pipe(Effect.andThen(raw))),
+    ),
+  ]) {
+    const run = await runWithQueuedHost(turn, { turnWaitMs: 60_000 });
+    if (Either.isLeft(run.result)) throw run.result.left;
+    const releasedAt = run.turns[0]?.releasedAt ?? 0;
+    expect(run.turns).toHaveLength(1);
+    expect(releasedAt - run.result.right).toBeGreaterThanOrEqual(policy.gapMs);
+    // No second gap is added after the policy gap.
+    expect(releasedAt - run.result.right).toBeLessThan(policy.gapMs + 1000);
+  }
+}, 60_000);
+
 test("a turn that cannot arrive before the chunk's horizon is deferred and gives up its place", async () => {
   const run = await runWithQueuedHost(deadline(page("late")), {
     turnWaitMs: 7 * 60_000,

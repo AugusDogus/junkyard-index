@@ -193,8 +193,16 @@ export function withProviderHostSlot<A, E, R>(
   });
 }
 
-/** Policy keys whose lease the current fiber holds for a whole turn. */
-const HeldHostKeys = FiberRef.unsafeMake<ReadonlySet<string>>(new Set());
+/** A turn whose lease the current fiber holds. */
+interface HeldTurn {
+  /** Clock time at which the turn's latest slotted request ended. */
+  lastRequestEndedAt: number | null;
+}
+
+/** Turns the current fiber holds, by policy key. */
+const HeldHostTurns = FiberRef.unsafeMake<ReadonlyMap<string, HeldTurn>>(
+  new Map(),
+);
 
 /** Expected time for one request in a turn, before the policy gap. Live URG
  * and VinPlus pages typically answer in one to two seconds. */
@@ -202,10 +210,12 @@ const TURN_REQUEST_ESTIMATE_MS = 5_000;
 
 /**
  * Holds one lease for `unit`, which makes `requests` sequential requests to
- * the policy's backend. Each request's own host slot keeps the policy gap
- * after it inside the lease, so the turn adds none of its own. Use it for a
- * request site, or for requests that only together let a chunk advance, so a
- * chunk needs one queue turn to make progress.
+ * the policy's backend. The turn always holds the policy gap after `unit`
+ * inside the lease, whether or not its last request took a host slot, so no
+ * turn releases the backend straight after a request. Host slots inside the
+ * turn keep the gap between its requests. Use it for a request site, or for
+ * requests that only together let a chunk advance, so a chunk needs one queue
+ * turn to make progress.
  *
  * Inside a chunk deadline the turn must end by the chunk's turn horizon: it
  * waits only while the estimated work still fits, and work still running at
@@ -220,9 +230,13 @@ export function withProviderHostTurn<A, E, R>(
   unit: Effect.Effect<A, E, R>,
 ): Effect.Effect<A, E | Error | ProviderTurnDeferred, R> {
   const bound = requests * policy.requestMs;
-  const held = Effect.locallyWith(unit, HeldHostKeys, (keys) =>
-    new Set(keys).add(policy.key),
-  );
+  // Fresh state for every run of the turn, including retries.
+  const held = Effect.suspend(() => {
+    const turn: HeldTurn = { lastRequestEndedAt: null };
+    return Effect.locallyWith(unit, HeldHostTurns, (turns) =>
+      new Map(turns).set(policy.key, turn),
+    );
+  });
   const requestDeadline = Effect.succeed(
     slotError(policy, "request", "Host lease request deadline exceeded"),
   );
@@ -230,7 +244,7 @@ export function withProviderHostTurn<A, E, R>(
     Option.match(horizon, {
       onNone: () =>
         withHostLease(policy, store, held, {
-          gapMs: 0,
+          gapMs: policy.gapMs,
           waitMs: policy.waitMs,
           onWaitTimeout: Effect.succeed(
             slotError(policy, "reservation", "Host remained busy"),
@@ -246,7 +260,7 @@ export function withProviderHostTurn<A, E, R>(
               ProviderChunkClock.deferred(policy.label, "wait"),
             );
           return yield* withHostLease(policy, store, held, {
-            gapMs: 0,
+            gapMs: policy.gapMs,
             waitMs,
             onWaitTimeout: ProviderChunkClock.deferred(policy.label, "wait"),
             hold: (now) =>
@@ -279,16 +293,37 @@ export function providerHostSlot<A, E, R>(
   policy: ProviderHostPolicy,
   request: Effect.Effect<A, E, R>,
 ): Effect.Effect<A, E | Error, R> {
-  return Effect.flatMap(FiberRef.get(HeldHostKeys), (held) =>
-    held.has(policy.key)
-      ? // The enclosing turn owns the lease; keep the gap between requests.
-        request.pipe(Effect.ensuring(Effect.sleep(policy.gapMs)))
+  return Effect.flatMap(FiberRef.get(HeldHostTurns), (turns) => {
+    const turn = turns.get(policy.key);
+    return turn
+      ? // The enclosing turn owns the lease and holds the gap after its last
+        // request; keep the gap after the turn's previous request.
+        Effect.gen(function* () {
+          if (turn.lastRequestEndedAt !== null)
+            yield* Effect.sleep(
+              Math.max(
+                0,
+                turn.lastRequestEndedAt +
+                  policy.gapMs -
+                  (yield* Clock.currentTimeMillis),
+              ),
+            );
+          return yield* request.pipe(
+            Effect.ensuring(
+              Effect.flatMap(Clock.currentTimeMillis, (now) =>
+                Effect.sync(() => {
+                  turn.lastRequestEndedAt = now;
+                }),
+              ),
+            ),
+          );
+        })
       : onHostStore(
           policy,
           (store) => withProviderHostSlot(policy, store, request),
           request,
-        ),
-  );
+        );
+  });
 }
 
 export function providerHostTurn<A, E, R>(
@@ -296,8 +331,8 @@ export function providerHostTurn<A, E, R>(
   requests: number,
   unit: Effect.Effect<A, E, R>,
 ): Effect.Effect<A, E | Error | ProviderTurnDeferred, R> {
-  return Effect.flatMap(FiberRef.get(HeldHostKeys), (held) =>
-    held.has(policy.key)
+  return Effect.flatMap(FiberRef.get(HeldHostTurns), (turns) =>
+    turns.has(policy.key)
       ? unit
       : onHostStore(
           policy,
