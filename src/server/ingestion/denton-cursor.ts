@@ -36,6 +36,10 @@ import {
 } from "./model-census";
 
 export const DENTON_MINIMUM_INVENTORY = 765;
+/** Read plus carried model cards must cover this share of today's opening
+ * model badges. Qualification cards covered 99.5% (2,366 of 2,377, including
+ * the unreachable TOWN & COUNTRY page). Arrivals count on neither side. */
+export const DENTON_MINIMUM_BADGE_COVERAGE = 0.95;
 export const DENTON_MAX_REQUESTS = 2048;
 export const DENTON_MAX_TOTAL_BYTES = 256 * 1024 * 1024;
 // A saved full census cursor was about 2 MB (two 1 MB passes). An in-run
@@ -96,6 +100,7 @@ const scope = (previousAcceptedCount: number | null) =>
     maximumRejectionRatio: 0.1,
     maximumDuplicateRatio: 0.25,
     minimumPreviousRunRatio: 0.5,
+    minimumBadgeCoverage: DENTON_MINIMUM_BADGE_COVERAGE,
     previousAcceptedCount: prior.parse(previousAcceptedCount),
   });
 const checksum = (state: DentonCursor) =>
@@ -175,6 +180,35 @@ export function dentonCensusPlan(
 }
 const modelEntries = (opening: readonly DentonEntry[]) =>
   opening.filter((entry): entry is DentonModelEntry => entry.kind === "model");
+
+/** Carried pages keep the floor and prior-count guards satisfied while model
+ * pages break, so the union of read and carried model cards must reconcile
+ * with today's opening model badges before anything is staged. */
+export function dentonBadgeCoverage(state: DentonProgress) {
+  return dentonBoundary("model badge reconciliation", () => {
+    if (!dentonReady(state))
+      throw new Error("Opening/details/closing proof is incomplete");
+    const models = modelTasks(dentonTasks(state.opening));
+    const pages = modelEntries(state.opening);
+    if (pages.length !== models.length)
+      throw new Error("Model pages do not match the published model controls");
+    const badges = models.reduce((n, task) => n + task.model.count, 0);
+    const cards = pages.reduce((n, entry) => n + entry.page.records.length, 0);
+    if (cards >= Math.ceil(badges * DENTON_MINIMUM_BADGE_COVERAGE)) return;
+    const short = models
+      .map((task, index) => ({
+        model: `${task.make.label} ${task.model.label}`,
+        missing: task.model.count - (pages[index]?.page.records.length ?? 0),
+      }))
+      .filter(({ missing }) => missing > 0)
+      .sort((a, b) => b.missing - a.missing)
+      .slice(0, 5)
+      .map(({ model, missing }) => `${model} (${missing})`);
+    throw new Error(
+      `Read and carried model pages hold ${cards} cards for ${badges} opening model badges, below the ${DENTON_MINIMUM_BADGE_COVERAGE * 100}% coverage floor. Nothing was staged and the last accepted census stays in place. Largest shortfalls: ${short.join(", ")}; check whether those native model pages render their cards.`,
+    );
+  });
+}
 
 export function dentonNextUrl(state: DentonCursor): DentonResult<string> {
   return dentonBoundary("next request", () => {

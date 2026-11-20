@@ -32,6 +32,9 @@ function yard() {
   const owner = dentonTestGraph({ accepted: 1 }).pages;
   const rows = new Map(Array.from({ length: 12 }, (_, i) => [i, donors(i)]));
   let arrivals: Donor[] = [];
+  /** Models whose page renders the native empty result while the menu badge
+   * still counts their rows (the TOWN & COUNTRY pattern). */
+  const unreachable = new Set<number>();
   const calls: string[] = [];
   const body = (url: string) => {
     if (url === DENTON_ABOUT || url === DENTON_CONTACT) return owner.get(url);
@@ -56,7 +59,13 @@ function yard() {
       );
     const model = /\/ACURA\/M(\d+)\/$/.exec(url)?.[1];
     const list = model === undefined ? undefined : rows.get(Number(model));
-    return list && dentonTestInventory(list.map(card).join("") || empty);
+    return (
+      list &&
+      dentonTestInventory(
+        (unreachable.has(Number(model)) ? "" : list.map(card).join("")) ||
+          empty,
+      )
+    );
   };
   const read = (url: string) =>
     Effect.suspend(() => {
@@ -70,6 +79,7 @@ function yard() {
     rows,
     calls,
     read,
+    unreachable,
     setArrivals: (next: Donor[]) => {
       arrivals = next;
     },
@@ -89,6 +99,7 @@ async function census(
   native: ReturnType<typeof yard>,
   day: number,
   previousCursor: unknown,
+  previousAcceptedCount: number | null = null,
 ) {
   const before = native.calls.length;
   let wire: string | undefined;
@@ -97,7 +108,7 @@ async function census(
   for (;;) {
     const result = await Effect.runPromise(
       streamDentonInventory({
-        previousAcceptedCount: null,
+        previousAcceptedCount,
         startCursor: wire,
         // Only the first chunk may adopt a census; later chunks must not.
         previousCursor,
@@ -111,7 +122,10 @@ async function census(
       }),
     );
     warnings.push(...result.warnings);
-    const encoded = DentonCursor.serialize(result.cursor, null);
+    const encoded = DentonCursor.serialize(
+      result.cursor,
+      previousAcceptedCount,
+    );
     if (!encoded.ok) throw new Error(encoded.error.message);
     wire = encoded.value;
     if (result.status === "complete") break;
@@ -195,6 +209,31 @@ test("Denton re-reads every model within six days, even across missed runs", asy
   }
   // About a sixth of the models a day once the missed-day catch-up is read.
   expect(reads.slice(4)).toEqual([2, 2, 2, 2, 2, 2]);
+}, 30_000);
+
+test("Denton rejects a run whose read and carried model cards fall short of today's model badges", async () => {
+  // 1,800 badges keep the broken run above the 765 floor.
+  const native = yard();
+  for (const model of native.rows.keys())
+    native.rows.set(model, donors(model, 150));
+  const cold = await census(native, 600, null);
+  // A small unreachable model stays within the badge tolerance.
+  native.rows.set(3, donors(3, 20));
+  native.unreachable.add(3);
+  const small = await census(native, 601, cold.terminal);
+  expect(small.models).toEqual([1, 3, 7]);
+  // Every model page now renders the native empty result while badges hold.
+  // Only the sweep slice is read, so the 765 floor and the 50% prior guard
+  // would pass on the carried pages; the badge deficit must not.
+  for (let model = 0; model < 12; model++) native.unreachable.add(model);
+  const before = native.calls.length;
+  await expect(
+    census(native, 602, small.terminal, small.vins.length),
+  ).rejects.toThrow("opening model badges");
+  // Only the sweep slice was read before the union was rejected.
+  expect(
+    native.calls.slice(before).filter((url) => /\/M\d+\/$/.test(url)),
+  ).toHaveLength(2);
 }, 30_000);
 
 test("Denton treats an unreadable or incompatible previous cursor as a warned cold census", async () => {
