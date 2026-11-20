@@ -9,28 +9,32 @@ import { z } from "zod";
  * arrival), its evidence reached the age ceiling, or it falls in today's sweep
  * slice. Every other model carries its last accepted page forward unchanged.
  *
+ * Incremental reading needs an accepted census from today or the previous run
+ * day. After a missed, failed or rejected run (a gap of more than one day),
+ * every model page is read again (reason `gap`), so a fault that caused a
+ * rejection is re-read in full and cannot hide behind carried pages, and no
+ * short page read after a gap is stored as confirmed.
+ *
  * A model's expected card count is its published count plus any surplus its
  * previous accepted page listed above that page's own count (some pages list
- * placeholders or surplus rows). A page with fewer
- * cards than its published count is carried only when the run that read it
- * confirmed it with an identical re-read. Any other page below its expected
- * count (an unconfirmed short page, or a surplus page that lost cards without
- * its count dropping) is read again on the next run, so a transient short read
- * is never carried. `closingReads` names the pages a connector's closing must
- * re-read for that confirmation.
+ * placeholders or surplus rows). A page with fewer cards than its published
+ * count is carried only when the run that read it confirmed it with an
+ * identical re-read. Any other page below its expected count (an unconfirmed
+ * short page, or a surplus page that lost cards without its count dropping)
+ * is read again on the next run, so a transient short read is never carried.
+ * `closingReads` names the pages a connector's closing must re-read for that
+ * confirmation.
  *
  * `coverage` separately bounds the whole union of read and carried cards, both
  * against today's published counts (a per-source floor that also holds on cold
- * runs) and against the last accepted card counts of models whose published
- * count is unchanged (a fixed replay floor, independent of badge accuracy).
- * Every reference counts while the last accepted run is under six days old, so
- * a rejection holds on later runs and a missed run cannot age a broken slice
- * out of the check. When the last accepted run is six or more days old (an
- * outage, or a real drop that stayed rejected that long), the run reads every
- * page again and is judged like a cold run instead of failing against a
- * frozen census every day.
- * Pages that break a sixth at a time, emptied or cut to one card each, fail the
- * run on the first broken day.
+ * runs) and against the last accepted card counts, lowered by any drop in a
+ * model's published count (a fixed replay floor, independent of badge
+ * accuracy). A full read after a gap of two to five days is judged against
+ * every reference, so a rejection holds on every later run. When the last
+ * accepted run is six or more days old (an outage, or a real drop that stayed
+ * rejected that long), the run is judged like a cold run, on the badge floor,
+ * so no yard stays blocked. Pages that break a sixth at a time, emptied or cut
+ * to one card each, fail the run on the first broken day.
  *
  * Run days are UTC day numbers fixed at run start. The sweep slice equals the
  * age ceiling, so a model read on day d is due again on day d + 6 by both rules,
@@ -86,6 +90,7 @@ export interface ModelCensus<Page> {
 
 export type ModelCensusReadReason =
   | "cold"
+  | "gap"
   | "new"
   | "count"
   | "trigger"
@@ -206,6 +211,11 @@ function plan<Page>(
 ): ModelCensusDecision<Page>[] {
   if (!previous || previous.day > today)
     return controls.map(() => ({ kind: "read", reason: "cold" }));
+  // Incremental reading needs an accepted census from today or the previous
+  // run day. After a missed, failed or rejected run, every page is read again
+  // so a fault that caused a rejection cannot hide behind carried pages.
+  if (today - previous.day > 1)
+    return controls.map(() => ({ kind: "read", reason: "gap" }));
   const evidence = new Map(previous.models.map((m) => [m.key, m]));
   return controls.map((control): ModelCensusDecision<Page> => {
     const before = evidence.get(control.key);
@@ -332,6 +342,11 @@ export const ModelCensus = {
         `Model census cannot close: ${pages.length} pages and ${decisions.length} decisions for ${controls.length} published models`,
       );
     const wanted = expected(controls, previous, cards);
+    // A run that follows a gap (a missed, failed or rejected run) confirms no
+    // short page: the next incremental run reads it again.
+    const confirming =
+      shortPages === "confirmed" &&
+      (previous === null || today - previous.day <= 1);
     return {
       contract,
       day: today,
@@ -347,8 +362,7 @@ export const ModelCensus = {
               count: control.count,
               readDay: today,
               expected: wanted[index] ?? control.count,
-              confirmed:
-                shortPages === "confirmed" && cards(page) < control.count,
+              confirmed: confirming && cards(page) < control.count,
               page,
             };
       }),
@@ -363,7 +377,9 @@ export const ModelCensus = {
    *   must allow for that source's healthy badge accuracy and holds on cold runs;
    * - against the last accepted card counts of models whose published count is
    *   unchanged, at MODEL_CENSUS_REPLAY_MINIMUM for every source, while the
-   *   last accepted run is under six days old. Once it is six or more days old
+   *   last accepted run is under six days old. A model whose count moved keeps
+   *   a reference lowered by any drop in its count (an increase demands
+   *   nothing, since pages can lag new arrivals). Once it is six or more days old
    *   (an outage, or a real drop rejected that long) this check steps aside
    *   and the run is judged like a cold run.
    * Carried pages keep floors and drift guards satisfied while pages break a
@@ -426,12 +442,17 @@ export const ModelCensus = {
       check(
         controls.map((control) => {
           const before = evidence.get(control.key);
-          return before && replaying && before.count === control.count
-            ? cards(before.page)
+          // Cards may fall only as far as the published count fell; an
+          // increase demands nothing, since pages can lag new arrivals.
+          return before && replaying
+            ? Math.max(
+                0,
+                cards(before.page) + Math.min(0, control.count - before.count),
+              )
             : null;
         }),
         MODEL_CENSUS_REPLAY_MINIMUM,
-        "that the last accepted census listed for models whose counts did not change",
+        "that the last accepted census listed, less any drop in their counts",
       )
     );
   },

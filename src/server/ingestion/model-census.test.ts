@@ -159,10 +159,10 @@ describe("ModelCensus", () => {
           );
       census = next.census;
     }
+    // Any gap of more than one day reads every model again.
     const late = run(models, cold.census, 106);
-    expect(late.decisions.every((d) => d.kind === "read")).toBe(true);
     expect(
-      late.decisions.every((d) => d.kind === "read" && d.reason === "stale"),
+      late.decisions.every((d) => d.kind === "read" && d.reason === "gap"),
     ).toBe(true);
   });
 
@@ -238,20 +238,89 @@ describe("ModelCensus", () => {
 
   test("a short page confirmed in-run carries, and keeps its confirmation", () => {
     const models = controls(12, 10);
+    const listed = new Map([["model-2", 3]]);
     const cold = run(models, null, 100, undefined, {
-      listed: new Map([["model-2", 3]]),
+      listed,
       shortPages: "confirmed",
     });
     expect(cold.census.models[2]?.confirmed).toBe(true);
     // Full pages are never marked confirmed.
     expect(cold.census.models[3]?.confirmed).toBe(false);
-    const day = [101, 102, 103, 104, 105].find(
-      (d) => ModelCensus.slice("model-2") !== d % MODEL_CENSUS_SWEEP_DAYS,
+    // Daily runs carry it with its confirmation until its own sweep re-reads
+    // and confirms it again.
+    let census = cold.census;
+    let carried = 0;
+    for (let day = 101; day <= 105; day++) {
+      const next = run(models, census, day, undefined, {
+        listed,
+        shortPages: "confirmed",
+      });
+      if (next.decisions[2]?.kind === "carry") carried++;
+      expect(next.census.models[2]?.confirmed).toBe(true);
+      census = next.census;
+    }
+    expect(carried).toBeGreaterThan(0);
+  });
+
+  test("a gap after the last accepted run reads every model and confirms nothing", () => {
+    // Accepted daily to day 110. Day 111 is missed (or rejected), so day 112
+    // reads every page again, and a short page it reads is not confirmed even
+    // though its closing re-read it identically.
+    const models = controls(12, 10);
+    const listed = new Map([["model-2", 3]]);
+    let census = run(models, null, 100).census;
+    for (let day = 101; day <= 110; day++)
+      census = run(models, census, day).census;
+    const same = run(models, census, 110);
+    expect(same.decisions.some((d) => d.kind === "carry")).toBe(true);
+    const next = run(models, census, 111);
+    expect(next.decisions.some((d) => d.kind === "carry")).toBe(true);
+    const gap = run(models, census, 112, undefined, {
+      listed,
+      shortPages: "confirmed",
+    });
+    expect(
+      gap.decisions.every((d) => d.kind === "read" && d.reason === "gap"),
+    ).toBe(true);
+    expect(gap.census.models[2]?.confirmed).toBe(false);
+    // The next incremental run reads that short page again.
+    expect(run(models, gap.census, 113).decisions[2]).toEqual({
+      kind: "read",
+      reason: "short",
+    });
+  });
+
+  test("a model whose count moved keeps a replay reference lowered only by its drop", () => {
+    // Badges and healthy pages at 10 on 30 models. One model's count drops by
+    // one while its page falls to a single card; another's count rises by one
+    // while its page has not caught up yet.
+    const models = controls(30, 10);
+    const label = (i: number) => "M" + i;
+    const census = run(models, null, 100).census;
+    const today = models.map((m, i) =>
+      i === 0 ? { ...m, count: 9 } : i === 1 ? { ...m, count: 11 } : m,
     );
-    if (day === undefined) throw new Error("fixture needs an off-slice day");
-    const next = run(models, cold.census, day);
-    expect(next.decisions[2]?.kind).toBe("carry");
-    expect(next.census.models[2]?.confirmed).toBe(true);
+    const pages = today.map((m, i) => page(m.key, 101, i === 0 ? 1 : 10));
+    expect(
+      ModelCensus.coverage(
+        "Fixture",
+        { controls: today, pages, previous: census, day: 101, cards },
+        0.5,
+        label,
+      ),
+    ).toBeNull();
+    // Five such drops: 255 of 295 references (86%), below the replay floor,
+    // while the badge floor at 0.5 passes.
+    const dropped = models.map((m, i) => (i < 5 ? { ...m, count: 9 } : m));
+    const cut = dropped.map((m, i) => page(m.key, 101, i < 5 ? 1 : 10));
+    expect(
+      ModelCensus.coverage(
+        "Fixture",
+        { controls: dropped, pages: cut, previous: census, day: 101, cards },
+        0.5,
+        label,
+      ),
+    ).toContain("255 of 295 cards that the last accepted census listed");
   });
 
   test("coverage fails when read and carried cards fall short of today's counts", () => {
