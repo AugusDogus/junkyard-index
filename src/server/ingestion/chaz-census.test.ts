@@ -16,6 +16,7 @@ import {
   chazFixtureContact,
   chazFixtureDirectory,
   chazFixtureModelPage,
+  chazFixtureNov18Graph,
   chazFixtureRoot,
 } from "./chaz-test-fixtures";
 import {
@@ -100,12 +101,14 @@ function yard() {
   // `&` routes) or only on the next one (`blips`).
   const outages = new Set<number>();
   const blips = new Set<number>();
+  // Cards a model page lists beyond its badge (placeholder or surplus rows).
+  const surplus = new Map<number, number>();
   const models = () =>
     [...rows].map(
       ([i, list]): ChazControl => ({
         path: `/parts/ACURA/${label(i)}/`,
         label: label(i),
-        count: list.length,
+        count: list.length - (surplus.get(i) ?? 0),
       }),
     );
   globalThis.fetch = Object.assign(
@@ -117,7 +120,7 @@ function yard() {
             ? input.href
             : input.url;
       urls.push(url);
-      const total = [...rows.values()].reduce((n, l) => n + l.length, 0);
+      const total = models().reduce((n, m) => n + m.count, 0);
       const model = /\/parts\/ACURA\/M(\d+)\/$/.exec(url);
       const blip = model !== null && blips.delete(Number(model[1]));
       const body =
@@ -150,6 +153,7 @@ function yard() {
     urls,
     outages,
     blips,
+    surplus,
     arrivals: () => arrivals,
     setArrivals: (next: ChazRecord[]) => {
       arrivals = next;
@@ -159,7 +163,7 @@ function yard() {
 
 /** One full run on `day`, seeded by the previous terminal cursor. */
 async function census(
-  native: ReturnType<typeof yard>,
+  native: { urls: readonly string[] },
   day: number,
   previousCursor: unknown,
 ) {
@@ -460,6 +464,193 @@ test("Chaz fails a run whose swept model pages render empty while the menus keep
     throw new Error("fixture needs a day sweeping two models");
   for (const model of sweep(day, twelve)) native.outages.add(model);
   expect(await failing(day, cold.terminal, "coverage floor")).toBe(0);
+});
+
+/** The Nov 18 production graph with one fresh donor per badge count on each
+ * model page, except the dead `&` routes, which answer with their explicit
+ * empty page as they did that day. Models in `cut` list only their first donor
+ * while their menus keep their counts. */
+function nov18Yard() {
+  const urls: string[] = [];
+  const cut = new Set<string>();
+  let serial = 0;
+  const makes = chazFixtureNov18Graph.map(({ models, ...make }) => ({
+    make,
+    models: models.map((model) => ({
+      model,
+      key: JSON.stringify([make.path, make.label, model.path, model.label]),
+      records: model.label.includes("&")
+        ? []
+        : Array.from({ length: model.count }, (): ChazRecord => {
+            const stock = "N" + ++serial;
+            return [
+              "1HGCM82633B" + String(serial).padStart(6, "0"),
+              "2003",
+              make.label + " " + model.label,
+              stock,
+              model.path + stock + "/2003",
+              null,
+              null,
+            ];
+          }),
+    })),
+  }));
+  const pages = new Map<string, string>([
+    [CHAZ_CONTACT, chazFixtureContact],
+    [
+      CHAZ_MAKES,
+      chazFixtureDirectory(
+        makes.map(({ make }) => make),
+        "makes",
+      ),
+    ],
+    ...makes.map(({ make, models }): [string, string] => [
+      CHAZ_ORIGIN + make.path,
+      chazFixtureDirectory(
+        models.map(({ model }) => model),
+        "models",
+      ),
+    ]),
+  ]);
+  const models = makes.flatMap(({ make, models }) =>
+    models.map((value) => ({ make, ...value })),
+  );
+  const first = models[0]?.records[0];
+  if (!first) throw new Error("Expected a donor on the first Nov 18 model");
+  // Arrivals always list at least one card; this old one is on a model page.
+  const [vin, year, title, stock, destination, image] = first;
+  const arrival: ChazRecord = [
+    vin,
+    year,
+    title,
+    stock,
+    destination,
+    image,
+    date(D - 20),
+  ];
+  globalThis.fetch = Object.assign(
+    async (input: string | URL | Request) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+      urls.push(url);
+      const model = models.find((m) => CHAZ_ORIGIN + m.model.path === url);
+      const body =
+        url === CHAZ_ROOT
+          ? chazFixtureRoot([arrival])
+          : model
+            ? chazFixtureModelPage(
+                cut.has(model.key) ? model.records.slice(0, 1) : model.records,
+                `Used ${model.make.label} ${model.model.label}`.replaceAll(
+                  "&",
+                  "-and",
+                ),
+              )
+            : pages.get(url);
+      if (body === undefined) throw new Error("Unexpected request " + url);
+      return new Response(body, {
+        status: 200,
+        headers: { "content-type": "text/html" },
+      });
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  return { urls, cut, models };
+}
+
+test("Chaz fails a Nov 18 run whose lightest sweep slice lists one card per model while the menus keep their counts", async () => {
+  // On the real Nov 18 graph, badges match healthy pages except the dead `&`
+  // routes (9 of 1,116 badge cards). Slice 5 is the lightest: cut to one card
+  // per page it still covers 93.4% of today's badges, above the 92% floor, and
+  // every cut page re-reads identically at closing. Badge coverage alone
+  // published it and carried those pages as confirmed short pages for six
+  // days. Against the cards last accepted for those unchanged badges it lists
+  // 94.1%, below the replay floor, so nothing is published.
+  const native = nov18Yard();
+  expect(native.models).toHaveLength(240);
+  const badges = native.models.reduce((n, m) => n + m.model.count, 0);
+  const listed = native.models.reduce((n, m) => n + m.records.length, 0);
+  expect([badges, listed]).toEqual([1116, 1107]);
+  // Only slice 5 cut to one card per page passes the badge floor.
+  const oneCard = (slice: number) =>
+    native.models.reduce(
+      (n, m) =>
+        n +
+        (ModelCensus.slice(m.key) === slice
+          ? Math.min(m.records.length, 1)
+          : m.records.length),
+      0,
+    );
+  expect(
+    ids(MODEL_CENSUS_SWEEP_DAYS).map(
+      (slice) => oneCard(slice) >= Math.ceil(badges * 0.92),
+    ),
+  ).toEqual([false, false, false, false, false, true]);
+  expect(oneCard(5)).toBe(1042);
+
+  // A healthy cold run passes both floors: 99.2% of badges.
+  const cold = await census(native, D, null);
+  // Opening 278 GETs, then contact, makes and both dead `&` routes.
+  expect(cold.requests).toBe(282);
+  expect(cold.vins).toHaveLength(1107);
+
+  // D is a multiple of six, so D + 5 sweeps slice 5 and nothing else is due.
+  const day = D + 5;
+  const swept = native.models.filter((m) => ModelCensus.slice(m.key) === 5);
+  expect(swept).toHaveLength(30);
+  expect(swept.reduce((n, m) => n + m.model.count, 0)).toBe(102);
+  for (const model of swept) native.cut.add(model.key);
+  expect(
+    await failing(
+      day,
+      cold.terminal,
+      "Chaz model pages list 1042 of 1107 cards that the last accepted census listed for models whose counts did not change, below the 97% coverage floor.",
+    ),
+  ).toBe(0);
+  // Once the pages recover, a retry from the same accepted census publishes.
+  native.cut.clear();
+  const retry = await census(native, day, cold.terminal);
+  expect(retry.vins).toEqual(cold.vins);
+  expect(retry.warnings.at(-1)).toBe(
+    "Chaz Read 30 of 240 model pages (sweep 30); carried 210.",
+  );
+});
+
+test("Chaz re-reads a surplus model page that loses a donor down to its badge, at closing and on the next run", async () => {
+  // A badge of 40 whose page lists 41 (a placeholder or surplus row). Losing a
+  // real donor leaves exactly 40 cards: equal to the badge, but below the 41
+  // last accepted under that badge. Closing re-reads it, and the next run reads
+  // it again instead of carrying the drop for up to six days.
+  const native = yard();
+  const twelve = ids(12);
+  const offset = [1, 2, 3, 4].find((k) => sweep(D + k, twelve).length > 0);
+  if (offset === undefined)
+    throw new Error("fixture needs a model swept on D + 1 to D + 4");
+  const [model] = sweep(D + offset, twelve);
+  if (model === undefined) throw new Error("Expected a swept model");
+  native.rows.set(model, donors(model, 41));
+  native.surplus.set(model, 1);
+  const cold = await census(native, D, null);
+  // Its 41 cards differ from its badge, so the cold run re-reads it at closing.
+  expect(cold.requests).toBe(19);
+  let previous = cold.terminal;
+  for (let day = D + 1; day < D + offset; day++)
+    previous = (await census(native, day, previous)).terminal;
+  native.rows.set(model, donors(model, 40));
+  native.surplus.delete(model);
+  const dropped = await census(native, D + offset, previous);
+  const droppedReads = reads(D + offset, twelve, []);
+  expect(dropped.models).toEqual([...droppedReads.keys(), model]);
+  expect(dropped.requests).toBe(6 + droppedReads.size + 1);
+  expect(dropped.vins).toEqual(allVins(native));
+  const next = await census(native, D + offset + 1, dropped.terminal);
+  const nextReads = reads(D + offset + 1, twelve, [[model, "short"]]);
+  expect(next.models).toEqual([...nextReads.keys()]);
+  expect(next.warnings.at(-1)).toBe(summary(12, nextReads));
+  expect(next.vins).toEqual(allVins(native));
 });
 
 test("Chaz checkpoints reject carried pages, accounting and census days that disagree with the plan", async () => {

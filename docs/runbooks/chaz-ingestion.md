@@ -59,8 +59,9 @@ every literal make link. Model pages go through the shared incremental census
 in today's sixth of the sweep, or its evidence is six run days old. It is also
 read when a recent arrival entered since the day before the last accepted run
 binds to it by destination but is missing from its carried page, or when its
-carried page lists fewer cards than its badge and was not confirmed by the run
-that read it. Every other model carries its last accepted page at no request
+carried page lists fewer cards than it was expected to (its badge, or a higher
+earlier card count under the same badge) and was not confirmed by the run that
+read it. Every other model carries its last accepted page at no request
 cost, so the union always covers every published model. Only owned HTTPS browse
 URLs are allowed. It never requests donor details, images, hidden routes,
 part searches or an inferred model route. Supplier declarations must all agree
@@ -69,12 +70,16 @@ Redirects, partial content, non-HTML responses and request failures stop the run
 without automatic retry.
 
 Closing controls repeat contact, the make directory and every model page read
-this run whose cards differ from its badge. A changed fingerprint stops the run
+this run whose cards differ from its badge or fall below its expected count
+(`ModelCensus.closingReads`: the badge, or the last accepted card count when
+that was higher under the same badge). A changed fingerprint stops the run
 before emission, so a transient short or empty page is never published or
 carried. A page that re-reads identically, such as the dead `&` routes
 (TOWN & COUNTRY: badge 8, explicit empty), is confirmed and carries until its
-sweep. Each such page costs one closing GET on the runs that read it. Other
-model-level changes surface as badge changes in the next run's opening menus.
+sweep. Each such page costs one closing GET on the runs that read it. A page
+that only fell below a higher last accepted card count is never confirmed and
+is read again on the next run. Other model-level changes surface as badge
+changes in the next run's opening menus.
 
 Before the snapshot, the union of read and carried cards, each model capped at
 its badge, must cover at least 92% of today's model badges
@@ -83,9 +88,18 @@ its badge, must cover at least 92% of today's model badges
 opening 99.3% (one dead `&` route short). Emptying any one sweep slice drops
 either capture to at most 90.9%, so a fault that breaks today's slice while
 carried pages hide it fails the first broken run with nothing published.
-Nonempty model destinations must
-match the requested literal model parent. Explicit empty pages must retain
-their native model heading; labels containing `&` also accept the native `-and`
+
+Cutting a slice to one card per page is subtler. Nov 18's lightest slice
+(slice 5: 30 models, 102 badge cards) cut that way still covers 93.5% of
+badges (1,043 of 1,116), above the badge floor. The shared replay floor
+(`MODEL_CENSUS_REPLAY_MINIMUM`, 97%) also compares the union with the last
+accepted card counts of models whose badge did not change. That cut lists only
+94.1% of them (1,043 of 1,108), so it fails. Cut to one card per page, every
+slice of either capture lists 78.9% to 94.1% of its last accepted cards (the
+Nov 12 slice 5 also 94.1%). Healthy incremental runs sit near 100%.
+
+Nonempty model destinations must match the requested literal model parent.
+Explicit empty pages must retain their native model heading; labels containing `&` also accept the native `-and`
 spelling. These checks do not claim simultaneous stability of unrefetched or
 carried model pages.
 

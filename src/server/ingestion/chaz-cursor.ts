@@ -29,7 +29,7 @@ const scope = chazHash({
   version: 1,
   yard: CHAZ_YARD,
   authority:
-    "literal-model-graph/native-arrival-union/all-conflicts-quarantined/incremental-model-census-v2",
+    "literal-model-graph/native-arrival-union/all-conflicts-quarantined/incremental-model-census-v3",
 });
 /** Every model page read by an accepted run, carried forward by the next one. */
 // A page failing its fingerprint makes the terminal cursor unreadable, so the
@@ -87,8 +87,9 @@ export type ChazClosingControl =
     };
 
 /** Closing re-reads ownership, the make directory and every model read this
- * run whose cards differ from its badge, so a short page is confirmed before it
- * can be carried. Carried pages were confirmed on the run that read them; other
+ * run whose cards differ from its badge or fall below its expected count
+ * (ModelCensus.closingReads), so a short page is confirmed before it can be
+ * carried. Carried pages were confirmed on the run that read them; other
  * per-model changes surface as badge changes in the next run's opening menus.
  * Persistent discrepancies, such as the dead `&` routes, re-read identically. */
 export function chazClosingControls(
@@ -102,24 +103,28 @@ export function chazClosingControls(
     state.day === null || state.pages.length !== models.length
       ? []
       : chazCensusPlan(state);
-  const mismatched = decisions.flatMap((decision, index) => {
-    const value = models[index];
-    const page = state.pages[index];
-    return decision.kind === "read" &&
-      value &&
-      page &&
-      chazCards(page) !== value.model.count
-      ? [
-          {
-            kind: "model" as const,
-            url: CHAZ_ORIGIN + value.model.path,
-            make: value.make,
-            model: value.model,
-            index,
-          },
-        ]
-      : [];
-  });
+  const mismatched = decisions.length
+    ? ModelCensus.closingReads({
+        controls: chazCensusControls(state.makes),
+        pages: state.pages,
+        decisions,
+        previous: state.previous,
+        cards: chazCards,
+      }).flatMap((index) => {
+        const value = models[index];
+        return value
+          ? [
+              {
+                kind: "model" as const,
+                url: CHAZ_ORIGIN + value.model.path,
+                make: value.make,
+                model: value.model,
+                index,
+              },
+            ]
+          : [];
+      })
+    : [];
   return [
     { kind: "contact", url: CHAZ_CONTACT },
     { kind: "directory", url: CHAZ_MAKES },
@@ -188,7 +193,9 @@ const chazCards = (page: ChazPage) => page.records.length;
  * unexplained overcounts on 46 models) and 99.3% (Nov 18 opening, 1,108 of
  * 1,116 with the unread 73-model tail at its badge; only the dead TOWN & COUNTRY
  * route short). Emptying one sweep slice drops those to at most 86.2% and
- * 90.9% (the smallest slice holds 8 to 9% of badge cards). */
+ * 90.9% (the smallest slice holds 8 to 9% of badge cards). Cutting Nov 18's
+ * lightest slice to one card per page still covers 93.5% of badges; the shared
+ * replay floor catches it (94.1% of the last accepted cards, below 97%). */
 export const CHAZ_MINIMUM_BADGE_COVERAGE = 0.92;
 
 /** Fails a run whose read and carried model cards fall short of today's model
@@ -197,9 +204,12 @@ export function chazCoverageError(state: ChazProgress): string | null {
   const models = chazModels(state.makes);
   return ModelCensus.coverage(
     "Chaz",
-    chazCensusControls(state.makes),
-    state.pages,
-    chazCards,
+    {
+      controls: chazCensusControls(state.makes),
+      pages: state.pages,
+      previous: state.previous,
+      cards: chazCards,
+    },
     CHAZ_MINIMUM_BADGE_COVERAGE,
     (index) => {
       const value = models[index];
@@ -214,12 +224,15 @@ export function chazCensus(state: ChazProgress): ChazCensus {
   return ModelCensus.accept(
     scope,
     state.day,
-    chazCensusControls(state.makes),
-    state.pages,
-    chazCensusPlan(state),
+    {
+      controls: chazCensusControls(state.makes),
+      pages: state.pages,
+      decisions: chazCensusPlan(state),
+      previous: state.previous,
+      cards: chazCards,
+    },
     // Closing re-reads every short page read this run and fails on a change.
     "confirmed",
-    chazCards,
   );
 }
 
