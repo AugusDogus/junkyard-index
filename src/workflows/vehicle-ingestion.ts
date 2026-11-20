@@ -38,7 +38,6 @@ import {
   prepareIngestionPassStep,
   reportIngestionRunStep,
   signalCommitWaitersStep,
-  deliverVehicleSearchAlertIntentsStep,
   initializeDurableIngestionStep,
   markDurableIngestionFailedStep,
   markDurableSourceFailedStep,
@@ -50,10 +49,10 @@ import {
   validateDurableIngestionSourcesStep,
 } from "./vehicle-steps";
 import { IngestionTokens } from "./ingestion-tokens";
+import { vehicleNotificationDeliveryWorkflow } from "./downstream-consumers";
 import { withAlgoliaWriterLock } from "~/server/ingestion/algolia-writer-lock";
 
 const ALGOLIA_WRITES_TOKEN = "algolia-writes";
-const ALERT_DELIVERY_TOKEN = "vehicle-alert-delivery";
 const LOCK_RETRY_DELAY = "30s";
 // Fallbacks for signals that never arrive, such as a workflow that died.
 // Each commit claim attempt also keeps a waiter live in the commit queue,
@@ -108,7 +107,7 @@ async function startDailySearchAlertsStep(day: string) {
   await startDailySearchAlerts(day, {
     now: new Date(),
     alertsEnabled: searchAlertsEnabled,
-        openCheck: openDailySearchAlertCheck,
+    openCheck: openDailySearchAlertCheck,
     hasDeliverableIntents: hasDeliverableNotificationIntents,
     startCheck: (checkDay) => start(searchAlertCheckWorkflow, [checkDay]),
     startDelivery: () => start(vehicleNotificationDeliveryWorkflow),
@@ -333,25 +332,4 @@ export async function searchAlertCheckWorkflow(day: string) {
     startDelivery: startNotificationDeliveryStep,
   });
   return { ...result, day };
-}
-
-export async function vehicleNotificationDeliveryWorkflow() {
-  "use workflow";
-
-  using alertDelivery = createHook({ token: ALERT_DELIVERY_TOKEN });
-  const activeDelivery = await alertDelivery.getConflict();
-  if (activeDelivery) {
-    return {
-      status: "deduplicated" as const,
-      activeRunId: activeDelivery.runId,
-    };
-  }
-  let intentsProcessed = 0;
-  while (true) {
-    const batch = await deliverVehicleSearchAlertIntentsStep();
-    intentsProcessed += batch.intentsProcessed;
-    if (batch.status === "complete") {
-      return { status: "completed" as const, intentsProcessed };
-    }
-  }
 }

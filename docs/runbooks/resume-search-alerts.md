@@ -47,16 +47,20 @@ the backlog.
      as possibly pinned to an old deployment.
    - **Names.** `-n` needs the fully qualified workflow ID, for example
      `workflow//./src/workflows/vehicle-ingestion//vehicleIngestionPassWorkflow`.
-     The bare function name matches nothing.
+     The bare function name matches nothing. Delivery moved to
+     `src/workflows/downstream-consumers.ts`, so runs started by older
+     deployments keep the `vehicle-ingestion` ID; the loop lists both.
    - **What the loop does.** It queries each alert-related workflow by name and
      follows `cursor` until `hasMore` is false. It prints each live run's ID,
      workflow, status, deployment and start time. The CLI prints a banner
      before the JSON, so the loop keeps only the JSON.
 
    ```sh
-   for fn in vehicleIngestionPassWorkflow searchAlertCheckWorkflow \
-     vehicleNotificationDeliveryWorkflow; do
-     name="workflow//./src/workflows/vehicle-ingestion//$fn"
+   for name in \
+     workflow//./src/workflows/vehicle-ingestion//vehicleIngestionPassWorkflow \
+     workflow//./src/workflows/vehicle-ingestion//searchAlertCheckWorkflow \
+     workflow//./src/workflows/vehicle-ingestion//vehicleNotificationDeliveryWorkflow \
+     workflow//./src/workflows/downstream-consumers//vehicleNotificationDeliveryWorkflow; do
      for status in running pending; do
        cursor=""
        while :; do

@@ -14,6 +14,7 @@ import {
   announceInventoryStep,
   cleanupStaleSnapshotsStep,
   consumerModeStep,
+  deliverVehicleSearchAlertIntentsStep,
   pruneIngestionRunsStep,
   purgeTerminalIntentsStep,
   inventoryDownstreamDueStep,
@@ -24,6 +25,9 @@ import {
   warmInventoryAnnouncementStep,
 } from "./downstream-steps";
 
+// One live notification delivery workflow, shared with deployments that
+// started it from vehicle-ingestion.ts, so old and new runs deduplicate.
+const ALERT_DELIVERY_TOKEN = "vehicle-alert-delivery";
 // Time for requested pages to finish regenerating in the background.
 const PAGE_REGENERATION_DELAY = "2m";
 
@@ -114,4 +118,31 @@ export async function ingestionMaintenanceWorkflow() {
     summarizeIngestionMaintenance(result),
   );
   return result;
+}
+
+/**
+ * Sends deliverable saved-search notifications, one recipient group per step,
+ * until none is left. Started by the notification-delivery cron, the daily
+ * alert check and the alert deadline cron. Each batch rechecks the
+ * fail-closed search-alerts-enabled flag.
+ */
+export async function vehicleNotificationDeliveryWorkflow() {
+  "use workflow";
+
+  using alertDelivery = createHook({ token: ALERT_DELIVERY_TOKEN });
+  const activeDelivery = await alertDelivery.getConflict();
+  if (activeDelivery) {
+    return {
+      status: "deduplicated" as const,
+      activeRunId: activeDelivery.runId,
+    };
+  }
+  let intentsProcessed = 0;
+  while (true) {
+    const batch = await deliverVehicleSearchAlertIntentsStep();
+    intentsProcessed += batch.intentsProcessed;
+    if (batch.status === "complete") {
+      return { status: "completed" as const, intentsProcessed };
+    }
+  }
 }

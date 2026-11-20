@@ -7,10 +7,11 @@ switch. None waits for a pass to complete, and none calls a search backend
 (`src/workflows/downstream-consumers-search.test.ts` checks each consumer's
 import graph).
 
-| Consumer               | Cron                                               | Checkpoint                                                          |
-| ---------------------- | -------------------------------------------------- | ------------------------------------------------------------------- |
-| `inventory-downstream` | `/api/cron/inventory-downstream`, hourly at :10    | `ingestion_projector_checkpoint` row `inventory-downstream`         |
-| `maintenance`          | `/api/cron/ingestion-maintenance`, daily 08:30 UTC | none: each task deletes only what is eligible, so reruns are no-ops |
+| Consumer                | Cron                                                | Checkpoint                                                          |
+| ----------------------- | --------------------------------------------------- | ------------------------------------------------------------------- |
+| `inventory-downstream`  | `/api/cron/inventory-downstream`, hourly at :10     | `ingestion_projector_checkpoint` row `inventory-downstream`         |
+| `maintenance`           | `/api/cron/ingestion-maintenance`, daily 08:30 UTC  | none: each task deletes only what is eligible, so reruns are no-ops |
+| `notification-delivery` | `/api/cron/notification-delivery`, every 15 minutes | each intent's own status, claim and `next_attempt_at`               |
 
 ## inventory-downstream
 
@@ -59,6 +60,27 @@ Each task is bounded per run; `complete: false` means tomorrow's run continues.
 A failed task fails the tick (Sentry issue, heartbeat `/fail`). The legacy
 `vehicle_snapshot` and `vehicle_observation` drains that ran on every source
 run were removed: both tables were empty in production in November 2026.
+
+## notification-delivery
+
+Every 15 minutes the cron starts `vehicleNotificationDeliveryWorkflow` when a
+notification can go out now. Before this cron, delivery started only when a
+day's pass or alert check finished, or hourly after the 18:00 UTC alert
+deadline, so a retry or an expired claim could wait most of a day. Both
+switches must allow it: `consumer-notification-delivery` (missing means
+enabled) and the fail-closed `search-alerts-enabled`. Every delivery batch
+rechecks both, so pausing either also stops a delivery started by the daily
+alert check, the deadline cron or a workflow already running. Neither paused
+state changes an intent. The workflow keeps its singleton hook token
+(`vehicle-alert-delivery`), so a delivery started by an older deployment and
+one started here never run at once.
+
+`/api/status/alerts` is the alerts monitor. It returns 503 when the expected
+day's alert check has not completed (yesterday's, if one was opened, then
+today's from 20:00 UTC) or a notification has been deliverable for more than
+2 hours, and 200 otherwise, including while `search-alerts-enabled` pauses
+alerts (`status: "paused"`). Days on which alerts were paused have no check,
+so re-enabling alerts does not turn the monitor red for the gap.
 
 ## Pausing a consumer
 

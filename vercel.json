@@ -25,6 +25,10 @@
     {
       "path": "/api/cron/ingestion-maintenance",
       "schedule": "30 8 * * *"
+    },
+    {
+      "path": "/api/cron/notification-delivery",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

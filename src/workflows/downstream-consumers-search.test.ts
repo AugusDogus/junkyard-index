@@ -14,6 +14,10 @@ const CONSUMER_ENTRIES = {
     "src/app/api/cron/ingestion-maintenance/route.ts",
     "src/workflows/downstream-consumers.ts",
   ],
+  "notification-delivery": [
+    "src/app/api/cron/notification-delivery/route.ts",
+    "src/workflows/downstream-consumers.ts",
+  ],
 } as const;
 
 const transpilers = {

@@ -13,10 +13,8 @@ import {
 import { hasValidCronAuthorization } from "~/server/workflows/cron-authorization";
 import { workflowStartRetryOptions } from "~/server/workflows/start-retry";
 import { IngestionDay } from "~/server/ingestion/ingestion-day";
-import {
-  searchAlertCheckWorkflow,
-  vehicleNotificationDeliveryWorkflow,
-} from "~/workflows/vehicle-ingestion";
+import { vehicleNotificationDeliveryWorkflow } from "~/workflows/downstream-consumers";
+import { searchAlertCheckWorkflow } from "~/workflows/vehicle-ingestion";
 
 export async function GET(request: Request) {
   if (
