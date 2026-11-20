@@ -9,9 +9,12 @@ import {
   AviationCursor,
   AviationCursorSchema,
   AVIATION_MAX_REQUESTS,
+  aviationCensus,
+  aviationCensusPlan,
   aviationClosingControls,
   type AviationProgress,
 } from "./aviation-cursor";
+import { ModelCensus } from "./model-census";
 import {
   aviationHash,
   parseAviationContact,
@@ -40,6 +43,10 @@ import { sharedProviderHostTurn } from "./shared-provider-host";
 
 interface AviationOptions<E, R> {
   startCursor?: AviationCursor;
+  /** Terminal cursor of the last accepted, published run; read only when the
+   * start cursor has not begun a census yet. */
+  previousCursor?: unknown;
+  now?: () => number;
   /** One unit is one serial native GET; no donor details or images are fetched. */
   maxPages?: number;
   onBatch: (vehicles: AviationCanonicalVehicle[]) => Effect.Effect<void, E, R>;
@@ -91,7 +98,7 @@ function nextUrl(state: AviationProgress): string {
       return AVIATION_ORIGIN + next.model.path;
     }
     case "closing": {
-      const control = aviationClosingControls(state)[state.closing];
+      const control = aviationClosingControls()[state.closing];
       if (!control) throw new Error("Missing Aviation closing control");
       return control.url;
     }
@@ -133,7 +140,14 @@ function advance(state: AviationProgress, raw: string): AviationProgress {
           ? { ...m, models: parseAviationDirectory(raw, "models", make) }
           : m,
       );
-      if (next.makes.every((m) => m.models !== null)) next.phase = "models";
+      if (next.makes.every((m) => m.models !== null)) {
+        // Carried models before the first due read cost no request.
+        next.pages = ModelCensus.carriedRun(aviationCensusPlan(next), 0);
+        next.phase =
+          next.pages.length === aviationModels(next.makes).length
+            ? "closing"
+            : "models";
+      }
       break;
     }
     case "models": {
@@ -142,13 +156,17 @@ function advance(state: AviationProgress, raw: string): AviationProgress {
       next.pages = [
         ...state.pages,
         parseAviationModel(raw, context.make, context.model),
+        ...ModelCensus.carriedRun(
+          aviationCensusPlan(state),
+          state.pages.length + 1,
+        ),
       ];
       if (next.pages.length === aviationModels(state.makes).length)
         next.phase = "closing";
       break;
     }
     case "closing": {
-      const control = aviationClosingControls(state)[state.closing];
+      const control = aviationClosingControls()[state.closing];
       if (!control) throw new Error("Missing Aviation closing native context");
       switch (control.kind) {
         case "contact":
@@ -160,23 +178,6 @@ function advance(state: AviationProgress, raw: string): AviationProgress {
             parseAviationDirectory(raw, "makes"),
             "make directory",
           );
-          break;
-        case "make":
-          same(
-            control.make.models,
-            parseAviationDirectory(raw, "models", control.make),
-            "model directory " + control.make.label,
-          );
-          break;
-        case "model":
-          same(
-            state.pages[control.index]?.hash,
-            parseAviationModel(raw, control.make, control.model).hash,
-            "model list " + control.model.label,
-          );
-          break;
-        case "root":
-          next.arrivals = [...state.arrivals, parseAviationRoot(raw)];
           break;
       }
       next.closing++;
@@ -218,6 +219,14 @@ export function streamAviationInventoryWithRequestGate<E, R>(
     };
     if (cursor.phase === "complete")
       return { ...summary, status: "complete" as const };
+    const now = options.now ?? Date.now;
+    const pending = cursor;
+    const begun = yield* attempt("begin census", () =>
+      AviationCursor.begin(pending, now(), options.previousCursor),
+    );
+    cursor = begun.cursor;
+    summary.cursor = cursor;
+    if (begun.warning) summary.warnings.push(begun.warning);
     const started = Date.now();
     while (summary.pagesProcessed < budget && cursor.phase !== "complete") {
       if (Date.now() - started > 150_000) break;
@@ -241,7 +250,7 @@ export function streamAviationInventoryWithRequestGate<E, R>(
       summary.pagesProcessed++;
       if (
         advanced.phase === "closing" &&
-        advanced.closing === aviationClosingControls(advanced).length
+        advanced.closing === aviationClosingControls().length
       ) {
         const snapshot = yield* attempt("complete native union", () => {
           const snapshot = aviationSnapshot(
@@ -256,14 +265,24 @@ export function streamAviationInventoryWithRequestGate<E, R>(
         summary.accounting = { ...snapshot.accounting };
         summary.count = snapshot.vehicles.length;
         summary.observedVins = [...snapshot.observedVins];
+        const census = yield* attempt("close model census", () =>
+          aviationCensus(advanced),
+        );
         summary.warnings = [
+          ...summary.warnings,
           "Aviation preserved required identity rejects and quarantined every conflicting VIN occurrence. Published badge count discrepancies remain raw observations; optional metadata is nullable.",
+          "Aviation " + ModelCensus.summary(aviationCensusPlan(advanced)),
         ];
         if (options.onYards) yield* options.onYards([{ ...AVIATION_YARD }]);
         yield* options.onBatch(
           snapshot.vehicles.map((vehicle) => ({ ...vehicle })),
         );
-        cursor = { source: "aviation", version: 1, phase: "complete" };
+        cursor = {
+          source: "aviation",
+          version: 1,
+          phase: "complete",
+          census,
+        };
       } else cursor = advanced;
     }
     return {

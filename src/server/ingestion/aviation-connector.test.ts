@@ -118,8 +118,10 @@ test("Aviation serializes small chunks and quarantines late cross-surface confli
     rejected += result.accounting.recordsRejected;
     duplicates += result.accounting.duplicateVehicles;
   }
-  expect(chunks).toBe(6);
-  expect(requests).toBe(12);
+  // Opening contact, root, parts, makes, one menu and one model; closing
+  // contact and makes.
+  expect(chunks).toBe(4);
+  expect(requests).toBe(8);
   expect(processed).toBe(23);
   expect(rejected).toBe(2);
   expect(duplicates).toBe(0);
@@ -194,32 +196,28 @@ test("Aviation cursor codec checks UTF-8 wire size before JSON decoding and pres
   );
   expect(() =>
     AviationCursor.parse(" ".repeat(AVIATION_MAX_CURSOR_BYTES + 1)),
-  ).toThrow("exceeds 1 MiB");
+  ).toThrow("exceeds 4 MiB");
   expect(() =>
     AviationCursor.parse('"' + "é".repeat(AVIATION_MAX_CURSOR_BYTES / 2) + '"'),
-  ).toThrow("exceeds 1 MiB");
+  ).toThrow("exceeds 4 MiB");
   expect(() => AviationCursor.parse("{")).toThrow("not valid JSON");
   expect(() =>
     AviationCursor.parse('{"source":"foreign","version":1,"phase":"complete"}'),
   ).toThrow();
 });
 
-test("Aviation changed closing controls fail without emission or an advanced checkpoint", async () => {
+test("Aviation changed closing make directory fails without emission or an advanced checkpoint", async () => {
   const native = transport();
   const first = await Effect.runPromise(
     streamAviationInventoryWithRequestGate(
-      { maxPages: 8, onBatch: () => Effect.void },
+      { maxPages: 6, onBatch: () => Effect.void },
       gate,
     ),
   );
   expect(first.status).toBe("paused");
-  const makeUrl = AVIATION_ORIGIN + aviationFixtureMake.path;
   native.bodies.set(
-    makeUrl,
-    aviationFixtureDirectory(
-      [{ ...aviationFixtureModel, count: 999 }],
-      "models",
-    ),
+    AVIATION_MAKES,
+    aviationFixtureDirectory([{ ...aviationFixtureMake, count: 999 }], "makes"),
   );
   let callbacks = 0;
   await expect(
@@ -236,7 +234,7 @@ test("Aviation changed closing controls fail without emission or an advanced che
         gate,
       ),
     ),
-  ).rejects.toThrow("Closing Aviation model directory");
+  ).rejects.toThrow("Closing Aviation make directory");
   expect(callbacks).toBe(0);
   expect(first.cursor.phase).not.toBe("complete");
 });
@@ -309,7 +307,7 @@ test("Aviation production soak round-trips every chunk and preserves terminal di
   expect(result.status).toBe("complete");
   expect(result.cursor.phase).toBe("complete");
   expect(result.pagesProcessed).toBe(native.urls.length);
-  expect(result.pagesProcessed).toBe(12);
+  expect(result.pagesProcessed).toBe(8);
   expect(result.count).toBe(emitted);
   expect(result.count).toBe(21);
   expect(result.accounting).toEqual({
@@ -323,15 +321,20 @@ test("Aviation production soak round-trips every chunk and preserves terminal di
 test("Aviation soak rejects paused presence/accounting and a chunk exceeding its remaining request budget", async () => {
   transport();
   await expect(
-    soakAviationInventory(async (startCursor, maxPages) => {
-      const result = await Effect.runPromise(
-        streamAviationInventoryWithRequestGate(
-          { startCursor, maxPages, onBatch: () => Effect.void },
-          gate,
-        ),
-      );
-      return { ...result, observedVins: [aviationFixtureRecord(1)[0]] };
-    }),
+    soakAviationInventory(
+      async (startCursor, maxPages) => {
+        const result = await Effect.runPromise(
+          streamAviationInventoryWithRequestGate(
+            { startCursor, maxPages, onBatch: () => Effect.void },
+            gate,
+          ),
+        );
+        return { ...result, observedVins: [aviationFixtureRecord(1)[0]] };
+      },
+      20,
+      // The eight-GET run would complete in one default chunk; four pauses it.
+      4,
+    ),
   ).rejects.toThrow("paused chunk emitted");
   await expect(
     soakAviationInventory(
@@ -380,7 +383,7 @@ test("Aviation completes a full crawl when every request waits two minutes for a
     expect(chunk.elapsedMs).toBeLessThanOrEqual(6 * 60_000);
     expect(chunk.turns.every((turn) => turn.releasedAt !== null)).toBe(true);
   }
-  expect(pages).toEqual([2, 2, 2, 2, 2, 2]);
+  expect(pages).toEqual([2, 2, 2, 2]);
   expect(count).toBe(21);
-  expect(native.urls).toHaveLength(12);
+  expect(native.urls).toHaveLength(8);
 }, 120_000);
