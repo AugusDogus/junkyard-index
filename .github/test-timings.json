@@ -32,7 +32,6 @@
     "src/lib/compile-search-expression.test.ts": 3,
     "src/lib/discord-alert.test.ts": 2,
     "src/lib/discord-idempotency.test.ts": 1,
-    "src/lib/dry-run-alerts-import.test.ts": 26,
     "src/lib/email.test.ts": 221,
     "src/lib/html.test.ts": 1,
     "src/lib/indexnow.test.ts": 5,

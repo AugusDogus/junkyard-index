@@ -25,10 +25,6 @@ It verifies live transport and transforms, not the complete publication workflow
 Unit/integration tests separately exercise local SQLite checkpoint persistence,
 replay handling, yard attribution, cursors, and source validation.
 
-Do not confuse the soak with `RUN_INGESTION_SMOKE=1 bun run test:ingestion`:
-that opt-in test invokes the full ingestion lifecycle against configured services,
-including publication and alert delivery.
-
 ## Validation evidence (September 15, 2026)
 
 | Source                                           | Full catalog result                                                                   | Requests | Time        |
