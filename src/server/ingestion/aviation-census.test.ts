@@ -289,11 +289,21 @@ test("Aviation re-reads every model within six days, even across missed runs", a
   const native = yard();
   let previous = (await census(native, 600, null)).terminal;
   const lastRead = new Map<number, number>(every.map((i) => [i, 600]));
+  // Skip days 601 and 602 entirely: the gap makes day 603 read every model.
+  const gap = await census(native, 603, previous);
+  expect(gap.models).toEqual(every);
+  expect(gap.vins).toEqual(allVins(native));
+  expect(gap.warnings.at(-1)).toBe(
+    "Aviation Read 12 of 12 model pages (gap 12); carried 0.",
+  );
+  for (const model of gap.models) lastRead.set(model, 603);
+  previous = gap.terminal;
   let reads = 0;
-  // Skip days 601 and 602 entirely, then run daily.
-  const days = [603, 604, 605, 606, 607, 608, 609, 610, 611, 612];
+  // Daily runs resume incrementally and read only each day's sweep slice.
+  const days = [604, 605, 606, 607, 608, 609, 610, 611, 612];
   for (const day of days) {
     const run = await census(native, day, previous);
+    expect(run.models).toEqual(sweep(day));
     reads += run.models.length;
     for (const model of run.models) lastRead.set(model, day);
     for (const read of lastRead.values()) expect(day - read).toBeLessThan(6);
@@ -301,6 +311,7 @@ test("Aviation re-reads every model within six days, even across missed runs", a
     previous = run.terminal;
   }
   // Steady state reads about a sixth of the models per day.
+  expect(reads).toBe(19);
   expect(reads / days.length).toBeLessThanOrEqual(12 / 6 + 1);
 });
 
@@ -500,7 +511,7 @@ test("Aviation fails a run whose sweep slice is cut to one card per model even w
   const failed = await failedCensus(day, cold.terminal);
   expect(String(failed.error)).toContain("coverage floor");
   expect(String(failed.error)).toContain(
-    "that the last accepted census listed for models whose counts did not change",
+    "that the last accepted census listed, less any drop in their counts",
   );
   expect(String(failed.error)).toContain(`ACURA M${broken[0]} (4)`);
   expect(failed.callbacks).toBe(0);

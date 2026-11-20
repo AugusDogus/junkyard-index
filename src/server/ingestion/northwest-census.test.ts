@@ -266,10 +266,9 @@ test("Northwest carries unread models, rotates the sweep and reads changes", asy
     ),
   );
 
-  // Next run (within the six-day ceiling of the cold census): a newly
+  // A later daily run (within the six-day ceiling of the cold census): a newly
   // published model is read outside its sweep slice, and the sweep has
   // rotated to another non-empty slice.
-  native.rows.set(12, donors(12, 10));
   const addedDay = [603, 604, 605].find(
     (day) =>
       ModelCensus.slice(censusKey(12)) !== day % 6 &&
@@ -277,9 +276,25 @@ test("Northwest carries unread models, rotates the sweep and reads changes", asy
   );
   if (addedDay === undefined)
     throw new Error("fixture needs a day off model 12's slice with a sweep");
+  // Every day before it runs too, so no gap forces a full read; each reads
+  // exactly its sweep slice.
+  let previous = changed.terminal;
+  for (let day = 603; day < addedDay; day++) {
+    const daily = await census(native, day, previous);
+    expect(daily.models).toEqual(swept(native, day));
+    expect(daily.vins).toEqual(allVins(native));
+    expect(daily.warnings.at(-1)).toBe(
+      summary(
+        12,
+        swept(native, day).map(() => "sweep"),
+      ),
+    );
+    previous = daily.terminal;
+  }
+  native.rows.set(12, donors(12, 10));
   const sweepAdded = swept(native, addedDay);
   expect(sweepAdded).not.toEqual(sweep601);
-  const added = await census(native, addedDay, changed.terminal);
+  const added = await census(native, addedDay, previous);
   expect(added.models).toEqual([...sweepAdded, 12]);
   expect(added.vins).toEqual(allVins(native));
 }, 120_000);
@@ -289,27 +304,43 @@ test("Northwest re-reads every model within six days, even across missed runs", 
   let previous = (await census(native, 600, null)).terminal;
   const lastRead = new Map<number, number>();
   for (let i = 0; i < 12; i++) lastRead.set(i, 600);
+  const every = Array.from({ length: 12 }, (_, i) => i);
+  // Skip days 601 and 602, run daily through 608, skip a single day (609),
+  // then run daily again.
+  const gapDays = new Set([603, 610]);
+  const days = [
+    603, 604, 605, 606, 607, 608, 610, 611, 612, 613, 614, 615, 616,
+  ];
   const perDay: number[][] = [];
-  // Skip days 601 and 602 entirely, then run daily.
-  const days = [603, 604, 605, 606, 607, 608, 609, 610, 611, 612];
   for (const day of days) {
+    // The first run after any missed day reads every model (reason gap).
+    // Every other daily run resumes incrementally: its sweep slice, read as
+    // stale when the slice's last read is six days old.
+    const reads = gapDays.has(day) ? every : swept(native, day);
+    const reasons = reads.map((model) =>
+      gapDays.has(day)
+        ? "gap"
+        : day - (lastRead.get(model) ?? day) >= 6
+          ? "stale"
+          : "sweep",
+    );
     const run = await census(native, day, previous);
+    expect(run.models).toEqual(reads);
+    expect(run.warnings.at(-1)).toBe(summary(12, reasons));
     for (const model of run.models) lastRead.set(model, day);
     for (const read of lastRead.values()) expect(day - read).toBeLessThan(6);
     expect(run.vins).toEqual(allVins(native));
     perDay.push(run.models);
     previous = run.terminal;
   }
-  // Once the missed days are absorbed, each run reads exactly its sweep slice,
-  // so six consecutive runs read every model exactly once.
-  const steady = days.slice(-6);
-  expect(perDay.slice(-6)).toEqual(steady.map((day) => swept(native, day)));
+  // The six daily runs after the last gap read every model exactly once.
+  expect(days.slice(-6)).toEqual([611, 612, 613, 614, 615, 616]);
   expect(
     perDay
       .slice(-6)
       .flat()
       .sort((a, b) => a - b),
-  ).toEqual(Array.from({ length: 12 }, (_, i) => i));
+  ).toEqual(every);
 }, 120_000);
 
 test("Northwest rejects a checkpoint whose carried page differs from its census", async () => {
@@ -322,11 +353,15 @@ test("Northwest rejects a checkpoint whose carried page differs from its census"
   );
   if (day === undefined)
     throw new Error("fixture needs a day whose first swept model is not M0");
+  // Run every day before it, so no gap forces a full read on that day.
+  let previous = cold.terminal;
+  for (let daily = 601; daily < day; daily++)
+    previous = (await census(native, daily, previous)).terminal;
   const firstRead = swept(native, day)[0] ?? 12;
   const first = await Effect.runPromise(
     streamNorthwestInventoryWithRequestGate(
       {
-        previousCursor: cold.terminal,
+        previousCursor: previous,
         now: () => day * MODEL_CENSUS_DAY_MS,
         maxPages: 3,
         onBatch: () => Effect.void,
@@ -356,7 +391,7 @@ test("Northwest rejects a checkpoint whose carried page differs from its census"
   expect(() =>
     NorthwestCursor.checkpoint({ ...cursor, day: null, previous: null }),
   ).toThrow("run day or previous model census");
-});
+}, 120_000);
 
 test("Northwest starts a warned cold census when carried evidence no longer holds", async () => {
   const native = yard();
@@ -581,7 +616,7 @@ test("Northwest fails an incremental run whose sweep slice is cut to one card pe
   for (const model of slice) native.rows.set(model, donors(model, 1));
   const published = { callbacks: 0 };
   await expect(guardedRun(day, cold.terminal, published)).rejects.toThrow(
-    "that the last accepted census listed for models whose counts did not change, below the 97% coverage floor",
+    "that the last accepted census listed, less any drop in their counts, below the 97% coverage floor",
   );
   expect(published.callbacks).toBe(0);
 }, 120_000);
@@ -595,9 +630,16 @@ test("Northwest re-reads a surplus page that lost cards down to exactly its badg
     swept(native, candidate).includes(3),
   );
   if (day === undefined) throw new Error("fixture needs M3 swept by day 604");
+  // Run every day before it, so no gap forces a full read on that day.
+  let previous = cold.terminal;
+  for (let daily = 601; daily < day; daily++) {
+    const run = await census(native, daily, previous);
+    expect(run.models).toEqual(swept(native, daily));
+    previous = run.terminal;
+  }
   // Real donors leave model 3 until its page lists exactly its badge.
   native.rows.set(3, donors(3, 190));
-  const cut = await census(native, day, cold.terminal);
+  const cut = await census(native, day, previous);
   // Cards equal the badge but fall below the 200 the last census listed, so
   // closing re-reads the page.
   expect(cut.models).toEqual([...swept(native, day), 3]);

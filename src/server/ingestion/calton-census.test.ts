@@ -264,29 +264,36 @@ test("the sweep reads a sixth of the models each day and every model within six 
   );
 });
 
-test("missed run days read every model whose evidence reached the age ceiling", async () => {
+test("a missed run day reads every model, then daily runs resume incrementally", async () => {
   const site = yard();
   const cold = await runDay(site, D, null);
-  const late = await runDay(site, D + 3, cold.terminal);
-  const lateSweep = sweepAt(site, D + 3);
-  expect(lateSweep.length).toBeGreaterThan(0);
-  expect(late.modelReads).toEqual(urlsAt(site, lateSweep));
-  // Day D + 8: every model last read on day D is stale; the ones read on D + 3
-  // are read again only when they fall in this day's slice.
-  const laterSweep = sweepAt(site, D + 8);
-  const later = await runDay(site, D + 8, late.terminal);
-  expect(later.modelReads).toEqual(
-    urlsAt(
-      site,
-      [...Array(MODEL_COUNT).keys()].filter(
-        (i) => !lateSweep.includes(i) || laterSweep.includes(i),
-      ),
-    ),
+  const daily = await runDay(site, D + 1, cold.terminal);
+  expect(daily.modelReads).toEqual(urlsAt(site, sweepAt(site, D + 1)));
+  // Day D + 2 is missed, so day D + 3 reads every model page again.
+  const late = await runDay(site, D + 3, daily.terminal);
+  expect(late.modelReads).toEqual(urlsAt(site, [...Array(MODEL_COUNT).keys()]));
+  expect([...late.published].sort()).toEqual(expectedVins(site));
+  expect(late.warnings).toContain(
+    `Calton Read ${MODEL_COUNT} of ${MODEL_COUNT} model pages (gap ${MODEL_COUNT}); carried 0.`,
   );
-  expect([...later.published].sort()).toEqual(expectedVins(site));
-  if (later.cursor.phase !== "complete" || !later.cursor.census)
+  // Daily runs from D + 4 read only their sweep slice again.
+  let previous = late.terminal;
+  let last = late;
+  for (let day = D + 4; day <= D + 8; day++) {
+    const sweep = sweepAt(site, day);
+    expect(sweep.length).toBeGreaterThan(0);
+    const run = await runDay(site, day, previous);
+    expect(run.modelReads).toEqual(urlsAt(site, sweep));
+    expect([...run.published].sort()).toEqual(expectedVins(site));
+    expect(run.warnings).toContain(
+      `Calton Read ${sweep.length} of ${MODEL_COUNT} model pages (sweep ${sweep.length}); carried ${MODEL_COUNT - sweep.length}.`,
+    );
+    previous = run.terminal;
+    last = run;
+  }
+  if (last.cursor.phase !== "complete" || !last.cursor.census)
     throw new Error("Expected a terminal census");
-  for (const model of later.cursor.census.models)
+  for (const model of last.cursor.census.models)
     expect(D + 8 - model.readDay).toBeLessThan(6);
 });
 
@@ -598,7 +605,7 @@ test("a run fails when today's swept pages list one card each while their badges
   );
   expect(String(failure)).toContain("Calton model badge coverage");
   expect(String(failure)).toContain(
-    "that the last accepted census listed for models whose counts did not change, below the 97% coverage floor",
+    "that the last accepted census listed, less any drop in their counts, below the 97% coverage floor",
   );
   expect(published).toEqual([]);
 });

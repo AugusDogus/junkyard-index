@@ -229,20 +229,43 @@ test("Jim's Import re-reads every model within six days, even across missed runs
   let previous = (await census(native, 600, null)).terminal;
   const lastRead = new Map<number, number>();
   for (let i = 0; i < MODELS; i++) lastRead.set(i, 600);
+  // The explicit-empty page below its badge: confirmed short on the cold run.
+  const short = CARDS.flatMap((cards, i) =>
+    cards < (BADGES[i] ?? 0) ? [i] : [],
+  );
+  expect(short).toHaveLength(1);
+  // Its slice is not day 604's, so day 604 reads it only as a short page.
+  expect(short.some((i) => slice(604).includes(i))).toBe(false);
   // Skip day 601 and 602 entirely, then run daily.
   for (const day of [603, 604, 605, 606, 607, 608]) {
     expect(slice(day).length).toBeGreaterThan(0);
     const run = await census(native, day, previous);
     for (const model of run.models) lastRead.set(model, day);
     for (const read of lastRead.values()) expect(day - read).toBeLessThan(6);
-    // A normal day reads one sixth; on day 606 the slices missed on days 601
-    // and 602 reach the age ceiling alongside today's slice.
+    // Day 603 follows missed runs, so it reads every model and confirms no
+    // short page. Day 604 resumes incrementally with its slice plus that
+    // unconfirmed short page; later days read one sixth each.
     expect(run.models).toEqual(
-      day === 606
-        ? [...slice(600), ...slice(601), ...slice(602)].sort((a, b) => a - b)
-        : slice(day),
+      day === 603
+        ? Array.from({ length: MODELS }, (_, i) => i)
+        : day === 604
+          ? [...slice(day), ...short].sort((a, b) => a - b)
+          : slice(day),
+    );
+    expect(run.warnings.at(-1)).toBe(
+      day === 603
+        ? `Jim's Import Read ${MODELS} of ${MODELS} model pages (gap ${MODELS}); carried 0.`
+        : day === 604
+          ? `Jim's Import Read ${slice(day).length + 1} of ${MODELS} model pages (sweep ${slice(day).length}, short 1); carried ${MODELS - slice(day).length - 1}.`
+          : `Jim's Import Read ${slice(day).length} of ${MODELS} model pages (sweep ${slice(day).length}); carried ${MODELS - slice(day).length}.`,
     );
     expect(run.vins).toEqual(native.vins());
+    const accepted = JimsimportCursor.parse(run.terminal);
+    if (accepted.phase !== "complete" || !accepted.census)
+      throw new Error("Expected a terminal census");
+    expect(
+      accepted.census.models.flatMap((m, i) => (m.confirmed ? [i] : [])),
+    ).toEqual(day === 603 ? [] : short);
     previous = run.terminal;
   }
 }, 300_000);
@@ -414,6 +437,10 @@ test("Jim's Import fails an incremental run whose sweep slice lists one card per
     covered(d) > covered(best) ? d : best,
   );
   expect(slice(day).length).toBeGreaterThan(0);
+  // Healthy daily runs up to the faulty day, so it reads incrementally.
+  let last = cold;
+  for (let healthy = 601; healthy < day; healthy++)
+    last = await census(native, healthy, last.terminal);
   for (const i of slice(day)) {
     const path = fixture.pages[i]?.modelPath;
     if (path) native.cut.add(path);
@@ -426,9 +453,9 @@ test("Jim's Import fails an incremental run whose sweep slice lists one card per
       for (;;) {
         const result = await Effect.runPromise(
           streamJimsimportInventory({
-            previousUniqueInventory: cold.vins.length,
+            previousUniqueInventory: last.vins.length,
             startCursor: cursor,
-            previousCursor: cold.terminal,
+            previousCursor: last.terminal,
             now: () => day * MODEL_CENSUS_DAY_MS,
             readPage: native.readPage,
             onBatch: (batch) =>
@@ -455,7 +482,7 @@ test("Jim's Import fails an incremental run whose sweep slice lists one card per
   );
   // Independently of badge accuracy, the replay floor alone rejects the same
   // pages against the last accepted census.
-  const terminal = JimsimportCursor.parse(cold.terminal);
+  const terminal = JimsimportCursor.parse(last.terminal);
   if (terminal.phase !== "complete" || !terminal.census)
     throw new Error("Expected a terminal census");
   expect(
@@ -478,7 +505,7 @@ test("Jim's Import fails an incremental run whose sweep slice lists one card per
   ).toContain(
     `below the ${Math.round(MODEL_CENSUS_REPLAY_MINIMUM * 1000) / 10}% coverage floor`,
   );
-}, 120_000);
+}, 240_000);
 
 test("Jim's Import re-reads a surplus page that lost donors down to its badge", async () => {
   // Some model pages list more cards than their badge. One that loses real

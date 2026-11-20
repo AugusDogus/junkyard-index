@@ -227,6 +227,11 @@ test("Denton carries unread models, rotates the sweep and reads changes", async 
     "Denton Read 0 of 12 model pages; carried 12.",
   );
 
+  // Day 602 runs too: a missed day would make day 603 read every model.
+  const between = await census(native, 602, idle.terminal);
+  expect(between.models).toEqual(sweep(602));
+  expect(between.vins).toEqual(native.vins());
+
   // Day 603: the sweep rotates to another non-empty slice. Outside it, a sold
   // donor changes one model's count; on another a donor is swapped for an
   // arrival at the same count, which only the arrival reveals.
@@ -239,7 +244,7 @@ test("Denton carries unread models, rotates the sweep and reads changes", async 
   const arrival: Donor = [swapped, 71];
   native.rows.set(swapped, [...donors(swapped).slice(1), arrival]);
   native.setArrivals([arrival]);
-  const changed = await census(native, 603, idle.terminal);
+  const changed = await census(native, 603, between.terminal);
   expect(changed.models).toEqual(sorted([...sweep(603), sold, swapped]));
   expect(changed.vins).toEqual(native.vins());
   const changedReads = sweep(603).length + 2;
@@ -253,6 +258,11 @@ test("Denton carries unread models, rotates the sweep and reads changes", async 
   expect(changedSummary).toContain("trigger 1");
   expect(changedSummary).toEndWith(`carried ${12 - changedReads}.`);
 
+  // Day 604 reads only its (empty) slice: the arrival is on its model page.
+  const quiet = await census(native, 604, changed.terminal);
+  expect(quiet.models).toEqual(sweep(604));
+  expect(quiet.vins).toEqual(native.vins());
+
   // Day 605 and 606: an arrival not yet on its model page keeps that model
   // due every day, while the arrivals page still publishes the donor.
   const waiting = outside(605, 606).find(
@@ -262,18 +272,21 @@ test("Denton carries unread models, rotates the sweep and reads changes", async 
     throw new Error("Expected a model outside day 605 and 606 sweep slices");
   const pending: Donor = [waiting, 99];
   native.setArrivals([pending]);
-  const first = await census(native, 605, changed.terminal);
+  const first = await census(native, 605, quiet.terminal);
   expect(first.models).toEqual(sorted([...sweep(605), waiting]));
   expect(first.vins).toContain(dentonTestVin(index(pending)));
   const second = await census(native, 606, first.terminal);
-  // Days 602 and 604 had no run, so models last read by the day 600 cold
-  // census reach the six-day ceiling on day 606.
+  // Models last read by the day 600 cold census reach the six-day ceiling on
+  // day 606, which is also their sweep day.
   const readSince = new Set([
     ...next.models,
+    ...between.models,
     ...changed.models,
+    ...quiet.models,
     ...first.models,
   ]);
   const stale = models.filter((model) => !readSince.has(model));
+  expect(stale).toEqual(sweep(606));
   expect(second.models).toEqual(sorted([...sweep(606), waiting, ...stale]));
   expect(second.vins).toEqual(native.vins());
   expect(second.warnings.at(-1)).toContain("trigger 1");
@@ -285,11 +298,9 @@ test("Denton re-reads every model within six days, even across missed runs", asy
   const lastRead = new Map<number, number>();
   for (let i = 0; i < 12; i++) lastRead.set(i, 600);
   const reads: number[] = [];
-  // Day 606 also reads the slices of missed days 601 and 602 at the ceiling.
-  const expected = (day: number) =>
-    day === 606
-      ? sorted([...sweep(601), ...sweep(602), ...sweep(606)])
-      : sweep(day);
+  const summaries: string[] = [];
+  // Day 603 follows missed days 601 and 602, so it reads every model again.
+  const expected = (day: number) => (day === 603 ? models : sweep(day));
   // Skip day 601 and 602 entirely, then run daily.
   for (const day of [603, 604, 605, 606, 607, 608, 609, 610, 611, 612]) {
     const run = await census(native, day, previous);
@@ -298,14 +309,21 @@ test("Denton re-reads every model within six days, even across missed runs", asy
     for (const read of lastRead.values()) expect(day - read).toBeLessThan(6);
     expect(run.vins).toEqual(native.vins());
     reads.push(run.models.length);
+    summaries.push(run.warnings.at(-1) ?? "");
     previous = run.terminal;
   }
-  // Once the missed-day catch-up is read, each day reads exactly its slice,
-  // and the six slices cover every model once.
-  const steady = [607, 608, 609, 610, 611, 612];
-  expect(reads.slice(4)).toEqual(steady.map((day) => sweep(day).length));
-  expect(sorted(steady.flatMap(sweep))).toEqual(models);
-  expect(steady.flatMap(sweep)).toHaveLength(models.length);
+  expect(summaries[0]).toBe(
+    "Denton Read 12 of 12 model pages (gap 12); carried 0.",
+  );
+  for (const summary of summaries.slice(1))
+    expect(summary).not.toContain("gap");
+  // After the gap read, each day reads exactly its slice, and the six slices
+  // cover every model once.
+  const steady = [604, 605, 606, 607, 608, 609, 610, 611, 612];
+  expect(reads.slice(1)).toEqual(steady.map((day) => sweep(day).length));
+  const week = steady.slice(0, MODEL_CENSUS_SWEEP_DAYS);
+  expect(sorted(week.flatMap(sweep))).toEqual(models);
+  expect(week.flatMap(sweep)).toHaveLength(models.length);
 }, 30_000);
 
 test("Denton rejects a run whose read and carried model cards fall short of today's model badges", async () => {
@@ -320,6 +338,19 @@ test("Denton rejects a run whose read and carried model cards fall short of toda
   const small = await census(native, 601, cold.terminal);
   // Its empty page differs from its badge, so closing confirms it once more.
   expect(small.models).toEqual([...sorted([...sweep(601), 3]), 3]);
+  // Daily runs through day 604 read only their slices and carry the
+  // confirmed empty page.
+  let previous = small;
+  for (const day of [602, 603, 604]) {
+    const run = await census(
+      native,
+      day,
+      previous.terminal,
+      previous.vins.length,
+    );
+    expect(run.models).toEqual(sweep(day));
+    previous = run;
+  }
   // On day 605 every model page renders the native empty result while badges
   // hold. No evidence is past the ceiling and only the (non-empty) sweep slice
   // is read, so the 765 floor and the 50% prior guard would pass on the
@@ -330,7 +361,7 @@ test("Denton rejects a run whose read and carried model cards fall short of toda
   const before = native.calls.length;
   const staged = native.staged.length;
   await expect(
-    census(native, 605, small.terminal, small.vins.length),
+    census(native, 605, previous.terminal, previous.vins.length),
   ).rejects.toThrow("below the 95% coverage floor");
   expect(native.staged).toHaveLength(staged);
   // Only the sweep slice was read, then confirmed at closing (each empty page
@@ -356,16 +387,37 @@ test("Denton caps each model's cards at its badge, so a surplus page cannot hide
   const cold = await census(native, 600, null);
   // Surplus pages differ from their badges, so closing confirmed each one.
   expect(cold.models).toEqual([...models, ...others]);
+  // Daily runs through day 604 read each slice (surplus pages again at
+  // closing) and carry the rest.
+  let previous = cold;
+  for (const day of [601, 602, 603, 604]) {
+    const run = await census(
+      native,
+      day,
+      previous.terminal,
+      previous.vins.length,
+    );
+    expect(run.models).toEqual([
+      ...sweep(day),
+      ...sweep(day).filter((model) => others.includes(model)),
+    ]);
+    previous = run;
+  }
   // Day 605: the sweep slice renders empty while its badges hold; the surplus
-  // pages are carried (read five days ago, outside today's slice).
+  // pages are carried (outside today's slice).
   for (const model of broken) native.unreachable.add(model);
+  const before = native.calls.length;
   const staged = native.staged.length;
   await expect(
-    census(native, 605, cold.terminal, cold.vins.length),
+    census(native, 605, previous.terminal, previous.vins.length),
   ).rejects.toThrow(
     `Denton model pages list ${1800 - 150 * broken.length} of 1800 cards`,
   );
   expect(native.staged).toHaveLength(staged);
+  // Only the broken slice was read, then confirmed at closing.
+  expect(
+    native.calls.slice(before).filter((url) => /\/M\d+\/$/.test(url)),
+  ).toEqual([...broken, ...broken].map(modelUrl));
 }, 30_000);
 
 test("Denton rejects a run whose sweep slice is cut to one card per model while menus keep their badges", async () => {
@@ -378,6 +430,9 @@ test("Denton rejects a run whose sweep slice is cut to one card per model while 
   for (const model of models)
     native.rows.set(model, donors(model, broken.includes(model) ? 20 : 150));
   const cold = await census(native, 600, null);
+  // Day 601 runs too: a missed day would make day 602 read every model.
+  const healthy = await census(native, 601, cold.terminal, cold.vins.length);
+  expect(healthy.models).toEqual(sweep(601));
   for (const model of broken) native.cut.add(model);
   const before = native.calls.length;
   const staged = native.staged.length;
@@ -385,9 +440,9 @@ test("Denton rejects a run whose sweep slice is cut to one card per model while 
   const total = 150 * (models.length - broken.length) + 20 * broken.length;
   expect((total - lost) / total).toBeGreaterThan(0.95);
   await expect(
-    census(native, 602, cold.terminal, cold.vins.length),
+    census(native, 602, healthy.terminal, healthy.vins.length),
   ).rejects.toThrow(
-    `Denton model pages list ${total - lost} of ${total} cards that the last accepted census listed for models whose counts did not change, below the 97% coverage floor`,
+    `Denton model pages list ${total - lost} of ${total} cards that the last accepted census listed, less any drop in their counts, below the 97% coverage floor`,
   );
   expect(native.staged).toHaveLength(staged);
   // Only the slice was read, then confirmed at closing (each cut page differs
@@ -406,11 +461,28 @@ test("Denton confirms a surplus page that falls to its badge at closing and re-r
   const native = yard();
   native.surplus.set(model, 10);
   const cold = await census(native, 600, null);
+  // Daily runs through day 602 carry the surplus page outside its slice.
+  let previous = cold;
+  for (const day of [601, 602]) {
+    const run = await census(
+      native,
+      day,
+      previous.terminal,
+      previous.vins.length,
+    );
+    expect(run.models).toEqual(sweep(day));
+    previous = run;
+  }
   // Day 603: its page loses ten real cards and now lists exactly its badge.
   // A cards === badge check would neither confirm nor re-read it; it fell
   // below the 80 cards it is expected to list, so closing re-reads it.
   native.surplus.delete(model);
-  const lost = await census(native, 603, cold.terminal, cold.vins.length);
+  const lost = await census(
+    native,
+    603,
+    previous.terminal,
+    previous.vins.length,
+  );
   expect(lost.models).toEqual([model, model]);
   expect(lost.vins).toEqual(native.vins());
   // That re-read cannot tell a real loss from a transient one, so the page is
