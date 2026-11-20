@@ -107,6 +107,7 @@ function openingPhase(
       menus: state.menus,
       opening,
       previous: state.previous,
+      day: state.day,
     });
     if (shortfall) throw new Error(shortfall);
     validateJimsimportSnapshot(

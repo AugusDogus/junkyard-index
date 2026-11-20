@@ -183,7 +183,7 @@ export const NORTHWEST_MINIMUM_BADGE_COVERAGE = 0.95;
  * badges or of the last accepted cards of models with unchanged badges, before
  * anything is published. */
 export function northwestCoverageError(
-  state: Pick<NorthwestProgress, "makes" | "pages" | "previous">,
+  state: Pick<NorthwestProgress, "makes" | "pages" | "previous" | "day">,
 ): string | null {
   const models = northwestModels(state.makes);
   return ModelCensus.coverage(
@@ -191,6 +191,7 @@ export function northwestCoverageError(
     {
       controls: northwestCensusControls(state.makes),
       pages: state.pages,
+      day: state.day,
       previous: state.previous,
       cards: northwestCards,
     },

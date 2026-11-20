@@ -163,7 +163,7 @@ export const CENTRAL_MINIMUM_BADGE_COVERAGE = 0.95;
  * badges or of the last accepted cards of models whose badge is unchanged,
  * before anything is published. */
 export function centralCoverageError(
-  state: Pick<CentralProgress, "makes" | "pages" | "previous">,
+  state: Pick<CentralProgress, "makes" | "pages" | "previous" | "day">,
 ): string | null {
   const models = centralModels(state.makes);
   return ModelCensus.coverage(
@@ -171,6 +171,7 @@ export function centralCoverageError(
     {
       controls: centralCensusControls(state.makes),
       pages: state.pages,
+      day: state.day,
       previous: state.previous,
       cards: centralCards,
     },

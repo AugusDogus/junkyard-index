@@ -172,6 +172,7 @@ export function aplusCoverageError(state: AplusProgress): string | null {
     {
       controls: aplusCensusControls(state.makes),
       pages: state.pages,
+      day: state.day,
       previous: state.previous,
       cards: aplusCards,
     },

@@ -261,7 +261,7 @@ describe("ModelCensus", () => {
     expect(
       ModelCensus.coverage(
         "Fixture",
-        { controls: models, pages: full, previous: null, cards },
+        { controls: models, pages: full, previous: null, day: null, cards },
         0.95,
         label,
       ),
@@ -276,7 +276,7 @@ describe("ModelCensus", () => {
     );
     const message = ModelCensus.coverage(
       "Fixture",
-      { controls: models, pages: shifted, previous: null, cards },
+      { controls: models, pages: shifted, previous: null, day: null, cards },
       0.95,
       label,
     );
@@ -285,7 +285,7 @@ describe("ModelCensus", () => {
     expect(
       ModelCensus.coverage(
         "Fixture",
-        { controls: models, pages: shifted, previous: null, cards },
+        { controls: models, pages: shifted, previous: null, day: null, cards },
         0.9,
         label,
       ),
@@ -304,7 +304,13 @@ describe("ModelCensus", () => {
     expect(
       ModelCensus.coverage(
         "Fixture",
-        { controls: models, pages: healthy, previous: cold.census, cards },
+        {
+          controls: models,
+          pages: healthy,
+          previous: cold.census,
+          day: 101,
+          cards,
+        },
         0.75,
         label,
       ),
@@ -317,7 +323,7 @@ describe("ModelCensus", () => {
     expect(
       ModelCensus.coverage(
         "Fixture",
-        { controls: models, pages: broken, previous: null, cards },
+        { controls: models, pages: broken, previous: null, day: null, cards },
         0.75,
         label,
       ),
@@ -326,7 +332,13 @@ describe("ModelCensus", () => {
     expect(
       ModelCensus.coverage(
         "Fixture",
-        { controls: models, pages: broken, previous: cold.census, cards },
+        {
+          controls: models,
+          pages: broken,
+          previous: cold.census,
+          day: 101,
+          cards,
+        },
         0.75,
         label,
       ),
@@ -375,6 +387,62 @@ describe("ModelCensus", () => {
         cards,
       }),
     ).toEqual([]);
+  });
+
+  test("a surplus page that loses a donor on the day its count changes is still re-read", () => {
+    // Badge 3, healthy page 4 (a placeholder row). On day 101 an arrival
+    // raises the badge to 4 while one real donor is missing: the page lists 4.
+    const models = controls(12, 3);
+    const cold = run(models, null, 100, undefined, {
+      listed: new Map([["model-2", 4]]),
+    });
+    const grown = models.map((m, i) => (i === 2 ? { ...m, count: 4 } : m));
+    expect(ModelCensus.expected(grown, cold.census, cards)[2]).toBe(5);
+    const day = run(grown, cold.census, 101, undefined, {
+      listed: new Map([["model-2", 4]]),
+    });
+    expect(day.decisions[2]).toEqual({ kind: "read", reason: "count" });
+    expect(
+      ModelCensus.closingReads({
+        controls: grown,
+        pages: day.pages,
+        decisions: day.decisions,
+        previous: cold.census,
+        cards,
+      }),
+    ).toContain(2);
+    expect(day.census.models[2]).toMatchObject({
+      expected: 5,
+      confirmed: false,
+    });
+    expect(run(grown, day.census, 102).decisions[2]).toEqual({
+      kind: "read",
+      reason: "short",
+    });
+  });
+
+  test("replay references age out after six days, so a recovery run is judged like a cold run", () => {
+    // Badges 10, healthy pages 10, accepted on day 100. After a six-day gap
+    // every page is read and lists 9: above an 85% badge floor, below replay.
+    const models = controls(30, 10);
+    const label = (i: number) => "M" + i;
+    const cold = run(models, null, 100);
+    const nine = models.map((m) => page(m.key, 106, 9));
+    const covered = (day: number) =>
+      ModelCensus.coverage(
+        "Fixture",
+        { controls: models, pages: nine, previous: cold.census, day, cards },
+        0.85,
+        label,
+      );
+    // Within the six-day window the replay floor still applies ...
+    expect(covered(105)).toContain("last accepted census");
+    // ... but references at the age ceiling are read again anyway (stale),
+    // so they no longer gate the run.
+    expect(
+      run(models, cold.census, 106).decisions.every((d) => d.kind === "read"),
+    ).toBe(true);
+    expect(covered(106)).toBeNull();
   });
 
   test("a second run on the same day carries what the first run read", () => {
