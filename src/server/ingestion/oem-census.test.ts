@@ -594,6 +594,33 @@ test("OEM fails an incremental run whose swept pages list one card each while ba
   expect(published.count).toBe(0);
 });
 
+test("OEM fails a steady-state run whose routine sweep page, read at age six, lists one card", async () => {
+  // After the first cycle every routine sweep read happens at age exactly six
+  // (reason stale). With badges overstating cards (480 under 528), ten healthy
+  // daily runs and then one swept page cut to a single card: 441 of 528
+  // badges clears the 82% badge floor, so the replay floor must still see the
+  // age-six read and reject the run before anything is published.
+  const native = yard();
+  for (const model of MODELS) native.badges.set(model, 44);
+  let previous = (await census(native, 600, null)).wire;
+  for (let day = 601; day <= 610; day++) {
+    const run = await census(native, day, previous);
+    expect(run.vins).toEqual(allVins(native));
+    previous = run.wire;
+  }
+  const day = [611, 612, 613, 614, 615, 616].find((d) => sweep(d).length === 1);
+  if (day === undefined)
+    throw new Error("fixture needs a steady day that sweeps one model");
+  for (const model of sweep(day)) native.cut.add(model);
+  const published = { count: 0 };
+  await expect(
+    attemptRun(native, day, previous, allVins(native).length, published),
+  ).rejects.toThrow(
+    "list 441 of 480 cards that the last accepted census listed for models whose counts did not change, below the 97% coverage floor",
+  );
+  expect(published.count).toBe(0);
+}, 120_000);
+
 test("OEM re-reads a surplus page that lost donors down to its unchanged badge", async () => {
   // A model page lists 40 cards under a badge of 38 (placeholder or surplus
   // rows). On its sweep day it loses two real donors and lists exactly 38, so

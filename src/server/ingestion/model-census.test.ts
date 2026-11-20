@@ -421,7 +421,38 @@ describe("ModelCensus", () => {
     });
   });
 
-  test("replay references age out after six days, so a recovery run is judged like a cold run", () => {
+  test("steady daily runs keep routine sweep reads, read at age six, under the replay floor", () => {
+    // After the first cycle every routine sweep read happens at age exactly
+    // six (reason stale). Those reads must still be checked against the
+    // pages they replace, or a slice cut to one card would pass.
+    const models = controls(60, 10);
+    const label = (i: number) => "M" + i;
+    let census = run(models, null, 100).census;
+    for (let day = 101; day <= 111; day++)
+      census = run(models, census, day).census;
+    const today = 112;
+    const decisions = ModelCensus.plan(models, census, today, { cards });
+    const due = decisions.flatMap((d, i) => (d.kind === "read" ? [i] : []));
+    expect(due.length).toBeGreaterThan(0);
+    expect(
+      decisions.every((d) => d.kind === "carry" || d.reason === "stale"),
+    ).toBe(true);
+    const pages = decisions.map((d, i) =>
+      d.kind === "carry"
+        ? d.evidence.page
+        : page(models[i]?.key ?? "", today, 1),
+    );
+    expect(
+      ModelCensus.coverage(
+        "Fixture",
+        { controls: models, pages, previous: census, day: today, cards },
+        0.8,
+        label,
+      ),
+    ).toContain("last accepted census");
+  });
+
+  test("a recovery run after a six-day outage is judged like a cold run", () => {
     // Badges 10, healthy pages 10, accepted on day 100. After a six-day gap
     // every page is read and lists 9: above an 85% badge floor, below replay.
     const models = controls(30, 10);
@@ -435,10 +466,10 @@ describe("ModelCensus", () => {
         0.85,
         label,
       );
-    // Within the six-day window the replay floor still applies ...
+    // Five days after the last accepted run the replay floor still applies ...
     expect(covered(105)).toContain("last accepted census");
-    // ... but references at the age ceiling are read again anyway (stale),
-    // so they no longer gate the run.
+    // ... but once the last accepted run is six days old every page is read
+    // again and the run is judged on the badge floor alone.
     expect(
       run(models, cold.census, 106).decisions.every((d) => d.kind === "read"),
     ).toBe(true);
