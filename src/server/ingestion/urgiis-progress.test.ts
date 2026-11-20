@@ -95,7 +95,7 @@ test("cold census heartbeats require a new accepted tenant and never repeat prog
       args: [UrgiisCursor.serialize(completed)],
     });
     await client.execute(
-      "insert into ingestion_run (id, source, status, started_at, last_progress_at, search_published_at) values ('published', 'urgiis', 'success', 2, 2, 3)",
+      "insert into ingestion_run (id, source, status, started_at, last_progress_at, inventory_published_at) values ('published', 'urgiis', 'success', 2, 2, 3)",
     );
     await client.execute(
       "insert into ingestion_source_run (id, run_id, source, status, acceptance_status, started_at) values ('published:urgiis', 'published', 'urgiis', 'success', 'accepted', 2)",

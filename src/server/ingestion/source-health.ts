@@ -5,13 +5,9 @@ import {
 } from "~/lib/ingestion-source";
 import {
   isFreshPublication,
+  SOURCE_STALE_AFTER_HOURS,
   type IngestionSourceFreshness,
 } from "./durable-health";
-
-// Daily runs start at 07:00 UTC and publish within hours. 36 hours allows a
-// late publication followed by an early one without flagging a healthy source,
-// and still catches a source that misses a whole day.
-const STALE_AFTER_HOURS = 36;
 
 export interface StaleSource {
   source: IngestionSource;
@@ -33,7 +29,7 @@ export interface SourceHealth {
 export const SourceHealth = {
   /**
    * Whether every active, unpaused source has an accepted publication within
-   * 36 hours. Retired sources are never checked.
+   * `SOURCE_STALE_AFTER_HOURS`. Retired sources are never checked.
    */
   evaluate(
     recent: readonly IngestionSourceFreshness[],
@@ -48,14 +44,7 @@ export const SourceHealth = {
     );
     const stale = checked.flatMap((source): StaleSource[] => {
       const lastPublishedAt = lastPublished.get(source) ?? null;
-      if (
-        isFreshPublication(
-          lastPublishedAt,
-          now,
-          STALE_AFTER_HOURS * 60 * 60 * 1000,
-        )
-      )
-        return [];
+      if (isFreshPublication(lastPublishedAt, now)) return [];
       return [
         {
           source,
@@ -67,7 +56,7 @@ export const SourceHealth = {
     });
     return {
       status: stale.length === 0 ? "healthy" : "stale",
-      staleAfterHours: STALE_AFTER_HOURS,
+      staleAfterHours: SOURCE_STALE_AFTER_HOURS,
       checked: checked.length,
       paused: ACTIVE_INGESTION_SOURCES.filter(
         (source) => !enabled.includes(source),

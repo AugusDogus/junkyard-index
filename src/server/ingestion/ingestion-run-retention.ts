@@ -9,6 +9,8 @@ const MAX_BATCHES_PER_PASS = 10;
  * A single statement rechecks every reference under SQLite's write lock. Foreign
  * keys cascade all six child tables. Snapshot cleanup owns Blob deletion first.
  * Old failed URG attempts since its last publication remain heartbeat evidence.
+ * Connector seeds and URG progress read the newest accepted inventory
+ * publication (SourcePublication); the newest search publication is kept too.
  * IndexNow keeps its sequence cursor and the commit-time anchor it compares.
  */
 export async function pruneIngestionRuns(params: {
@@ -26,7 +28,7 @@ export async function pruneIngestionRuns(params: {
             rank() over (partition by s.source order by s.started_at desc) as accepted_rank,
             rank() over (partition by s.source order by r.search_published_at desc) as published_rank,
             rank() over (partition by s.source order by r.inventory_published_at desc) as inventory_rank,
-            rank() over (partition by s.source, s.status order by r.search_published_at desc) as cursor_rank
+            rank() over (partition by s.source, s.status order by r.inventory_published_at desc) as cursor_rank
           from ingestion_source_run s join ingestion_run r on r.id = s.run_id
           where s.acceptance_status = 'accepted'
         ), published as (
@@ -53,7 +55,7 @@ export async function pruneIngestionRuns(params: {
               select run_id from accepted
               where accepted_rank = 1 or (published_rank = 1 and search_published_at is not null)
                 or (inventory_rank = 1 and inventory_published_at is not null)
-                or (cursor_rank = 1 and source_status = 'success' and search_published_at is not null)
+                or (cursor_rank = 1 and source_status = 'success' and inventory_published_at is not null)
             )
             and r.id not in (select id from published where published_rank = 1)
             and r.id not in (select id from inventory_published where published_rank = 1)
@@ -77,7 +79,7 @@ export async function pruneIngestionRuns(params: {
               select 1 from ingestion_source_run s where s.run_id = r.id
                 and (s.status = 'running' or s.snapshot_chunks != '[]'
                   or (s.source = 'urgiis' and s.started_at >= (
-                    select coalesce(max(p.search_published_at), 0)
+                    select coalesce(max(p.inventory_published_at), 0)
                     from ingestion_run p join ingestion_source_run ps on ps.run_id = p.id
                     where ps.source = 'urgiis' and ps.status = 'success'
                       and ps.acceptance_status = 'accepted'

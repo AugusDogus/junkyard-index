@@ -1,27 +1,16 @@
-import { and, desc, eq, isNotNull } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
-import { ingestionRun, ingestionSourceRun } from "~/schema";
 import { ByotCursor } from "./byot-cursor";
+import { SourcePublication } from "./source-publication";
 
 /** Failed, partial and unpublished runs cannot advance the weekly sweep.
  * The terminal cursor survives snapshot cleanup in ingestion_source_run. */
 export async function loadByotPublishedCursor(
   database: LibSQLDatabase,
 ): Promise<ByotCursor | null> {
-  const [previous] = await database
-    .select({ cursor: ingestionSourceRun.nextCursor })
-    .from(ingestionSourceRun)
-    .innerJoin(ingestionRun, eq(ingestionRun.id, ingestionSourceRun.runId))
-    .where(
-      and(
-        eq(ingestionSourceRun.source, "byot"),
-        eq(ingestionSourceRun.status, "success"),
-        eq(ingestionSourceRun.acceptanceStatus, "accepted"),
-        isNotNull(ingestionRun.searchPublishedAt),
-      ),
-    )
-    .orderBy(desc(ingestionRun.searchPublishedAt))
-    .limit(1);
+  const previous = await SourcePublication.latestAcceptedCursor(
+    database,
+    "byot",
+  );
   if (!previous) return null;
   if (!previous.cursor)
     throw new Error(

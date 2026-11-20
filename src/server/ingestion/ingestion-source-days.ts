@@ -2,6 +2,7 @@ import { eq, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { ingestionRun, ingestionSourceRun } from "~/schema";
 import type { IngestionSourceDay } from "./ingestion-schedule";
+import { SourcePublication } from "./source-publication";
 
 export async function loadIngestionSourceDays(
   database: LibSQLDatabase,
@@ -10,7 +11,9 @@ export async function loadIngestionSourceDays(
   const days = await database
     .select({
       source: ingestionSourceRun.source,
-      published: sql<number>`max(${ingestionSourceRun.acceptanceStatus} = 'accepted' and ${ingestionRun.searchPublishedAt} is not null)`,
+      // Done for the day once Turso holds accepted inventory, even while
+      // search publication lags or is skipped.
+      published: sql<number>`max(${SourcePublication.acceptedSql})`,
       attempts: sql<number>`count(*)`,
       lastStartedAt: sql<number | null>`max(${ingestionSourceRun.startedAt})`,
       lastCompletedAt: sql<number | null>`max(${ingestionRun.completedAt})`,

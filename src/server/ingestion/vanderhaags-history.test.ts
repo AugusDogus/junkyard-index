@@ -6,7 +6,7 @@ import {
   TEST_SCHEMA,
 } from "./durable-ingestion-test-fixtures";
 
-test("Vander Haags carry history comes only from accepted, successful, search-published inventory", async () => {
+test("Vander Haags carry history comes only from accepted, successful, inventory-published inventory", async () => {
   const { client } = createTestClient();
   const database = drizzle(client);
   try {
@@ -19,7 +19,7 @@ test("Vander Haags carry history comes only from accepted, successful, search-pu
       ["rejected", 400, "success", "rejected"],
     ] as const) {
       await client.execute({
-        sql: "insert into ingestion_run (id, source, status, started_at, last_progress_at, search_published_at) values (?, 'vanderhaags', 'success', 1, 1, ?)",
+        sql: "insert into ingestion_run (id, source, status, started_at, last_progress_at, inventory_published_at) values (?, 'vanderhaags', 'success', 1, 1, ?)",
         args: [id, published],
       });
       await client.execute({

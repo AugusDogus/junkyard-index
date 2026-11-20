@@ -75,7 +75,7 @@ upper bounds. A cold census has a three-day deadline with the usual final-chunk
 reserve and no model carry or deferral. Incremental runs keep their one-day
 limit and unchanged carry/sweep rules.
 
-Repository freshness remains 30 hours after the last accepted search publication
+Repository freshness lasts 36 hours after the last accepted inventory publication
 ([`durable-health.ts`](../../src/server/ingestion/durable-health.ts)); starting or
 progressing a crawl does not refresh inventory freshness. A source with no
 accepted publication remains stale immediately. Its `/api/status/<source>`
@@ -88,7 +88,7 @@ after its complete graph, closing and admission checks have passed and its
 checkpoint is durably saved. This does not clear delayed status reports or claim
 fresh publication. Pages, cooldowns, failed/blocked tenants and replayed
 checkpoints do not ping. A tenant already completed in an earlier failed run
-with the same scope cannot ping again before another accepted search publication,
+with the same scope cannot ping again before another accepted inventory publication,
 so repeatedly restarting a failing crawl cannot hide that failure. The existing
 30-hour missing-progress window remains intact. Final accepted publication still
 pings and resolves reports as before. A later full census within an incremental

@@ -3,7 +3,7 @@ import { HARRYS_MINIMUM_BY_YARD } from "./harrys-yard-metadata";
 import { validateAutorecyclerPublishedInventory } from "./autorecycler-published-inventory";
 import { urgiisPublication } from "./urgiis-publication";
 import { validatePublishedYardInventory } from "./published-yard-inventory";
-import { and, count, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, count, eq, inArray, isNull } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import {
   isIngestionSource,
@@ -13,6 +13,7 @@ import { ingestionRun, ingestionSourceRun, vehicle } from "~/schema";
 import { parseIngestionErrors } from "./durable-ingestion-repository";
 import type { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import { loadSourceSnapshot } from "./run-snapshot-inventory";
+import { SourcePublication } from "./source-publication";
 import { validateCars4PartsPublishedYardInventory } from "./cars4parts-published-inventory";
 import {
   parseAcceptedSources,
@@ -245,20 +246,11 @@ export async function validateDurableSourceRuns(params: {
   }> = [];
   for (const row of sourceRows) {
     if (!isIngestionSource(row.source)) continue;
-    const [previous] = await params.database
-      .select({ count: ingestionSourceRun.uniqueVehicles })
-      .from(ingestionSourceRun)
-      .innerJoin(ingestionRun, eq(ingestionRun.id, ingestionSourceRun.runId))
-      .where(
-        and(
-          eq(ingestionSourceRun.source, row.source),
-          eq(ingestionSourceRun.acceptanceStatus, "accepted"),
-          ne(ingestionSourceRun.runId, params.runId),
-          sql`${ingestionRun.searchPublishedAt} is not null`,
-        ),
-      )
-      .orderBy(desc(ingestionRun.searchPublishedAt))
-      .limit(1);
+    const previous = await SourcePublication.latestAccepted(
+      params.database,
+      row.source,
+      { excludeRunId: params.runId },
+    );
     const snapshot = snapshotBySource.get(row.source);
     const uniqueVehicles = snapshot?.uniqueVehicles ?? 0;
     const duplicateVehicles = Math.max(
@@ -282,7 +274,7 @@ export async function validateDurableSourceRuns(params: {
       previousAcceptedCount:
         urgiisLimits.get(row.source)?.previous ??
         autorecyclerBaselines.get(row.source) ??
-        previous?.count ??
+        previous?.uniqueVehicles ??
         null,
       newestVehicleDate: snapshot?.newestVehicleDate ?? null,
       validatedAt: run.startedAt,

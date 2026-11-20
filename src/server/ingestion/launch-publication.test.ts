@@ -51,6 +51,7 @@ test("an early marketplace VIN alerts only under its final native owner, and sam
         status: "running",
         activeSlot: 1,
         scheduleKey: "2026-11-17",
+        inventoryPublishedAt: id === "market" ? now : null,
         searchPublishedAt: id === "market" ? now : null,
         startedAt: now,
         lastProgressAt: now,
