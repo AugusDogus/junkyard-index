@@ -100,7 +100,8 @@ test("Scotts resumes serialized prefixes and emits once after all closing contro
   }
   expect(vehicles).toHaveLength(800);
   expect(yards).toBe(1);
-  expect(requested).toHaveLength(8);
+  // Opening root, makes, one menu and one model; closing root and makes.
+  expect(requested).toHaveLength(6);
   await Effect.runPromise(
     streamScottsInventoryWithRequestGate(
       {
@@ -110,7 +111,7 @@ test("Scotts resumes serialized prefixes and emits once after all closing contro
       gate,
     ),
   );
-  expect(requested).toHaveLength(8);
+  expect(requested).toHaveLength(6);
 });
 
 test("Scotts closing changes and staging failure preserve an unfinished checkpoint", async () => {
@@ -168,7 +169,7 @@ test("Scotts rejects corrupted and oversized checkpoints before transport", asyn
   expect(requested).toEqual([]);
 });
 
-test("Scotts closing rejects a stable-count membership change before staging", async () => {
+test("Scotts closing rejects a make directory change before staging", async () => {
   const { pages } = fixture();
   const opening = await Effect.runPromise(
     streamScottsInventoryWithRequestGate(
@@ -176,12 +177,14 @@ test("Scotts closing rejects a stable-count membership change before staging", a
       gate,
     ),
   );
-  const url = SCOTTS_ORIGIN + "/used-parts/ACURA/CL";
-  const originalPage = pages.get(url);
-  if (!originalPage) throw new Error("Model fixture missing");
+  const makes = pages.get(SCOTTS_MAKES);
+  if (!makes) throw new Error("Make directory fixture missing");
   pages.set(
-    url,
-    originalPage.replace("1HGCM82633A000000", "1HGCM82633A999999"),
+    SCOTTS_MAKES,
+    makes.replace(
+      '<span class="aps-make-link__count">800</span>',
+      '<span class="aps-make-link__count">801</span>',
+    ),
   );
   await expect(
     Effect.runPromise(
@@ -193,7 +196,7 @@ test("Scotts closing rejects a stable-count membership change before staging", a
         gate,
       ),
     ),
-  ).rejects.toThrow("model cards changed");
+  ).rejects.toThrow("make graph changed");
 });
 
 test("Scotts completes a full crawl when every request waits two minutes for a shared host turn", async () => {
@@ -222,7 +225,7 @@ test("Scotts completes a full crawl when every request waits two minutes for a s
     expect(chunk.elapsedMs).toBeLessThanOrEqual(6 * 60_000);
     expect(chunk.turns.every((turn) => turn.releasedAt !== null)).toBe(true);
   }
-  expect(pages).toEqual([2, 2, 2, 2]);
+  expect(pages).toEqual([2, 2, 2]);
   expect(count).toBe(800);
-  expect(requested).toHaveLength(8);
+  expect(requested).toHaveLength(6);
 }, 120_000);

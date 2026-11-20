@@ -9,9 +9,12 @@ import {
   ScottsCursor,
   ScottsCursorSchema,
   SCOTTS_MAX_REQUESTS,
+  scottsCensus,
+  scottsCensusPlan,
   scottsClosingControls,
   type ScottsProgress,
 } from "./scotts-cursor";
+import { ModelCensus } from "./model-census";
 import {
   scottsHash,
   parseScottsDirectory,
@@ -37,6 +40,10 @@ import { sharedProviderHostTurn } from "./shared-provider-host";
 
 interface ScottsOptions<E, R> {
   startCursor?: ScottsCursor;
+  /** Terminal cursor of the last accepted, published run; read only when the
+   * start cursor has not begun a census yet. */
+  previousCursor?: unknown;
+  now?: () => number;
   maxPages?: number;
   onBatch: (vehicles: ScottsCanonicalVehicle[]) => Effect.Effect<void, E, R>;
   onYards?: (yards: ScottsYard[]) => Effect.Effect<void, E, R>;
@@ -82,7 +89,7 @@ function nextUrl(state: ScottsProgress): string {
       return SCOTTS_ORIGIN + entry.model.path;
     }
     case "closing": {
-      const entry = scottsClosingControls(state)[state.closing];
+      const entry = scottsClosingControls()[state.closing];
       if (!entry) throw new Error("Scotts closing native control is missing");
       return entry.url;
     }
@@ -111,8 +118,14 @@ function advance(state: ScottsProgress, raw: string): ScottsProgress {
           ? { ...value, models: parseScottsDirectory(raw, "models", make) }
           : value,
       );
-      if (next.makes.every((value) => value.models !== null))
-        next.phase = "models";
+      if (next.makes.every((value) => value.models !== null)) {
+        // Carried models before the first due read cost no request.
+        next.pages = ModelCensus.carriedRun(scottsCensusPlan(next), 0);
+        next.phase =
+          next.pages.length === scottsModels(next.makes).length
+            ? "closing"
+            : "models";
+      }
       break;
     }
     case "models": {
@@ -121,13 +134,17 @@ function advance(state: ScottsProgress, raw: string): ScottsProgress {
       next.pages = [
         ...state.pages,
         parseScottsModel(raw, entry.make, entry.model),
+        ...ModelCensus.carriedRun(
+          scottsCensusPlan(state),
+          state.pages.length + 1,
+        ),
       ];
       if (next.pages.length === scottsModels(state.makes).length)
         next.phase = "closing";
       break;
     }
     case "closing": {
-      const entry = scottsClosingControls(state)[state.closing];
+      const entry = scottsClosingControls()[state.closing];
       if (!entry) throw new Error("Scotts closing context is missing");
       switch (entry.kind) {
         case "root":
@@ -138,20 +155,6 @@ function advance(state: ScottsProgress, raw: string): ScottsProgress {
             state.makes.map(({ models: _models, ...make }) => make),
             parseScottsDirectory(raw, "makes"),
             "make graph",
-          );
-          break;
-        case "make":
-          same(
-            entry.make.models,
-            parseScottsDirectory(raw, "models", entry.make),
-            "model graph",
-          );
-          break;
-        case "model":
-          same(
-            state.pages[entry.index]?.hash,
-            parseScottsModel(raw, entry.make, entry.model).hash,
-            "model cards",
           );
           break;
       }
@@ -193,6 +196,14 @@ export function streamScottsInventoryWithRequestGate<E, R>(
     };
     if (cursor.phase === "complete")
       return { ...summary, status: "complete" as const };
+    const now = options.now ?? Date.now;
+    const pending = cursor;
+    const begun = yield* attempt("begin census", () =>
+      ScottsCursor.begin(pending, now(), options.previousCursor),
+    );
+    cursor = begun.cursor;
+    summary.cursor = cursor;
+    if (begun.warning) summary.warnings.push(begun.warning);
     while (summary.pagesProcessed < budget && cursor.phase !== "complete") {
       const current: ScottsProgress = cursor;
       if (current.requests >= SCOTTS_MAX_REQUESTS)
@@ -214,7 +225,7 @@ export function streamScottsInventoryWithRequestGate<E, R>(
       summary.pagesProcessed++;
       if (
         advanced.phase === "closing" &&
-        advanced.closing === scottsClosingControls(advanced).length
+        advanced.closing === scottsClosingControls().length
       ) {
         const snapshot = yield* attempt("complete native graph", () => {
           const value = scottsSnapshot(advanced.makes, advanced.pages);
@@ -224,14 +235,19 @@ export function streamScottsInventoryWithRequestGate<E, R>(
         summary.accounting = { ...snapshot.accounting };
         summary.count = snapshot.vehicles.length;
         summary.observedVins = [...snapshot.observedVins];
+        const census = yield* attempt("close model census", () =>
+          scottsCensus(advanced),
+        );
         summary.warnings = [
+          ...summary.warnings,
           "Scotts quarantines all required VIN/YMM/destination conflicts and preserves rejected valid VIN presence. Badge deltas are snapshot observations; optional metadata is nullable.",
+          "Scotts " + ModelCensus.summary(scottsCensusPlan(advanced)),
         ];
         if (options.onYards) yield* options.onYards([{ ...SCOTTS_YARD }]);
         yield* options.onBatch(
           snapshot.vehicles.map((vehicle) => ({ ...vehicle })),
         );
-        cursor = { source: "scotts", version: 1, phase: "complete" };
+        cursor = { source: "scotts", version: 1, phase: "complete", census };
       } else cursor = advanced;
     }
     return {
