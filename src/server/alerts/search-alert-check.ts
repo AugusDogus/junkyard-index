@@ -149,13 +149,6 @@ export async function openSearchAlertCheck(
   return created;
 }
 
-/**
- * A running check that has not progressed for this long is treated as
- * failed or stuck: delivery stops holding recipients' earlier intents for it
- * (see notification-intent-claim). A batch normally takes seconds.
- */
-export const SEARCH_ALERT_CHECK_STALE_MS = 60 * 60 * 1000;
-
 /** missing: not created yet. running: still matching (or failing). */
 export type SearchAlertCheckState = "missing" | "running" | "finished";
 

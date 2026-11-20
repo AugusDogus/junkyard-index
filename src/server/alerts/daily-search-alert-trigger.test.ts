@@ -34,16 +34,16 @@ const DAY = "2026-11-20";
 const DURING_DAY = new Date("2026-11-20T19:00:00Z");
 
 describe("daily search alert trigger", () => {
-  test("leaves delivery to a check that does not exist yet, so earlier intents join its digest", async () => {
+  test("starts a check that does not exist yet and delivery of whatever the claim lets go out", async () => {
     const { started, operations } = trigger({
       check: "missing",
       deliverable: true,
     });
     expect(await startDailySearchAlerts(DAY, operations(DURING_DAY))).toEqual({
       check: true,
-      delivery: false,
+      delivery: true,
     });
-    expect(started).toEqual([`check:${DAY}`]);
+    expect(started).toEqual([`check:${DAY}`, "delivery"]);
   });
 
   test("restarts a running check and starts delivery, which the claim holds while the check progresses", async () => {
