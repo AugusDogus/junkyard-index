@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus, Search, X } from "lucide-react";
-import { useId, useMemo, useRef, useState } from "react";
+import { useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { Checkbox } from "~/components/ui/checkbox";
 import {
   Field,
@@ -34,6 +34,8 @@ interface SearchableCheckboxListProps {
   containScroll?: boolean;
   /** Allow saved-search criteria that are absent from current inventory. */
   allowCustomValues?: boolean;
+  /** Shown above the options, such as while they load or after they fail. */
+  feedback?: ReactNode;
 }
 
 export function SearchableCheckboxList({
@@ -47,6 +49,7 @@ export function SearchableCheckboxList({
   maxHeight = 200,
   containScroll = true,
   allowCustomValues = false,
+  feedback,
 }: SearchableCheckboxListProps) {
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -98,6 +101,7 @@ export function SearchableCheckboxList({
   return (
     <FieldSet className="gap-3">
       <FieldLegend className="sr-only">{label}</FieldLegend>
+      {feedback}
       {showSearch && (
         <InputGroup>
           <InputGroupAddon>

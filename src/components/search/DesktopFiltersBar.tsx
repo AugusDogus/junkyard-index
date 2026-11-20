@@ -37,6 +37,8 @@ interface DesktopFiltersBarProps {
   yardTypes: YardType[];
   yearRange: [number, number];
   filterOptions: SearchFilterOptions;
+  /** Loading or error state for `filterOptions`, shown in each list. */
+  filterOptionsFeedback?: ReactNode;
   onMakesChange: (makes: string[]) => void;
   onColorsChange: (colors: string[]) => void;
   onStatesChange: (states: string[]) => void;
@@ -109,6 +111,7 @@ export function DesktopFiltersBar({
   yardTypes,
   yearRange,
   filterOptions,
+  filterOptionsFeedback,
   onMakesChange,
   onColorsChange,
   onStatesChange,
@@ -167,6 +170,7 @@ export function DesktopFiltersBar({
                   name="desktop-make"
                   label="Make"
                   options={filterOptions.makes}
+                  feedback={filterOptionsFeedback}
                   selected={makes}
                   onChange={onMakesChange}
                   searchPlaceholder="Search makes"
@@ -185,6 +189,7 @@ export function DesktopFiltersBar({
                   name="desktop-state"
                   label="State"
                   options={filterOptions.states}
+                  feedback={filterOptionsFeedback}
                   selected={states}
                   onChange={onStatesChange}
                   searchPlaceholder="Search states"
@@ -204,6 +209,7 @@ export function DesktopFiltersBar({
                     name="desktop-yard"
                     label="Salvage yard"
                     options={filterOptions.salvageYards}
+                    feedback={filterOptionsFeedback}
                     selected={salvageYards}
                     onChange={onSalvageYardsChange}
                     searchPlaceholder="Search yards"
@@ -238,6 +244,7 @@ export function DesktopFiltersBar({
                   name="desktop-color"
                   label="Color"
                   options={filterOptions.colors}
+                  feedback={filterOptionsFeedback}
                   selected={colors}
                   onChange={onColorsChange}
                   searchPlaceholder="Search colors"

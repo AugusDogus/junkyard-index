@@ -2,7 +2,7 @@
 
 import type { YardType } from "~/lib/yard-service";
 import { Filter, LockKeyhole } from "lucide-react";
-import { useRef } from "react";
+import { useRef, type ReactNode } from "react";
 import { Button } from "~/components/ui/button";
 import {
   Drawer,
@@ -31,6 +31,7 @@ interface MobileFiltersDrawerProps {
   yardTypes: YardType[];
   yearRange: [number, number];
   filterOptions: SearchFilterOptions;
+  filterOptionsFeedback?: ReactNode;
   onMakesChange: (makes: string[]) => void;
   onColorsChange: (colors: string[]) => void;
   onStatesChange: (states: string[]) => void;
@@ -58,6 +59,7 @@ export function MobileFiltersDrawer({
   yardTypes,
   yearRange,
   filterOptions,
+  filterOptionsFeedback,
   onMakesChange,
   onColorsChange,
   onStatesChange,
@@ -153,6 +155,7 @@ export function MobileFiltersDrawer({
             yardTypes={yardTypes}
             yearRange={yearRange}
             filterOptions={filterOptions}
+            filterOptionsFeedback={filterOptionsFeedback}
             onMakesChange={onMakesChange}
             onColorsChange={onColorsChange}
             onStatesChange={onStatesChange}

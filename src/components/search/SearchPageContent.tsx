@@ -1205,6 +1205,16 @@ function AlgoliaSearchInner({
     />
   );
 
+  // Filter bars list Turso options, which load separately from search.
+  const filterBarFeedback = (
+    <InventoryFilterFeedback
+      isPending={inventoryFilterOptions.isPending}
+      isError={inventoryFilterOptions.isError}
+      retry={() => void inventoryFilterOptions.refetch()}
+      canTypeValues={false}
+    />
+  );
+
   const mobileFiltersDrawer = (
     <MobileFiltersDrawer
       onAdvancedSearch={() => setAdvancedSearchOpen(true)}
@@ -1218,6 +1228,7 @@ function AlgoliaSearchInner({
       yardTypes={selectedYardTypes}
       yearRange={yearRange}
       filterOptions={filterOptions}
+      filterOptionsFeedback={filterBarFeedback}
       onMakesChange={handleMakesChange}
       onColorsChange={handleColorsChange}
       onStatesChange={handleStatesChange}
@@ -1460,6 +1471,7 @@ function AlgoliaSearchInner({
               yardTypes={selectedYardTypes}
               yearRange={yearRange}
               filterOptions={filterOptions}
+              filterOptionsFeedback={filterBarFeedback}
               onMakesChange={handleMakesChange}
               onColorsChange={handleColorsChange}
               onStatesChange={handleStatesChange}

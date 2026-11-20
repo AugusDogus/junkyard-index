@@ -68,6 +68,11 @@ async function open(query: string, width = 1440, height = 900) {
           : html.replace("</head>", `<style>${stylesheet}</style></head>`),
     });
   });
+  // tRPC lookups the fixture does not seed go to this origin. Hold them
+  // open for fixtureOptions=pending; fail them otherwise.
+  await page.route("http://unused.test/**", (route) =>
+    query.includes("fixtureOptions=pending") ? undefined : route.abort(),
+  );
   await page.route("https://wsrv.nl/**", (route) =>
     route.fulfill({
       contentType: "image/svg+xml",
@@ -225,6 +230,30 @@ test("filter options come from Turso without an Algolia facet query", async () =
     await closePage(page);
   }
 }, 30_000);
+
+for (const [state, message] of [
+  ["pending", "Loading filter suggestions…"],
+  ["failed", "Filter suggestions could not load"],
+] as const) {
+  test(`filter bars say when their options are ${state}`, async () => {
+    const { page } = await open(`q=toyota&fixtureOptions=${state}`);
+    try {
+      await page.getByRole("heading", { name: "2011 Toyota Venza" }).waitFor();
+      await page.getByRole("button", { name: /^Filters/ }).click();
+      await page.getByRole("button", { name: /^Make/ }).click();
+      await page.getByText(message).waitFor();
+      expect(
+        await page.getByText("You can still type values to add them.").count(),
+      ).toBe(0);
+      if (state === "failed")
+        await page
+          .getByRole("button", { name: "Retry loading filters" })
+          .waitFor();
+    } finally {
+      await closePage(page);
+    }
+  }, 30_000);
+}
 
 test("signed-in pagination survives sort switches and rows do not overlap after resizing", async () => {
   const { page, html } = await open("q=pagination");

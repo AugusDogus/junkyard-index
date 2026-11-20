@@ -24,8 +24,14 @@ test("filter options list every live make, color, state and yard from Turso", as
         ('pullapart', '3', 'Montgomery', 'Montgomery', 'Alabama', 'AL', 32, -86, 'Blue', null,
           'https://www.pullapart.com/inventory/montgomery'),
         ('pyp', '2', 'Gone', 'Gone', 'Nevada', 'NV', 36, -115, 'Green', 1, null),
-        ('upullitne', '1', 'Retired Nebraska', 'Lincoln', 'Nebraska', 'NE', 40, -96, 'Red', null, null);
+        ('upullitne', '1', 'Retired Nebraska', 'Lincoln', 'Nebraska', 'NE', 40, -96, 'Red', null, null),
+        ('row52', '9', 'Tulsa', 'Tulsa', 'Oklahoma', 'OK', 36, -95, null, null, null);
     `);
+    await client.executeMultiple(migration("0007_yard_metadata.sql"));
+    // The projection names this yard from its metadata operator.
+    await client.execute(
+      "insert into yard (source, code, name, operator, city, state, updated_at) values ('row52', '9', 'Tulsa', 'Andy''s Auto', 'Tulsa', 'OK', 0)",
+    );
     await client.executeMultiple(migration("0016_yard_inventory.sql"));
     await client.executeMultiple(migration("0020_inventory_snapshot.sql"));
     await client.execute({
@@ -35,18 +41,23 @@ test("filter options list every live make, color, state and yard from Turso", as
         JSON.stringify([
           { make: "Toyota", count: 2 },
           { make: "Ford", count: 1 },
+          // Raw spellings the index stores as Volkswagen and Chevrolet.
+          { make: "Vw", count: 3 },
+          { make: "Chevy", count: 1 },
+          { make: "Chevrolet", count: 4 },
           { make: "Retired", count: 0 },
         ]),
       ],
     });
 
     expect(await SearchFilterOptions.load(drizzle(client))).toEqual({
-      makes: ["Ford", "Toyota"],
+      makes: ["Chevrolet", "Ford", "Toyota", "Volkswagen"],
       colors: ["Blue", "Red"],
-      states: ["Alabama", "California"],
+      states: ["Alabama", "California", "Oklahoma"],
       // Yards are spelled as the search index names them. Retired sources
       // (upullitne) and departed vehicles (Nevada, Green) are left out.
       salvageYards: [
+        "Andy's Auto - Tulsa",
         "LKQ Pick Your Part - Sun Valley",
         "Pull-A-Part - Montgomery",
       ],
@@ -68,6 +79,7 @@ test("lists more than 500 yards, the old facet limit", async () => {
         select 'row52', n, 'Yard ' || n, 'City', 'Texas', 'TX', 30, -97, null, null, null
         from yard;
     `);
+    await client.executeMultiple(migration("0007_yard_metadata.sql"));
     await client.executeMultiple(migration("0016_yard_inventory.sql"));
     await client.executeMultiple(migration("0020_inventory_snapshot.sql"));
     await client.execute(
