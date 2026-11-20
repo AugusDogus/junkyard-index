@@ -410,13 +410,15 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
       // it returns the last checkpoint; before that it escapes unwrapped and
       // defers the chunk. A failed read whose retry was deferred counts as a
       // failure only where it defers the model and carries its donors, so a
-      // failing model page cannot stall the census; elsewhere it defers too.
+      // failing model page cannot stall the census; elsewhere, including a
+      // model without carryable evidence, it defers too.
       const carriesFailedModel =
         task.kind === "model" &&
         cursor.phase === "opening" &&
         !cursor.entries.some(
           (e) => e.kind === "model" && e.freshness.kind === "deferred",
-        );
+        ) &&
+        urgiisDefer(task, cursor.entries, previousTenant, now) !== undefined;
       const read = yield* options.readPage(task.url, tenant).pipe(
         Effect.map(Either.right),
         Effect.catchAll((error) =>

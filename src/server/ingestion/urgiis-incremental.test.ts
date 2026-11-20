@@ -437,6 +437,25 @@ test("a failed model whose retry could not get a shared host turn still carries 
     ProviderTurnDeferred,
   );
 });
+test("a failed model whose retry could not get a shared host turn defers the chunk when no donors can be carried", async () => {
+  // Failing the chunk would spend a step retry on a transient error the
+  // deferred retry never got to repeat.
+  const path = target().model.path;
+  for (const day of [
+    // A cold census has no earlier model evidence.
+    { fail: path },
+    // The earlier evidence is too old to carry.
+    { previous: baseline.cursor, fail: path, now: start + 8 * DAY },
+  ]) {
+    await expect(run(day)).rejects.toThrow("offline repeated HTTP500");
+    const deferral = await run({ ...day, retryDeferred: true }).catch(
+      (error: unknown) => error,
+    );
+    expect(ProviderChunkClock.deferralOf(deferral)).toBeInstanceOf(
+      ProviderTurnDeferred,
+    );
+  }
+});
 test("first-census page failures and parse/structural drift never use a carry", async () => {
   await expect(run({ fail: target().model.path })).rejects.toThrow(
     "offline repeated HTTP500",
