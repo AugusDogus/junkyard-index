@@ -233,12 +233,20 @@ test("A Plus carries unread models, rotates the sweep and reads changes", async 
   );
   expect(changed.vins).toEqual(allVins(native));
   const sweeps = swept(602).length;
-  expect(changed.warnings.at(-1)).toContain(
-    `Read ${sweeps + 2} of 12 model pages (`,
+  // Reasons are listed in published model order.
+  const reasons = new Map<string, number>();
+  for (const model of changed.models) {
+    const reason = swept(602).includes(model)
+      ? "sweep"
+      : model === sold
+        ? "count"
+        : "trigger";
+    reasons.set(reason, (reasons.get(reason) ?? 0) + 1);
+  }
+  const listed = [...reasons].map(([reason, n]) => `${reason} ${n}`);
+  expect(changed.warnings.at(-1)).toBe(
+    `Aplus Read ${sweeps + 2} of 12 model pages (${listed.join(", ")}); carried ${10 - sweeps}.`,
   );
-  expect(changed.warnings.at(-1)).toContain("count 1");
-  expect(changed.warnings.at(-1)).toContain("trigger 1");
-  expect(changed.warnings.at(-1)).toContain(`carried ${10 - sweeps}.`);
 });
 
 test("A Plus re-reads every model within six days, even across missed runs", async () => {
