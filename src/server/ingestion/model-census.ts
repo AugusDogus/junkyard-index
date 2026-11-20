@@ -59,14 +59,22 @@ export type ModelCensusPrevious<Page> =
 
 const day = z.number().int().nonnegative().safe();
 
-/** Stable sweep slice for a model key (32-bit FNV-1a). */
+/** Stable sweep slice for a model key: 32-bit FNV-1a, then the murmur3
+ * finalizer. FNV-1a alone keeps the parity of the key's characters, and keys
+ * that repeat a label (in its path and as the label) would then pin every model
+ * of a make to odd or even days. */
 function slice(key: string) {
   let hash = 0x811c9dc5;
   for (let i = 0; i < key.length; i++) {
     hash ^= key.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
+    hash = Math.imul(hash, 0x01000193);
   }
-  return hash % MODEL_CENSUS_SWEEP_DAYS;
+  hash ^= hash >>> 16;
+  hash = Math.imul(hash, 0x85ebca6b);
+  hash ^= hash >>> 13;
+  hash = Math.imul(hash, 0xc2b2ae35);
+  hash ^= hash >>> 16;
+  return (hash >>> 0) % MODEL_CENSUS_SWEEP_DAYS;
 }
 
 function schema<Page>(page: z.ZodType<Page>, maxModels: number) {
