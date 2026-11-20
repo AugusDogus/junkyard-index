@@ -21,6 +21,8 @@ import {
 } from "~/lib/algolia-search";
 import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access";
 import type { PlanAccessState } from "~/lib/plan-access";
+import { browserSearchKey } from "~/lib/browser-search-key";
+import type { SearchKeyGrant } from "~/lib/search-key-grant";
 import { createSearchRouteSync } from "~/lib/search-route-sync";
 import type { SearchServerRender } from "~/lib/search-server-render";
 import { api } from "~/trpc/react";
@@ -30,6 +32,7 @@ const INSTANT_SEARCH_FUTURE = { preserveSharedStateOnUnmount: true } as const;
 interface SearchAccessShellProps {
   knownYardNames?: readonly string[];
   isLoggedIn: boolean;
+  searchKey: SearchKeyGrant;
   /** "skip" renders the skeleton on the server and searches after hydration. */
   serverSearch: SearchServerRender;
   children(input: {
@@ -56,8 +59,12 @@ export function SearchAccessShell({
   isLoggedIn,
   knownYardNames,
   serverSearch,
+  searchKey,
   children,
 }: SearchAccessShellProps) {
+  // Prime before InstantSearch's effects send the first browser search.
+  // Priming is idempotent per key, so re-renders are harmless.
+  if (typeof window !== "undefined") browserSearchKey.prime(searchKey);
   // False on the server and during hydration, true afterwards and on client
   // navigations, so a skipped server search starts once the page is live.
   const hydrated = useSyncExternalStore(
@@ -66,6 +73,16 @@ export function SearchAccessShell({
     () => false,
   );
   const planAccess = useCheckoutPlanAccess(isLoggedIn);
+  // A plan change (such as a finished checkout) needs a key for the new
+  // plan, which the next search fetches. Drop the old key while rendering:
+  // the remounted InstantSearch searches in its effects, which run before an
+  // effect here would.
+  if (
+    typeof window !== "undefined" &&
+    planAccess.kind === "resolved" &&
+    browserSearchKey.isStaleFor(planAccess.tier)
+  )
+    browserSearchKey.invalidate();
   const canUseAdvancedFilters = resolveClientPlanFeatureAccess({
     access: planAccess,
     feature: "advanced_filters",

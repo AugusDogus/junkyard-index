@@ -42,6 +42,7 @@ import {
 } from "~/components/search/SaveSearchDialog";
 import { SavedSearchesDropdown } from "~/components/search/SavedSearchesDropdown";
 import { SearchAccessShell } from "~/components/search/SearchAccessShell";
+import type { SearchKeyGrant } from "~/lib/search-key-grant";
 import type { SearchServerRender } from "~/lib/search-server-render";
 import { SEARCH_FILTER_FACETS } from "~/components/search/search-filter-options";
 import { SearchStartPanel } from "~/components/search/SearchStartPanel";
@@ -109,6 +110,8 @@ function clampRouteYear(
 interface SearchPageContentProps {
   knownYardNames?: readonly string[];
   isLoggedIn: boolean;
+  /** The key this visitor's browser searches with, minted for their plan. */
+  searchKey: SearchKeyGrant;
   serverSearch: SearchServerRender;
   initialIsMobile?: boolean;
   userLocation?: { lat: number; lng: number };
@@ -1567,10 +1570,12 @@ export function SearchPageContent({
   userLocation,
   knownYardNames,
   serverSearch,
+  searchKey,
 }: SearchPageContentProps) {
   return (
     <SearchAccessShell
       isLoggedIn={isLoggedIn}
+      searchKey={searchKey}
       knownYardNames={knownYardNames}
       serverSearch={serverSearch}
     >

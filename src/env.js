@@ -49,6 +49,13 @@ export const env = createEnv({
     GOOGLE_ADS_CONVERSION_LABEL: z.string().optional(),
     // Algolia (server-only write key for ingestion)
     ALGOLIA_WRITE_API_KEY: z.string(),
+    // Search-only key for server renders and alert matching. Never sent to
+    // browsers; they get secured keys from /api/search-key.
+    ALGOLIA_SEARCH_API_KEY: z.string(),
+    // Search-only parent of browsers' secured keys. Set maxQueriesPerIPPerHour
+    // on it in the Algolia dashboard. Until it is set, browsers receive
+    // ALGOLIA_SEARCH_API_KEY unrestricted.
+    ALGOLIA_SEARCH_PARENT_API_KEY: z.string().optional(),
     BETTERSTACK_HEARTBEAT_URL: z.string().url().optional(),
     BETTERSTACK_API_TOKEN: betterStackApiTokenSchema,
     // JSON object of ingestion source to its Better Stack status page row:
@@ -80,7 +87,6 @@ export const env = createEnv({
     NEXT_PUBLIC_POSTHOG_HOST: z.string().url(),
     // Algolia (public, safe to expose)
     NEXT_PUBLIC_ALGOLIA_APP_ID: z.string(),
-    NEXT_PUBLIC_ALGOLIA_SEARCH_API_KEY: z.string(),
     NEXT_PUBLIC_STATUS_PAGE_URL: z.string().url().optional(),
   },
 
@@ -127,8 +133,8 @@ export const env = createEnv({
     UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
     UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
     NEXT_PUBLIC_ALGOLIA_APP_ID: process.env.NEXT_PUBLIC_ALGOLIA_APP_ID,
-    NEXT_PUBLIC_ALGOLIA_SEARCH_API_KEY:
-      process.env.NEXT_PUBLIC_ALGOLIA_SEARCH_API_KEY,
+    ALGOLIA_SEARCH_API_KEY: process.env.ALGOLIA_SEARCH_API_KEY,
+    ALGOLIA_SEARCH_PARENT_API_KEY: process.env.ALGOLIA_SEARCH_PARENT_API_KEY,
     NEXT_PUBLIC_STATUS_PAGE_URL: process.env.NEXT_PUBLIC_STATUS_PAGE_URL,
   },
   /**

@@ -83,6 +83,11 @@ export const serverSearches = { count: 0 };
 let transport: Requester | undefined;
 
 const client = {
+  /** Browser searches record the key they were sent with. */
+  setClientApiKey({ apiKey }: { apiKey: string }) {
+    if (typeof document !== "undefined")
+      document.documentElement.dataset.searchApiKey = apiKey;
+  },
   async search(
     input:
       | SearchRequest[]

@@ -7,7 +7,10 @@ import {
   combineSearchFilters,
 } from "~/lib/compile-search-expression";
 import { createXhrRequester } from "@algolia/requester-browser-xhr";
-import { liteClient as algoliasearch } from "algoliasearch/lite";
+import {
+  liteClient as algoliasearch,
+  type LiteClient,
+} from "algoliasearch/lite";
 import type {
   LegacySearchMethodProps,
   SearchClient,
@@ -17,33 +20,39 @@ import type {
 import { env } from "~/env";
 import { withDistanceSort } from "~/lib/algolia-distance-sort";
 import { SearchQueryMeter, searchQueryMeter } from "~/lib/search-query-meter";
+import { browserSearchKey } from "~/lib/browser-search-key";
 import {
   buildAdvancedSearchFilters,
   parseAdvancedSearchQuery,
 } from "~/lib/advanced-search-query";
 export { ALGOLIA_INDEX_NAME } from "~/lib/constants";
 
-// Deliberate latency tradeoff: searches go directly from the browser to
-// Algolia instead of through our server. This public key must remain restricted
-// to search-only operations on the public vehicle index. It is not a secret and
-// must never be replaced here with an admin or write-capable key.
+// Deliberate latency tradeoff: browsers search Algolia directly instead of
+// through our server. They never hold a long-lived key: each search reads the
+// tab's secured key from `browserSearchKey`, which the server mints per plan
+// tier (see src/server/search-api-key.ts). Server renders search with the
+// server-only ALGOLIA_SEARCH_API_KEY. Never use an admin or write-capable key.
+const liteSearchClient = algoliasearch(
+  env.NEXT_PUBLIC_ALGOLIA_APP_ID,
+  typeof window === "undefined" ? env.ALGOLIA_SEARCH_API_KEY : "",
+  // Meter browser calls for analytics. Server renders keep the default
+  // requester; their searches are not a page view's.
+  typeof window === "undefined"
+    ? undefined
+    : SearchQueryMeter.clientOptions(searchQueryMeter, createXhrRequester()),
+);
+const keyedSearchClient: Pick<LiteClient, "search"> = {
+  async search(searchMethodParams, requestOptions) {
+    if (typeof window !== "undefined") {
+      liteSearchClient.setClientApiKey({
+        apiKey: await browserSearchKey.current(Date.now()),
+      });
+    }
+    return liteSearchClient.search(searchMethodParams, requestOptions);
+  },
+};
 const baseSearchClient = withFullServiceCount(
-  withDistanceSort(
-    withSearchCountsCache(
-      algoliasearch(
-        env.NEXT_PUBLIC_ALGOLIA_APP_ID,
-        env.NEXT_PUBLIC_ALGOLIA_SEARCH_API_KEY,
-        // Meter browser calls for analytics. Server renders keep the
-        // default requester; their searches are not a page view's.
-        typeof window === "undefined"
-          ? undefined
-          : SearchQueryMeter.clientOptions(
-              searchQueryMeter,
-              createXhrRequester(),
-            ),
-      ),
-    ),
-  ),
+  withDistanceSort(withSearchCountsCache(keyedSearchClient)),
 );
 
 export const primeSearchCounts = baseSearchClient.primeCounts;

@@ -14,6 +14,7 @@ import { db } from "~/lib/db";
 import { SearchServerRender } from "~/lib/search-server-render";
 import { searchPageMetadata } from "./search-metadata";
 import { getHomepageYards } from "~/server/homepage-yards";
+import { grantSearchKey } from "~/server/search-key-grant";
 import { auth } from "~/lib/auth";
 import { api, HydrateClient } from "~/trpc/server";
 
@@ -62,7 +63,12 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     }),
   ]);
   const isLoggedIn = Boolean(session?.user);
-  await Promise.all([
+  const [searchKey] = await Promise.all([
+    grantSearchKey({
+      userId: session?.user.id ?? null,
+      headers: reqHeaders,
+      nowMs: Date.now(),
+    }),
     api.status.searchCapabilities.prefetch(),
     isLoggedIn
       ? api.subscription.getAccountOverview.prefetch()
@@ -87,6 +93,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                 })}
                 userLocation={geo}
                 knownYardNames={knownYardNames}
+                searchKey={searchKey}
               />
             </HydrateClient>
           </Suspense>
