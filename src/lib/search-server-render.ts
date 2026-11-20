@@ -11,9 +11,10 @@ type SearchParams = Readonly<
 >;
 
 // Crawlers, link unfurlers and command-line fetchers. They rarely run the
-// browser search, so the server search was their only cost.
+// browser search, so the server search was their only cost. The lookbehind
+// keeps Cubot phones, whose model names end in "bot", on the server search.
 const NON_PERSON_USER_AGENT =
-  /bot\b|bot\/|crawl|spider|slurp|facebookexternalhit|embedly|whatsapp|preview|curl\/|wget\/|python-requests|go-http-client|axios\/|node-fetch|undici/i;
+  /(?<!cu)bot\b|bot\/|crawl|spider|slurp|facebookexternalhit|embedly|whatsapp|preview|curl\/|wget\/|python-requests|go-http-client|axios\/|node-fetch|undici/i;
 
 // Params that never change the search: campaign tags and checkout return.
 const NON_SEARCH_PARAM = /^(utm_[a-z_]+|gclid|fbclid|msclkid|subscription)$/;
