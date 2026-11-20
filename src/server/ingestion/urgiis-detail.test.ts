@@ -209,6 +209,8 @@ describe("URG IIS seller detail reuse", () => {
     model?: "read" | "carried" | "none";
     readAt: number;
     vin?: string;
+    // A second card for the same detail URL, after the donor's card.
+    otherVin?: string;
     seller?: string | null;
     detail?: boolean;
   }): UrgiisEntry[] => {
@@ -237,7 +239,15 @@ describe("URG IIS seller detail reuse", () => {
         bytes: options.model === "carried" ? 0 : 1,
         kind: "model",
         url: tenant.origin + model.path,
-        records: options.model === "none" ? [] : [donor],
+        records:
+          options.model === "none"
+            ? []
+            : [
+                donor,
+                ...(options.otherVin
+                  ? [{ ...record, vins: [options.otherVin] }]
+                  : []),
+              ],
         freshness: {
           kind: options.model === "carried" ? "carried" : "read",
           readAt: options.readAt,
@@ -306,6 +316,18 @@ describe("URG IIS seller detail reuse", () => {
     expect(
       reuse(
         { readAt: acceptedAt, vin: "1HGCR2F36FA000000" },
+        { readAt: acceptedAt + day },
+        day,
+      ),
+    ).toBeUndefined();
+  });
+
+  test("a seller checked against another card at the same URL is refetched", () => {
+    // The previous detail task kept the last card's VIN, so its seller was
+    // never checked against today's donor.
+    expect(
+      reuse(
+        { readAt: acceptedAt, otherVin: "1HGCR2F36FA000000" },
         { readAt: acceptedAt + day },
         day,
       ),

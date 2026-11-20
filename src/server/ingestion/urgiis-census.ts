@@ -133,25 +133,26 @@ export function urgiisCarry(
   if (!previous) return undefined;
   if (task.kind === "detail") {
     // Reuse a seller only for the same donor: its detail URL binds stock and
-    // year, and the previous card for that URL claimed the same single VIN.
+    // year, and every previous card for that URL claimed the same single VIN.
+    // The previous task kept one of those cards, so its seller page was
+    // checked against this VIN; any disagreeing card forces a fresh read.
     const detail = previous.entries.find(
       (e) => e.kind === "detail" && e.url === task.url,
     );
     if (detail?.kind !== "detail") return undefined;
-    const sameDonor = previous.entries.some(
-      (e) =>
-        (e.kind === "model" || e.kind === "arrivals") &&
-        e.records.some((r) => {
-          const vins = new Set(
-            r.vins.map((v) => v.trim().toUpperCase()).filter(Boolean),
-          );
-          return (
-            r.destinations.includes(task.url) &&
-            vins.size === 1 &&
-            vins.has(task.vin)
-          );
-        }),
+    const cards = previous.entries.flatMap((e) =>
+      e.kind === "model" || e.kind === "arrivals"
+        ? e.records.filter((r) => r.destinations.includes(task.url))
+        : [],
     );
+    const sameDonor =
+      cards.length > 0 &&
+      cards.every((r) => {
+        const vins = new Set(
+          r.vins.map((v) => v.trim().toUpperCase()).filter(Boolean),
+        );
+        return vins.size === 1 && vins.has(task.vin);
+      });
     const models = entries
       .filter((e) => e.kind === "model")
       .filter((e) => e.records.some((r) => r.destinations.includes(task.url)));
