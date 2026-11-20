@@ -50,8 +50,8 @@ export default async function PricingPage() {
               Keep searching for free.
             </h2>
             <p className="text-ink-2 text-pretty lg:col-span-7">
-              Every plan includes unlimited searches. See 24 results without an
-              account. Create a free account to browse every page.
+              Every plan includes unlimited searches. Free shows the first 24
+              results of each search. Lite shows every result.
             </p>
             <div className="flex flex-col gap-3 sm:flex-row lg:col-span-12">
               <TrackedPricingButton

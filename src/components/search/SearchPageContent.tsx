@@ -71,7 +71,6 @@ import {
 } from "~/components/search/search-routing";
 import { AnalyticsEvents, buildSearchContext } from "~/lib/analytics-events";
 import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access";
-import { SEARCH_CONFIG } from "~/lib/constants";
 import type { PlanAccessState } from "~/lib/plan-access";
 import { PLANS } from "~/lib/plans";
 import { SEARCHABLE_VEHICLE_YEAR_RANGE } from "~/lib/saved-search-filters";
@@ -90,6 +89,7 @@ import {
 import { primeSearchCounts } from "~/lib/algolia-search";
 import { SearchFailure } from "~/lib/search-failure";
 import { SearchHitsCache } from "~/lib/search-hits-cache";
+import { SearchResultCap } from "~/lib/search-result-cap";
 import { cn } from "~/lib/utils";
 import type { DataSource, SearchResult as SearchResultType } from "~/lib/types";
 import { VinPattern } from "~/lib/vin-pattern";
@@ -792,13 +792,15 @@ function AlgoliaSearchInner({
   const isSearching =
     hasActiveSearch && (status === "loading" || status === "stalled");
 
-  const anonymousVisibleLimit = SEARCH_CONFIG.ANONYMOUS_VISIBLE_RESULTS_LIMIT;
-
-  const isAnonymousCapped = !isLoggedIn && nbHits > anonymousVisibleLimit;
+  // Gate on the resolved plan, not on login: free accounts see one page too.
+  const resultCap = SearchResultCap.resolve({ isLoggedIn, planAccess });
+  const visibleLimit = resultCap.kind === "capped" ? resultCap.limit : null;
+  const capReason = resultCap.kind === "capped" ? resultCap.reason : null;
+  const isResultCapped = visibleLimit !== null && nbHits > visibleLimit;
 
   const visibleVehicles = useMemo(
-    () => (!isLoggedIn ? vehicles.slice(0, anonymousVisibleLimit) : vehicles),
-    [isLoggedIn, vehicles, anonymousVisibleLimit],
+    () => (visibleLimit === null ? vehicles : vehicles.slice(0, visibleLimit)),
+    [vehicles, visibleLimit],
   );
 
   // Build search result object for SearchResults/SearchSummary components
@@ -813,7 +815,7 @@ function AlgoliaSearchInner({
       vehicles: visibleVehicles,
       totalCount: nbHits,
       page: 1,
-      hasMore: isAnonymousCapped ? false : !isLastPage,
+      hasMore: isResultCapped ? false : !isLastPage,
       searchTime: processingTimeMS,
       locationsCovered: 0,
       locationsWithErrors: [],
@@ -826,54 +828,79 @@ function AlgoliaSearchInner({
     hasActiveSearch,
     status,
     hits.length,
-    isAnonymousCapped,
+    isResultCapped,
   ]);
 
-  const anonymousResultsPrompt = useMemo(() => {
-    if (!isAnonymousCapped || !searchResult) {
+  const resultCapPrompt = useMemo(() => {
+    if (
+      !isResultCapped ||
+      !searchResult ||
+      visibleLimit === null ||
+      capReason === "plan_pending"
+    ) {
       return null;
     }
 
+    if (capReason === "plan_unconfirmed") {
+      return (
+        <div className="bg-card mx-auto w-full max-w-2xl rounded-lg border p-6 text-left shadow-lg">
+          <h3 className="text-xl font-semibold tracking-tight text-balance">
+            Your plan could not be confirmed.
+          </h3>
+          <p className="text-muted-foreground mt-2 max-w-2xl text-sm text-pretty">
+            Showing the first {visibleLimit} results until it is. Refresh this
+            page to retry and see every result on your plan.
+          </p>
+        </div>
+      );
+    }
+
+    const ctaProperties = {
+      source_page: "search",
+      cta_location: "result_cap",
+      query: analyticsSearchValue,
+      result_count: searchResult.totalCount,
+      visible_result_count: visibleLimit,
+    };
     return (
       <div className="bg-card mx-auto w-full max-w-2xl rounded-lg border p-6 text-left shadow-lg">
         <p className="text-sm font-medium">Want the rest of the results?</p>
         <h3 className="mt-2 text-xl font-semibold tracking-tight text-balance">
-          Create a free account to unlock full search results.
+          Upgrade to Lite to see every result.
         </h3>
         <p className="text-muted-foreground mt-2 max-w-2xl text-sm text-pretty">
-          You can keep searching for free, upgrade to Lite for $
-          {PLANS.lite.monthlyPrice}/mo for state, yard and power filters and
-          saved searches, or go Full for ${PLANS.full.monthlyPrice}/mo to get
-          email and Discord alerts when new matches arrive.
+          Free search shows the first {visibleLimit} results. Lite is $
+          {PLANS.lite.monthlyPrice}/mo for every result, state, yard and power
+          filters and saved searches. Full is ${PLANS.full.monthlyPrice}/mo and
+          adds email and Discord alerts when new matches arrive.
         </p>
         <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-          <Button asChild>
-            <Link
-              href={signUpHref}
-              onClick={() =>
-                Analytics.capture(AnalyticsEvents.RESULT_CAP_SIGNUP_CLICKED, {
-                  source_page: "search",
-                  cta_location: "result_cap",
-                  query: analyticsSearchValue,
-                  result_count: searchResult.totalCount,
-                  visible_result_count: anonymousVisibleLimit,
-                })
-              }
-            >
-              Create Free Account
-            </Link>
-          </Button>
-          <Button asChild variant="outline">
+          {capReason === "visitor" && (
+            <Button asChild>
+              <Link
+                href={signUpHref}
+                onClick={() =>
+                  Analytics.capture(
+                    AnalyticsEvents.RESULT_CAP_SIGNUP_CLICKED,
+                    ctaProperties,
+                  )
+                }
+              >
+                Create Free Account
+              </Link>
+            </Button>
+          )}
+          <Button
+            asChild
+            variant={capReason === "visitor" ? "outline" : "default"}
+          >
             <Link
               href="/pricing"
               onClick={() =>
-                Analytics.capture(AnalyticsEvents.RESULT_CAP_PRICING_CLICKED, {
-                  source_page: "search",
-                  cta_location: "result_cap",
-                  query: analyticsSearchValue,
-                  result_count: searchResult.totalCount,
-                  visible_result_count: anonymousVisibleLimit,
-                })
+                Analytics.capture(
+                  AnalyticsEvents.RESULT_CAP_PRICING_CLICKED,
+                  ctaProperties,
+                )
               }
             >
               See Pricing
@@ -882,7 +909,14 @@ function AlgoliaSearchInner({
         </div>
       </div>
     );
-  }, [isAnonymousCapped, analyticsSearchValue, searchResult, signUpHref]);
+  }, [
+    isResultCapped,
+    capReason,
+    visibleLimit,
+    analyticsSearchValue,
+    searchResult,
+    signUpHref,
+  ]);
 
   // ── Handlers ───────────────────────────────────────────────────────────
 
@@ -1111,7 +1145,13 @@ function AlgoliaSearchInner({
   }, [analyticsSearchValue, isSearching, error, nbHits, processingTimeMS]);
 
   useEffect(() => {
-    if (!analyticsSearchValue || !isAnonymousCapped || isSearching || error)
+    if (
+      !analyticsSearchValue ||
+      !isResultCapped ||
+      visibleLimit === null ||
+      isSearching ||
+      error
+    )
       return;
     if (lastTrackedResultCapQuery.current === analyticsSearchValue) return;
     lastTrackedResultCapQuery.current = analyticsSearchValue;
@@ -1121,16 +1161,19 @@ function AlgoliaSearchInner({
       query: analyticsSearchValue,
       query_length: analyticsSearchValue.trim().length,
       result_count: nbHits,
-      visible_result_count: anonymousVisibleLimit,
-      is_logged_in: false,
+      visible_result_count: visibleLimit,
+      is_logged_in: isLoggedIn,
+      cap_reason: capReason,
     });
   }, [
     analyticsSearchValue,
-    isAnonymousCapped,
+    isResultCapped,
     isSearching,
     error,
     nbHits,
-    anonymousVisibleLimit,
+    visibleLimit,
+    isLoggedIn,
+    capReason,
   ]);
 
   // Keyboard shortcuts: Cmd/Ctrl+K to focus search, F to toggle filters
@@ -1313,7 +1356,7 @@ function AlgoliaSearchInner({
     header: {
       actions: null,
       processingTimeMS,
-      visibleCount: isAnonymousCapped ? anonymousVisibleLimit : null,
+      visibleCount: isResultCapped ? visibleLimit : null,
     },
     loading: {
       showMore,
@@ -1331,20 +1374,22 @@ function AlgoliaSearchInner({
     results: {
       isLoading: isSearching && hits.length === 0,
       showMore,
-      isLastPage: isAnonymousCapped || isLastPage,
+      isLastPage: isResultCapped || isLastPage,
       isFetchingNextPage:
-        !isAnonymousCapped && (status === "loading" || status === "stalled"),
-      endOfResults: anonymousResultsPrompt,
-      staticPage: !isLoggedIn,
-      visibleCount: isAnonymousCapped ? anonymousVisibleLimit : undefined,
+        !isResultCapped && (status === "loading" || status === "stalled"),
+      endOfResults: resultCapPrompt,
+      staticPage: visibleLimit !== null,
+      visibleCount: isResultCapped ? visibleLimit : undefined,
       sessionKey:
-        isLoggedIn && cacheRestored ? hitsCache.activeKey() : undefined,
+        visibleLimit === null && cacheRestored
+          ? hitsCache.activeKey()
+          : undefined,
     },
   });
 
   // This final search hook suspends only after query, facets, and sort are registered.
   useConfigure({
-    hitsPerPage: isLoggedIn ? 24 : anonymousVisibleLimit,
+    hitsPerPage: visibleLimit ?? 24,
     attributesToRetrieve: [...SEARCH_CARD_ATTRIBUTES],
     attributesToHighlight: [],
     attributesToSnippet: [],

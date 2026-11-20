@@ -397,7 +397,7 @@ export function SaveSearchDialog({
               <p className="text-muted-foreground mt-1 text-sm text-pretty">
                 {hasSavedSearches
                   ? "Nothing is deleted on the Free plan. Upgrade when you want to reopen or add saved searches."
-                  : "Free includes full search results. Lite adds saved searches so you can pick up where you left off."}
+                  : "Free shows the first 24 results of each search. Lite adds every result and saved searches so you can pick up where you left off."}
               </p>
             </div>
           </div>

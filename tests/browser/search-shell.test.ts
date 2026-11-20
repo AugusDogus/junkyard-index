@@ -174,7 +174,7 @@ test("visitor pages include a free radius and stop after 24 results", async () =
     });
     await page
       .getByRole("heading", {
-        name: "Create a free account to unlock full search results.",
+        name: "Upgrade to Lite to see every result.",
         exact: true,
       })
       .waitFor();
@@ -226,6 +226,36 @@ test("filter options come from Turso without an Algolia facet query", async () =
     expect(
       (await requestLog(page)).filter(({ params }) => params.hitsPerPage === 0),
     ).toEqual([]);
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
+
+test("a signed-in free account stops after the first 24 results", async () => {
+  const { page } = await open("q=pagination&fixturePlan=free");
+  try {
+    await page
+      .getByText("Showing 24 of 96 vehicles", { exact: true })
+      .waitFor();
+    await page.evaluate(() => {
+      document.documentElement.dataset.searchQueryLog = "[]";
+      window.scrollTo(0, document.body.scrollHeight);
+    });
+    await page
+      .getByRole("heading", {
+        name: "Upgrade to Lite to see every result.",
+        exact: true,
+      })
+      .waitFor();
+    expect(
+      await page.getByRole("link", { name: "Create Free Account" }).count(),
+    ).toBe(0);
+    expect(
+      (await requestLog(page)).filter(({ params }) => (params.page ?? 0) > 0),
+    ).toEqual([]);
+    expect(
+      await page.locator("h3").filter({ hasText: "Pagination Car" }).count(),
+    ).toBe(24);
   } finally {
     await closePage(page);
   }
