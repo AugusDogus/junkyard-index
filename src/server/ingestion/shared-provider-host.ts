@@ -3,18 +3,23 @@ import { URGIIS_TENANTS } from "./urgiis-configuration";
 import {
   providerHostSlot,
   providerHostTurn,
+  type ProviderHostGroup,
   type ProviderHostPolicy,
 } from "./provider-host-slot";
 
-export const URG_HOST_POLICY: ProviderHostPolicy = {
-  key: "urg-iis",
-  label: "URG IIS",
+/** The WordPress plugin on every URG site calls a central URG API, so only a
+ * few URG lanes may hold a lease at once. */
+export const URG_HOST_GROUP: ProviderHostGroup = { key: "urg", activeLanes: 4 };
+const urgLane = (server: string): ProviderHostPolicy => ({
+  key: "urg:" + server,
+  label: "URG " + server,
   leaseMs: 130_000,
   requestMs: 110_000,
   waitMs: 30 * 60_000,
   pollMs: 1_000,
   gapMs: 3_500,
-};
+  group: URG_HOST_GROUP,
+});
 export const VINPLUS_HOST_POLICY: ProviderHostPolicy = {
   key: "inventory-search-api-581547763015.us-central1.run.app",
   label: "VinPlus",
@@ -25,11 +30,27 @@ export const VINPLUS_HOST_POLICY: ProviderHostPolicy = {
   gapMs: 1_600,
 };
 
-// URG qualification treated tenant origins as one backend, rather than trusting
-// distinct WordPress hostnames to imply separate capacity. Include the native
-// IIS catalogs conservatively, even when only their page/storage shape links
-// them to URG. See docs/runbooks/provider-launch-readiness.md for evidence.
-const urgHosts = new Set([
+/** URG hosts that share an origin server, by that server. Response times
+ * correlate within a server but not across them, and DNS resolves each set to
+ * the same addresses. See docs/runbooks/provider-launch-readiness.md. */
+const URG_SERVERS: Readonly<Record<string, readonly string[]>> = {
+  // URG's own AWS load balancer (`x-urg-storage` header, six shared IPs).
+  aws: [
+    "aviationauto.com",
+    "centralautoliq.com",
+    "caltonautoparts.com",
+    "jimsimport.com",
+    "hondapartsused.com",
+  ],
+  // Vultr 66.42.115.19 (Cloudways).
+  "66.42.115.19": ["lambertsalvage.com", "prattsautosalvage.com"],
+  // Vultr 149.28.120.41, shared with Metro, which is not a source.
+  "149.28.120.41": ["chazsauto.com"],
+};
+// The URG IIS tenants and native IIS catalogs. Hosts behind Cloudflare, or
+// without evidence of sharing a server, each get their own lane. I-Pull and
+// Indian River are not URG sites and keep only their own client pacing.
+const urgHosts = [
   ...URGIIS_TENANTS.map((tenant) =>
     new URL(tenant.origin).hostname.replace(/^www\./, ""),
   ),
@@ -48,20 +69,30 @@ const urgHosts = new Set([
   "alln1kc.com",
   "grandpajohnsautoparts.com",
   "midwayupull.com",
-  "indianriverautosalvage.com",
   "alliedautowrecking.com",
-  "ifipull.com",
-]);
+];
+const urgServerLanes = new Map(
+  Object.entries(URG_SERVERS).flatMap(([server, hosts]) => {
+    const lane = urgLane(server);
+    return hosts.map((host) => [host, lane] as const);
+  }),
+);
+const urgLanes = new Map(
+  urgHosts.map((host) => [host, urgServerLanes.get(host) ?? urgLane(host)]),
+);
 export function sharedProviderHostPolicy(
   url: string,
 ): ProviderHostPolicy | null {
   const host = URL.parse(url)?.hostname.replace(/^www\./, "");
   if (host === VINPLUS_HOST_POLICY.key) return VINPLUS_HOST_POLICY;
-  return host && urgHosts.has(host) ? URG_HOST_POLICY : null;
+  return (host && urgLanes.get(host)) || null;
 }
 
 /** Wrap the complete response/body lifetime, not just fetch headers. Every
- * retry must acquire its own FIFO slot, and every failure holds the same gap. */
+ * retry must acquire its own FIFO slot, and every failure holds the same gap.
+ * Every request to a shared host takes a slot, including one inside a turn:
+ * there the slot keeps the gap after the turn's previous request and records
+ * its own end for the next. */
 export const sharedProviderHostSlot =
   (url: string) =>
   <A, E, R>(request: Effect.Effect<A, E, R>) => {
@@ -85,3 +116,10 @@ export const sharedProviderHostTurn =
     const policy = sharedProviderHostPolicy(url);
     return policy ? providerHostTurn(policy, requests, unit, afterMs) : unit;
   };
+
+/** One request in its own shared host turn. The request still takes a host
+ * slot, so inside an enclosing turn it keeps the gap on both sides. */
+export const sharedProviderHostRequest =
+  (url: string) =>
+  <A, E, R>(request: Effect.Effect<A, E, R>) =>
+    request.pipe(sharedProviderHostSlot(url), sharedProviderHostTurn(url));

@@ -10,6 +10,8 @@ export interface QueuedHostRun<A, E> {
   turns: { acquiredAt: number; releasedAt: number | null; leaseMs: number }[];
   /** Waiters that gave up their place without a turn. */
   cancelled: number;
+  /** Provider requests, with the test clock time they started and ended. */
+  requests: { url: string; startedAt: number; endedAt: number }[];
 }
 
 /**
@@ -18,13 +20,19 @@ export interface QueuedHostRun<A, E> {
  * waiter gets the lease `turnWaitMs` after it first asks (as if requests from
  * other sources were ahead of it), and only once the lease is free.
  * `turnWaitMs` may depend on the turn number. Other fetches pass through to
- * whatever `fetch` the test installed.
+ * whatever `fetch` the test installed, and answer `requestMs(url)` of test
+ * clock time later (at once by default).
  */
 export async function runWithQueuedHost<A, E>(
   effect: Effect.Effect<A, E>,
-  options: { turnWaitMs: number | ((turn: number) => number) },
+  options: {
+    turnWaitMs: number | ((turn: number) => number);
+    requestMs?: (url: string) => number;
+  },
 ): Promise<QueuedHostRun<A, E>> {
   let now = 0;
+  const requests: QueuedHostRun<A, E>["requests"] = [];
+  const answering: { at: number; answer: () => void }[] = [];
   let holder: string | null = null;
   let cancelled = 0;
   const firstAsked = new Map<string, number>();
@@ -64,7 +72,15 @@ export async function runWithQueuedHost<A, E>(
     init?: Parameters<typeof fetch>[1],
   ) => {
     const url = input instanceof Request ? input.url : String(input);
-    if (!url.startsWith(FAKE_UPSTASH)) return passthrough(input, init);
+    if (!url.startsWith(FAKE_UPSTASH)) {
+      const startedAt = now;
+      const response = await passthrough(input, init);
+      const at = startedAt + (options.requestMs?.(url) ?? 0);
+      if (at > now)
+        await new Promise<void>((answer) => answering.push({ at, answer }));
+      requests.push({ url, startedAt, endedAt: now });
+      return response;
+    }
     const evaluate = (eval_: unknown) => {
       if (!Array.isArray(eval_) || String(eval_[0]).toLowerCase() !== "eval")
         throw new Error(`Unexpected Upstash command ${String(init?.body)}`);
@@ -96,6 +112,11 @@ export async function runWithQueuedHost<A, E>(
       Effect.gen(function* () {
         const fiber = yield* Effect.fork(Effect.either(effect));
         while (fiber.unsafePoll() === null) {
+          // Answer requests that are due before time moves on.
+          for (const request of answering.filter(({ at }) => at <= now)) {
+            answering.splice(answering.indexOf(request), 1);
+            request.answer();
+          }
           // Let resolved promises (fixture responses, lease calls) settle
           // before simulated time moves on.
           yield* Effect.promise(
@@ -110,6 +131,7 @@ export async function runWithQueuedHost<A, E>(
           elapsedMs: now,
           turns,
           cancelled,
+          requests,
         };
       }).pipe(Effect.provide(TestContext.TestContext)),
     );

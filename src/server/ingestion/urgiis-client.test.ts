@@ -5,7 +5,11 @@ import {
   ProviderTurnDeferred,
 } from "./provider-chunk-clock";
 import { runWithQueuedHost } from "./provider-host-test-support";
-import { URG_HOST_POLICY } from "./shared-provider-host";
+import {
+  sharedProviderHostPolicy,
+  sharedProviderHostSlot,
+  sharedProviderHostTurn,
+} from "./shared-provider-host";
 import { readUrgiisPage } from "./urgiis-client";
 import type { UrgiisTenant } from "./urgiis-tenant";
 
@@ -222,8 +226,55 @@ test("a URG IIS read keeps the shared URG gap inside its turn's lease", async ()
       const turn = run.turns[0];
       expect(
         (turn?.releasedAt ?? 0) - (turn?.acquiredAt ?? 0),
-      ).toBeGreaterThanOrEqual(URG_HOST_POLICY.gapMs);
+      ).toBeGreaterThanOrEqual(
+        sharedProviderHostPolicy(site.origin)?.gapMs ?? NaN,
+      );
     }
+  } finally {
+    fetch.mockRestore();
+  }
+}, 60_000);
+
+test("URG IIS reads that share a turn keep the URG gap after a slotted request and after each other", async () => {
+  // A URG IIS read makes a raw fetch. Inside an enclosing turn it must still
+  // wait out the gap after the turn's previous request and record its own end.
+  const site: UrgiisTenant = {
+    ...tenant,
+    origin: "https://eagleautopart.com",
+    pacingMs: 0,
+  };
+  const gapMs = sharedProviderHostPolicy(site.origin)?.gapMs ?? NaN;
+  const fetch = spyOn(globalThis, "fetch").mockImplementation(
+    Object.assign(
+      async () =>
+        new Response("native HTML", {
+          headers: { "content-type": "text/html; charset=UTF-8" },
+        }),
+      { preconnect: globalThis.fetch.preconnect },
+    ),
+  );
+  try {
+    const owner = site.origin + site.ownerPath;
+    const run = await runWithQueuedHost(
+      Effect.all([
+        Effect.promise(() => globalThis.fetch(owner)).pipe(
+          sharedProviderHostSlot(owner),
+        ),
+        readUrgiisPage(site.origin + site.makesPath, site),
+        readUrgiisPage(site.origin + site.makesPath, site),
+      ]).pipe(sharedProviderHostTurn(site.origin, 3)),
+      { turnWaitMs: 0, requestMs: () => 2_000 },
+    );
+    if (Either.isLeft(run.result)) throw run.result.left;
+    expect(run.turns).toHaveLength(1);
+    expect(run.requests).toHaveLength(3);
+    const [slotted, first, second] = run.requests;
+    if (!slotted || !first || !second) throw new Error("Expected requests");
+    expect(first.startedAt - slotted.endedAt).toBeGreaterThanOrEqual(gapMs);
+    expect(second.startedAt - first.endedAt).toBeGreaterThanOrEqual(gapMs);
+    expect(
+      (run.turns[0]?.releasedAt ?? 0) - second.endedAt,
+    ).toBeGreaterThanOrEqual(gapMs);
   } finally {
     fetch.mockRestore();
   }

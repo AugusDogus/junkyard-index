@@ -1,6 +1,6 @@
 import { IisSupplierIdentityError } from "./iis-supplier-identity";
 import { ProviderTurnDeferred } from "./provider-chunk-clock";
-import { sharedProviderHostTurn } from "./shared-provider-host";
+import { sharedProviderHostRequest } from "./shared-provider-host";
 import { Effect, Schedule } from "effect";
 import { parseRetryAfterMs } from "./provider-http-client";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
@@ -142,7 +142,7 @@ export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
     // it is neither a provider failure nor retried.
     return serial.withPermits(1)(
       request.pipe(
-        sharedProviderHostTurn(url),
+        sharedProviderHostRequest(url),
         Effect.mapError((cause) =>
           cause instanceof ProviderTurnDeferred
             ? cause

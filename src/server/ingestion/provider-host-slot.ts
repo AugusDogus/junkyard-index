@@ -10,6 +10,13 @@ export interface ProviderHostStore {
   release(token: string): Promise<boolean>;
   cancel(token: string): Promise<boolean>;
 }
+/** Host lanes that each pace one origin server but share a cap on how many of
+ * them may hold a lease at once, as a hedge for a backend they all call. */
+export interface ProviderHostGroup {
+  key: string;
+  /** Lanes that may hold a lease at the same time. */
+  activeLanes: number;
+}
 export interface ProviderHostPolicy {
   key: string;
   label: string;
@@ -18,6 +25,7 @@ export interface ProviderHostPolicy {
   waitMs: number;
   pollMs: number;
   gapMs: number;
+  group?: ProviderHostGroup;
 }
 
 const slotError = (
@@ -30,29 +38,64 @@ const slotError = (
     { cause },
   );
 
-/** Atomic FIFO registration and acquisition. Polls renew the waiter's deadline
- * without changing its order. Dead workers expire instead of blocking the queue.
- * All keys share one Redis hash tag for cluster-safe scripts. */
+/**
+ * Atomic FIFO registration and acquisition of a lane lease (KEYS 1 to 4).
+ * Polls renew the waiter's deadline without changing its order. Dead workers
+ * expire instead of blocking the queue.
+ *
+ * A grouped lane also passes its group's ready queue (KEYS 5 to 7) and active
+ * lanes (KEYS 8), with the group's lane cap as ARGV[3]. A waiter at the front
+ * of its free lane joins the ready queue, and ready waiters take the group's
+ * free places in the order they became ready. Only lane holders wait there, so
+ * a busy lane never holds back another lane's waiter. Active entries expire
+ * with their lease.
+ *
+ * All keys share one Redis hash tag for cluster-safe scripts.
+ */
 export const RESERVE_HOST_SLOT = `
 local now = redis.call('TIME')
 local ms = now[1] * 1000 + math.floor(now[2] / 1000)
-local expired = redis.call('ZRANGEBYSCORE', KEYS[3], '-inf', ms)
-for _, token in ipairs(expired) do
-  redis.call('ZREM', KEYS[2], token)
-  redis.call('ZREM', KEYS[3], token)
+local function front(queue, deadlines, sequence)
+  local expired = redis.call('ZRANGEBYSCORE', deadlines, '-inf', ms)
+  for _, token in ipairs(expired) do
+    redis.call('ZREM', queue, token)
+    redis.call('ZREM', deadlines, token)
+  end
+  if not redis.call('ZSCORE', queue, ARGV[1]) then
+    redis.call('ZADD', queue, redis.call('INCR', sequence), ARGV[1])
+  end
+  redis.call('ZADD', deadlines, ms + 30000, ARGV[1])
+  redis.call('PEXPIRE', queue, 60000)
+  redis.call('PEXPIRE', deadlines, 60000)
+  redis.call('PEXPIRE', sequence, 60000)
+  return redis.call('ZRANGE', queue, 0, 0)[1] == ARGV[1]
 end
-if not redis.call('ZSCORE', KEYS[2], ARGV[1]) then
-  redis.call('ZADD', KEYS[2], redis.call('INCR', KEYS[4]), ARGV[1])
+if not front(KEYS[2], KEYS[3], KEYS[4]) then return 0 end
+if #KEYS == 4 then
+  if not redis.call('SET', KEYS[1], ARGV[1], 'NX', 'PX', ARGV[2]) then return 0 end
+else
+  if redis.call('EXISTS', KEYS[1]) == 1 then return 0 end
+  redis.call('ZREMRANGEBYSCORE', KEYS[8], '-inf', ms)
+  front(KEYS[5], KEYS[6], KEYS[7])
+  local places = tonumber(ARGV[3]) - redis.call('ZCARD', KEYS[8])
+  if places <= 0 or redis.call('ZRANK', KEYS[5], ARGV[1]) >= places then return 0 end
+  local ttl = tonumber(ARGV[2])
+  redis.call('SET', KEYS[1], ARGV[1], 'PX', ttl)
+  redis.call('ZADD', KEYS[8], ms + ttl, ARGV[1])
+  if redis.call('PTTL', KEYS[8]) < ttl then redis.call('PEXPIRE', KEYS[8], ttl) end
+  redis.call('ZREM', KEYS[5], ARGV[1])
+  redis.call('ZREM', KEYS[6], ARGV[1])
 end
-redis.call('ZADD', KEYS[3], ms + 30000, ARGV[1])
-redis.call('PEXPIRE', KEYS[2], 60000)
-redis.call('PEXPIRE', KEYS[3], 60000)
-redis.call('PEXPIRE', KEYS[4], 60000)
-if redis.call('ZRANGE', KEYS[2], 0, 0)[1] ~= ARGV[1] then return 0 end
-if not redis.call('SET', KEYS[1], ARGV[1], 'NX', 'PX', ARGV[2]) then return 0 end
 redis.call('ZREM', KEYS[2], ARGV[1])
 redis.call('ZREM', KEYS[3], ARGV[1])
 return 1
+`;
+
+/** Releases KEYS[1] if ARGV[1] still owns it, and its group place (KEYS[2],
+ * if any) either way. */
+export const RELEASE_HOST_SLOT = `
+if KEYS[2] then redis.call('ZREM', KEYS[2], ARGV[1]) end
+if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) else return 0 end
 `;
 
 export function redisProviderHostStore(
@@ -60,29 +103,45 @@ export function redisProviderHostStore(
   redis: Pick<Redis, "eval">,
 ): ProviderHostStore {
   // Keep the existing HTP lease key during rolling deployments. Hash-tag
-  // queue keys with its complete name so all scripts use the same cluster slot.
-  const key = `ingestion:host:${policy.key}:v1`;
-  const queue = `{${key}}:queue`;
-  const deadlines = `{${key}}:deadlines`;
+  // queue keys with its complete name so all scripts use the same cluster
+  // slot. Every lane of a group shares the group's hash tag instead, so one
+  // script sees the lane and the group's places.
+  const tag = policy.group
+    ? `{ingestion:host-group:${policy.group.key}:v1}`
+    : `{ingestion:host:${policy.key}:v1}`;
+  const lease = policy.group
+    ? `${tag}:lane:${policy.key}`
+    : `ingestion:host:${policy.key}:v1`;
+  const prefix = policy.group ? lease : tag;
+  const lane = [
+    lease,
+    `${prefix}:queue`,
+    `${prefix}:deadlines`,
+    `${prefix}:sequence`,
+  ];
+  const ready = [`${tag}:ready`, `${tag}:ready-deadlines`];
+  const active = `${tag}:active`;
   return {
     reserve: async (owner, ttl) =>
       (await redis.eval(
         RESERVE_HOST_SLOT,
-        [key, queue, deadlines, `{${key}}:sequence`],
-        [owner, ttl],
+        policy.group
+          ? [...lane, ...ready, `${tag}:ready-sequence`, active]
+          : lane,
+        policy.group ? [owner, ttl, policy.group.activeLanes] : [owner, ttl],
       )) === 1,
     release: async (owner) =>
       (await redis.eval(
-        "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) else return 0 end",
-        [key],
+        RELEASE_HOST_SLOT,
+        policy.group ? [lease, active] : [lease],
         [owner],
       )) === 1,
     cancel: async (owner) => {
       // A timed-out Redis response may have acquired the lease. Keep that
       // lease until expiry; cancellation removes only its queued registration.
       await redis.eval(
-        "redis.call('ZREM', KEYS[1], ARGV[1]); redis.call('ZREM', KEYS[2], ARGV[1]); return 1",
-        [queue, deadlines],
+        "for _, key in ipairs(KEYS) do redis.call('ZREM', key, ARGV[1]) end return 1",
+        policy.group ? [...lane.slice(1, 3), ...ready] : lane.slice(1, 3),
         [owner],
       );
       return true;

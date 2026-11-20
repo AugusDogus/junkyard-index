@@ -8,12 +8,11 @@ import {
   transformIdipullRecord,
   type IdipullCanonicalVehicle,
 } from "./idipull-transform";
-import { IDIPULL_ORIGIN, type IdipullYard } from "./idipull-yard-metadata";
+import type { IdipullYard } from "./idipull-yard-metadata";
 import { IdipullCatalog } from "./idipull-catalog";
 import { inventoryVin } from "./inventory-vin";
 import { ProviderChunkClock } from "./provider-chunk-clock";
 import type { ProviderRequestGate } from "./provider-http-client";
-import { sharedProviderHostTurn } from "./shared-provider-host";
 import { SourceValidationPolicy } from "./source-validation";
 import { conflictingVins } from "./vin-conflicts";
 
@@ -147,13 +146,12 @@ export function streamIdipullInventoryWithRequestGate<E, R>(
       },
     };
     if (parsed.data.phase === "complete") return empty;
-    // The closing read must match the opening read, so the home page and both
-    // catalog reads are one shared host turn. A deferred turn discards them.
+    // The closing read must match the opening read.
     const [home, html, closingHtml] = yield* Effect.all([
       fetchIdipullPage("/", gate),
       fetchIdipullPage("/inventory/", gate),
       fetchIdipullPage("/inventory/", gate),
-    ]).pipe(sharedProviderHostTurn(IDIPULL_ORIGIN, 3));
+    ]);
     const snapshot = yield* ingestionValidation({
       try: () => {
         const yard = parseIdipullYard(home);
