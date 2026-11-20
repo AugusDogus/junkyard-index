@@ -121,6 +121,7 @@ function Fixture() {
                     isLoggedIn={isLoggedIn}
                     initialIsMobile={params.get("fixtureMobile") === "1"}
                     knownYardNames={["RTP Pick-A-Part - Hebron, KY"]}
+                    serverSearch="search"
                   />
                   <HydrationMarker />
                 </Suspense>

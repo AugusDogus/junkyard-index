@@ -1,7 +1,12 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 import { InstantSearchNext } from "react-instantsearch-nextjs";
 import { ErrorBoundary } from "~/components/ErrorBoundary";
 import { createSearchRouting } from "~/components/search/search-routing";
@@ -16,6 +21,7 @@ import {
 import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access";
 import type { PlanAccessState } from "~/lib/plan-access";
 import { createSearchRouteSync } from "~/lib/search-route-sync";
+import type { SearchServerRender } from "~/lib/search-server-render";
 import { api } from "~/trpc/react";
 
 const INSTANT_SEARCH_FUTURE = { preserveSharedStateOnUnmount: true } as const;
@@ -23,6 +29,8 @@ const INSTANT_SEARCH_FUTURE = { preserveSharedStateOnUnmount: true } as const;
 interface SearchAccessShellProps {
   knownYardNames?: readonly string[];
   isLoggedIn: boolean;
+  /** "skip" renders the skeleton on the server and searches after hydration. */
+  serverSearch: SearchServerRender;
   children(input: {
     planAccess: PlanAccessState;
     vinPatternIndexReady: boolean;
@@ -41,11 +49,21 @@ function ConsumeSearchHydration() {
   return null;
 }
 
+const subscribeNever = () => () => {};
+
 export function SearchAccessShell({
   isLoggedIn,
   knownYardNames,
+  serverSearch,
   children,
 }: SearchAccessShellProps) {
+  // False on the server and during hydration, true afterwards and on client
+  // navigations, so a skipped server search starts once the page is live.
+  const hydrated = useSyncExternalStore(
+    subscribeNever,
+    () => true,
+    () => false,
+  );
   const planAccess = useCheckoutPlanAccess(isLoggedIn);
   const canUseAdvancedFilters = resolveClientPlanFeatureAccess({
     access: planAccess,
@@ -101,7 +119,7 @@ export function SearchAccessShell({
     routing.onUrlChange(window.location.href);
   }, [routing, searchParams]);
 
-  if (isSearchPending) {
+  if (isSearchPending || (serverSearch === "skip" && !hydrated)) {
     return <SearchPageSkeleton />;
   }
 
