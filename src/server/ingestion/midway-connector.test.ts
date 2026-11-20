@@ -9,6 +9,7 @@ import type { MidwayRecord } from "./midway-parser";
 import type { MidwayCanonicalVehicle } from "./midway-transform";
 import type { MidwayYardCode } from "./midway-yard-metadata";
 import {
+  midwayTestEmptyPage,
   midwayTestHome,
   midwayTestPage,
   midwayTestRecord,
@@ -27,9 +28,39 @@ const secondRecord = {
   stock: "2604447",
 };
 
+const muncieFord = {
+  ...midwayTestRecord,
+  make: "FORD",
+  model: "F-150",
+  vin: "1FTFW1ET5DFC10312",
+  stock: "2604501",
+};
+const libertyFord = {
+  ...muncieFord,
+  vin: "1FTFW1ET5DFC10313",
+  stock: "2604502",
+};
+const defaultRecords = {
+  MO38: [midwayTestRecord, muncieFord],
+  MO09: [secondRecord, libertyFord],
+  OO95: [],
+} satisfies Record<MidwayYardCode, readonly MidwayRecord[]>;
+const yardCodes = ["MO38", "MO09", "OO95"] as const;
+/** The menu lists every native make; JEEP is an explicitly empty control. */
+const menu = (records: readonly MidwayRecord[]) => [
+  ...new Set([...records.map((record) => record.make), "JEEP"]),
+];
+
+/**
+ * Serves each yard's broad view (its records, a capped witness) and one page
+ * per make control (that make's records, or `makePages` when given).
+ */
 function mockInventory(
   options: {
     records?: Partial<Record<MidwayYardCode, readonly MidwayRecord[]>>;
+    makePages?: Partial<
+      Record<MidwayYardCode, Record<string, readonly MidwayRecord[]>>
+    >;
     rewrite?: (body: string, url: URL) => string;
     response?: (body: string, url: URL) => Response;
   } = {},
@@ -42,19 +73,27 @@ function mockInventory(
       requests.push(url.href);
       let body = midwayTestHome;
       if (url.pathname !== "/") {
-        const code = url.searchParams.get("id");
-        if (code !== "MO38" && code !== "MO09")
+        const code = yardCodes.find((c) => c === url.searchParams.get("id"));
+        const path = /^\/inventory\/([^/]+)\/ANY\/$/.exec(url.pathname)?.[1];
+        if (code === undefined || path === undefined)
           throw new Error("Unexpected yard request");
-        body = midwayTestPage(
-          (
-            options.records?.[code] ?? [
-              code === "MO38" ? midwayTestRecord : secondRecord,
-            ]
-          )
-            .map(midwayTestRow)
-            .join(""),
-          code,
-        );
+        const records = options.records?.[code] ?? defaultRecords[code];
+        const make = decodeURIComponent(path)
+          .replace("_", " ")
+          .replace(".", "/");
+        const rows =
+          make === "ANY"
+            ? records
+            : (options.makePages?.[code]?.[make] ??
+              records.filter((record) => record.make === make));
+        body =
+          make === "ANY"
+            ? midwayTestPage(rows.map(midwayTestRow).join(""), code, {
+                makes: menu(records),
+              })
+            : rows.length
+              ? midwayTestPage(rows.map(midwayTestRow).join(""), code, { make })
+              : midwayTestEmptyPage(code, make);
       }
       body = options.rewrite?.(body, url) ?? body;
       return (
@@ -68,6 +107,22 @@ function mockInventory(
   );
   return requests;
 }
+/** Yard and make of each request; the home page is "home". */
+const requested = (requests: readonly string[]) =>
+  requests.map((href) => {
+    const url = new URL(href);
+    return url.pathname === "/"
+      ? "home"
+      : `${url.searchParams.get("id")} ${url.pathname.split("/")[2]}`;
+  });
+/** One yard's full traversal of the default menu: opening, makes, closing. */
+const traversal = (code: MidwayYardCode) => [
+  code + " ANY",
+  code + " CHRYSLER",
+  code + " FORD",
+  code + " JEEP",
+  code + " ANY",
+];
 const run = (
   onBatch = (_batch: MidwayCanonicalVehicle[]) => Effect.void,
   startCursor?: MidwayCursor,
@@ -80,7 +135,7 @@ const run = (
     ),
   );
 
-test("Midway emits its first two yards before advancing to Tulsa", async () => {
+test("Midway emits its first two yards by make traversal before advancing to Tulsa", async () => {
   const requests = mockInventory();
   const vehicles: MidwayCanonicalVehicle[] = [];
   const result = await run((batch) =>
@@ -90,16 +145,21 @@ test("Midway emits its first two yards before advancing to Tulsa", async () => {
   );
   expect(result).toMatchObject({
     status: "paused",
-    count: 2,
+    cursor: { phase: "opening", yardCode: "OO95" },
+    count: 4,
     pagesProcessed: 2,
     accounting: {
-      recordsProcessed: 2,
+      recordsProcessed: 4,
       recordsRejected: 0,
       duplicateVehicles: 0,
     },
   });
-  expect(vehicles.map((v) => v.stateAbbr)).toEqual(["KS", "MO"]);
-  expect(requests).toHaveLength(3);
+  expect(vehicles.map((v) => v.stateAbbr)).toEqual(["KS", "KS", "MO", "MO"]);
+  expect(requested(requests)).toEqual([
+    "home",
+    ...traversal("MO38"),
+    ...traversal("MO09"),
+  ]);
   expect(vehicles.every((v) => v.color === null && v.imageUrl === null)).toBe(
     true,
   );
@@ -112,15 +172,12 @@ test("Midway resumes at the next yard without recrawling the accepted first tabl
   const requests = mockInventory();
   const second = await run(undefined, first.cursor, 1);
   expect(second.status).toBe("paused");
-  expect(second.cursor).toMatchObject({ phase: "yard", yardCode: "OO95" });
-  expect(second.count).toBe(1);
-  expect(requests.map((url) => new URL(url).searchParams.get("id"))).toEqual([
-    null,
-    "MO09",
-  ]);
+  expect(second.cursor).toMatchObject({ phase: "opening", yardCode: "OO95" });
+  expect(second.count).toBe(2);
+  expect(requested(requests)).toEqual(["home", ...traversal("MO09")]);
 });
 
-test("Midway rejects a saturated native view before any inventory callback", async () => {
+test("Midway rejects a saturated native make page before any inventory callback", async () => {
   const requests = mockInventory({
     records: {
       MO38: Array.from({ length: 500 }, (_, index) => ({
@@ -139,7 +196,32 @@ test("Midway rejects a saturated native view before any inventory callback", asy
     ),
   ).rejects.toThrow("500-row");
   expect(callbacks).toBe(0);
-  expect(requests).toHaveLength(2);
+  expect(requested(requests)).toEqual(["home", "MO38 ANY", "MO38 CHRYSLER"]);
+});
+
+test("Midway refuses a make page as large as the capped broad view before any callback", async () => {
+  // A broad view that stopped at 2 rows proves the cap can be 2, so a 2-row
+  // make page may be capped the same way.
+  const requests = mockInventory({
+    makePages: {
+      MO38: { CHRYSLER: [midwayTestRecord, secondRecord] },
+    },
+  });
+  let callbacks = 0;
+  const count = () =>
+    Effect.sync(() => {
+      callbacks++;
+    });
+  await expect(
+    Effect.runPromise(
+      streamMidwayInventoryWithRequestGate(
+        { onBatch: count, onYards: count },
+        gate,
+      ),
+    ),
+  ).rejects.toThrow("may be truncated");
+  expect(callbacks).toBe(0);
+  expect(requested(requests)).toEqual(["home", "MO38 ANY", "MO38 CHRYSLER"]);
 });
 
 test.each(["same-yard", "cross-yard"])(
@@ -148,8 +230,8 @@ test.each(["same-yard", "cross-yard"])(
     mockInventory({
       records:
         scope === "same-yard"
-          ? { MO38: [midwayTestRecord, midwayTestRecord] }
-          : { MO09: [midwayTestRecord] },
+          ? { MO38: [midwayTestRecord, midwayTestRecord, muncieFord] }
+          : { MO09: [midwayTestRecord, libertyFord] },
     });
     await expect(run()).rejects.toThrow("Duplicate native stock/VIN");
   },
@@ -158,11 +240,12 @@ test.each(["same-yard", "cross-yard"])(
 function records() {
   return Array.from({ length: 10 }, (_, index) => ({
     ...midwayTestRecord,
+    ...(index % 2 ? { make: "FORD", model: "F-150" } : {}),
     vin: "1C3CCCAB6GN" + String(125544 + index),
     stock: String(2604445 + index),
   }));
 }
-test("Midway checks per-yard rejection before callbacks and retains rejected VIN presence", async () => {
+test("Midway checks per-yard rejection before publishing the yard and retains rejected VIN presence", async () => {
   const rows = records().map((r, i) =>
     i === 9 ? { ...r, model: "Unknown" } : r,
   );
@@ -176,17 +259,28 @@ test("Midway checks per-yard rejection before callbacks and retains rejected VIN
       MO38: rows.map((r, i) => (i === 8 ? { ...r, model: "Unknown" } : r)),
     },
   });
-  let callbacks = 0;
+  // Make pages stage donors as they are read; the yard-wide guard runs at
+  // the closing witness, before the yard is published.
+  let yards = 0;
   await expect(
-    run(() =>
-      Effect.sync(() => {
-        callbacks++;
-      }),
+    Effect.runPromise(
+      streamMidwayInventoryWithRequestGate(
+        {
+          onBatch: () => Effect.void,
+          onYards: () =>
+            Effect.sync(() => {
+              yards++;
+            }),
+        },
+        gate,
+      ),
     ),
   ).rejects.toThrow("10% rejection limit");
-  expect(callbacks).toBe(0);
+  expect(yards).toBe(0);
   mockInventory({
-    records: { MO09: [{ ...secondRecord, vin: "1C3CCCAB6GN125553" }] },
+    records: {
+      MO09: [{ ...secondRecord, vin: "1C3CCCAB6GN125553" }, libertyFord],
+    },
   });
   await expect(run(undefined, result.cursor)).rejects.toThrow(
     "Duplicate native stock/VIN",
@@ -274,10 +368,10 @@ test("Midway rejects a redirected response before callbacks", async () => {
   await expect(run()).rejects.toThrow("unredirected HTTP 200");
 });
 
-test("Midway keeps advancing through its first yards when every shared host turn waits minutes", async () => {
+test("Midway keeps advancing through a yard traversal when every shared host turn waits minutes", async () => {
   // About 20 URG sources share one lease at 07:00, so each turn waits about
   // 2.5 minutes. The old five-minute wall deadline counted that queue time,
-  // and the ownership page took a turn of its own before every yard.
+  // and the ownership page took a turn of its own before every request.
   const requests = mockInventory();
   const vehicles: MidwayCanonicalVehicle[] = [];
   const chunk = (startCursor: MidwayCursor | undefined) =>
@@ -294,32 +388,32 @@ test("Midway keeps advancing through its first yards when every shared host turn
     );
   const first = await chunk(undefined);
   if (Either.isLeft(first.result)) throw first.result.left;
-  // The ownership page and MO38 share one turn, and the chunk advances.
-  expect(first.result.right.pagesProcessed).toBe(1);
-  expect(first.result.right.cursor).toMatchObject({ yardCode: "MO09" });
+  // The ownership page and the Muncie opening witness share one turn, and
+  // the chunk advances to the make traversal.
+  expect(first.result.right.pagesProcessed).toBe(0);
+  expect(first.result.right.cursor).toMatchObject({
+    phase: "census",
+    yardCode: "MO38",
+    makes: ["CHRYSLER", "FORD", "JEEP"],
+  });
   expect(first.elapsedMs).toBeLessThanOrEqual(6 * 60_000);
   expect(first.turns).toHaveLength(1);
   expect(first.turns.every((turn) => turn.releasedAt !== null)).toBe(true);
-  expect(vehicles.map((v) => v.stateAbbr)).toEqual(["KS"]);
-  expect(requests.map((url) => new URL(url).searchParams.get("id"))).toEqual([
-    null,
-    "MO38",
-  ]);
+  expect(vehicles).toEqual([]);
+  expect(requested(requests)).toEqual(["home", "MO38 ANY"]);
 
-  // A resumed chunk re-checks ownership in the same turn as its next yard.
+  // A resumed chunk re-checks ownership in the same turn as its next make.
   requests.length = 0;
-  vehicles.length = 0;
-  if (first.result.right.cursor.phase !== "yard")
-    throw new Error("Expected a yard checkpoint");
   const second = await chunk(first.result.right.cursor);
   if (Either.isLeft(second.result)) throw second.result.left;
-  expect(second.result.right.pagesProcessed).toBe(1);
-  expect(second.result.right.cursor).toMatchObject({ yardCode: "OO95" });
+  expect(second.result.right.pagesProcessed).toBe(0);
+  expect(second.result.right.cursor).toMatchObject({
+    phase: "census",
+    yardCode: "MO38",
+    makes: ["FORD", "JEEP"],
+  });
   expect(second.elapsedMs).toBeLessThanOrEqual(6 * 60_000);
   expect(second.turns).toHaveLength(1);
-  expect(vehicles.map((v) => v.stateAbbr)).toEqual(["MO"]);
-  expect(requests.map((url) => new URL(url).searchParams.get("id"))).toEqual([
-    null,
-    "MO09",
-  ]);
+  expect(vehicles.map((v) => v.stateAbbr)).toEqual(["KS"]);
+  expect(requested(requests)).toEqual(["home", "MO38 CHRYSLER"]);
 }, 120_000);

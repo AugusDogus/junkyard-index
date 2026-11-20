@@ -2,10 +2,12 @@
 
 See the current [source flags and census floors](provider-coverage-go-live.md).
 
-`midway` enumerates two native self-service donor catalogs. It admits native
-VINs (or eligible pre-1981 serials), year, make and model. Color, stock, photos,
-inventory date and yard position are optional, with absent or unverified values
-stored as null.
+`midway` enumerates three native self-service donor catalogs (Muncie, Liberty
+and Tulsa), each by make traversal. See "Every yard by make, November 19" below;
+earlier sections that describe broad-table admission for Muncie and Liberty are
+history. It admits native VINs (or eligible pre-1981 serials), year, make and
+model. Color, stock, photos, inventory date and yard position are optional, with
+absent or unverified values stored as null.
 
 | Native selector | Physical yard                                                   | Verified snapshot        |
 | --------------- | --------------------------------------------------------------- | ------------------------ |
@@ -125,3 +127,47 @@ Admission: `midway-tulsa-local-admission.json` in its parent directory.
 prior-yard identities and the Census response. `midway-expansion.test.ts`
 replays the actual production collector, all 59 controls, explicit empty pages,
 closing, yard link targets and exact accounting without live requests.
+
+## Every yard by make, November 19
+
+The Muncie and Liberty broad tables are not complete. Like Tulsa's, they are
+newest-first views with a cap, but the cap is lower and varies by day: Muncie
+returned 415 rows on November 18 and 400 on November 19, and Liberty 333. The
+cap cuts mid-date. A same-day Muncie `search=2026-09-1` table listed 35 donors
+absent from the 400-row broad table. A Liberty `search=2026-09` table listed
+209 September donors, 196 of them absent from production, and the Liberty JEEP
+make page lists 26 Jeeps, 12 absent from production. `pagenum` is ignored on
+plugin v1.8, so a make partition is the only way past the cap.
+
+The connector now treats every broad table as a capped witness and never
+admits one. Each yard runs the Tulsa traversal: an opening broad witness, one
+page per native make control from the opening's make menu, then a closing
+broad witness that must equal the opening. Every witness row must appear on
+some make page. A make page is refused at 500 rows, and also when it has at
+least as many rows as the opening broad table, because a broad table that
+stopped at N rows proves the cap can be as low as N. Yard identity, duplicate
+stock/VIN checks across yards, explicit empty makes, the per-yard 10%
+rejection limit and nonzero accepted guard, per-make checkpoints, the soft
+stop and shared host turns are unchanged.
+
+The checkpoint phases are now `opening` and `census`, both carrying the yard
+code. Older `yard` and `tulsa` checkpoints fail validation, so a run saved
+before this change fails clearly and the next run starts fresh rather than
+resuming a yard admitted from a truncated table.
+
+Cost: about 3 x (opening + 59 makes + closing) plus one home page per chunk,
+roughly 190 requests per daily run instead of 67 when the shared host is
+uncontended. Under 07:00 shared-host contention (turns of about 2.5 minutes) a
+chunk gets through only about one native page after its home check, so a run
+can take up to about twice that, roughly 370 requests and 7 to 8 hours of
+turns. The longer Muncie and Liberty opening-to-closing windows make a closing
+witness mismatch more likely, and the Cloudflare edge cache (`max-age=3600`)
+can serve the same render to both witnesses and hide drift. A daily
+newest-first window with a weekly census would be cheaper, but the durable
+pipeline has no scoped departure mode, so a window run would mark every unseen
+donor departed.
+
+`midway-broad-cap.test.ts` replays the November 19 captures under
+`midway-test-fixtures/`: the 400-row Muncie broad table is never admitted, and
+make pages built from the broad and date-search rows recover the 35 missing
+Muncie donors.

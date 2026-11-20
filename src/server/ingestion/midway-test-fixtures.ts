@@ -1,5 +1,8 @@
 import type { MidwayRecord } from "./midway-parser";
-import type { MidwayYardCode } from "./midway-yard-metadata";
+import {
+  midwayMakeInventoryUrl,
+  type MidwayYardCode,
+} from "./midway-yard-metadata";
 
 export const midwayTestRecord = {
   year: "2016",
@@ -35,14 +38,35 @@ export function midwayTestRow(record: MidwayRecord = midwayTestRecord) {
     .join("")}</tr>`;
 }
 
+const yardLabel = (code: MidwayYardCode) =>
+  ({ MO38: "Muncie", MO09: "Liberty", OO95: "Tulsa" })[code] + " U-Pull";
+const locationSelect = (code: MidwayYardCode) =>
+  `<select class="upullsimpleLocation"><option value="ANY">ANY</option>
+<option value="${code}" selected>${yardLabel(code)}</option></select>`;
+const scopeScript = (code: MidwayYardCode, make: string | undefined) =>
+  `<script>var setMake = "${(make ?? "ANY").replace(" ", "_").replace("/", ".")}"
+var setModel = "ANY"
+var urgID = "${code}"</script>`;
+
+/**
+ * A native table page. Without `make` it is the yard's broad view, whose make
+ * menu lists `makes`; with `make` it is that make control's page.
+ */
 export function midwayTestPage(
   rows = midwayTestRow(),
   code: MidwayYardCode = "MO38",
+  options: { make?: string; makes?: readonly string[] } = {},
 ) {
+  const action = options.make
+    ? new URL(midwayMakeInventoryUrl(code, options.make)).pathname
+    : "/inventory/ANY/ANY/";
+  const menu = (options.makes ?? [])
+    .map((make) => `<option value="${make}">${make}</option>`)
+    .join("");
   return `<html><body>
-<select class="upullsimpleLocation"><option value="ANY">ANY</option>
-<option value="${code}" selected>${code === "MO38" ? "Muncie" : "Liberty"} U-Pull</option></select>
-<form action="/inventory/ANY/ANY/" class="iis-upull-search-form" method="get">
+${locationSelect(code)}
+<select class="upullsimpleMake"><option>Choose Make...</option><option value="ANY">ANY</option>${menu}</select>
+<form action="${action}" class="iis-upull-search-form" method="get">
 <input name="k" value="1"><input name="id" value="${code}"><input name="view" value="table"><input name="search" value=""></form>
 Some vehicles may not show parts available if we haven't parted them out yet.
 <table class="table IISUpullTable" data-toggle="table" data-search="true" data-pagination="true"><thead><tr>${[
@@ -58,6 +82,16 @@ Some vehicles may not show parts available if we haven't parted them out yet.
   ]
     .map((heading) => `<th>${heading}</th>`)
     .join("")}</tr></thead><tbody>${rows}</tbody></table>
+${scopeScript(code, options.make)}
 <script src="//unpkg.com/bootstrap-table@1.21.4/dist/bootstrap-table.min.js?ver=1.8"></script>
+</body></html>`;
+}
+
+/** A make control's explicit native empty response. */
+export function midwayTestEmptyPage(code: MidwayYardCode, make: string) {
+  return `<html><body>
+${locationSelect(code)}
+No Results Found. Try Browsing Our Parts Or Search Again
+${scopeScript(code, make)}
 </body></html>`;
 }

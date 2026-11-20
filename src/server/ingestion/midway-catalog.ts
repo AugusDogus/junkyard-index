@@ -16,10 +16,13 @@ const digest = (value: unknown) =>
 export const midwayRecordDigest = (record: MidwayRecord) => digest(record);
 
 /**
- * A capped broad view is a coverage witness, never an admitted enumeration.
- * The opening census fixes the make controls to traverse, the witness rows
- * each make page must reproduce exactly, and the fingerprint the closing broad
- * view must match. Only digests are kept so the census fits in a checkpoint.
+ * A broad view is a capped newest-first coverage witness for every yard, never
+ * an admitted enumeration: Muncie and Liberty stop well below 500 rows at a
+ * cap that varies by day and cuts mid-date. The opening census fixes the make
+ * controls to traverse, the witness rows each make page must reproduce
+ * exactly, the fingerprint the closing broad view must match, and the row
+ * count no make page may reach. Only digests are kept so the census fits in a
+ * checkpoint.
  */
 export function openMidwayMakeCensus(
   opening: string,
@@ -31,7 +34,25 @@ export function openMidwayMakeCensus(
     makes,
     witness: [...new Set(witness.map(midwayRecordDigest))],
     openingHash: digest(witness),
+    openingRows: witness.length,
   };
+}
+
+/**
+ * The opening broad view stopped at `openingRows`, which proves the native cap
+ * can be that low. A make page that large may be capped the same way, so its
+ * partition cannot be proven complete.
+ */
+export function assertMidwayMakePartition(
+  rows: number,
+  code: MidwayInventoryCode,
+  make: string,
+  openingRows: number,
+) {
+  if (rows >= openingRows)
+    throw new Error(
+      `Midway ${code} make ${make} listed ${rows} donors, at least the ${openingRows}-row broad view that may itself be capped; this make page may be truncated and its completeness cannot be verified`,
+    );
 }
 
 /** The closing broad view must equal the opening one, or a donor may have

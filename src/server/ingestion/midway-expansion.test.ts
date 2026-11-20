@@ -90,7 +90,7 @@ function replayCensus(latencyMs = 0) {
 }
 const tulsaStart: MidwayCursor = {
   source: "midway",
-  phase: "yard",
+  phase: "opening",
   yardCode: "OO95",
   observedVins: saved.previous.map((r) => r.vin),
   stocks: saved.previous.flatMap((r) => (r.stockNumber ? [r.stockNumber] : [])),
@@ -206,14 +206,14 @@ test("a slow Tulsa make traversal checkpoints within the chunk budget and resume
     chunks.push({
       status: result.status,
       phase: cursor.phase,
-      makes: cursor.phase === "tulsa" ? cursor.makes.length : 0,
+      makes: cursor.phase === "census" ? cursor.makes.length : 0,
     });
   }
   const perChunk = Math.ceil(MIDWAY_CHUNK_SOFT_MS / 15_000);
   expect(chunks.length).toBeGreaterThan(2);
   expect(chunks[0]).toEqual({
     status: "paused",
-    phase: "tulsa",
+    phase: "census",
     makes: 59 - (perChunk - 2),
   });
   expect(chunks.at(-1)).toEqual({
@@ -248,10 +248,12 @@ test("a resumed Tulsa traversal still fails closed on missed donors, closing dri
     source: "midway",
     observedVins: tulsaStart.observedVins,
     stocks: tulsaStart.stocks,
-    phase: "tulsa",
+    phase: "census",
+    yardCode: "OO95",
     makes: [],
     witness: [],
     openingHash: census.openingHash,
+    openingRows: census.openingRows,
     processed: 100,
     rejected: 0,
   } satisfies MidwayCursor;

@@ -6,8 +6,9 @@ import {
   MidwayProviderError,
 } from "./midway-client";
 import { MidwayCursor, MidwayCursorSchema } from "./midway-cursor";
-import { parseMidwayCatalog, type MidwayRecord } from "./midway-parser";
+import type { MidwayRecord } from "./midway-parser";
 import {
+  assertMidwayMakePartition,
   closeMidwayMakeCensus,
   fetchMidwayMakeRecords,
   midwayRecordDigest,
@@ -46,6 +47,13 @@ export type MidwayStreamResult = ConnectorChunkResult<"midway", MidwayCursor>;
  * its own latency; the remainder covers that wait plus the 25-second request.
  */
 export const MIDWAY_CHUNK_SOFT_MS = 120_000;
+
+/** Yards are traversed in this order; each carries the earlier identities. */
+const MIDWAY_YARD_ORDER = [
+  "MO38",
+  "MO09",
+  "OO95",
+] as const satisfies readonly MidwayYardCode[];
 
 /** Dedupe and transform one native page of donors against prior identities. */
 function admitMidwayRecords(
@@ -99,9 +107,11 @@ function assertMidwayYardQuality(processed: number, rejected: number) {
 
 /**
  * One page unit validates and emits one complete selected physical yard.
- * Tulsa exceeds the native 500-row view, so its make traversal checkpoints
- * after every make page and completes only when the closing broad witness
- * proves the whole traversal, across however many chunks it takes.
+ * Every yard's broad view is a capped newest-first witness (Tulsa at 500,
+ * Muncie and Liberty at a lower cap that varies by day), so each yard is a
+ * make traversal that checkpoints after every make page and completes only
+ * when the closing broad witness proves the whole traversal, across however
+ * many chunks it takes.
  */
 export function streamMidwayInventoryWithRequestGate<E, R>(
   options: MidwayOptions<E, R>,
@@ -175,64 +185,24 @@ export function streamMidwayInventoryWithRequestGate<E, R>(
         (yield* Clock.currentTimeMillis) - started >= MIDWAY_CHUNK_SOFT_MS
       )
         break;
-      if (cursor.phase === "yard" && cursor.yardCode !== "OO95") {
-        const code = cursor.yardCode;
-        const previousVins = cursor.observedVins;
-        const previousStocks = cursor.stocks;
+      const code = cursor.yardCode;
+      if (cursor.phase === "opening") {
         const read = yield* turn(fetchMidwayCatalog(code, gate));
-        if (Option.isNone(read)) break;
-        const html = read.value;
-        nativePages++;
-        const snapshot = yield* ingestionValidation({
-          try: () => {
-            const records = parseMidwayCatalog(html, code);
-            const admitted = admitMidwayRecords(
-              records,
-              code,
-              previousVins,
-              previousStocks,
-            );
-            assertMidwayYardQuality(records.length, admitted.rejected);
-            return { ...admitted, processed: records.length };
-          },
-          catch: (cause) =>
-            new MidwayProviderError({
-              operation: "yard " + code + " complete inventory validation",
-              cause,
-            }),
-        });
-        if (options.onYards) yield* options.onYards([MIDWAY_YARDS[code]]);
-        yield* options.onBatch(snapshot.vehicles);
-        count += snapshot.vehicles.length;
-        accounting.recordsProcessed += snapshot.processed;
-        accounting.recordsRejected += snapshot.rejected;
-        observedVins.push(...snapshot.rejectedVins);
-        pagesProcessed++;
-        cursor = {
-          source: "midway",
-          phase: "yard",
-          yardCode: code === "MO38" ? "MO09" : "OO95",
-          observedVins: snapshot.vins,
-          stocks: snapshot.stocks,
-        };
-        continue;
-      }
-      if (cursor.phase === "yard") {
-        const read = yield* turn(fetchMidwayCatalog("OO95", gate));
         if (Option.isNone(read)) break;
         const opening = read.value;
         nativePages++;
         const census = yield* ingestionValidation({
-          try: () => openMidwayMakeCensus(opening, "OO95"),
+          try: () => openMidwayMakeCensus(opening, code),
           catch: (cause) =>
             new MidwayProviderError({
-              operation: "Tulsa opening coverage witness",
+              operation: "yard " + code + " opening coverage witness",
               cause,
             }),
         });
         cursor = {
           source: "midway",
-          phase: "tulsa",
+          phase: "census",
+          yardCode: code,
           observedVins: cursor.observedVins,
           stocks: cursor.stocks,
           ...census,
@@ -241,29 +211,37 @@ export function streamMidwayInventoryWithRequestGate<E, R>(
         };
         continue;
       }
-      const tulsa = cursor;
-      const [make, ...remaining] = tulsa.makes;
+      const yard = cursor;
+      const [make, ...remaining] = yard.makes;
       if (make !== undefined) {
-        const read = yield* turn(fetchMidwayMakeRecords("OO95", make, gate));
+        const read = yield* turn(fetchMidwayMakeRecords(code, make, gate));
         if (Option.isNone(read)) break;
         const records = read.value;
         nativePages++;
         const admitted = yield* ingestionValidation({
-          try: () =>
-            admitMidwayRecords(
+          try: () => {
+            assertMidwayMakePartition(
+              records.length,
+              code,
+              make,
+              yard.openingRows,
+            );
+            return admitMidwayRecords(
               records,
-              "OO95",
-              tulsa.observedVins,
-              tulsa.stocks,
-            ),
+              code,
+              yard.observedVins,
+              yard.stocks,
+            );
+          },
           catch: (cause) =>
             new MidwayProviderError({
-              operation: "yard OO95 make " + make + " inventory validation",
+              operation:
+                "yard " + code + " make " + make + " inventory validation",
               cause,
             }),
         });
         // Staged only; the run cannot publish until the closing witness and
-        // yard-wide rejection guard below accept the whole Tulsa traversal.
+        // yard-wide rejection guard below accept the whole make traversal.
         if (admitted.vehicles.length) yield* options.onBatch(admitted.vehicles);
         count += admitted.vehicles.length;
         accounting.recordsProcessed += records.length;
@@ -271,34 +249,44 @@ export function streamMidwayInventoryWithRequestGate<E, R>(
         observedVins.push(...admitted.rejectedVins);
         const reproduced = new Set(records.map(midwayRecordDigest));
         cursor = {
-          ...tulsa,
+          ...yard,
           makes: remaining,
-          witness: tulsa.witness.filter((hash) => !reproduced.has(hash)),
+          witness: yard.witness.filter((hash) => !reproduced.has(hash)),
           observedVins: admitted.vins,
           stocks: admitted.stocks,
-          processed: tulsa.processed + records.length,
-          rejected: tulsa.rejected + admitted.rejected,
+          processed: yard.processed + records.length,
+          rejected: yard.rejected + admitted.rejected,
         };
         continue;
       }
-      const read = yield* turn(fetchMidwayCatalog("OO95", gate));
+      const read = yield* turn(fetchMidwayCatalog(code, gate));
       if (Option.isNone(read)) break;
       const closing = read.value;
       nativePages++;
       yield* ingestionValidation({
         try: () => {
-          closeMidwayMakeCensus(closing, "OO95", tulsa);
-          assertMidwayYardQuality(tulsa.processed, tulsa.rejected);
+          closeMidwayMakeCensus(closing, code, yard);
+          assertMidwayYardQuality(yard.processed, yard.rejected);
         },
         catch: (cause) =>
           new MidwayProviderError({
-            operation: "yard OO95 complete inventory validation",
+            operation: "yard " + code + " complete inventory validation",
             cause,
           }),
       });
-      if (options.onYards) yield* options.onYards([MIDWAY_YARDS.OO95]);
+      if (options.onYards) yield* options.onYards([MIDWAY_YARDS[code]]);
       pagesProcessed++;
-      cursor = { source: "midway", phase: "complete" };
+      const next = MIDWAY_YARD_ORDER[MIDWAY_YARD_ORDER.indexOf(code) + 1];
+      cursor =
+        next === undefined
+          ? { source: "midway", phase: "complete" }
+          : {
+              source: "midway",
+              phase: "opening",
+              yardCode: next,
+              observedVins: yard.observedVins,
+              stocks: yard.stocks,
+            };
     }
     return {
       source: "midway",
