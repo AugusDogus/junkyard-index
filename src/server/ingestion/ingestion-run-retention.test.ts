@@ -506,16 +506,19 @@ describe("ingestion run retention", () => {
     ).toBe(true);
   });
 
-  test("logs a failed batch and lets post-pass publication continue, then retries", async () => {
+  test("reports a failed batch as a value, logs it, then retries", async () => {
     const { client, database } = await setup();
     await addRun(database, "old");
     const error = new Error("retention database unavailable");
     const failing = spyOn(database, "run").mockRejectedValueOnce(error);
     const log = spyOn(console, "error").mockImplementation(() => {});
     try {
-      await expect(
-        pruneIngestionRuns({ database, now }),
-      ).resolves.toBeUndefined();
+      expect(await pruneIngestionRuns({ database, now })).toEqual({
+        status: "failed",
+        deleted: 0,
+        batch: 1,
+        message: "retention database unavailable",
+      });
       expect(log).toHaveBeenCalledWith(
         "Ingestion run pruning failed; retrying next pass",
         {
@@ -533,7 +536,48 @@ describe("ingestion run retention", () => {
       failing.mockRestore();
       log.mockRestore();
     }
-    await pruneIngestionRuns({ database, now });
+    expect(await pruneIngestionRuns({ database, now })).toEqual({
+      status: "done",
+      deleted: 1,
+      complete: true,
+    });
     expect(await ids(client)).toEqual([]);
+  });
+
+  test("prunes pre-v2 runs that ended as success in the sources stage", async () => {
+    const { client, database } = await setup();
+    await addRun(database, "legacy", {
+      stage: "sources",
+      releasedAt: null,
+      publicationSequence: null,
+    });
+    await addRun(database, "unreleased-v2", {
+      stage: "project_changes",
+      releasedAt: null,
+    });
+    expect(await pruneIngestionRuns({ database, now })).toEqual({
+      status: "done",
+      deleted: 1,
+      complete: true,
+    });
+    expect(await ids(client)).toEqual(["unreleased-v2"]);
+  });
+
+  test("keeps legacy runs that still own rows of the vehicle_change archive", async () => {
+    const { client, database } = await setup();
+    await addRun(database, "archived", {
+      stage: "sources",
+      releasedAt: null,
+      publicationSequence: null,
+    });
+    await client.execute(
+      "insert into vehicle_change (id, run_id) values (1, 'archived')",
+    );
+    await pruneIngestionRuns({ database, now });
+    expect(await ids(client)).toEqual(["archived"]);
+    expect(
+      (await client.execute("select count(*) as n from vehicle_change")).rows[0]
+        ?.n,
+    ).toBe(1);
   });
 });

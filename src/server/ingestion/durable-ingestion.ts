@@ -1,6 +1,5 @@
 import { isValidationRejection } from "./ingestion-validation";
 import type { DurableWorkflowCursor } from "./durable-workflow-cursor";
-import { pruneIngestionRuns } from "./ingestion-run-retention";
 import { ALGOLIA_INDEX_NAME, getAlgoliaAdminClient } from "~/lib/algolia";
 import {
   cleanupInactiveRunRebuild,
@@ -309,15 +308,15 @@ export function cleanupDurableIngestionStateBatch(runId: string) {
   return repository.cleanupBatch(runId);
 }
 
-export function cleanupStaleDurableIngestionSnapshots(): Promise<void> {
-  return repository.cleanupStaleSnapshots();
-}
 
+/**
+ * Deletes leaked temporary rebuild indices at the end of a completed pass.
+ * Run pruning moved to the daily ingestion-maintenance consumer; this sweep
+ * stays here until the search projector owns it.
+ */
 export async function cleanupStaleDurableAlgoliaRebuilds(): Promise<void> {
-  await pruneIngestionRuns({ database: db });
-  // Frozen search makes no Algolia request, so a blocked Algolia cannot fail
-  // the pass's homepage refresh. Skipped runs create no temp indices; the
-  // sweep resumes once the switch is off.
+  // Frozen search makes no Algolia request. Skipped runs create no temp
+  // indices; the sweep resumes once the switch is off.
   if ((await SearchPublicationFlag.mode()) === "skipped") return;
   await cleanupStaleRebuildIndices({
     database: db,

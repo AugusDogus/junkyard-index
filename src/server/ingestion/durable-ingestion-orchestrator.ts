@@ -44,7 +44,6 @@ export interface DurableIngestionOperations {
     source: Source,
     message: string,
   ) => Promise<DurableWorkflowChunkResult<Source>>;
-  cleanupStale: () => Promise<void>;
   initialize: (runId: string) => Promise<DurableWorkflowStart>;
   validateSources: (runId: string) => Promise<DurableSourceValidationSummary>;
   reconcile: (runId: string) => Promise<DurableReconciliationBatchResult>;
@@ -201,10 +200,8 @@ export async function stageDurableIngestion(params: {
   operations: DurableIngestionOperations;
 }): Promise<DurableIngestionStaging> {
   // Invoke step callbacks without serializing the operations object as `this`.
-  const { cleanupStale, initialize, validateSources, markRunFailed } =
-    params.operations;
+  const { initialize, validateSources, markRunFailed } = params.operations;
   return recordingFailure(params.runId, markRunFailed, async () => {
-    await cleanupStale();
     const initialized = await initialize(params.runId);
     if (initialized.status === "deduplicated") return initialized;
     const ingestSource = (initialCursor: DurableWorkflowCursor) =>

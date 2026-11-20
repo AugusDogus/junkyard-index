@@ -4,10 +4,15 @@ import { revalidateTag } from "next/cache";
 import { db } from "~/lib/db";
 import type { IndexNowSubmission } from "~/lib/indexnow";
 import { INVENTORY_CACHE_TAG } from "~/lib/inventory-cache";
+import { env } from "~/env";
 import {
   ConsumerFlags,
+  type ConsumerMode,
   type DownstreamConsumer,
 } from "~/server/ingestion/consumer-flags";
+import type { MaintenanceTaskResult } from "~/server/ingestion/ingestion-maintenance";
+import { IngestionMaintenanceTasks } from "~/server/ingestion/ingestion-maintenance-tasks";
+import { IngestionSnapshotStore } from "~/server/ingestion/ingestion-snapshot-store";
 import type { ConsumerTickOutcome } from "~/server/ingestion/consumer-heartbeats";
 import type { ConsumerTickSummary } from "~/server/ingestion/consumer-report";
 import { reportConsumerTickNow } from "~/server/ingestion/consumer-report-runtime";
@@ -184,3 +189,35 @@ export async function announceInventoryStep(
   return announcement.status;
 }
 announceInventoryStep.maxRetries = 0;
+
+export async function consumerModeStep(
+  consumer: DownstreamConsumer,
+): Promise<ConsumerMode> {
+  "use step";
+
+  return ConsumerFlags.mode(consumer);
+}
+
+/** Prunes old ingestion runs; a failure is returned, not thrown. */
+export async function pruneIngestionRunsStep(): Promise<MaintenanceTaskResult> {
+  "use step";
+
+  return IngestionMaintenanceTasks.pruneRuns(db, new Date());
+}
+
+/** Deletes Blob chunks of runs no longer active; failures are returned. */
+export async function cleanupStaleSnapshotsStep(): Promise<MaintenanceTaskResult> {
+  "use step";
+
+  return IngestionMaintenanceTasks.staleSnapshots(
+    db,
+    IngestionSnapshotStore.vercelBlob(env.BLOB_READ_WRITE_TOKEN),
+  );
+}
+
+/** Purges old delivered or cancelled intents; failures are returned. */
+export async function purgeTerminalIntentsStep(): Promise<MaintenanceTaskResult> {
+  "use step";
+
+  return IngestionMaintenanceTasks.terminalIntents(db, new Date());
+}

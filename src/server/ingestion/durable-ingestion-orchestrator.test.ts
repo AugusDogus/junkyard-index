@@ -129,7 +129,6 @@ function makeOperations(
   overrides: Partial<DurableIngestionOperations> = {},
 ): DurableIngestionOperations {
   return {
-    cleanupStale: async () => undefined,
     initialize: async (runId) => ({
       status: "started",
       runId,
@@ -406,12 +405,8 @@ describe("durable ingestion lifecycle", () => {
     const result = await executeDurableIngestion({
       runId: "run-1",
       operations: makeOperations({
-        cleanupStale: async function (this: unknown) {
-          stringify({ args: [], thisVal: this });
-          expect(this).toBeUndefined();
-          events.push("cleanup-stale");
-        },
         initialize: async function (this: unknown, runId) {
+          stringify({ args: [runId], thisVal: this });
           expect(this).toBeUndefined();
           events.push("initialize");
           return {
@@ -452,9 +447,10 @@ describe("durable ingestion lifecycle", () => {
       ingestion: COMPLETED_INGESTION,
       search: "pending",
     });
-    expect(events.slice(0, 2)).toEqual(["cleanup-stale", "initialize"]);
-    const sourcePhaseEnd = 2 + DURABLE_INGESTION_SOURCES.length;
-    expect(events.slice(2, sourcePhaseEnd).sort()).toEqual(
+    // Stale snapshot cleanup runs in the daily maintenance consumer, not here.
+    expect(events.slice(0, 1)).toEqual(["initialize"]);
+    const sourcePhaseEnd = 1 + DURABLE_INGESTION_SOURCES.length;
+    expect(events.slice(1, sourcePhaseEnd).sort()).toEqual(
       DURABLE_INGESTION_SOURCES.map((source) => `source:${source}`).sort(),
     );
     expect(events.slice(sourcePhaseEnd)).toEqual(["reconcile"]);
@@ -465,9 +461,6 @@ describe("durable ingestion lifecycle", () => {
     const result = await executeDurableIngestion({
       runId: "run-1",
       operations: makeOperations({
-        cleanupStale: async () => {
-          events.push("cleanup-stale");
-        },
         initialize: async () => {
           events.push("initialize");
           return { status: "deduplicated", activeRunId: "run-0" };
@@ -479,7 +472,7 @@ describe("durable ingestion lifecycle", () => {
     });
 
     expect(result).toEqual({ status: "deduplicated", activeRunId: "run-0" });
-    expect(events).toEqual(["cleanup-stale", "initialize"]);
+    expect(events).toEqual(["initialize"]);
   });
 
   test("stops when abandonment fences source validation", async () => {

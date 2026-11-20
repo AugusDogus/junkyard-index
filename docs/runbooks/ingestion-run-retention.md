@@ -1,9 +1,19 @@
 # Ingestion run retention
 
-Post-pass housekeeping prunes terminal runs after 90 days.
-The fixed limit is 100 runs per atomic delete, at most ten batches per pass.
-Failures log the operation, cutoff, batch and error, then retry next pass.
-Publication and homepage refresh do not depend on pruning succeeding.
+The daily ingestion-maintenance consumer (`/api/cron/ingestion-maintenance`,
+08:30 UTC) prunes terminal runs after 90 days, whether or not any ingestion
+pass completes. The fixed limit is 100 runs per atomic delete, at most ten
+batches per run. A failure logs the operation, cutoff, batch and error, is
+returned as the task's result (Sentry and the consumer heartbeat report it),
+and the next day's run retries. Publication and homepage refresh do not depend
+on pruning succeeding.
+
+Runs from before durable ingestion v2 ended as `success` in stage `sources`
+and prune like released runs. The exception is a legacy run that still owns
+rows of the legacy `vehicle_change` archive (173 runs, 3.16M rows in November
+2026): it stays until that table is exported to Blob and dropped, because the
+cascade would otherwise delete the archive unexported and cost millions of row
+writes.
 
 The retention index covers `completed_at` for inactive runs. Completion, release
 and last progress must precede the cutoff. Running, unknown, active, incompletely terminal
@@ -65,7 +75,7 @@ including all registered sources. The six foreign-key children all cascade:
   history; unfinished intents retain their owner. Archival changes and
   delivered/cancelled intents cascade. Daily check rows (one a day) are not
   pruned here.
-- Workflow post-pass housekeeping is the only pruning entry point. Operational
+- The ingestion-maintenance consumer is the only pruning entry point. Operational
   scripts use these ingestion functions rather than introducing separate run
   references. Migration, reconciliation, scheduler,
   publication, alert and retention tests exercise these contracts offline.

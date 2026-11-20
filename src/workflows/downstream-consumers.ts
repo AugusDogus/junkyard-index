@@ -4,9 +4,18 @@ import {
   runInventoryDownstream,
   type InventoryDownstreamResult,
 } from "~/server/ingestion/inventory-downstream-consumer";
+import {
+  runIngestionMaintenance,
+  summarizeIngestionMaintenance,
+  type IngestionMaintenanceResult,
+} from "~/server/ingestion/ingestion-maintenance";
 import { IngestionTokens } from "./ingestion-tokens";
 import {
   announceInventoryStep,
+  cleanupStaleSnapshotsStep,
+  consumerModeStep,
+  pruneIngestionRunsStep,
+  purgeTerminalIntentsStep,
   inventoryDownstreamDueStep,
   recordInventoryDownstreamFailureStep,
   recordInventoryDownstreamStep,
@@ -61,6 +70,48 @@ export async function inventoryDownstreamWorkflow(checkedAt: string) {
     "inventory-downstream",
     inventoryDownstreamTickOutcome(result),
     result,
+  );
+  return result;
+}
+
+/**
+ * The daily ingestion-maintenance consumer: run pruning, stale Blob snapshot
+ * chunks and old delivered or cancelled intents. Each task's result is
+ * reported as a value; a failed task fails the tick's heartbeat, and
+ * tomorrow's run retries what is left.
+ */
+export async function ingestionMaintenanceWorkflow() {
+  "use workflow";
+
+  using consumer = createHook({
+    token: IngestionTokens.consumer("maintenance"),
+  });
+  const activeConsumer = await consumer.getConflict();
+  if (activeConsumer) {
+    return {
+      status: "deduplicated" as const,
+      activeRunId: activeConsumer.runId,
+    };
+  }
+  let result: IngestionMaintenanceResult;
+  try {
+    result = await runIngestionMaintenance({
+      mode: () => consumerModeStep("maintenance"),
+      pruneRuns: pruneIngestionRunsStep,
+      staleSnapshots: cleanupStaleSnapshotsStep,
+      terminalIntents: purgeTerminalIntentsStep,
+    });
+  } catch (error) {
+    await reportConsumerTickStep("maintenance", "failed", {
+      status: "error",
+      message: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
+  await reportConsumerTickStep(
+    "maintenance",
+    result.status === "completed" && result.failed ? "failed" : "succeeded",
+    summarizeIngestionMaintenance(result),
   );
   return result;
 }

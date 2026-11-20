@@ -11,7 +11,6 @@ import {
   compactDurableWorkflowCursor,
   resolveDurableWorkflowCursor,
   cleanupStaleDurableAlgoliaRebuilds,
-  cleanupStaleDurableIngestionSnapshots,
   attachDurableIngestionWorkflow,
   claimDurableIngestionCommit,
   listDurableIngestionCommitWaiters,
@@ -265,17 +264,6 @@ export async function markDurableIngestionFailedStep(
   }
 }
 markDurableIngestionFailedStep.maxRetries = 2;
-
-export async function cleanupStaleDurableIngestionSnapshotsStep() {
-  "use step";
-
-  try {
-    await cleanupStaleDurableIngestionSnapshots();
-  } catch (error) {
-    throwRetryableStepError("Cleanup stale durable ingestion snapshots", error);
-  }
-}
-cleanupStaleDurableIngestionSnapshotsStep.maxRetries = 2;
 
 export async function cleanupStaleDurableAlgoliaRebuildsStep() {
   "use step";

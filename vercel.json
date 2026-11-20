@@ -21,6 +21,10 @@
     {
       "path": "/api/cron/inventory-downstream",
       "schedule": "10 * * * *"
+    },
+    {
+      "path": "/api/cron/ingestion-maintenance",
+      "schedule": "30 8 * * *"
     }
   ]
 }
