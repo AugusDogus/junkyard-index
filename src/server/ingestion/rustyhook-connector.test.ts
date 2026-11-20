@@ -1,4 +1,8 @@
 import { afterEach, expect, test } from "bun:test";
+import {
+  isDurableSourceCursorTerminal,
+  serializeDurableSourceCursor,
+} from "./durable-source";
 import { Effect } from "effect";
 import { soakRustyhookInventory } from "../../../scripts/soak-rustyhook";
 import { streamRustyhookInventoryWithRequestGate } from "./rustyhook-connector";
@@ -112,6 +116,12 @@ test("Rusty Hook completes all 32 controls and emits only after every closing pa
     }
     return chunk;
   });
+  expect(
+    isDurableSourceCursorTerminal(
+      "rustyhook",
+      serializeDurableSourceCursor(result.cursor),
+    ),
+  ).toBe(true);
   expect(result).toMatchObject({
     status: "complete",
     count: 25,

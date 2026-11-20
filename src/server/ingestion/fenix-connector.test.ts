@@ -1,4 +1,8 @@
 import { afterEach, expect, test } from "bun:test";
+import {
+  isDurableSourceCursorTerminal,
+  serializeDurableSourceCursor,
+} from "./durable-source";
 import { readFileSync } from "node:fs";
 import { Effect } from "effect";
 import { streamFenixInventoryWithRequestGate } from "./fenix-connector";
@@ -190,6 +194,12 @@ test("Fenix date-tie union recovers donors missing from each order across serial
   }
   expect(cursor.phase).toBe("complete");
   expect(vehicles).toHaveLength(204);
+  expect(
+    isDurableSourceCursorTerminal(
+      "fenix",
+      serializeDurableSourceCursor(cursor),
+    ),
+  ).toBe(true);
   expect(new Set(vehicles.map((v) => v.vin)).size).toBe(204);
   expect(duplicates).toBe(8);
   expect(rejected).toBe(0);

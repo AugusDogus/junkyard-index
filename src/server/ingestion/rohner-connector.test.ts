@@ -1,4 +1,8 @@
 import { afterEach, expect, test } from "bun:test";
+import {
+  isDurableSourceCursorTerminal,
+  serializeDurableSourceCursor,
+} from "./durable-source";
 import { Effect } from "effect";
 import { streamRohnerInventoryWithRequestGate } from "./rohner-connector";
 import {
@@ -112,6 +116,12 @@ test("Rohner resumes all opening, donor and closing controls before emitting onc
   expect(requests).toHaveLength(29);
   expect(requests.every((request) => request.redirect === "manual")).toBe(true);
   expect(result.cursor).toMatchObject({ phase: "complete" });
+  expect(
+    isDurableSourceCursorTerminal(
+      "rohner",
+      serializeDurableSourceCursor(result.cursor),
+    ),
+  ).toBe(true);
   expect(result.cursor.records).toHaveLength(25);
   expect(result.cursor.closing).toHaveLength(2);
   expect(Buffer.byteLength(RohnerCursor.serialize(result.cursor))).toBeLessThan(

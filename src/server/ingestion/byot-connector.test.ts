@@ -1,4 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import {
+  isDurableSourceCursorTerminal,
+  serializeDurableSourceCursor,
+} from "./durable-source";
 import { Effect } from "effect";
 import { streamByotInventory } from "./byot-connector";
 import {
@@ -63,6 +67,12 @@ describe("BYOT bounded durable daily slice", () => {
         .map((request) => request.code),
     ).toEqual(BYOT_YARDS.map((yard) => yard.code));
     expect(cursor.nextOffset).toBe(BYOT_DAILY_QUERIES);
+    expect(
+      isDurableSourceCursorTerminal(
+        "byot",
+        serializeDurableSourceCursor(cursor),
+      ),
+    ).toBe(true);
     expect(emitted.length).toBeGreaterThan(5000);
     for (const yard of cursor.cache)
       expect(yard).toHaveLength(BYOT_DAILY_QUERIES);

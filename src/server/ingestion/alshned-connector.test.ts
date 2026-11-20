@@ -1,4 +1,8 @@
 import { afterEach, expect, test } from "bun:test";
+import {
+  isDurableSourceCursorTerminal,
+  serializeDurableSourceCursor,
+} from "./durable-source";
 import { Effect } from "effect";
 import { AlshnedCursor } from "./alshned-cursor";
 import { streamAlshnedInventoryWithRequestGate } from "./alshned-connector";
@@ -256,6 +260,12 @@ test("an expired complete checkpoint remains a terminal no-op", async () => {
 test("saved complete cursor resumes with no HTTP, callbacks, accounting or presence", async () => {
   const cursor = alshnedCompleteFixture();
   expect(cursor.phase).toBe("complete");
+  expect(
+    isDurableSourceCursorTerminal(
+      "alshned",
+      serializeDurableSourceCursor(cursor),
+    ),
+  ).toBe(true);
   const calls = replay(new Map());
   let batches = 0,
     yards = 0,
