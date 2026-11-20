@@ -16,6 +16,7 @@ import {
 } from "./durable-ingestion-test-fixtures";
 import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import { validateDurableSourceRuns } from "./durable-source-validation";
+import { terminalCursorWire } from "./durable-source-terminal-test-fixtures";
 
 for (const guard of [
   "rejection ratio",
@@ -151,8 +152,9 @@ for (const guard of [
         },
       });
       await client.execute({
-        sql: "update ingestion_source_run set status = 'success', snapshot_chunks = ?, vehicles_processed = ?, rejected_vehicles = ?, duplicate_vehicles = ?, errors = ? where run_id = ?",
+        sql: "update ingestion_source_run set status = 'success', next_cursor = ?, snapshot_chunks = ?, vehicles_processed = ?, rejected_vehicles = ?, duplicate_vehicles = ?, errors = ? where run_id = ?",
         args: [
+          terminalCursorWire("pyp"),
           JSON.stringify([path]),
           unique + rejected + duplicates,
           rejected,
@@ -253,15 +255,7 @@ test.each([
       });
       await client.execute({
         sql: "insert into ingestion_source_run (id, run_id, source, status, next_cursor, snapshot_chunks, vehicles_processed, started_at) values ('current:pyp', 'current', 'pyp', 'success', ?, ?, 5000, 2)",
-        args: [
-          JSON.stringify({
-            source: "pyp",
-            storeCodes: null,
-            storeIndex: 0,
-            page: 0,
-          }),
-          JSON.stringify([path]),
-        ],
+        args: [terminalCursorWire("pyp"), JSON.stringify([path])],
       });
 
       const validation = await validateDurableSourceRuns({
