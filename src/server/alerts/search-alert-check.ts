@@ -42,17 +42,21 @@ export interface SearchAlertCheckContext {
     searches: readonly AlertMatchSearch[],
     bound: AlertMatchBound,
   ): Promise<PromiseSettledResult<AlertMatchStats>[]>;
+  /** Whether saved-search alerts are switched on (fails closed). */
+  alertsEnabled(): Promise<boolean>;
 }
 
 /**
  * not_started: no check exists for a past day; the current day's check
  * covers its vehicles.
+ * alerts_disabled: the search-alerts flag is off; nothing was done.
  * stopped: the check was superseded or another worker advanced it.
  * waiting: an ingestion run from the previous release is matching alerts,
  * or a commit inside the window was not searchable yet; retry later.
  */
 export type SearchAlertCheckBatchResult =
   | { status: "not_started" }
+  | { status: "alerts_disabled" }
   | { status: "stopped"; checkId: string }
   | { status: "waiting"; checkId: string }
   | {
@@ -406,6 +410,8 @@ export async function runSearchAlertCheckBatch(
   day: string,
   now: Date,
 ): Promise<SearchAlertCheckBatchResult> {
+  // Paused alerts create no check, read no Algolia and move no window.
+  if (!(await context.alertsEnabled())) return { status: "alerts_disabled" };
   const check = await openSearchAlertCheck(context, day, now);
   if (!check) return { status: "not_started" };
   if (check.status === "complete") {

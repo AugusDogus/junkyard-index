@@ -5,7 +5,10 @@ import {
   runSearchAlertCheck,
   startDailySearchAlerts,
 } from "~/server/alerts/daily-search-alert-trigger";
-import { openDailySearchAlertCheck } from "~/server/alerts/search-alert-check-runtime";
+import {
+  openDailySearchAlertCheck,
+  searchAlertsEnabled,
+} from "~/server/alerts/search-alert-check-runtime";
 import {
   claimCommitTurn,
   runIngestionPass,
@@ -81,7 +84,8 @@ async function startDailySearchAlertsStep(day: string) {
 
   await startDailySearchAlerts(day, {
     now: new Date(),
-    openCheck: openDailySearchAlertCheck,
+    alertsEnabled: searchAlertsEnabled,
+        openCheck: openDailySearchAlertCheck,
     hasDeliverableIntents: hasDeliverableNotificationIntents,
     startCheck: (checkDay) => start(searchAlertCheckWorkflow, [checkDay]),
     startDelivery: () => start(vehicleNotificationDeliveryWorkflow),

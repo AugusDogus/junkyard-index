@@ -79,6 +79,7 @@ function createOperations(params: {
   discordIntents?: ClaimedNotificationIntent[];
   targets: NotificationIntentTarget[];
   hasAlertEntitlement?: boolean;
+  alertsEnabled?: boolean;
   emailDelivery?: { success: true } | { success: false; error: string };
 }) {
   const cancelled: string[] = [];
@@ -102,6 +103,7 @@ function createOperations(params: {
   let discordClaimed = false;
 
   const operations: DurableAlertDeliveryOperations = {
+    alertsEnabled: async () => params.alertsEnabled ?? true,
     claimEmailGroup: async () => {
       if (emailClaimed) return [];
       emailClaimed = true;
@@ -215,6 +217,29 @@ describe("durable alert delivery", () => {
       ).toBe(source);
     },
   );
+  test("paused alerts claim and send nothing", async () => {
+    let claims = 0;
+    const harness = createOperations({
+      emailIntents: [intent("email-1", "search-1")],
+      targets: [target("search-1")],
+      alertsEnabled: false,
+    });
+    const operations = {
+      ...harness.operations,
+      claimEmailGroup: async () => {
+        claims += 1;
+        return harness.operations.claimEmailGroup();
+      },
+    };
+    expect(await deliverDurableAlertIntentBatch(operations)).toEqual({
+      status: "complete",
+      intentsProcessed: 0,
+    });
+    expect(claims).toBe(0);
+    expect(harness.sentDigests).toEqual([]);
+    expect(harness.delivered).toEqual([]);
+  });
+
   test("sends one replay-safe digest for every eligible search in a user publication", async () => {
     const first = intent("email-1", "search-1");
     const second = intent("email-2", "search-2", {

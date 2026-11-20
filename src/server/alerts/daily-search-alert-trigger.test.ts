@@ -25,6 +25,7 @@ function trigger(state: {
     started,
     operations: (now: Date) => ({
       now,
+      alertsEnabled: async () => true,
       openCheck: async () => state.check,
       hasDeliverableIntents: async () => state.deliverable,
       startCheck: async (day: string) => {
@@ -47,6 +48,7 @@ describe("daily search alert trigger", () => {
       deliverable: true,
     });
     expect(await startDailySearchAlerts(DAY, operations(DURING_DAY))).toEqual({
+      status: "triggered",
       check: true,
       delivery: true,
     });
@@ -57,13 +59,13 @@ describe("daily search alert trigger", () => {
     const finished = trigger({ check: "finished", deliverable: true });
     expect(
       await startDailySearchAlerts(DAY, finished.operations(DURING_DAY)),
-    ).toEqual({ check: false, delivery: true });
+    ).toEqual({ status: "triggered", check: false, delivery: true });
     expect(finished.started).toEqual(["delivery"]);
 
     const idle = trigger({ check: "finished", deliverable: false });
     expect(
       await startDailySearchAlerts(DAY, idle.operations(DURING_DAY)),
-    ).toEqual({ check: false, delivery: false });
+    ).toEqual({ status: "triggered", check: false, delivery: false });
     expect(idle.started).toEqual([]);
   });
 
@@ -75,6 +77,7 @@ describe("daily search alert trigger", () => {
     // 07:00 UTC starts the next ingestion day.
     const nextDay = new Date("2026-11-21T07:00:00Z");
     expect(await startDailySearchAlerts(DAY, operations(nextDay))).toEqual({
+      status: "triggered",
       check: false,
       delivery: true,
     });
@@ -135,6 +138,7 @@ describe("daily search alert trigger", () => {
         const claimed: string[] = [];
         const result = await startDailySearchAlerts(DAY, {
           now,
+          alertsEnabled: async () => true,
           openCheck: (day) =>
             openSearchAlertCheckState({ database, client }, day, now),
           hasDeliverableIntents: () =>
@@ -156,7 +160,11 @@ describe("daily search alert trigger", () => {
             claimed.push(...group.map((row) => row.id));
           },
         });
-        expect(result).toEqual({ check: true, delivery: false });
+        expect(result).toEqual({
+          status: "triggered",
+          check: true,
+          delivery: false,
+        });
         expect(claimed).toEqual([]);
         expect(
           (await client.execute("select day, status from search_alert_check"))
@@ -167,6 +175,29 @@ describe("daily search alert trigger", () => {
       }
     },
   );
+
+  test("paused alerts open no check and start neither the check nor delivery", async () => {
+    const started: string[] = [];
+    let opened = 0;
+    const result = await startDailySearchAlerts(DAY, {
+      now: DURING_DAY,
+      alertsEnabled: async () => false,
+      openCheck: async () => {
+        opened += 1;
+        return "running";
+      },
+      hasDeliverableIntents: async () => true,
+      startCheck: async () => {
+        started.push("check");
+      },
+      startDelivery: async () => {
+        started.push("delivery");
+      },
+    });
+    expect(result).toEqual({ status: "alerts_disabled" });
+    expect(opened).toBe(0);
+    expect(started).toEqual([]);
+  });
 
   test("the deadline is 18:00 UTC within the 07:00 UTC ingestion day", () => {
     expect(
@@ -239,6 +270,20 @@ describe("search alert check run", () => {
       "batch:complete",
       "delivery",
     ]);
+  });
+
+  test("alerts paused mid-check stop the run without delivering", async () => {
+    const { events, run } = drain([
+      {
+        status: "paused",
+        checkId: "check",
+        searchesProcessed: 50,
+        intentsCreated: 1,
+      },
+      { status: "alerts_disabled" },
+    ]);
+    expect(await run()).toEqual({ status: "alerts_disabled" });
+    expect(events).toEqual(["batch:paused", "batch:alerts_disabled"]);
   });
 
   test("a superseded or never-started check still delivers earlier intents", async () => {
