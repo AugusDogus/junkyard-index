@@ -85,14 +85,10 @@ export const TERMINAL_CURSOR_FIXTURES: {
   pickapartva: { kind: "wire", terminal: '{"phase":"complete"}' },
   mccauley: { kind: "wire", terminal: '{"version":1,"phase":"complete"}' },
   rustyhook: { kind: "connector-test", file: "rustyhook-connector.test.ts" },
-  aviation: {
-    kind: "wire",
-    terminal: '{"source":"aviation","version":1,"phase":"complete"}',
-  },
-  chaz: {
-    kind: "wire",
-    terminal: '{"source":"chaz","version":1,"phase":"complete"}',
-  },
+  // Finished cursors carry the model census, so the connector test asserts them.
+  aviation: { kind: "connector-test", file: "aviation-connector.test.ts" },
+  // Finished cursors carry the model census, so the connector test asserts them.
+  chaz: { kind: "connector-test", file: "chaz-connector.test.ts" },
   citymotors: {
     kind: "wire",
     terminal: '{"source":"citymotors","version":1,"phase":"complete"}',
@@ -105,18 +101,12 @@ export const TERMINAL_CURSOR_FIXTURES: {
     kind: "wire",
     terminal: '{"source":"clearsalvage","version":1,"phase":"complete"}',
   },
-  aplus: {
-    kind: "wire",
-    terminal: '{"source":"aplus","version":1,"phase":"complete"}',
-  },
-  central: {
-    kind: "wire",
-    terminal: '{"source":"central","version":1,"phase":"complete"}',
-  },
-  northwest: {
-    kind: "wire",
-    terminal: '{"source":"northwest","version":1,"phase":"complete"}',
-  },
+  // Finished cursors carry the model census, so the connector test asserts them.
+  aplus: { kind: "connector-test", file: "aplus-connector.test.ts" },
+  // Finished cursors carry the model census, so the connector test asserts them.
+  central: { kind: "connector-test", file: "central-connector.test.ts" },
+  // Finished cursors carry the model census, so the connector test asserts them.
+  northwest: { kind: "connector-test", file: "northwest-connector.test.ts" },
   coutu: {
     kind: "wire",
     terminal: '{"source":"coutu","version":1,"phase":"complete"}',
@@ -143,11 +133,8 @@ export const TERMINAL_CURSOR_FIXTURES: {
   meeks: { kind: "wire", terminal: '{"phase":"complete"}' },
   brandywine: { kind: "connector-test", file: "brandywine-connector.test.ts" },
   rmmdtp: { kind: "connector-test", file: "rmmdtp-connector.test.ts" },
-  calton: {
-    kind: "wire",
-    terminal:
-      '{"source":"calton","version":1,"scope":"b1b998804d79f7187b8f81d312abf2739550d81a14c3676b611ee67bad077f08","checksum":"75a76d23d12429507cc3eafd7dd6270f8b937a4b4e190278bc99d876ba9b26eb","requests":4,"bytes":40216,"phase":"complete"}',
-  },
+  // Finished cursors carry the model census, so the connector test asserts them.
+  calton: { kind: "connector-test", file: "calton-connector.test.ts" },
   bigtruckpage: { kind: "wire", terminal: '{"version":1,"phase":"complete"}' },
   speedys: { kind: "connector-test", file: "speedys-connector.test.ts" },
   sandw: {
@@ -165,15 +152,10 @@ export const TERMINAL_CURSOR_FIXTURES: {
     terminal:
       '{"source":"indianriver","version":1,"scope":"74853e2fe725c098f2799ace3515bc1ea4513d2d24b8744b55b23f248fe5f51f","phase":"complete","checksum":"c72dd9e9bc9743b35e0661059c9eefaa3399dbaaa983931700afb8299dfc4cfc"}',
   },
-  scotts: {
-    kind: "wire",
-    terminal: '{"source":"scotts","version":1,"phase":"complete"}',
-  },
-  oem: {
-    kind: "wire",
-    terminal:
-      '{"version":1,"requests":8,"bytes":8262,"state":{"phase":"complete"},"checksum":"079302ea565a33c97a48b0c596aea6cfe01faad0b6456bafc4d21c558bb279c4"}',
-  },
+  // Finished cursors carry the model census, so the connector test asserts them.
+  scotts: { kind: "connector-test", file: "scotts-connector.test.ts" },
+  // Finished cursors carry the model census, so the connector test asserts them.
+  oem: { kind: "connector-test", file: "oem-connector.test.ts" },
   dutchers: {
     kind: "wire",
     terminal:
@@ -220,11 +202,8 @@ export const TERMINAL_CURSOR_FIXTURES: {
     terminal:
       '{"source":"kandr","version":1,"scope":"c4fe85b3de8c38386fcf03eac39ecc4280ce154d3975fbccfe0bb5d28ea48bcc","checksum":"1213594410d60e67e98e8a5ae436a657ae67a91afa5ba2d21ffa8b5812621f15","requests":54,"bytes":8022942,"phase":"complete"}',
   },
-  jimsimport: {
-    kind: "wire",
-    terminal:
-      '{"source":"jimsimport","version":1,"scope":"0c5911015d32f22e8c7cfd15abe430f811c09f97ab68e55cef9125f3010c80cf","requests":370,"bytes":52516040,"phase":"complete","checksum":"2b009ca041206fe0737407a742c765b3b42ec82bd00e998f40240e453e0f16a5"}',
-  },
+  // Finished cursors carry the model census, so the connector test asserts them.
+  jimsimport: { kind: "connector-test", file: "jimsimport-connector.test.ts" },
   lonestarimports: {
     kind: "wire",
     terminal:

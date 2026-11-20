@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { Effect } from "effect";
+import {
+  isDurableSourceCursorTerminal,
+  parseDurableSourceCursor,
+  serializeDurableSourceCursor,
+} from "./durable-source";
 import { streamOemInventory } from "./oem-connector";
 import { OemCursor, OemCursorSchema } from "./oem-cursor";
 import { OEM_ARRIVALS, OEM_MAKES } from "./oem-html";
@@ -93,6 +98,39 @@ describe("OEM resumable native traversal", () => {
     );
     expect(terminal.count).toBe(0);
     expect(batches).toHaveLength(1);
+  });
+  test("a finished cold crawl persists a terminal census cursor and a mid-crawl one is not terminal", async () => {
+    const opts = options(() => undefined);
+    let wire: string | undefined;
+    let midWire: string | undefined;
+    for (let chunk = 0; chunk < 10; chunk++) {
+      const result = await Effect.runPromise(
+        streamOemInventory({
+          ...opts,
+          maxPages: 3,
+          startCursor:
+            wire === undefined
+              ? undefined
+              : parseDurableSourceCursor("oem", wire),
+        }),
+      );
+      wire = serializeDurableSourceCursor(result.cursor);
+      midWire ??= wire;
+      if (result.status === "complete") break;
+    }
+    if (wire === undefined || midWire === undefined)
+      throw new Error("OEM crawl produced no cursor");
+    const terminal = parseDurableSourceCursor("oem", wire);
+    expect(serializeDurableSourceCursor(terminal)).toBe(wire);
+    expect(terminal.state.phase).toBe("complete");
+    const census =
+      terminal.state.phase === "complete" ? terminal.state.census : undefined;
+    expect(census?.models.length ?? 0).toBeGreaterThan(0);
+    expect(isDurableSourceCursorTerminal("oem", wire)).toBe(true);
+    expect(parseDurableSourceCursor("oem", midWire).state.phase).not.toBe(
+      "complete",
+    );
+    expect(isDurableSourceCursorTerminal("oem", midWire)).toBe(false);
   });
   test("rejects a mutated checkpoint before fetching", async () => {
     let requests = 0;

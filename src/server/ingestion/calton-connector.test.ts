@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { Effect } from "effect";
+import { CALTON_CONTRACT } from "./calton-configuration";
 import { streamCaltonInventory } from "./calton-connector";
 import {
   CALTON_MAKES,
@@ -11,6 +12,11 @@ import {
 import { CaltonCursor } from "./calton-cursor";
 import { caltonClass, caltonElements, caltonRegion } from "./calton-html";
 import { caltonAdvance, caltonNextUrl } from "./calton-traversal";
+import {
+  isDurableSourceCursorTerminal,
+  parseDurableSourceCursor,
+  serializeDurableSourceCursor,
+} from "./durable-source";
 import {
   CALTON_EMPTY_REGION,
   CALTON_TLX_FIXTURE,
@@ -237,12 +243,14 @@ test("checkpoints reject altered accounting, impossible ready prefixes and moved
 /** A second ACURA model of `stocks.length` donors, so a one-card native empty
  * model stays inside the badge coverage floor as it does at live scale (one
  * of 12,857 cards). */
+function donorCard(url: string, model: string, stock: string, vin: number) {
+  return `<div id="${stock}" class="aps-la-card-premium"><a href="${url}/${stock}/2015" class="aps-la-card-link-premium"><div class="aps-la-content-premium aps-la-car-details"><h3 class="aps-la-title-premium">ACURA ${model}</h3><p class="aps-la-subtitle-premium aps-la-subtitle-premium--vin">VIN: 19UUB1F3${String(vin).padStart(9, "0")}</p><div class="aps-la-right-val-premium"><span class="aps-la-field-label">Year</span> 2015</div><div class="aps-la-stat-premium"><div class="aps-la-stat-label">Stock</div><div class="aps-la-stat-value">${stock}</div></div></div></a></div>`;
+}
 function filler(run: ReturnType<typeof harness>, stocks: readonly string[]) {
   const path = "/parts/ACURA/FILLER";
   const url = "https://caltonautoparts.com" + path;
-  const cards = stocks.map(
-    (stock, index) =>
-      `<div id="${stock}" class="aps-la-card-premium"><a href="${url}/${stock}/2015" class="aps-la-card-link-premium"><div class="aps-la-content-premium aps-la-car-details"><h3 class="aps-la-title-premium">ACURA FILLER</h3><p class="aps-la-subtitle-premium aps-la-subtitle-premium--vin">VIN: 19UUB1F3${String(index).padStart(9, "0")}</p><div class="aps-la-right-val-premium"><span class="aps-la-field-label">Year</span> 2015</div><div class="aps-la-stat-premium"><div class="aps-la-stat-label">Stock</div><div class="aps-la-stat-value">${stock}</div></div></div></a></div>`,
+  const cards = stocks.map((stock, index) =>
+    donorCard(url, "FILLER", stock, index),
   );
   run.documents.set(
     makeUrl,
@@ -406,3 +414,62 @@ test("native count differences are diagnostic and a failed batch cannot mark com
   expect(prefix.cursor.phase).toBe("models");
   expect(failed.batches).toEqual([]);
 });
+test("a complete cold Calton crawl serializes a terminal census cursor and a mid-crawl cursor is not terminal", async () => {
+  // The durable cursor binds the production contract, so the saved graph needs
+  // its qualified minimum: TLX plus three models of 1,400 donors, each page
+  // under the native body limit.
+  const run = harness();
+  const models = ["CENSUS0", "CENSUS1", "CENSUS2"];
+  const perModel = 1_400;
+  run.documents.set(
+    makeUrl,
+    menu("/parts/ACURA/TLX", "TLX", 8, "/parts/ACURA", true).replace(
+      "</a></div>",
+      `</a>${models
+        .map(
+          (model) =>
+            `<a href="${makeUrl}/${model}"><span class="aps-make-link__label">${model}</span><span class="aps-make-link__count">${perModel}</span></a>`,
+        )
+        .join("")}</div>`,
+    ),
+  );
+  models.forEach((model, modelIndex) => {
+    const path = "/parts/ACURA/" + model;
+    const cards = Array.from({ length: perModel }, (_, index) => {
+      const donor = modelIndex * perModel + index;
+      return donorCard(makeUrl + "/" + model, model, "C" + donor, donor);
+    });
+    run.documents.set(
+      makeUrl + "/" + model,
+      caltonFixtureDocument(
+        `<div id="iiscont"><div class="aps-la-grid">${cards.join("")}</div></div>`,
+        path,
+      ),
+    );
+  });
+  const options = { ...run.options, contract: CALTON_CONTRACT, maxPages: 3 };
+  let wire: string | undefined;
+  let midWire: string | undefined;
+  for (let chunk = 0; chunk < 10; chunk++) {
+    const result = await Effect.runPromise(
+      streamCaltonInventory({ ...options, startCursor: wire }),
+    );
+    wire = serializeDurableSourceCursor(result.cursor);
+    if (result.status === "complete") break;
+    midWire ??= wire;
+  }
+  if (wire === undefined || midWire === undefined)
+    throw new Error("Expected a chunked crawl");
+  expect(run.batches).toHaveLength(1);
+  expect(run.batches[0]?.length).toBe(8 + models.length * perModel);
+  const terminal = parseDurableSourceCursor("calton", wire);
+  expect(serializeDurableSourceCursor(terminal)).toBe(wire);
+  if (terminal.phase !== "complete" || terminal.census === undefined)
+    throw new Error("Expected a terminal census cursor");
+  expect(terminal.census.models).toHaveLength(1 + models.length);
+  expect(isDurableSourceCursorTerminal("calton", wire)).toBe(true);
+  const mid = parseDurableSourceCursor("calton", midWire);
+  expect(serializeDurableSourceCursor(mid)).toBe(midWire);
+  expect(mid.phase).toBe("models");
+  expect(isDurableSourceCursorTerminal("calton", midWire)).toBe(false);
+}, 30_000);

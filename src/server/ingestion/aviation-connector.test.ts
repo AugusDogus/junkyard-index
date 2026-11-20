@@ -28,6 +28,11 @@ import {
   aviationFixtureRoot,
 } from "./aviation-test-fixtures";
 import type { AviationCanonicalVehicle } from "./aviation-transform";
+import {
+  isDurableSourceCursorTerminal,
+  parseDurableSourceCursor,
+  serializeDurableSourceCursor,
+} from "./durable-source";
 import type { AviationRecord } from "./aviation-parser";
 import {
   MODEL_CENSUS_DAY_MS,
@@ -138,6 +143,36 @@ test("Aviation serializes small chunks and quarantines late cross-surface confli
       (url) => url.includes("/inventory/") || url.includes("/images/"),
     ),
   ).toBe(false);
+});
+
+test("Aviation durable terminal evidence accepts only the closed census cursor of a real crawl", async () => {
+  transport();
+  let cursor: AviationCursor = AviationCursor.initial;
+  const wires: string[] = [];
+  while (cursor.phase !== "complete") {
+    const result: AviationStreamResult = await Effect.runPromise(
+      streamAviationInventoryWithRequestGate(
+        { startCursor: cursor, maxPages: 2, onBatch: () => Effect.void },
+        gate,
+      ),
+    );
+    const wire: string = serializeDurableSourceCursor(result.cursor);
+    wires.push(wire);
+    cursor = parseDurableSourceCursor("aviation", wire);
+  }
+  const midWire = wires.at(0);
+  const wire = wires.at(-1);
+  if (midWire === undefined || wire === undefined || wires.length < 2)
+    throw new Error("Expected a chunked Aviation crawl");
+  expect(serializeDurableSourceCursor(cursor)).toBe(wire);
+  if (cursor.phase !== "complete" || cursor.census === undefined)
+    throw new Error("Expected a terminal Aviation census");
+  expect(cursor.census.models.length).toBeGreaterThan(0);
+  expect(isDurableSourceCursorTerminal("aviation", wire)).toBe(true);
+  expect(parseDurableSourceCursor("aviation", midWire).phase).not.toBe(
+    "complete",
+  );
+  expect(isDurableSourceCursorTerminal("aviation", midWire)).toBe(false);
 });
 
 test("Aviation rejects tampered prefix, checksum and foreign native graph before fetching", async () => {
