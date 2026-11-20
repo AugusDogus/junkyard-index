@@ -11,6 +11,7 @@ import { PrattResult } from "./pratt-result";
 import {
   prattFixture,
   prattFixtureContract,
+  prattGzipFixture,
   prattOnlyControl,
 } from "./pratt-test-fixtures";
 import { runWithQueuedHost } from "./provider-host-test-support";
@@ -147,6 +148,110 @@ test("Pratt rejects changed root contracts, malformed cursors and unowned graph 
   );
   expect(result._tag).toBe("Left");
   expect(run.requests).toEqual([]);
+});
+// Every donor VIN on the Nov 19 raw-ampersand Town & Country capture (31
+// cards; one blank-VIN card stays a reject). The literal "_-and_" control
+// returned an explicit empty despite its badge.
+const townAndCountryVins = [
+  "1A4GP44R26B567943",
+  "1C4GP45R84B561565",
+  "1C4GP45RX5B302741",
+  "2A4RR5D11AR104673",
+  "2A4RR5D19AR235771",
+  "2A4RR6DXXAR183318",
+  "2A4RR8DG7BR659232",
+  "2A8HR44H98R643148",
+  "2A8HR54149R673653",
+  "2A8HR54P28R812259",
+  "2A8HR54P78R610310",
+  "2A8HR54PX8R719876",
+  "2A8HR64X48R838805",
+  "2C4GP54L54R505846",
+  "2C4GP54L83R191060",
+  "2C4RC1AG9GR142282",
+  "2C4RC1BG0ER373714",
+  "2C4RC1BG3DR604488",
+  "2C4RC1BG4ER207342",
+  "2C4RC1BG4ER218762",
+  "2C4RC1BG7CR126512",
+  "2C4RC1BG8ER221504",
+  "2C4RC1BG9ER195401",
+  "2C4RC1BGXFR510420",
+  "2C4RC1CG2DR780012",
+  "2C4RC1CG6CR124992",
+  "2C4RC1CGXER224807",
+  "2C4RC1GG1FR708831",
+  "2C8GP64L63R123084",
+  "2C8GP64L93R113875",
+];
+const literalTownAndCountry =
+  PRATT_ORIGIN + "/parts/CHRYSLER/TOWN_-and_COUNTRY/";
+const rawTownAndCountry = PRATT_ORIGIN + "/parts/CHRYSLER/TOWN_&_COUNTRY/";
+function townAndCountryHarness(rawAmpersandBody: string) {
+  const run = harness();
+  run.documents.clear();
+  run.documents.set(PRATT_ORIGIN + "/", prattFixture("root.html"));
+  run.documents.set(PRATT_ARRIVALS, prattFixture("arrivals.html"));
+  run.documents.set(
+    PRATT_MAKES,
+    prattOnlyControl(
+      prattFixture("makes.html"),
+      PRATT_ORIGIN + "/parts/CHRYSLER",
+    ),
+  );
+  run.documents.set(
+    PRATT_ORIGIN + "/parts/CHRYSLER",
+    prattOnlyControl(
+      prattGzipFixture("models-chrysler.html.gz"),
+      "//prattsautosalvage.com/parts/CHRYSLER/TOWN_-and_COUNTRY/",
+    ),
+  );
+  // The saved Nov 13 literal-route response is the explicit empty.
+  run.documents.set(literalTownAndCountry, prattFixture("empty-chrysler.html"));
+  run.documents.set(rawTownAndCountry, rawAmpersandBody);
+  return run;
+}
+async function crawl(run: ReturnType<typeof harness>) {
+  let cursor: unknown = undefined;
+  for (;;) {
+    const chunk = await Effect.runPromise(
+      Effect.either(
+        streamPrattInventory({ ...run.options, startCursor: cursor }),
+      ),
+    );
+    if (Either.isLeft(chunk) || chunk.right.status === "complete") return chunk;
+    cursor = chunk.right.cursor;
+  }
+}
+test("Pratt reads the badged Town & Country control by its raw ampersand route and accepts its donors", async () => {
+  const run = townAndCountryHarness(
+    prattGzipFixture("model-town-and-country.html.gz"),
+  );
+  const result = await crawl(run);
+  const accepted = run.batches.flat();
+  expect(townAndCountryVins.filter((vin) => !accepted.includes(vin))).toEqual(
+    [],
+  );
+  expect(run.requests).toContain(rawTownAndCountry);
+  expect(run.requests).not.toContain(literalTownAndCountry);
+  expect(run.requests).toHaveLength(5);
+  if (Either.isLeft(result)) throw new Error(result.left.message);
+  expect(result.right.status).toBe("complete");
+  expect(run.batches).toHaveLength(1);
+  expect(result.right.count).toBe(new Set(accepted).size);
+  expect(result.right.accounting.recordsProcessed).toBe(31 + 60);
+});
+test("Pratt refuses to publish when the badged Town & Country control is still an explicit empty", async () => {
+  const run = townAndCountryHarness(prattFixture("empty-chrysler.html"));
+  const result = await crawl(run);
+  expect(Either.isLeft(result)).toBe(true);
+  if (Either.isLeft(result)) {
+    expect(result.left.message).toContain(
+      "model /parts/CHRYSLER/TOWN_-and_COUNTRY/ advertises 31 donors but /parts/CHRYSLER/TOWN_&_COUNTRY/ returned an explicit",
+    );
+    expect(result.left.message).toContain("Prior inventory is preserved");
+  }
+  expect(run.batches).toEqual([]);
 });
 test("Pratt whole-run byte budget blocks another read without emitting", async () => {
   const run = harness();

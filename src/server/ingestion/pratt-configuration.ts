@@ -24,3 +24,11 @@ export const PRATT_CONTRACT = {
   // Complete saved 468-model census: 5,930 clean unique candidates.
   minimumUniqueInventory: 1_977,
 } satisfies PrattContract;
+
+/**
+ * Model routes proven to list no donors on this host. None are: the saved
+ * November 13 census lists donors on literal dotted and parenthesized routes
+ * such as SAFARI_(GMC) and BLAZER.JIMMY_(FULL_SIZE), so every badged explicit
+ * empty fails the census.
+ */
+export const PRATT_UNREACHABLE_MODEL_ROUTES: ReadonlySet<string> = new Set();

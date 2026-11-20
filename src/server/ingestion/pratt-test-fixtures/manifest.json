@@ -52,5 +52,17 @@
     "source": ".scratchpad/coverage/parallel-ky-tn-ar/ar-positive-frontier10/pratt-model-census03/native/get-078.body",
     "bytes": 147689,
     "sha256": "7b688064a57ea9f480c4806a4569a8c1f0a82a200fe160c2b3b95e039cb33516"
+  },
+  {
+    "fixture": "model-town-and-country.html.gz",
+    "source": "urg-research/raw/20261119T175151-pratt-verify-chrysler-tc-rawamp.body (GET /parts/CHRYSLER/TOWN_&_COUNTRY/)",
+    "bytes": 181211,
+    "sha256": "85df7efd2622a1fb4f55f3e3d61ffd485bc5eb080ed3b3c1032a04abb43775ed"
+  },
+  {
+    "fixture": "models-chrysler.html.gz",
+    "source": "urg-research/raw/20261119T175244-pratt-verify-chrysler-menu.body (GET /parts/CHRYSLER)",
+    "bytes": 134459,
+    "sha256": "4ca7f999191954958f11487ac24a678d7cf5eb0a7e18e6e1e0f6d6b9336038a4"
   }
 ]

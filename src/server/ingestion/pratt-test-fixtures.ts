@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { gunzipSync } from "node:zlib";
 import type { PrattContract } from "./pratt-contract";
 import type { PrattResult } from "./pratt-result";
 import { inventoryHtmlAttribute } from "./inventory-html";
@@ -8,6 +9,11 @@ export const prattFixture = (name: string) =>
     new URL("./pratt-test-fixtures/" + name, import.meta.url),
     "utf8",
   );
+/** Gzip-compressed native captures, decoded to their original HTML. */
+export const prattGzipFixture = (name: string) =>
+  gunzipSync(
+    readFileSync(new URL("./pratt-test-fixtures/" + name, import.meta.url)),
+  ).toString("utf8");
 export const prattFixtureContract: PrattContract = {
   yard: {
     source: "pratt",

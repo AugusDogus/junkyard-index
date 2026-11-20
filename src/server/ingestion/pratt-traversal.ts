@@ -1,5 +1,6 @@
 import type { PrattContract } from "./pratt-contract";
 import { PrattCursor } from "./pratt-cursor";
+import { IisModelRoute } from "./iis-model-route";
 import { PRATT_ARRIVALS, PRATT_MAKES, PRATT_ORIGIN } from "./pratt-html";
 import {
   parsePrattArrivals,
@@ -35,7 +36,11 @@ export function prattNextUrl(
     case "models": {
       const model = prattModels(cursor.menus)[cursor.pages.length];
       return model
-        ? { ok: true, value: PRATT_ORIGIN + model.model.path }
+        ? {
+            ok: true,
+            value:
+              PRATT_ORIGIN + IisModelRoute.of(model.model.path).requestPath,
+          }
         : {
             ok: false,
             error: PrattResult.error(

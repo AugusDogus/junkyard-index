@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { inventoryVin } from "./inventory-vin";
+import { IisModelRoute } from "./iis-model-route";
 import { prattOwnedUrl, prattRouteLabel } from "./pratt-html";
 
 export const PrattControlSchema = z
@@ -212,4 +213,21 @@ function assess(
     reasons: [...new Set(reasons)],
   };
 }
-export const PrattRecord = { schema: PrattRecordSchema, assess } as const;
+export const PrattRecord = {
+  schema: PrattRecordSchema,
+  assess(
+    record: PrattRecord,
+    context: PrattContext,
+    published: readonly { make: PrattControl; model: PrattControl }[] = [],
+  ): PrattAssessment {
+    // Donor links spell a published "_-and_" model segment as "_and__".
+    const donor = IisModelRoute.donorControl;
+    return assess(
+      record,
+      context.kind === "model"
+        ? { ...context, model: donor(context.model) }
+        : context,
+      published.map(({ make, model }) => ({ make, model: donor(model) })),
+    );
+  },
+} as const;
