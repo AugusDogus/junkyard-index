@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import type { SearchFailure } from "~/lib/search-failure";
 import type { SearchResult } from "~/lib/types";
 import {
   SearchResultsPanel,
@@ -19,7 +20,7 @@ const emptyResult: SearchResult = {
 
 function resolve(input: {
   isSearching?: boolean;
-  hasError?: boolean;
+  failure?: SearchFailure | null;
   searchResult?: SearchResult | null;
 }) {
   const showMore = () => undefined;
@@ -27,7 +28,7 @@ function resolve(input: {
     lifecycle: {
       hasActiveSearch: true,
       isSearching: input.isSearching ?? false,
-      hasError: input.hasError ?? false,
+      failure: input.failure ?? null,
       searchResult:
         "searchResult" in input ? (input.searchResult ?? null) : emptyResult,
     },
@@ -121,7 +122,10 @@ describe("search results state", () => {
     expect(resolve({ searchResult: null, isSearching: true }).kind).toBe(
       "loading",
     );
-    expect(resolve({ hasError: true }).kind).toBe("error");
+    expect(resolve({ failure: { kind: "unexpected" } })).toEqual({
+      kind: "error",
+      failure: { kind: "unexpected" },
+    });
     expect(resolve({}).kind).toBe("empty");
     expect(
       resolve({ searchResult: { ...emptyResult, totalCount: 1 } }).kind,

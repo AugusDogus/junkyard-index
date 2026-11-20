@@ -181,6 +181,26 @@ test("visitor pages include a free radius and stop after 24 results", async () =
   }
 }, 30_000);
 
+test("a blocked search backend says yard pages still work, without vendor text", async () => {
+  const { page } = await open("q=pagination&fixtureGuest=1");
+  try {
+    await page
+      .getByText("Showing 24 of 96 vehicles", { exact: true })
+      .waitFor();
+    await page.getByRole("searchbox").fill("blocked");
+    await page.getByRole("searchbox").press("Enter");
+    await page.getByText("Yard pages still work.").waitFor();
+    expect(
+      await page
+        .getByRole("link", { name: "Browse yards" })
+        .getAttribute("href"),
+    ).toBe("/junkyards");
+    expect(await page.getByText("Application is blocked").count()).toBe(0);
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
+
 test("signed-in pagination survives sort switches and rows do not overlap after resizing", async () => {
   const { page, html } = await open("q=pagination");
   try {
