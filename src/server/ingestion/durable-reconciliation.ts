@@ -10,6 +10,7 @@ import {
   ingestionSourceRun,
   vehicle,
   yardArrivalBaseline,
+  yardInventory,
 } from "~/schema";
 import { parseIngestionErrors } from "./durable-ingestion-repository";
 import type {
@@ -291,12 +292,14 @@ async function buildResult(
     (run.stage === "project_changes" || run.stage === "full_reindex_prepare") &&
     (run.publishedVehicleCount === null || run.publishedYardCount === null)
   ) {
+    // The yard summaries the publication batch refreshed hold the live
+    // counts, so this reads a few hundred rows, not every vehicle.
     const [inventory] = await database
       .select({
-        vehicleCount: sql<number>`count(*)`,
-        yardCount: sql<number>`count(distinct ${vehicle.locationCode})`,
+        vehicleCount: sql<number>`coalesce(sum(${yardInventory.vehicleCount}), 0)`,
+        yardCount: sql<number>`count(*)`,
       })
-      .from(vehicle);
+      .from(yardInventory);
     if (!inventory) {
       throw new Error(
         `Counting published inventory for ${runId} returned no result.`,

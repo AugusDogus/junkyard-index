@@ -1616,7 +1616,8 @@ describe("bounded durable reconciliation", () => {
         .where(eq(ingestionRun.id, "run-1"));
       expect(run?.stage).toBe("project_changes");
       expect(run?.publicationSequence).toBe(1);
-      expect(run?.publishedVehicleCount).toBe(2);
+      // The published count is live inventory: the missing vehicle is out.
+      expect(run?.publishedVehicleCount).toBe(1);
       const changes = await client.execute(
         "select vin, change_type from vehicle_change_v2 order by vin",
       );
