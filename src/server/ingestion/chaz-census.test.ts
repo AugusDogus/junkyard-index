@@ -619,6 +619,39 @@ test("Chaz fails a Nov 18 run whose lightest sweep slice lists one card per mode
   );
 });
 
+test("Chaz fails a steady-state run whose routine sweep slice, read at age six, lists one card per model", async () => {
+  // After the first cycle every routine sweep read happens at age exactly six
+  // (reason stale). Eleven healthy daily runs, then slice 5 is cut to one card
+  // per page on D + 11: the replay floor must still reject it, and nothing
+  // broken may be stored as confirmed carry evidence.
+  const native = nov18Yard();
+  let previous = (await census(native, D, null)).terminal;
+  for (let day = D + 1; day <= D + 10; day++) {
+    const run = await census(native, day, previous);
+    expect(run.vins).toHaveLength(1107);
+    previous = run.terminal;
+  }
+  const day = D + 11;
+  expect(day % MODEL_CENSUS_SWEEP_DAYS).toBe(5);
+  for (const model of native.models)
+    if (ModelCensus.slice(model.key) === 5) native.cut.add(model.key);
+  expect(
+    await failing(
+      day,
+      previous,
+      "Chaz model pages list 1042 of 1107 cards that the last accepted census listed for models whose counts did not change, below the 97% coverage floor.",
+    ),
+  ).toBe(0);
+  // Once the pages recover, a retry from the same accepted census publishes
+  // every donor; its routine slice reads are all age six.
+  native.cut.clear();
+  const retry = await census(native, day, previous);
+  expect(retry.vins).toHaveLength(1107);
+  expect(retry.warnings.at(-1)).toBe(
+    "Chaz Read 30 of 240 model pages (stale 30); carried 210.",
+  );
+}, 120_000);
+
 test("Chaz re-reads a surplus model page that loses a donor down to its badge, at closing and on the next run", async () => {
   // A badge of 40 whose page lists 41 (a placeholder or surplus row). Losing a
   // real donor leaves exactly 40 cards: equal to the badge, but below the 41
