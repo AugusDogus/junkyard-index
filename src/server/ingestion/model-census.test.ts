@@ -73,7 +73,10 @@ describe("ModelCensus", () => {
     const carried = next.decisions.flatMap((d) =>
       d.kind === "carry" ? [d.evidence] : [],
     );
-    expect(carried).toHaveLength(10);
+    const due = models.filter(
+      (m) => ModelCensus.slice(m.key) === 101 % MODEL_CENSUS_SWEEP_DAYS,
+    );
+    expect(carried).toHaveLength(models.length - due.length);
     for (const evidence of carried) {
       expect(evidence.page).toBe(page(evidence.key, 100));
       expect(evidence.readDay).toBe(100);
@@ -85,15 +88,19 @@ describe("ModelCensus", () => {
   });
 
   test("the sweep reads each model exactly once over six unchanged days", () => {
-    const models = controls(20);
+    const models = controls(240);
     let census = run(models, null, 100).census;
     const seen = new Map<number, number>();
     for (let day = 101; day <= 100 + MODEL_CENSUS_SWEEP_DAYS; day++) {
       const next = run(models, census, day);
       const today = reads(next.decisions);
-      // About a sixth of the models each day, balanced by ordinal.
-      expect(today.length).toBeGreaterThanOrEqual(3);
-      expect(today.length).toBeLessThanOrEqual(4);
+      // About a sixth of the models each day (40 of 240), by stable key slice.
+      expect(today.length).toBeGreaterThanOrEqual(25);
+      expect(today.length).toBeLessThanOrEqual(55);
+      for (const index of today)
+        expect(ModelCensus.slice(models[index]?.key ?? "")).toBe(
+          day % MODEL_CENSUS_SWEEP_DAYS,
+        );
       for (const index of today) seen.set(index, (seen.get(index) ?? 0) + 1);
       census = next.census;
     }
@@ -139,6 +146,32 @@ describe("ModelCensus", () => {
     ).toBe(true);
   });
 
+  test("a published model appearing or vanishing moves no other model's slice", () => {
+    const models = controls(60);
+    let census = run(models, null, 100).census;
+    for (let day = 101; day <= 105; day++)
+      census = run(models, census, day).census;
+    // Insert a model at the front and remove one from the middle on day 106.
+    const changed = [
+      { key: "model-new", count: 1 },
+      ...models.slice(0, 30),
+      ...models.slice(31),
+    ];
+    const readsByKey = new Map<string, number>();
+    for (let day = 106; day <= 111; day++) {
+      const next = run(changed, census, day);
+      next.decisions.forEach((d, i) => {
+        const key = changed[i]?.key ?? "";
+        if (d.kind === "read" && key !== "model-new")
+          readsByKey.set(key, (readsByKey.get(key) ?? 0) + 1);
+      });
+      census = next.census;
+    }
+    // Every surviving model is read exactly once in six days, never twice.
+    expect(readsByKey.size).toBe(59);
+    expect([...readsByKey.values()].every((n) => n === 1)).toBe(true);
+  });
+
   test("a second run on the same day carries what the first run read", () => {
     const models = controls(12);
     const first = run(models, run(models, null, 100).census, 101);
@@ -169,8 +202,9 @@ describe("ModelCensus", () => {
     const first = ModelCensus.nextRead(next.decisions, 0);
     expect(next.decisions[first]?.kind).toBe("read");
     expect(ModelCensus.carriedRun(next.decisions, 0)).toHaveLength(first);
+    const swept = reads(next.decisions).length;
     expect(ModelCensus.summary(next.decisions)).toBe(
-      "Read 2 of 12 model pages (sweep 2); carried 10.",
+      `Read ${swept} of 12 model pages (sweep ${swept}); carried ${12 - swept}.`,
     );
     expect(() =>
       ModelCensus.accept(contract, 101, models, [], next.decisions),

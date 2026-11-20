@@ -11,7 +11,9 @@ import { z } from "zod";
  *
  * Run days are UTC day numbers fixed at run start. The sweep slice equals the
  * age ceiling, so a model read on day d is due again on day d + 6 by both rules,
- * and missed runs can only make the age rule fire earlier.
+ * and missed runs can only make the age rule fire earlier. A model's slice comes
+ * from its key, not its list position, so a model appearing or disappearing
+ * never moves the others to another day.
  */
 export const MODEL_CENSUS_DAY_MS = 24 * 60 * 60 * 1000;
 export const MODEL_CENSUS_SWEEP_DAYS = 6;
@@ -56,6 +58,16 @@ export type ModelCensusPrevious<Page> =
   | { kind: "incremental"; census: ModelCensus<Page> };
 
 const day = z.number().int().nonnegative().safe();
+
+/** Stable sweep slice for a model key (32-bit FNV-1a). */
+function slice(key: string) {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < key.length; i++) {
+    hash ^= key.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash % MODEL_CENSUS_SWEEP_DAYS;
+}
 
 function schema<Page>(page: z.ZodType<Page>, maxModels: number) {
   return z
@@ -108,7 +120,7 @@ function plan<Page>(
   if (!previous || previous.day > today)
     return controls.map(() => ({ kind: "read", reason: "cold" }));
   const evidence = new Map(previous.models.map((m) => [m.key, m]));
-  return controls.map((control, index): ModelCensusDecision<Page> => {
+  return controls.map((control): ModelCensusDecision<Page> => {
     const before = evidence.get(control.key);
     if (!before) return { kind: "read", reason: "new" };
     if (before.count !== control.count)
@@ -117,7 +129,7 @@ function plan<Page>(
     if (today - before.readDay >= MODEL_CENSUS_SWEEP_DAYS)
       return { kind: "read", reason: "stale" };
     if (
-      index % MODEL_CENSUS_SWEEP_DAYS === today % MODEL_CENSUS_SWEEP_DAYS &&
+      slice(control.key) === today % MODEL_CENSUS_SWEEP_DAYS &&
       before.readDay < today
     )
       return { kind: "read", reason: "sweep" };
@@ -130,6 +142,8 @@ export const ModelCensus = {
   day: (now: number) => Math.floor(now / MODEL_CENSUS_DAY_MS),
 
   schema,
+
+  slice,
 
   /**
    * Accepts a published terminal census only when its contract matches and it is
