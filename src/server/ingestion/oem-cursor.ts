@@ -22,7 +22,7 @@ export const oemHash = (value: unknown) =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
 /** Parser, traversal and closing contract for carried model evidence. */
 const OEM_CENSUS_CONTRACT =
-  "oem/OH40/literal-model-graph/arrival-union/make-directory-closing/incremental-model-census-v1";
+  "oem/OH40/literal-model-graph/arrival-union/make-directory-closing/incremental-model-census-v2-departure-trigger";
 /** Every model page of an accepted run, carried forward by the next one. */
 export const OemCensusSchema = ModelCensus.schema(OemPageSchema, 1024);
 export type OemCensus = z.infer<typeof OemCensusSchema>;
@@ -42,11 +42,15 @@ const graph = {
   menus: menusSchema,
 };
 const donors = { ...graph, pages: z.array(OemPageSchema).max(1024) };
-/** UTC run day fixed before the first request, and the compatible census of
- * the last accepted run (null for a cold census). */
+/** Arrival donor destinations of an accepted run. */
+const arrivalDestinations = z.array(z.string().max(1000)).max(10000);
+/** UTC run day fixed before the first request, the compatible census of the
+ * last accepted run (null for a cold census) and that run's arrival donor
+ * destinations (empty for a cold census). */
 const run = {
   day: z.number().int().nonnegative().safe(),
   previous: OemCensusSchema.nullable(),
+  previousArrivals: arrivalDestinations,
 };
 const StateSchema = z.discriminatedUnion("phase", [
   z
@@ -55,6 +59,7 @@ const StateSchema = z.discriminatedUnion("phase", [
       // Null only before the census begins.
       day: run.day.nullable(),
       previous: run.previous,
+      previousArrivals: run.previousArrivals,
     })
     .strict(),
   z
@@ -75,6 +80,8 @@ const StateSchema = z.discriminatedUnion("phase", [
       phase: z.literal("complete"),
       // Pre-incremental terminal cursors stay readable but seed a cold census.
       census: OemCensusSchema.optional(),
+      // Present exactly when `census` is.
+      arrivals: arrivalDestinations.optional(),
     })
     .strict(),
 ]);
@@ -99,18 +106,50 @@ function oemCensusControls(
     count: model.count,
   }));
 }
-/** Read or carry each published model. Arrivals never trigger a read: OEM
- * model pages lag arrivals by days, so an arrival trigger would re-read the
- * same lagging page daily; arrival donors are published from the arrivals page
- * itself. */
+/** Read or carry each published model. A current arrival never triggers a
+ * read: OEM model pages lag arrivals by days, so that trigger would re-read the
+ * same lagging page daily, and arrival donors are published from the arrivals
+ * page itself. A donor that leaves the arrivals page is published only through
+ * its model page, so a model is read once on the day an arrival donor whose own
+ * destination binds to it departs while missing from its carried page. A
+ * departing donor whose destination binds to no published model (for example a
+ * RAM DODGE title under /parts/RAM/) cannot trigger a read. */
 export function oemCensusPlan(
-  state: Pick<OemCensusState, "menus" | "day" | "previous">,
+  state: Pick<
+    OemCensusState,
+    "menus" | "day" | "previous" | "previousArrivals" | "arrivals"
+  >,
 ): ModelCensusDecision<OemPage>[] {
-  return ModelCensus.plan(
-    oemCensusControls(state.menus),
-    state.previous,
-    state.day,
+  const controls = oemCensusControls(state.menus);
+  const current = new Set(
+    state.arrivals.records.flatMap((record) => record.destinations),
   );
+  const departed = state.previousArrivals.filter((d) => !current.has(d));
+  const triggers = new Set<string>();
+  if (!departed.length)
+    return ModelCensus.plan(controls, state.previous, state.day, triggers);
+  // Directory parsing stores each model control under its resolved owned URL.
+  const parents = new Map(
+    oemModels(state.menus).map(({ model }, index) => [
+      model.url.replace(/\/$/, ""),
+      controls[index]?.key,
+    ]),
+  );
+  const carried = new Map(
+    (state.previous?.models ?? []).map((m) => [m.key, m.page]),
+  );
+  for (const destination of departed) {
+    // Destinations are /parts/MAKE/MODEL/STOCK/YEAR under the owned origin.
+    const key = parents.get(destination.split("/").slice(0, -2).join("/"));
+    if (
+      key &&
+      !carried
+        .get(key)
+        ?.records.some((record) => record.destinations.includes(destination))
+    )
+      triggers.add(key);
+  }
+  return ModelCensus.plan(controls, state.previous, state.day, triggers);
 }
 /** Terminal census for a fully closed run. */
 export function oemCensus(state: OemCensusState): OemCensus {
@@ -148,13 +187,20 @@ function inspect(value: OemCursor): void {
   )
     throw new Error("OEM checkpoint exceeds 8 MiB or its integrity changed");
   const state = value.state;
-  if (state.phase === "complete") return;
+  if (state.phase === "complete") {
+    if ((state.census === undefined) !== (state.arrivals === undefined))
+      throw new Error(
+        "OEM terminal census and its arrival destinations must be stored together",
+      );
+    return;
+  }
   if (
-    state.day === null
+    (state.previous === null && state.previousArrivals.length > 0) ||
+    (state.day === null
       ? value.requests !== 0 || state.previous !== null
       : state.previous !== null &&
         (state.previous.contract !== OEM_CENSUS_CONTRACT ||
-          state.previous.day > state.day)
+          state.previous.day > state.day))
   )
     throw new Error("OEM run day or previous model census is inconsistent");
   let expected = 0;
@@ -306,10 +352,22 @@ function begin(
   if (state.phase !== "arrivals" || state.day !== null)
     return { cursor: value, warning: null };
   const day = ModelCensus.day(now);
-  const parsed = OemCursorSchema.safeParse(previousCursor ?? undefined);
-  const previous =
+  // The durable wire format omits `source` (the checksum still covers it), so
+  // restore it the way the durable parser does before validating.
+  const parsed = OemCursorSchema.safeParse(
+    typeof previousCursor === "object" &&
+      previousCursor !== null &&
+      !Array.isArray(previousCursor)
+      ? { ...previousCursor, source: "oem" }
+      : (previousCursor ?? undefined),
+  );
+  const terminal =
     parsed.success && parsed.data.state.phase === "complete"
-      ? ModelCensus.previous(parsed.data.state.census, OEM_CENSUS_CONTRACT, day)
+      ? parsed.data.state
+      : null;
+  const previous =
+    terminal !== null
+      ? ModelCensus.previous(terminal.census, OEM_CENSUS_CONTRACT, day)
       : {
           kind: "cold" as const,
           warning:
@@ -324,6 +382,8 @@ function begin(
         phase: "arrivals",
         day,
         previous: previous.kind === "incremental" ? previous.census : null,
+        previousArrivals:
+          previous.kind === "incremental" ? (terminal?.arrivals ?? []) : [],
       },
     }),
     warning: previous.kind === "cold" ? previous.warning : null,
@@ -337,7 +397,12 @@ export const OemCursor = {
       version: 1,
       requests: 0,
       bytes: 0,
-      state: { phase: "arrivals", day: null, previous: null },
+      state: {
+        phase: "arrivals",
+        day: null,
+        previous: null,
+        previousArrivals: [],
+      },
     }),
   checkpoint,
   begin,

@@ -87,6 +87,7 @@ export function oemAdvance(input: OemCursor, raw: string): OemCursor {
       phase: "directory",
       day: state.day,
       previous: state.previous,
+      previousArrivals: state.previousArrivals,
       arrivals: parseOemDonors(raw, { kind: "arrivals" }),
     };
   } else if (state.phase === "directory")
@@ -203,7 +204,11 @@ export function streamOemInventory<E, R>(options: OemOptions<E, R>) {
         );
         const terminal = OemCursor.checkpoint({
           ...cursor,
-          state: { phase: "complete", census },
+          state: {
+            phase: "complete",
+            census,
+            arrivals: state.arrivals.records.flatMap((r) => r.destinations),
+          },
         });
         yield* options.onBatch(
           snapshot.vehicles.map((v) => transformOemCandidate(v, location)),
