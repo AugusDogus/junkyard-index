@@ -16,16 +16,19 @@ export interface DailySearchAlertsTriggered {
  * finishes; starting delivery here as well keeps retries and earlier
  * intents moving when today's check keeps failing. The delivery claim
  * decides what may go out: it holds recipients' earlier intents until
- * today's check finishes, so they share today's digest. A past day starts
- * no check; the current day's check covers its vehicles. Callers pass the
- * lookups and workflow starts, so this stays out of the workflow bundle's
- * runtime imports.
+ * today's check finishes, so they share today's digest. The check's row is
+ * opened before delivery is considered, so the hold is in place even when
+ * the check workflow has not started yet. A past day starts no check; the
+ * current day's check covers its vehicles. Callers pass the lookups and
+ * workflow starts, so this stays out of the workflow bundle's runtime
+ * imports.
  */
 export async function startDailySearchAlerts(
   day: string,
   operations: {
     now: Date;
-    checkState(day: string): Promise<SearchAlertCheckState>;
+    /** Opens (creating while current) the day's check and returns its state. */
+    openCheck(day: string): Promise<SearchAlertCheckState>;
     hasDeliverableIntents(): Promise<boolean>;
     startCheck(day: string): Promise<unknown>;
     startDelivery(): Promise<unknown>;
@@ -33,9 +36,9 @@ export async function startDailySearchAlerts(
 ): Promise<DailySearchAlertsTriggered> {
   const state =
     IngestionDay.key(operations.now) === day
-      ? await operations.checkState(day)
+      ? await operations.openCheck(day)
       : "finished";
-  const check = state !== "finished";
+  const check = state === "running";
   if (check) await operations.startCheck(day);
   const delivery = await operations.hasDeliverableIntents();
   if (delivery) await operations.startDelivery();

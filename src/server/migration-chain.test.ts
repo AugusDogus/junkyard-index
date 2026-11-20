@@ -335,7 +335,6 @@ test("upgrades production through 0016 with ordered arrival, ingestion, departur
       ["0019_vehicle_departure", 1794992048862],
       ["0020_inventory_snapshot", 1794992409438],
       ["0021_yard_publication", 1795046400000],
-      ["0022_daily_search_alert_check", 1795190400000],
     ]);
     const snapshot = z.object({ id: z.string(), prevId: z.string() });
     const prior = snapshot.parse(

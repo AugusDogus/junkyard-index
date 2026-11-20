@@ -1,12 +1,19 @@
 import { describe, expect, test } from "bun:test";
+import { drizzle } from "drizzle-orm/libsql";
+import { createTestClient } from "~/server/ingestion/durable-ingestion-test-fixtures";
 import {
   isPastSearchAlertDeadline,
   runSearchAlertCheck,
   startDailySearchAlerts,
 } from "./daily-search-alert-trigger";
-import type {
-  SearchAlertCheckBatchResult,
-  SearchAlertCheckState,
+import {
+  claimNotificationIntentGroup,
+  hasDeliverableNotificationIntent,
+} from "./notification-intent-claim";
+import {
+  openSearchAlertCheckState,
+  type SearchAlertCheckBatchResult,
+  type SearchAlertCheckState,
 } from "./search-alert-check";
 
 function trigger(state: {
@@ -18,7 +25,7 @@ function trigger(state: {
     started,
     operations: (now: Date) => ({
       now,
-      checkState: async () => state.check,
+      openCheck: async () => state.check,
       hasDeliverableIntents: async () => state.deliverable,
       startCheck: async (day: string) => {
         started.push(`check:${day}`);
@@ -34,18 +41,6 @@ const DAY = "2026-11-20";
 const DURING_DAY = new Date("2026-11-20T19:00:00Z");
 
 describe("daily search alert trigger", () => {
-  test("starts a check that does not exist yet and delivery of whatever the claim lets go out", async () => {
-    const { started, operations } = trigger({
-      check: "missing",
-      deliverable: true,
-    });
-    expect(await startDailySearchAlerts(DAY, operations(DURING_DAY))).toEqual({
-      check: true,
-      delivery: true,
-    });
-    expect(started).toEqual([`check:${DAY}`, "delivery"]);
-  });
-
   test("restarts a running check and starts delivery, which the claim holds while the check progresses", async () => {
     const { started, operations } = trigger({
       check: "running",
@@ -85,6 +80,93 @@ describe("daily search alert trigger", () => {
     });
     expect(started).toEqual(["delivery"]);
   });
+
+  test.each([
+    // The first deadline cron, before any pass opened today's check.
+    "2026-11-20T18:40:00Z",
+    // A pass that ends late, past the hold for a check that never appears.
+    "2026-11-20T20:00:00Z",
+  ])(
+    "at %s, a held-over intent is not delivered before the check it starts finishes",
+    async (at) => {
+      const { client, cleanup } = createTestClient();
+      try {
+        await client.executeMultiple(`
+        create table user (id text primary key);
+        insert into user values ('user-1');
+        create table ingestion_run (
+          id text primary key, source text not null, status text not null,
+          stage text not null, active_slot integer, commit_started_at integer,
+          full_reindex_required integer not null default 0,
+          publication_sequence integer, started_at integer not null
+        );
+        insert into ingestion_run (id, source, status, stage, started_at)
+        values ('run-1', 'pyp', 'success', 'released', 0);
+        create table search_alert_check (
+          id text primary key, day text not null unique, status text not null,
+          checked_through integer not null, search_cursor text,
+          started_at integer not null, last_progress_at integer not null,
+          completed_at integer
+        );
+        create table search_notification_intent (
+          id text primary key, run_id text, alert_check_id text,
+          publication_sequence integer not null default 1,
+          saved_search_id text not null default 'search-1',
+          user_id text not null default 'user-1',
+          channel text not null default 'email',
+          search_match_version integer not null default 1,
+          channel_config_version integer not null default 1,
+          payload text not null default '{}',
+          status text not null default 'pending',
+          attempts integer not null default 0, delivery_group_id text,
+          claim_token text, claimed_at integer, next_attempt_at integer,
+          last_error text, created_at integer not null default 0,
+          delivered_at integer, cancelled_at integer
+        );
+        create table search_notification_delivery (
+          user_id text not null, channel text not null,
+          delivered_at integer not null, primary key (user_id, channel)
+        );
+        -- Yesterday's match, never sent: its run released.
+        insert into search_notification_intent (id, run_id) values ('held', 'run-1');
+      `);
+        const database = drizzle(client);
+        const now = new Date(at);
+        const claimed: string[] = [];
+        const result = await startDailySearchAlerts(DAY, {
+          now,
+          openCheck: (day) =>
+            openSearchAlertCheckState({ database, client }, day, now),
+          hasDeliverableIntents: () =>
+            hasDeliverableNotificationIntent({
+              database,
+              now,
+              leaseMs: 900000,
+            }),
+          // The check workflow is only enqueued here; it has not run a batch.
+          startCheck: async () => undefined,
+          startDelivery: async () => {
+            const group = await claimNotificationIntentGroup({
+              channel: "email",
+              database,
+              now,
+              leaseMs: 900000,
+              claimToken: "deadline",
+            });
+            claimed.push(...group.map((row) => row.id));
+          },
+        });
+        expect(result).toEqual({ check: true, delivery: false });
+        expect(claimed).toEqual([]);
+        expect(
+          (await client.execute("select day, status from search_alert_check"))
+            .rows,
+        ).toEqual([expect.objectContaining({ day: DAY, status: "running" })]);
+      } finally {
+        cleanup();
+      }
+    },
+  );
 
   test("the deadline is 18:00 UTC within the 07:00 UTC ingestion day", () => {
     expect(
