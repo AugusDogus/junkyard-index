@@ -225,6 +225,7 @@ describe("durable ingestion cursors", () => {
     ["allied", 8],
     ["urgiis", 16],
     ["byot", 16],
+    ["aviation", 4],
   ] as const)(
     "%s preserves its source-specific wire byte guard",
     (source, limitMiB) => {
@@ -241,7 +242,6 @@ describe("durable ingestion cursors", () => {
   );
   test.each([
     "rustyhook",
-    "aviation",
     "chaz",
     "citymotors",
     "aplus",
