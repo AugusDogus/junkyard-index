@@ -5,14 +5,27 @@ import {
   OemControlSchema,
   OemPageSchema,
   oemControlUrl,
-  type OemControl,
+  type OemPage,
 } from "./oem-parser";
+import {
+  ModelCensus,
+  type ModelCensusControl,
+  type ModelCensusDecision,
+} from "./model-census";
 
 export const OEM_MAX_REQUESTS = 1800;
 export const OEM_MAX_BODY_BYTES = 4 * 1024 * 1024;
 export const OEM_MAX_TOTAL_BYTES = 512 * 1024 * 1024;
+// Room for the previous census plus this run's pages (about 1.8 MiB each today).
+export const OEM_MAX_CURSOR_BYTES = 8 * 1024 * 1024;
 export const oemHash = (value: unknown) =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
+/** Parser, traversal and closing contract for carried model evidence. */
+const OEM_CENSUS_CONTRACT =
+  "oem/OH40/literal-model-graph/arrival-union/make-directory-closing/incremental-model-census-v1";
+/** Every model page of an accepted run, carried forward by the next one. */
+export const OemCensusSchema = ModelCensus.schema(OemPageSchema, 1024);
+export type OemCensus = z.infer<typeof OemCensusSchema>;
 const menusSchema = z
   .array(
     z
@@ -28,69 +41,86 @@ const graph = {
   makes: z.array(OemControlSchema).min(1).max(128),
   menus: menusSchema,
 };
-const census = { ...graph, pages: z.array(OemPageSchema).max(1024) };
+const donors = { ...graph, pages: z.array(OemPageSchema).max(1024) };
+/** UTC run day fixed before the first request, and the compatible census of
+ * the last accepted run (null for a cold census). */
+const run = {
+  day: z.number().int().nonnegative().safe(),
+  previous: OemCensusSchema.nullable(),
+};
 const StateSchema = z.discriminatedUnion("phase", [
-  z.object({ phase: z.literal("arrivals") }).strict(),
-  z.object({ phase: z.literal("directory"), arrivals: OemPageSchema }).strict(),
-  z.object({ phase: z.literal("menus"), ...graph }).strict(),
-  z.object({ phase: z.literal("models"), ...census }).strict(),
+  z
+    .object({
+      phase: z.literal("arrivals"),
+      // Null only before the census begins.
+      day: run.day.nullable(),
+      previous: run.previous,
+    })
+    .strict(),
+  z
+    .object({ phase: z.literal("directory"), ...run, arrivals: OemPageSchema })
+    .strict(),
+  z.object({ phase: z.literal("menus"), ...run, ...graph }).strict(),
+  z.object({ phase: z.literal("models"), ...run, ...donors }).strict(),
   z
     .object({
       phase: z.literal("closing"),
-      ...census,
+      ...run,
+      ...donors,
       closing: z.number().int().nonnegative(),
     })
     .strict(),
-  z.object({ phase: z.literal("complete") }).strict(),
+  z
+    .object({
+      phase: z.literal("complete"),
+      // Pre-incremental terminal cursors stay readable but seed a cold census.
+      census: OemCensusSchema.optional(),
+    })
+    .strict(),
 ]);
 export type OemState = z.infer<typeof StateSchema>;
 export type OemCensusState = Extract<OemState, { phase: "closing" }>;
 export const oemModels = (menus: z.infer<typeof menusSchema>) =>
   menus.flatMap(({ make, models }) => models.map((model) => ({ make, model })));
-export type OemClosingControl =
-  | { kind: "arrivals"; url: string }
-  | { kind: "makes"; url: string }
-  | { kind: "models"; url: string; make: OemControl; index: number }
-  | {
-      kind: "model";
-      url: string;
-      make: OemControl;
-      model: OemControl;
-      index: number;
-    };
-/** Close all directories and the first/last and every badge-mismatched model.
- * Counts are diagnostics, but an unstable discrepancy must stop reconciliation. */
-export function oemClosingControls(state: OemCensusState): OemClosingControl[] {
-  const models = oemModels(state.menus);
-  const selected = new Set(models.length ? [0, models.length - 1] : []);
-  state.pages.forEach((page, index) => {
-    if (page.records.length !== models[index]?.model.count) selected.add(index);
-  });
-  return [
-    { kind: "arrivals", url: OEM_ARRIVALS },
-    { kind: "makes", url: OEM_MAKES },
-    ...state.menus.map(
-      ({ make }, index): OemClosingControl => ({
-        kind: "models",
-        url: oemControlUrl(make, 2),
-        make,
-        index,
-      }),
-    ),
-    ...[...selected]
-      .sort((a, b) => a - b)
-      .map((index): OemClosingControl => {
-        const entry = models[index];
-        if (!entry)
-          throw new Error("OEM closing model is outside the native graph");
-        return {
-          kind: "model",
-          url: oemControlUrl(entry.model, 3),
-          ...entry,
-          index,
-        };
-      }),
-  ];
+export type OemClosingControl = { kind: "makes"; url: string };
+/** Closing re-reads the make directory only; every page already proves OH40
+ * ownership. Per-model changes during the run surface as badge changes in the
+ * next run's opening menus. */
+export function oemClosingControls(): OemClosingControl[] {
+  return [{ kind: "makes", url: OEM_MAKES }];
+}
+function oemCensusControls(
+  menus: z.infer<typeof menusSchema>,
+): ModelCensusControl[] {
+  // Binds every field a model page binds: parent make route/label and model
+  // route/label; the model badge is the census count.
+  return oemModels(menus).map(({ make, model }) => ({
+    key: JSON.stringify([make.url, make.label, model.url, model.label]),
+    count: model.count,
+  }));
+}
+/** Read or carry each published model. Arrivals never trigger a read: OEM
+ * model pages lag arrivals by days, so an arrival trigger would re-read the
+ * same lagging page daily; arrival donors are published from the arrivals page
+ * itself. */
+export function oemCensusPlan(
+  state: Pick<OemCensusState, "menus" | "day" | "previous">,
+): ModelCensusDecision<OemPage>[] {
+  return ModelCensus.plan(
+    oemCensusControls(state.menus),
+    state.previous,
+    state.day,
+  );
+}
+/** Terminal census for a fully closed run. */
+export function oemCensus(state: OemCensusState): OemCensus {
+  return ModelCensus.accept(
+    OEM_CENSUS_CONTRACT,
+    state.day,
+    oemCensusControls(state.menus),
+    state.pages,
+    oemCensusPlan(state),
+  );
 }
 const cursor = z
   .object({
@@ -113,12 +143,20 @@ const checksum = (value: Omit<OemCursor, "checksum">) =>
   });
 function inspect(value: OemCursor): void {
   if (
-    Buffer.byteLength(JSON.stringify(value)) > 4 * 1024 * 1024 ||
+    Buffer.byteLength(JSON.stringify(value)) > OEM_MAX_CURSOR_BYTES ||
     value.checksum !== checksum(value)
   )
-    throw new Error("OEM checkpoint exceeds 4 MiB or its integrity changed");
+    throw new Error("OEM checkpoint exceeds 8 MiB or its integrity changed");
   const state = value.state;
   if (state.phase === "complete") return;
+  if (
+    state.day === null
+      ? value.requests !== 0 || state.previous !== null
+      : state.previous !== null &&
+        (state.previous.contract !== OEM_CENSUS_CONTRACT ||
+          state.previous.day > state.day)
+  )
+    throw new Error("OEM run day or previous model census is inconsistent");
   let expected = 0;
   if (state.phase !== "arrivals") {
     expected++;
@@ -169,7 +207,6 @@ function inspect(value: OemCursor): void {
     )
       throw new Error("OEM model graph is oversized or repeats a control");
     if (state.phase !== "menus") {
-      expected += state.pages.length;
       if (
         state.pages.length > models.length ||
         (state.phase === "models" && state.pages.length >= models.length) ||
@@ -188,7 +225,8 @@ function inspect(value: OemCursor): void {
               r.ordinal !== i ||
               r.sourceUrl !== page.sourceUrl ||
               r.context.kind !== "model" ||
-              oemHash(r.context.make) !== oemHash(entry.make) ||
+              oemHash(r.context.make) !==
+                oemHash({ url: entry.make.url, label: entry.make.label }) ||
               oemHash(r.context.model) !== oemHash(entry.model),
           )
         )
@@ -196,6 +234,22 @@ function inspect(value: OemCursor): void {
             "OEM donor checkpoint lost a model/source/ordinal binding",
           );
       });
+      // Re-derive the plan: carried pages are exactly the previous census
+      // evidence and cost no GET; the next page must be due for a read.
+      const decisions = oemCensusPlan(state);
+      state.pages.forEach((page, index) => {
+        const decision = decisions[index];
+        if (decision?.kind === "read") expected++;
+        else if (!decision || oemHash(decision.evidence.page) !== oemHash(page))
+          throw new Error(
+            "OEM carried model page differs from its accepted census evidence",
+          );
+      });
+      if (
+        state.phase === "models" &&
+        decisions[state.pages.length]?.kind !== "read"
+      )
+        throw new Error("OEM next model page is not due for a native read");
       if (
         state.arrivals.records.length +
           state.pages.reduce((n, p) => n + p.records.length, 0) >
@@ -203,7 +257,7 @@ function inspect(value: OemCursor): void {
       )
         throw new Error("OEM checkpoint exceeds the observed donor capacity");
       if (state.phase === "closing") {
-        if (state.closing > oemClosingControls(state).length)
+        if (state.closing > oemClosingControls().length)
           throw new Error("OEM closing prefix exceeds its native controls");
         expected += state.closing;
       }
@@ -240,6 +294,41 @@ function checkpoint(value: Omit<OemCursor, "checksum">): OemCursor {
   });
   return OemCursorSchema.parse({ ...parsed, checksum: checksum(parsed) });
 }
+/** Fixes the run day and adopts the last accepted census before the first
+ * request. Anything unusable starts a cold census with a warning; a missing
+ * previous cursor is a silent cold start. */
+function begin(
+  value: OemCursor,
+  now: number,
+  previousCursor: unknown,
+): { cursor: OemCursor; warning: string | null } {
+  const state = value.state;
+  if (state.phase !== "arrivals" || state.day !== null)
+    return { cursor: value, warning: null };
+  const day = ModelCensus.day(now);
+  const parsed = OemCursorSchema.safeParse(previousCursor ?? undefined);
+  const previous =
+    parsed.success && parsed.data.state.phase === "complete"
+      ? ModelCensus.previous(parsed.data.state.census, OEM_CENSUS_CONTRACT, day)
+      : {
+          kind: "cold" as const,
+          warning:
+            previousCursor === null || previousCursor === undefined
+              ? null
+              : "Previous OEM checkpoint is not a readable terminal census; reading every model page.",
+        };
+  return {
+    cursor: checkpoint({
+      ...value,
+      state: {
+        phase: "arrivals",
+        day,
+        previous: previous.kind === "incremental" ? previous.census : null,
+      },
+    }),
+    warning: previous.kind === "cold" ? previous.warning : null,
+  };
+}
 export const OemCursor = {
   schema: OemCursorSchema,
   initial: () =>
@@ -248,7 +337,8 @@ export const OemCursor = {
       version: 1,
       requests: 0,
       bytes: 0,
-      state: { phase: "arrivals" },
+      state: { phase: "arrivals", day: null, previous: null },
     }),
   checkpoint,
+  begin,
 } as const;

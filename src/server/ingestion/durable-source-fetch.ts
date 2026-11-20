@@ -470,9 +470,18 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
           // Durable validation checks previous published inventory before reconciliation.
           previousUniqueInventory: null,
           startCursor: cursor,
+          previousCursor:
+            cursor.state.phase === "arrivals" && cursor.state.day === null
+              ? await loadPublishedSourceCursor(db, "oem")
+              : null,
           maxPages: context.maxPages,
           onBatch: context.onBatch,
         }).pipe(
+          Effect.tap((result) =>
+            Effect.sync(() => {
+              for (const warning of result.warnings) console.warn(warning);
+            }),
+          ),
           Effect.tap((result) =>
             result.status === "complete" && result.count > 0
               ? context.onYards([OEM_YARD])

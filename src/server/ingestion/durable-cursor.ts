@@ -34,7 +34,11 @@ import { BeaversCursor } from "./beavers-cursor";
 import { IndianriverCursor } from "./indianriver-cursor";
 import { DentonCursor } from "./denton-cursor";
 import { ScottsCursor } from "./scotts-cursor";
-import { OemCursorSchema, type OemCursor } from "./oem-cursor";
+import {
+  OemCursorSchema,
+  OEM_MAX_CURSOR_BYTES,
+  type OemCursor,
+} from "./oem-cursor";
 import { DutchersCursor } from "./dutchers-cursor";
 import { ChasencarsCursor } from "./chasencars-cursor";
 import { WeberbrothersCursor } from "./weberbrothers-cursor";
@@ -416,14 +420,14 @@ const DURABLE_CURSOR_DEFINITIONS = {
   },
   oem: {
     parse: (value: string) => {
-      if (Buffer.byteLength(value) > 4 * 1024 * 1024)
-        throw new Error("OEM serialized checkpoint exceeds 4 MiB");
+      if (Buffer.byteLength(value) > OEM_MAX_CURSOR_BYTES)
+        throw new Error("OEM serialized checkpoint exceeds 8 MiB");
       return oemJsonCursor.parse(value);
     },
     serialize: (cursor: OemCursor) => {
       const wire = oemJsonCursor.serialize(cursor);
-      if (Buffer.byteLength(wire) > 4 * 1024 * 1024)
-        throw new Error("OEM serialized checkpoint exceeds 4 MiB");
+      if (Buffer.byteLength(wire) > OEM_MAX_CURSOR_BYTES)
+        throw new Error("OEM serialized checkpoint exceeds 8 MiB");
       return wire;
     },
   },

@@ -5,6 +5,8 @@ import { OEM_ARRIVALS, OEM_MAKES } from "./oem-html";
 import {
   OemCursor,
   OemCursorSchema,
+  oemCensus,
+  oemCensusPlan,
   oemClosingControls,
   oemHash,
   oemModels,
@@ -13,12 +15,7 @@ import {
   OEM_MAX_TOTAL_BYTES,
   type OemState,
 } from "./oem-cursor";
-import {
-  oemControlUrl,
-  parseOemDirectory,
-  parseOemDonors,
-  type OemPage,
-} from "./oem-parser";
+import { oemControlUrl, parseOemDirectory, parseOemDonors } from "./oem-parser";
 import { OemSnapshot } from "./oem-snapshot";
 import {
   OemLocationSchema,
@@ -27,12 +24,16 @@ import {
   type OemCanonicalVehicle,
 } from "./oem-transform";
 import type { ConnectorChunkAccounting } from "./connector-chunk";
-import { assessOemRecord } from "./oem-record";
+import { ModelCensus } from "./model-census";
 import { ProviderChunkClock } from "./provider-chunk-clock";
 import { sharedProviderHostTurn } from "./shared-provider-host";
 
 export interface OemOptions<E, R> {
   startCursor?: unknown;
+  /** Terminal cursor of the last accepted, published run; read only when the
+   * start cursor has not begun a census yet. */
+  previousCursor?: unknown;
+  now?: () => number;
   maxPages?: number;
   location: OemLocation;
   minimumUniqueInventory: number;
@@ -48,55 +49,9 @@ const attempt = <A>(operation: string, run: () => A) =>
 const same = (expected: unknown, actual: unknown) => {
   if (oemHash(expected) !== oemHash(actual))
     throw new Error(
-      "Closing OEM native graph or donor identity changed; restart a complete capture after reviewing drift",
+      "Closing OEM make directory changed; restart a complete capture after reviewing drift",
     );
 };
-const identity = (page: OemPage) => ({
-  sourceUrl: page.sourceUrl,
-  nativeEmpty: page.nativeEmpty,
-  records: page.records.map((r) => ({
-    sourceUrl: r.sourceUrl,
-    context: r.context,
-    ordinal: r.ordinal,
-    cardId: r.cardId,
-    destinations: r.destinations,
-    fields: r.fields.filter((f) =>
-      ["year", "make/model", "vin", "stock"].includes(f.label),
-    ),
-  })),
-});
-function reconcileClosing(
-  expected: OemPage,
-  actual: OemPage,
-  makes: readonly string[],
-): OemPage {
-  same(identity(expected), identity(actual));
-  if (
-    actual.records.some(
-      (record) => assessOemRecord(record, makes).ownershipAlerts.length,
-    )
-  )
-    throw new Error(
-      "OEM closing donor gained an unresolved foreign supplier assertion",
-    );
-  return {
-    ...expected,
-    records: expected.records.map((record, index) => {
-      const current = actual.records[index];
-      if (!current) throw new Error("OEM closing donor ordinal is missing");
-      return {
-        ...record,
-        fields: record.fields.filter((field) =>
-          current.fields.some(
-            (value) =>
-              value.label === field.label && value.value === field.value,
-          ),
-        ),
-        images: record.images.filter((image) => current.images.includes(image)),
-      };
-    }),
-  };
-}
 export function oemNextUrl(
   state: Exclude<OemState, { phase: "complete" }>,
 ): string {
@@ -109,7 +64,7 @@ export function oemNextUrl(
     const entry = oemModels(state.menus)[state.pages.length];
     if (entry) return oemControlUrl(entry.model, 3);
   } else {
-    const entry = oemClosingControls(state)[state.closing];
+    const entry = oemClosingControls()[state.closing];
     if (entry) return entry.url;
   }
   throw new Error("OEM checkpoint has no next published native control");
@@ -123,12 +78,18 @@ export function oemAdvance(input: OemCursor, raw: string): OemCursor {
   if (!bytes || bytes > OEM_MAX_BODY_BYTES)
     throw new Error("OEM document is empty or exceeds 4 MiB");
   let next: OemState;
-  if (state.phase === "arrivals")
+  if (state.phase === "arrivals") {
+    if (state.day === null)
+      throw new Error(
+        "OEM model census has no run day; begin the census before the first request",
+      );
     next = {
       phase: "directory",
+      day: state.day,
+      previous: state.previous,
       arrivals: parseOemDonors(raw, { kind: "arrivals" }),
     };
-  else if (state.phase === "directory")
+  } else if (state.phase === "directory")
     next = {
       ...state,
       phase: "menus",
@@ -142,61 +103,34 @@ export function oemAdvance(input: OemCursor, raw: string): OemCursor {
       ...state.menus,
       { make, models: parseOemDirectory(raw, { kind: "models", make }) },
     ];
-    next =
-      menus.length === state.makes.length
-        ? { ...state, phase: "models", menus, pages: [] }
-        : { ...state, menus };
+    if (menus.length === state.makes.length) {
+      // Carried models before the first due read cost no request.
+      const pages = ModelCensus.carriedRun(
+        oemCensusPlan({ ...state, menus }),
+        0,
+      );
+      next =
+        pages.length === oemModels(menus).length
+          ? { ...state, phase: "closing", menus, pages, closing: 0 }
+          : { ...state, phase: "models", menus, pages };
+    } else next = { ...state, menus };
   } else if (state.phase === "models") {
     const entry = oemModels(state.menus)[state.pages.length];
     if (!entry) throw new Error("OEM native model context is missing");
     const pages = [
       ...state.pages,
       parseOemDonors(raw, { kind: "model", ...entry }),
+      ...ModelCensus.carriedRun(oemCensusPlan(state), state.pages.length + 1),
     ];
     next =
       pages.length === oemModels(state.menus).length
         ? { ...state, phase: "closing", pages, closing: 0 }
         : { ...state, pages };
   } else {
-    const control = oemClosingControls(state)[state.closing];
+    const control = oemClosingControls()[state.closing];
     if (!control) throw new Error("OEM native closing context is missing");
-    let reconciled = state;
-    if (control.kind === "arrivals")
-      reconciled = {
-        ...state,
-        arrivals: reconcileClosing(
-          state.arrivals,
-          parseOemDonors(raw, { kind: "arrivals" }),
-          state.makes.map((make) => make.label),
-        ),
-      };
-    else if (control.kind === "makes")
-      same(state.makes, parseOemDirectory(raw, { kind: "makes" }));
-    else if (control.kind === "models")
-      same(
-        state.menus[control.index]?.models,
-        parseOemDirectory(raw, { kind: "models", make: control.make }),
-      );
-    else {
-      const expected = state.pages[control.index];
-      if (!expected) throw new Error("OEM closing model binding is missing");
-      const page = reconcileClosing(
-        expected,
-        parseOemDonors(raw, {
-          kind: "model",
-          make: control.make,
-          model: control.model,
-        }),
-        state.makes.map((make) => make.label),
-      );
-      reconciled = {
-        ...state,
-        pages: state.pages.map((value, index) =>
-          index === control.index ? page : value,
-        ),
-      };
-    }
-    next = { ...reconciled, closing: state.closing + 1 };
+    same(state.makes, parseOemDirectory(raw, { kind: "makes" }));
+    next = { ...state, closing: state.closing + 1 };
   }
   return OemCursor.checkpoint({
     ...cursor,
@@ -232,6 +166,16 @@ export function streamOemInventory<E, R>(options: OemOptions<E, R>) {
     let cursor = yield* attempt("checkpoint", () =>
       OemCursorSchema.parse(options.startCursor ?? OemCursor.initial()),
     );
+    const warnings: string[] = [];
+    if (cursor.state.phase !== "complete") {
+      const pending = cursor;
+      const now = options.now ?? Date.now;
+      const begun = yield* attempt("begin model census", () =>
+        OemCursor.begin(pending, now(), options.previousCursor),
+      );
+      cursor = begun.cursor;
+      if (begun.warning) warnings.push(begun.warning);
+    }
     let pagesProcessed = 0;
     const empty: ConnectorChunkAccounting = {
       recordsProcessed: 0,
@@ -243,7 +187,7 @@ export function streamOemInventory<E, R>(options: OemOptions<E, R>) {
       const state = cursor.state;
       if (
         state.phase === "closing" &&
-        state.closing === oemClosingControls(state).length
+        state.closing === oemClosingControls().length
       ) {
         const snapshot = yield* attempt("complete-source quality", () => {
           const result = OemSnapshot.create(
@@ -254,9 +198,12 @@ export function streamOemInventory<E, R>(options: OemOptions<E, R>) {
           if (!validation.ok) throw new Error(validation.reasons.join("; "));
           return result;
         });
+        const census = yield* attempt("close model census", () =>
+          oemCensus(state),
+        );
         const terminal = OemCursor.checkpoint({
           ...cursor,
-          state: { phase: "complete" },
+          state: { phase: "complete", census },
         });
         yield* options.onBatch(
           snapshot.vehicles.map((v) => transformOemCandidate(v, location)),
@@ -270,11 +217,15 @@ export function streamOemInventory<E, R>(options: OemOptions<E, R>) {
           accounting: snapshot.accounting,
           observedVins: snapshot.observedVins,
           errors: [],
-          warnings: snapshot.accounting.recordsRejected
-            ? [
-                "OEM retains native required rejects and global identity conflicts. Optional metadata remains nullable.",
-              ]
-            : [],
+          warnings: [
+            ...warnings,
+            ...(snapshot.accounting.recordsRejected
+              ? [
+                  "OEM retains native required rejects and global identity conflicts. Optional metadata remains nullable.",
+                ]
+              : []),
+            "OEM " + ModelCensus.summary(oemCensusPlan(state)),
+          ],
         };
       }
       if (pagesProcessed >= budget) break;
@@ -316,7 +267,7 @@ export function streamOemInventory<E, R>(options: OemOptions<E, R>) {
       accounting: empty,
       observedVins: [],
       errors: [],
-      warnings: [],
+      warnings,
     };
   }).pipe(
     ProviderChunkClock.deadline({
