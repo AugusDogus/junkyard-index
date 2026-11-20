@@ -1,5 +1,9 @@
+import { readFileSync } from "node:fs";
+import { gunzipSync } from "node:zlib";
+import { z } from "zod";
 import {
   chazHash,
+  ChazControlSchema,
   type ChazControl,
   type ChazPage,
   type ChazRecord,
@@ -66,3 +70,20 @@ export const chazFixtureRoot = (records: ChazRecord[]) =>
 export const chazFixtureContact = chazFixtureDocument(
   `<p>Taneytown, MD 21787</p><a href="tel:410-876-7815">Call</a><iframe src="https://www.google.com/maps/embed?pb=!2sChaz's%20Used%20Auto%20Parts%20%26%20Towing%20Inc"></iframe>`,
 );
+
+/** The published graph of the Nov 18, 2026 production run (its saved cursor
+ * after 205 GETs): 35 makes and 240 models with their menu badges. Its 167 read
+ * model pages list exactly their badge except the dead TOWN & COUNTRY route
+ * (badge 8, explicit empty); LINCOLN & TOWN CAR (badge 1) failed that run on
+ * the same dead `&` route. */
+export const chazFixtureNov18Graph = z
+  .array(ChazControlSchema.extend({ models: z.array(ChazControlSchema) }))
+  .parse(
+    JSON.parse(
+      gunzipSync(
+        readFileSync(
+          new URL("./chaz-test-fixtures/nov18-graph.json.gz", import.meta.url),
+        ),
+      ).toString("utf8"),
+    ),
+  );
