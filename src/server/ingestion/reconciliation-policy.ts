@@ -234,7 +234,6 @@ export function planMissingVehicleTransitions(params: {
   }>;
   runTimestamp: Date;
   acceptedSources: ReadonlySet<string>;
-  deleteAfterRuns: number;
   deleteAfterMs: number;
 }): MissingVehicleTransition[] {
   const cutoff = params.runTimestamp.getTime() - params.deleteAfterMs;
@@ -251,10 +250,10 @@ export function planMissingVehicleTransitions(params: {
     const missingRunCount = (row.missingRunCount ?? 0) + 1;
     transitions.push({
       vin: row.vin,
-      changeType:
-        missingRunCount >= params.deleteAfterRuns || missingSinceAt <= cutoff
-          ? "delete"
-          : "missing",
+      // Only an earlier run sets missingSinceAt, so a vehicle still missing
+      // after deleteAfterMs was missed on at least two ingestion days. Run
+      // counts are not used: same-day retries and re-crawls inflate them.
+      changeType: missingSinceAt <= cutoff ? "delete" : "missing",
       missingSinceAt,
       missingRunCount,
     });

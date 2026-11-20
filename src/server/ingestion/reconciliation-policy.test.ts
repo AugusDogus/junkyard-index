@@ -343,7 +343,6 @@ describe("reconciliation policy", () => {
       ],
       runTimestamp,
       acceptedSources: new Set(["pyp"]),
-      deleteAfterRuns: 3,
       deleteAfterMs: 3 * 24 * 60 * 60 * 1000,
     });
 
@@ -358,6 +357,43 @@ describe("reconciliation policy", () => {
         vin: "VIN_DELETE",
         changeType: "delete",
         missingSinceAt: new Date("2026-03-01T00:00:00.000Z").getTime(),
+        missingRunCount: 3,
+      },
+    ]);
+  });
+
+  test("keeps a vehicle missed by same-day re-crawls until it has been missing 72 hours", () => {
+    const runTimestamp = new Date("2026-03-05T00:00:00.000Z");
+    const sixHoursAgo = new Date("2026-03-04T18:00:00.000Z");
+    const justUnderThreeDays = new Date("2026-03-02T00:00:01.000Z");
+    const transitions = planMissingVehicleTransitions({
+      presentVins: new Set(),
+      existingRows: [
+        existingVehicle("VIN_RECRAWLED", {
+          missingSinceAt: sixHoursAgo,
+          missingRunCount: 5,
+        }),
+        existingVehicle("VIN_ALMOST", {
+          missingSinceAt: justUnderThreeDays,
+          missingRunCount: 2,
+        }),
+      ],
+      runTimestamp,
+      acceptedSources: new Set(["pyp"]),
+      deleteAfterMs: 3 * 24 * 60 * 60 * 1000,
+    });
+
+    expect(transitions).toEqual([
+      {
+        vin: "VIN_RECRAWLED",
+        changeType: "missing",
+        missingSinceAt: sixHoursAgo.getTime(),
+        missingRunCount: 6,
+      },
+      {
+        vin: "VIN_ALMOST",
+        changeType: "missing",
+        missingSinceAt: justUnderThreeDays.getTime(),
         missingRunCount: 3,
       },
     ]);

@@ -108,30 +108,26 @@ describe("bounded durable reconciliation", () => {
       };
       for (const id of ["cleanup-first", "cleanup-again"]) {
         const now = new Date();
-        await database
-          .insert(ingestionRun)
-          .values({
-            id,
-            source: "row52",
-            status: "running",
-            stage: "reconcile_upsert",
-            activeSlot: 1,
-            commitStartedAt: now,
-            acceptedSources: JSON.stringify(["row52"]),
-            startedAt: now,
-            lastProgressAt: now,
-          });
-        await database
-          .insert(ingestionSourceRun)
-          .values({
-            id: `${id}:row52`,
-            runId: id,
-            source: "row52",
-            status: "success",
-            acceptanceStatus: "accepted",
-            uniqueVehicles: 1,
-            startedAt: now,
-          });
+        await database.insert(ingestionRun).values({
+          id,
+          source: "row52",
+          status: "running",
+          stage: "reconcile_upsert",
+          activeSlot: 1,
+          commitStartedAt: now,
+          acceptedSources: JSON.stringify(["row52"]),
+          startedAt: now,
+          lastProgressAt: now,
+        });
+        await database.insert(ingestionSourceRun).values({
+          id: `${id}:row52`,
+          runId: id,
+          source: "row52",
+          status: "success",
+          acceptanceStatus: "accepted",
+          uniqueVehicles: 1,
+          startedAt: now,
+        });
         await stageSnapshots({ client, store, runId: id, vehicles: [raw] });
         await reconcileDurableIngestionRun({
           runId: id,
@@ -555,7 +551,7 @@ describe("bounded durable reconciliation", () => {
           "select * from autorecycler_org_geo order by org_lookup",
         )
       ).rows;
-      const firstSeenAt = Date.now() - 86_400_000;
+      const firstSeenAt = Date.now() - 4 * 86_400_000;
       for (const vin of [presentVin, "VIN-ABSENT", mirrorVin]) {
         await client.execute({
           sql: "insert into vehicle (vin, source, year, make, model, color, location_code, location_name, location_city, state, state_abbr, lat, lng, first_seen_at, last_seen_at, missing_since_at, missing_run_count) values (?, 'autorecycler', 2006, 'Kia', 'Rio', 'Blue', ?, 'Saved yard', 'Columbus', 'Georgia', 'GA', 32.44, -84.94, ?, ?, ?, 2)",
@@ -1007,10 +1003,20 @@ describe("bounded durable reconciliation", () => {
       await client.execute(
         "update ingestion_run set active_slot = null, status = 'success' where id = 'run-old-observation'",
       );
+      // The absent rows have been missing past the 72-hour rule; the observed
+      // row is current and must never start aging.
+      const missingSince = now - 4 * 86_400_000;
       for (const vin of ["VIN-PRESENT", "VIN-ABSENT", "VIN-UNLISTED"]) {
+        const missing = vin !== "VIN-PRESENT";
         await client.execute({
-          sql: `insert into vehicle (vin, source, year, make, model, location_code, location_name, location_city, state, state_abbr, lat, lng, first_seen_at, last_seen_at, missing_run_count) values (?, 'pullnsave', 2003, 'Chevrolet', 'Cavalier', 'PNS-10', 'Discovered Yard', 'Mesa', 'Arizona', 'AZ', 33.43, -111.85, ?, ?, 0)`,
-          args: [vin, now, now],
+          sql: `insert into vehicle (vin, source, year, make, model, location_code, location_name, location_city, state, state_abbr, lat, lng, first_seen_at, last_seen_at, missing_since_at, missing_run_count) values (?, 'pullnsave', 2003, 'Chevrolet', 'Cavalier', 'PNS-10', 'Discovered Yard', 'Mesa', 'Arizona', 'AZ', 33.43, -111.85, ?, ?, ?, ?)`,
+          args: [
+            vin,
+            missingSince,
+            missing ? missingSince : now,
+            missing ? missingSince : null,
+            missing ? 1 : 0,
+          ],
         });
       }
       globalThis.fetch = Object.assign(
@@ -1366,9 +1372,11 @@ describe("bounded durable reconciliation", () => {
       const snapshotStore = IngestionSnapshotStore.memory();
 
       const states = [];
-      for (const attempt of [1, 2, 3]) {
-        const runId = `run-row52-${attempt}`;
-        const startedAt = new Date(seededAt.getTime() + attempt * 3_600_000);
+      // Three same-day runs, then one 72 hours after the vehicle went missing.
+      const offsetsMs = [1, 2, 3, 75].map((hours) => hours * 3_600_000);
+      for (const [index, offsetMs] of offsetsMs.entries()) {
+        const runId = `run-row52-${index + 1}`;
+        const startedAt = new Date(seededAt.getTime() + offsetMs);
         await database.insert(ingestionRun).values({
           id: runId,
           source: "row52",
@@ -1418,11 +1426,13 @@ describe("bounded durable reconciliation", () => {
         ]);
       }
 
-      // Missing vehicles stay searchable with a badge; the third run deletes
-      // the row and queues the search deletion.
+      // Missing vehicles stay searchable with a badge through same-day re-runs;
+      // the first run 72 hours after they went missing deletes the row and
+      // queues the search deletion.
       expect(states).toEqual([
         { missingRunCount: 1, changes: ["missing"] },
         { missingRunCount: 2, changes: ["missing"] },
+        { missingRunCount: 3, changes: ["missing"] },
         { missingRunCount: "deleted", changes: ["delete"] },
       ]);
     } finally {
