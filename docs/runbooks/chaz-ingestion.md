@@ -58,7 +58,8 @@ every literal make link. Model pages go through the shared incremental census
 (`model-census.ts`): a model is read when it is new, its badge changed, it is
 in today's sixth of the sweep, or its evidence is six run days old. It is also
 read when a recent arrival entered since the day before the last accepted run
-binds to it by destination but is missing from its carried page. Every other
+binds to it by destination but is missing from its carried page, or when its
+carried page's card count differs from the badge it was read under. Every other
 model carries its last accepted page at no request cost, so the union always
 covers every published model. Only owned HTTPS browse
 URLs are allowed. It never requests donor details, images, hidden routes,
@@ -69,7 +70,10 @@ without automatic retry.
 
 Closing controls repeat contact and the make directory. A changed fingerprint
 stops the run before emission. Model-level changes during a run surface as
-badge changes in the next run's opening menus. Nonempty model destinations must
+badge changes in the next run's opening menus. The dropped closing re-read of
+badge/card discrepancies moves to the next run, which re-reads every model
+whose accepted page disagrees with its badge, so a transient short or empty
+page is published for at most one run. Nonempty model destinations must
 match the requested literal model parent. Explicit empty pages must retain
 their native model heading; labels containing `&` also accept the native `-and`
 spelling. These checks do not claim simultaneous stability of unrefetched or
