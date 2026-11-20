@@ -20,7 +20,6 @@
     "start": "next start",
     "test": "bun test src",
     "test:server": "bun test src/server",
-    "test:ingestion": "bun test tests/ingestion",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "inventory:project": "bun scripts/project-inventory.ts",

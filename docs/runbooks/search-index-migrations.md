@@ -95,9 +95,6 @@ curl --fail \
 Starting the route more than once is safe. A second active run deduplicates to
 the first, and a completed migration exits after reading schema version `10`.
 
-Do not run `scripts/sync-algolia.ts` as the deployment path. It remains a manual
-recovery tool.
-
 ## Rollback
 
 Roll back the Vercel deployment normally. Running workflows remain pinned to the
