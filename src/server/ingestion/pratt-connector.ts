@@ -11,6 +11,9 @@ import { prattNextUrl, prattAdvance } from "./pratt-traversal";
 import { PrattResult, type PrattError } from "./pratt-result";
 import { prattSnapshot, validatePrattSnapshot } from "./pratt-snapshot";
 import type { PrattCanonicalVehicle } from "./pratt-transform";
+import { PRATT_UNREACHABLE_MODEL_ROUTES } from "./pratt-configuration";
+import { IisModelRoute } from "./iis-model-route";
+import { validationRejection } from "./ingestion-validation";
 import { ProviderChunkClock } from "./provider-chunk-clock";
 import { sharedProviderHostTurn } from "./shared-provider-host";
 
@@ -81,6 +84,17 @@ export function streamPrattInventory<E, R>(options: PrattOptions<E, R>) {
     };
     while (cursor.phase !== "complete") {
       if (cursor.phase === "ready") {
+        const coverage = IisModelRoute.coverage(
+          cursor.menus,
+          cursor.pages,
+          PRATT_UNREACHABLE_MODEL_ROUTES,
+        );
+        if (!coverage.ok)
+          return yield* Effect.fail(
+            validationRejection(
+              PrattResult.error("advertised model coverage", coverage.detail),
+            ),
+          );
         const snapshot = prattSnapshot(
           cursor.pages,
           cursor.arrivals,
@@ -101,6 +115,7 @@ export function streamPrattInventory<E, R>(options: PrattOptions<E, R>) {
         summary.observedVins = snapshot.observedVins;
         summary.warnings = [
           "Pratt retained native required rejects and quarantined connected conflicting VIN/destination observations; badge differences are diagnostic and optional metadata is nullable.",
+          ...coverage.value.warnings,
         ];
         cursor = yield* unwrap(
           PrattCursor.checkpoint(

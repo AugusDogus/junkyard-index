@@ -40,6 +40,24 @@ test("Pratt adapter owns one GET with manual redirects, HTML acceptance and a re
   expect(calls[0]?.options?.redirect).toBe("manual");
   expect(calls[0]?.options?.signal?.aborted).toBe(true);
 });
+test("Pratt adapter dispatches raw-ampersand model routes unchanged", async () => {
+  const calls: string[] = [];
+  stub(async (requestUrl) => {
+    calls.push(requestUrl);
+    return new Response("complete", {
+      headers: { "content-type": "text/html" },
+    });
+  });
+  const routes = [
+    PRATT_ORIGIN + "/parts/CHRYSLER/TOWN_&_COUNTRY/",
+    PRATT_ORIGIN + "/parts/LINCOLN/LINCOLN_&_TOWN_CAR/",
+  ];
+  for (const route of routes)
+    expect(await Effect.runPromise(readPrattPage(route, direct))).toBe(
+      "complete",
+    );
+  expect(calls).toEqual(routes);
+});
 test("Pratt adapter rejects unowned destinations before dispatch", async () => {
   let calls = 0;
   stub(async () => {

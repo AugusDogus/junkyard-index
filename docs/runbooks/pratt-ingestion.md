@@ -18,6 +18,25 @@ All 27 rejected valid VINs remain presence evidence for reconciliation.
 One donor appears only in arrivals. Native badges are diagnostic and do not
 replace enumeration of the published graph.
 
+That census missed the badged `/parts/CHRYSLER/TOWN_-and_COUNTRY/` (34) and
+`/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/` (16) controls: the `_-and_` route
+returns an explicit "No Results Found" page. The raw `_&_` route lists every
+donor (Town & Country on November 19: badge 31, 31 cards, 30 VINs), and donor
+links use `_and__`. The connector keeps the published path in checkpoints,
+requests the raw `_&_` spelling and checks donor links against `_and__`.
+A badged model page or badged make menu that still reads as an explicit empty
+fails the run before publication and names the route and badge. Pratt has no
+exceptions (`PRATT_UNREACHABLE_MODEL_ROUTES` is empty): its November 13 census
+lists four donors on each of the literal `/parts/GMC/SAFARI_(GMC)/` and
+`/parts/CHEVROLET/BLAZER.JIMMY_(FULL_SIZE)/` routes, so dots and parentheses
+prove nothing about reachability here.
+A stale badge fails the same way: if a model's last donor leaves while its badge
+stays positive, every run fails on that route until the badge clears. Pratt has
+no closing pass, so a badge-1 model whose only donor leaves between the make
+menu read and the model page read can also fail one run. Probe the route before
+changing its spelling, escalate a persistent stale badge, and start a new run
+after any fix, since a resumed checkpoint repeats the coverage check.
+
 Native VIN or supported older serial, year, make/model and owned destination
 are required. Native title, inquiry and literal published parent/leaf controls
 must agree. Conflicting VIN/destination observations are quarantined together.
