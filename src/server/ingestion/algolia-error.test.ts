@@ -105,14 +105,14 @@ test("sync-algolia fails Algolia calls with tagged errors", () => {
     import { Effect, Either } from "effect";
     mock.module("~/lib/algolia", () => ({
       ALGOLIA_INDEX_NAME: "vehicles",
-      algoliaAdminClient: {
+      getAlgoliaAdminClient: () => ({
         saveObjects: async () => {
           throw Object.assign(new Error("Application is blocked"), {
             name: "ApiError",
             status: 403,
           });
         },
-      },
+      }),
     }));
     const { saveAlgoliaObjects } = await import(
       "./src/server/ingestion/sync-algolia.ts"
