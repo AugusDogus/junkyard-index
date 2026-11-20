@@ -61,12 +61,18 @@ const record = z
 const page = z
   .object({ records: z.array(record).max(499), nativeEmpty: z.boolean() })
   .strict();
+/** A model page entry, also the evidence an accepted census carries forward. */
+export const DentonModelEntrySchema = z
+  .object({ kind: z.literal("model"), receipt, page })
+  .strict();
+export type DentonModelEntry = z.infer<typeof DentonModelEntrySchema>;
 export const DentonEntrySchema = z.discriminatedUnion("kind", [
   z
     .object({ kind: z.enum(["about", "contact"]), receipt, identity: hash })
     .strict(),
   z.object({ kind: z.enum(["makes", "menu"]), receipt, controls }).strict(),
-  z.object({ kind: z.enum(["model", "arrivals"]), receipt, page }).strict(),
+  DentonModelEntrySchema,
+  z.object({ kind: z.literal("arrivals"), receipt, page }).strict(),
 ]);
 export type DentonEntry = z.infer<typeof DentonEntrySchema>;
 export type DentonTask =
@@ -79,13 +85,20 @@ const fixed: DentonTask[] = [
   { kind: "contact", url: DENTON_CONTACT },
   { kind: "makes", url: DENTON_MAKES },
 ];
-/** Tasks extend only from the actual published opening controls. */
+/** Closing re-reads the ownership pages and the make directory only. */
+export const DENTON_CLOSING_TASKS = fixed.length;
+/** Make controls publish without a trailing slash and the native server
+ * answers them with an exact slash 301, so menus are read at the slash URL. */
+const slash = (url: string) => (url.endsWith("/") ? url : url + "/");
+/** Tasks extend only from the actual published opening controls. Arrivals are
+ * read after every menu and before any model page, so the census plan can see
+ * which published models an arrival names. */
 export function dentonTasks(opening: readonly DentonEntry[]): DentonTask[] {
   const makes = opening[2];
   if (makes?.kind !== "makes") return fixed;
   const menus: DentonTask[] = makes.controls.map((make) => ({
     kind: "menu",
-    url: make.url,
+    url: slash(make.url),
     make,
   }));
   const models: DentonTask[] = [];
@@ -101,9 +114,17 @@ export function dentonTasks(opening: readonly DentonEntry[]): DentonTask[] {
   return [
     ...fixed,
     ...menus,
-    ...models,
     { kind: "arrivals", url: DENTON_ARRIVALS },
+    ...models,
   ];
+}
+/** Every published opening control has an entry. */
+export function dentonOpened(opening: readonly DentonEntry[]) {
+  const tasks = dentonTasks(opening);
+  return (
+    tasks.some((task) => task.kind === "arrivals") &&
+    opening.length === tasks.length
+  );
 }
 export function dentonMakes(opening: readonly DentonEntry[]) {
   const entry = opening[2];

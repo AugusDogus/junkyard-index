@@ -5,46 +5,91 @@ import {
   dentonSlashRedirect,
   type DentonResponse,
 } from "./denton-client";
-import { dentonBoundary, type DentonResult } from "./denton-html";
 import {
+  dentonBoundary,
+  dentonOwnedUrl,
+  type DentonResult,
+} from "./denton-html";
+import {
+  DENTON_CLOSING_TASKS,
   DentonEntrySchema,
+  DentonModelEntrySchema,
   DentonRedirectSchema,
   dentonFingerprint,
   dentonHash,
+  dentonOpened,
   dentonParseEntry,
   dentonTasks,
   dentonValidateEntry,
+  type DentonEntry,
+  type DentonModelEntry,
+  type DentonTask,
 } from "./denton-traversal";
 import {
   DENTON_PRESERVED_DESTINATION_FAILURES,
   DENTON_YARD,
 } from "./denton-yard-metadata";
+import {
+  ModelCensus,
+  type ModelCensusControl,
+  type ModelCensusDecision,
+} from "./model-census";
 
 export const DENTON_MINIMUM_INVENTORY = 765;
 export const DENTON_MAX_REQUESTS = 2048;
 export const DENTON_MAX_TOTAL_BYTES = 256 * 1024 * 1024;
+// A saved full census cursor was about 2 MB (two 1 MB passes). An in-run
+// cursor now holds one pass plus the previous census, so 16 MiB keeps room.
 export const DENTON_MAX_CURSOR_BYTES = 16 * 1024 * 1024;
 const prior = z.number().int().nonnegative().safe().nullable();
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
-const schema = z
+const CONTRACT =
+  "literal-controls/slash-menus/owner-directory-closing/arrival-union/native-alias/incremental-model-census-v1";
+/** Parser and traversal contract that carried model evidence depends on. It
+ * excludes the prior inventory guard, which changes every accepted run. */
+const censusContract = dentonHash({ contract: CONTRACT, yard: DENTON_YARD });
+/** Every model page held by an accepted run, carried forward by the next one. */
+export const DentonCensusSchema = ModelCensus.schema(
+  DentonModelEntrySchema,
+  768,
+);
+export type DentonCensus = z.infer<typeof DentonCensusSchema>;
+export type DentonCensusDecision = ModelCensusDecision<DentonModelEntry>;
+const progress = z
   .object({
     source: z.literal("denton"),
     version: z.literal(1),
     scope: hash,
     checksum: hash,
-    phase: z.enum(["active", "complete"]),
+    phase: z.literal("active"),
     opening: z.array(DentonEntrySchema).max(1024),
-    closing: z.array(DentonEntrySchema).max(1024),
+    closing: z.array(DentonEntrySchema).max(DENTON_CLOSING_TASKS),
     pending: DentonRedirectSchema.nullable(),
     requests: z.number().int().min(0).max(DENTON_MAX_REQUESTS),
     bytes: z.number().int().min(0).max(DENTON_MAX_TOTAL_BYTES),
+    /** UTC run day fixed before the first request; null only before begin. */
+    day: z.number().int().nonnegative().safe().nullable(),
+    /** Compatible census from the last accepted run, or null for a cold census. */
+    previous: DentonCensusSchema.nullable(),
   })
   .strict();
+const terminal = z
+  .object({
+    source: z.literal("denton"),
+    version: z.literal(1),
+    checksum: hash,
+    phase: z.literal("complete"),
+    // Optional so a terminal without a census stays readable and seeds a cold one.
+    census: DentonCensusSchema.optional(),
+  })
+  .strict();
+const schema = z.discriminatedUnion("phase", [progress, terminal]);
+export type DentonProgress = z.infer<typeof progress>;
+export type DentonTerminal = z.infer<typeof terminal>;
 export type DentonCursor = z.infer<typeof schema>;
 const scope = (previousAcceptedCount: number | null) =>
   dentonHash({
-    contract:
-      "literal-controls/all-model-closing/arrival-union/native-alias-v1",
+    contract: CONTRACT,
     yard: DENTON_YARD,
     failures: DENTON_PRESERVED_DESTINATION_FAILURES,
     minimumUniqueInventory: DENTON_MINIMUM_INVENTORY,
@@ -55,16 +100,14 @@ const scope = (previousAcceptedCount: number | null) =>
   });
 const checksum = (state: DentonCursor) =>
   dentonHash({ ...state, checksum: undefined });
-export function dentonReady(state: DentonCursor) {
-  const tasks = dentonTasks(state.opening);
+export function dentonReady(state: DentonProgress) {
   return (
     state.pending === null &&
-    tasks.at(-1)?.kind === "arrivals" &&
-    state.opening.length === tasks.length &&
-    state.closing.length === tasks.length
+    dentonOpened(state.opening) &&
+    state.closing.length === DENTON_CLOSING_TASKS
   );
 }
-export function dentonNextTask(state: DentonCursor) {
+export function dentonNextTask(state: DentonProgress) {
   const tasks = dentonTasks(state.opening);
   return tasks[
     state.opening.length < tasks.length
@@ -72,6 +115,67 @@ export function dentonNextTask(state: DentonCursor) {
       : state.closing.length
   ];
 }
+
+type ModelTask = Extract<DentonTask, { kind: "model" }>;
+const modelTasks = (tasks: readonly DentonTask[]) =>
+  tasks.filter((task): task is ModelTask => task.kind === "model");
+const parentPath = (url: string) => new URL(url).pathname.replace(/\/$/, "");
+/** Binds every published field the model page parser and snapshot bind to:
+ * make destination and label, model destination and label. */
+const censusControls = (models: readonly ModelTask[]): ModelCensusControl[] =>
+  models.map(({ make, model }) => ({
+    key: JSON.stringify([make.url, make.label, model.url, model.label]),
+    count: model.count,
+  }));
+const donorDestinations = (destinations: readonly (string | null)[]) =>
+  destinations.flatMap((literal) => {
+    const url = literal === null ? null : dentonOwnedUrl(literal);
+    return url &&
+      /^\/used-parts\/[^/]+\/[^/]+\/[^/]+\/\d{4}$/.test(url.pathname)
+      ? [url]
+      : [];
+  });
+
+/** Read or carry each published model. A carried model is also read when the
+ * opening arrivals list a donor whose own destination sits under that model but
+ * its carried page lacks that destination. Re-derived from cursor contents. */
+export function dentonCensusPlan(
+  state: Pick<DentonProgress, "opening" | "day" | "previous">,
+): DentonCensusDecision[] {
+  if (state.day === null) throw new Error("Census plan needs a run day");
+  const tasks = dentonTasks(state.opening);
+  const arrivals = state.opening[tasks.findIndex((t) => t.kind === "arrivals")];
+  if (arrivals?.kind !== "arrivals")
+    throw new Error("Census plan needs the opening arrivals page");
+  const models = modelTasks(tasks);
+  const controls = censusControls(models);
+  const carried = new Map(
+    (state.previous?.models ?? []).map((m) => [m.key, m.page]),
+  );
+  const triggers = new Set<string>();
+  for (const record of arrivals.page.records)
+    for (const destination of donorDestinations(record.destinations)) {
+      const parent = destination.pathname.split("/").slice(0, 4).join("/");
+      const key =
+        controls[models.findIndex((m) => parentPath(m.model.url) === parent)]
+          ?.key;
+      if (
+        key &&
+        !carried
+          .get(key)
+          ?.page.records.some((r) =>
+            donorDestinations(r.destinations).some(
+              (url) => url.href === destination.href,
+            ),
+          )
+      )
+        triggers.add(key);
+    }
+  return ModelCensus.plan(controls, state.previous, state.day, triggers);
+}
+const modelEntries = (opening: readonly DentonEntry[]) =>
+  opening.filter((entry): entry is DentonModelEntry => entry.kind === "model");
+
 export function dentonNextUrl(state: DentonCursor): DentonResult<string> {
   return dentonBoundary("next request", () => {
     if (state.phase === "complete" || dentonReady(state))
@@ -88,7 +192,13 @@ function validate(
 ): DentonCursor {
   if (Buffer.byteLength(JSON.stringify(input)) > DENTON_MAX_CURSOR_BYTES)
     throw new Error("Checkpoint exceeds the 16 MiB native corpus bound");
-  const state = schema.parse(input);
+  const parsed = schema.parse(input);
+  if (parsed.phase === "complete") {
+    if (parsed.checksum !== checksum(parsed))
+      throw new Error("Terminal checkpoint integrity changed");
+    return parsed;
+  }
+  const state = parsed;
   if (
     state.scope !== scope(previousAcceptedCount) ||
     state.checksum !== checksum(state)
@@ -96,37 +206,59 @@ function validate(
     throw new Error(
       "Checkpoint scope, prior inventory guard or integrity changed",
     );
+  if (
+    state.day === null
+      ? state.requests !== 0 || state.previous !== null
+      : state.previous !== null &&
+        (state.previous.contract !== censusContract ||
+          state.previous.day > state.day)
+  )
+    throw new Error(
+      "Checkpoint run day or previous model census is inconsistent",
+    );
   let requests = 0,
     bytes = 0;
-  // Replay the structural prefix so a later make/model cannot fill an earlier gap.
-  const prefix: DentonCursor["opening"] = [];
+  // Replay the structural prefix so a later make/model cannot fill an earlier
+  // gap. Carried model pages must equal the accepted census and cost no GET.
+  const prefix: DentonEntry[] = [];
+  let plan: DentonCensusDecision[] | null = null;
+  let models = 0;
   for (const entry of state.opening) {
     const task = dentonTasks(prefix)[prefix.length];
     if (!task)
       throw new Error("Opening checkpoint exceeds its actual published graph");
     dentonValidateEntry(entry, task);
-    account(entry.receipt, task.url);
+    if (task.kind === "model") {
+      plan ??= dentonCensusPlan({ ...state, opening: prefix });
+      const decision = plan[models++];
+      if (!decision) throw new Error("Model page is outside the census plan");
+      if (decision.kind === "read") account(entry.receipt, task.url);
+      else if (dentonHash(entry) !== dentonHash(decision.evidence.page))
+        throw new Error(
+          "Carried model page differs from its accepted census evidence",
+        );
+    } else account(entry.receipt, task.url);
     prefix.push(entry);
   }
   const tasks = dentonTasks(state.opening);
-  const fullOpening =
-    tasks.at(-1)?.kind === "arrivals" && state.opening.length === tasks.length;
-  if (state.closing.length && !fullOpening)
+  if (
+    tasks[state.opening.length]?.kind === "model" &&
+    (plan ?? dentonCensusPlan(state))[models]?.kind !== "read"
+  )
+    throw new Error(
+      "Next model page is not due for a read; carried pages must already be checkpointed",
+    );
+  if (state.closing.length && !dentonOpened(state.opening))
     throw new Error("Closing checkpoint precedes complete opening details");
   state.closing.forEach((entry, index) => {
     const task = tasks[index],
       original = state.opening[index];
-    if (!task || !original)
-      throw new Error("Closing checkpoint exceeds its opening graph");
+    if (!task || !original || index >= DENTON_CLOSING_TASKS)
+      throw new Error("Closing checkpoint exceeds its ownership and directory");
     dentonValidateEntry(entry, task);
     account(entry.receipt, task.url);
-    if (
-      task.kind !== "arrivals" &&
-      dentonFingerprint(entry) !== dentonFingerprint(original)
-    )
-      throw new Error(
-        "Closing literal controls, ownership or donor details changed",
-      );
+    if (dentonFingerprint(entry) !== dentonFingerprint(original))
+      throw new Error("Closing ownership or make directory changed");
   });
   if (state.pending) {
     const task = dentonNextTask(state);
@@ -140,19 +272,15 @@ function validate(
     requests++;
     bytes += state.pending.bytes;
   }
-  if (
-    state.requests !== requests ||
-    state.bytes !== bytes ||
-    (state.phase === "complete" && !dentonReady(state))
-  )
+  if (state.requests !== requests || state.bytes !== bytes)
     throw new Error(
-      "Checkpoint physical request/body accounting or terminal proof is inconsistent",
+      "Checkpoint physical request/body accounting is inconsistent",
     );
-  const modelTasks = tasks.filter((task) => task.kind === "model");
+  const graph = modelTasks(tasks);
   if (
     tasks.length > 1024 ||
-    modelTasks.length > 768 ||
-    new Set(modelTasks.map((task) => task.url)).size !== modelTasks.length ||
+    graph.length > 768 ||
+    new Set(graph.map((task) => task.url)).size !== graph.length ||
     state.opening.reduce(
       (n, e) =>
         n +
@@ -165,10 +293,7 @@ function validate(
     throw new Error("Checkpoint repeats or exceeds the bounded native graph");
   return state;
 
-  function account(
-    receipt: DentonCursor["opening"][number]["receipt"],
-    url: string,
-  ) {
+  function account(receipt: DentonEntry["receipt"], url: string) {
     if (receipt.redirect) {
       if (
         receipt.redirect.url !== url ||
@@ -186,15 +311,34 @@ function validate(
     bytes += receipt.bytes;
   }
 }
-function checkpoint(input: unknown, previousAcceptedCount: number | null) {
-  const unsigned = schema.parse({
-    ...z.record(z.string(), z.unknown()).parse(input),
-    checksum: "0".repeat(64),
-  });
-  return validate(
-    { ...unsigned, checksum: checksum(unsigned) },
-    previousAcceptedCount,
+function active(cursor: DentonCursor): DentonProgress {
+  if (cursor.phase !== "active")
+    throw new Error("Completed checkpoint has no further native transition");
+  return cursor;
+}
+function checkpoint(
+  input: Omit<DentonProgress, "checksum"> | DentonProgress,
+  previousAcceptedCount: number | null,
+): DentonProgress {
+  const unsigned = progress.parse({ ...input, checksum: "0".repeat(64) });
+  return active(
+    validate(
+      { ...unsigned, checksum: checksum(unsigned) },
+      previousAcceptedCount,
+    ),
   );
+}
+function seal(census: DentonCensus): DentonTerminal {
+  const unsigned = terminal.parse({
+    source: "denton",
+    version: 1,
+    checksum: "0".repeat(64),
+    phase: "complete",
+    census,
+  });
+  const sealed = { ...unsigned, checksum: checksum(unsigned) };
+  validate(sealed, null);
+  return sealed;
 }
 export const DentonCursor = {
   initial(previousAcceptedCount: number | null): DentonResult<DentonCursor> {
@@ -210,6 +354,8 @@ export const DentonCursor = {
           pending: null,
           requests: 0,
           bytes: 0,
+          day: null,
+          previous: null,
         },
         previousAcceptedCount,
       ),
@@ -232,13 +378,60 @@ export const DentonCursor = {
       JSON.stringify(validate(state, previousAcceptedCount)),
     );
   },
-  complete(state: DentonCursor, previousAcceptedCount: number | null) {
-    return dentonBoundary("terminal checkpoint", () =>
-      checkpoint(
-        { ...validate(state, previousAcceptedCount), phase: "complete" },
-        previousAcceptedCount,
-      ),
-    );
+  /** Fixes the run day and adopts the last accepted census before the first
+   * request. Anything unusable starts a cold census with a warning; a missing
+   * previous cursor is a silent cold start. */
+  begin(
+    input: DentonCursor,
+    now: number,
+    previousCursor: unknown,
+    previousAcceptedCount: number | null,
+  ): DentonResult<{ cursor: DentonCursor; warning: string | null }> {
+    return dentonBoundary("begin census", () => {
+      const state = validate(input, previousAcceptedCount);
+      if (state.phase === "complete" || state.day !== null)
+        return { cursor: state, warning: null };
+      const day = ModelCensus.day(now);
+      const parsed = terminal.safeParse(previousCursor ?? undefined);
+      const previous =
+        parsed.success && parsed.data.checksum === checksum(parsed.data)
+          ? ModelCensus.previous(parsed.data.census, censusContract, day)
+          : {
+              kind: "cold" as const,
+              warning:
+                previousCursor === null || previousCursor === undefined
+                  ? null
+                  : "Previous Denton checkpoint is not a readable terminal census; reading every model page.",
+            };
+      return {
+        cursor: checkpoint(
+          {
+            ...state,
+            day,
+            previous: previous.kind === "incremental" ? previous.census : null,
+          },
+          previousAcceptedCount,
+        ),
+        warning: previous.kind === "cold" ? previous.warning : null,
+      };
+    });
+  },
+  /** Seals a fully closed run into its terminal census. */
+  complete(input: DentonCursor, previousAcceptedCount: number | null) {
+    return dentonBoundary("terminal checkpoint", () => {
+      const state = active(validate(input, previousAcceptedCount));
+      if (!dentonReady(state) || state.day === null)
+        throw new Error("Opening/closing proof is incomplete");
+      return seal(
+        ModelCensus.accept(
+          censusContract,
+          state.day,
+          censusControls(modelTasks(dentonTasks(state.opening))),
+          modelEntries(state.opening),
+          dentonCensusPlan(state),
+        ),
+      );
+    });
   },
   advance(
     input: DentonCursor,
@@ -246,7 +439,9 @@ export const DentonCursor = {
     previousAcceptedCount: number | null,
   ) {
     return dentonBoundary("native transition", () => {
-      const state = validate(input, previousAcceptedCount);
+      const state = active(validate(input, previousAcceptedCount));
+      if (state.day === null)
+        throw new Error("Begin the run census before the first native request");
       const next = dentonNextUrl(state);
       if (!next.ok) throw new Error(next.error.message);
       const result = DentonResponseSchema.parse(response),
@@ -297,14 +492,24 @@ export const DentonCursor = {
         },
         state.opening,
       );
-      const opening = state.opening.length < dentonTasks(state.opening).length;
+      if (state.opening.length >= dentonTasks(state.opening).length)
+        return checkpoint(
+          { ...base, pending: null, closing: [...state.closing, entry] },
+          previousAcceptedCount,
+        );
+      const opening = [...state.opening, entry];
+      // Carried models up to the next due read cost no request.
+      if (task.kind === "arrivals" || task.kind === "model")
+        opening.push(
+          ...ModelCensus.carriedRun(
+            dentonCensusPlan({ ...state, opening }),
+            task.kind === "arrivals"
+              ? 0
+              : modelEntries(state.opening).length + 1,
+          ),
+        );
       return checkpoint(
-        {
-          ...base,
-          pending: null,
-          opening: opening ? [...state.opening, entry] : state.opening,
-          closing: opening ? state.closing : [...state.closing, entry],
-        },
+        { ...base, pending: null, opening },
         previousAcceptedCount,
       );
     });
