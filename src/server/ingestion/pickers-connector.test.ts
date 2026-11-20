@@ -19,6 +19,7 @@ import {
 } from "./pickers-test-fixtures";
 import { pickersHash } from "./pickers-parser";
 import { fetchPickersInventory } from "./pickers-client";
+import { ProviderTurnDeferred } from "./provider-chunk-clock";
 import { runWithQueuedHost } from "./provider-host-test-support";
 import type { VinplusRecord } from "./vinplus-protocol";
 import type { PickersCanonicalVehicle } from "./pickers-transform";
@@ -887,10 +888,8 @@ test("coverage envelopes compress a valid checkpoint just below the inner 1 MiB 
   expect(PickersCoverageCursor.parse(wire)).toEqual(coverage);
 }, 15000);
 
-test("Pickers keeps advancing when every VinPlus request waits minutes for a shared host turn", async () => {
-  // Production VinPlus queue on 2026-11-19: about 20 sources shared one lease,
-  // so each config and search waited about 150 s for its turn. A resumed
-  // query chunk needs its config guard and a search before it can advance.
+/** One Ford make with six single-record public queries. */
+function queuedTransport() {
   const records = Array.from({ length: 6 }, (_, index) => ({
     ...pickersTestRecord,
     stock: "STK" + String(100000 + index),
@@ -908,13 +907,36 @@ test("Pickers keeps advancing when every VinPlus request waits minutes for a sha
   const first = queries[0],
     last = queries.at(-1);
   if (!first || !last) throw new Error("Missing finite selector endpoints");
-  const mock = transport(undefined, {
+  return transport(undefined, {
     ...smallFixture(),
     native: [{ make: "FORD", opening: native, closing: native }],
     queries,
     firstBookend: first.body,
     lastBookend: last.body,
   });
+}
+
+const pickersChunk = (cursor: PickersCursor, batches: unknown[][] = []) =>
+  streamPickersInventoryWithRequestGate(
+    {
+      startCursor: cursor,
+      maxPages: 16,
+      onBatch: (vehicles) =>
+        Effect.sync(() => {
+          batches.push(vehicles);
+        }),
+    },
+    identityGate,
+  );
+
+const reparse = (result: PickersStreamResult) =>
+  PickersCursor.parse(PickersCursor.serialize(result.cursor));
+
+test("Pickers keeps advancing when every VinPlus request waits minutes for a shared host turn", async () => {
+  // Production VinPlus queue on 2026-11-19: about 20 sources shared one lease,
+  // so each config and search waited about 150 s for its turn. A resumed
+  // query chunk needs its config guard and a search before it can advance.
+  const mock = queuedTransport();
   let cursor: PickersCursor = PickersCursor.initial;
   const pages: number[] = [];
   const batches: PickersCanonicalVehicle[][] = [];
@@ -942,9 +964,96 @@ test("Pickers keeps advancing when every VinPlus request waits minutes for a sha
     expect(chunk.elapsedMs).toBeLessThanOrEqual(6 * 60_000);
     expect(chunk.turns.every((turn) => turn.releasedAt !== null)).toBe(true);
   }
-  // Native opening, three query chunks of two turns, native closing, bookends.
-  expect(pages).toEqual([1, 2, 2, 2, 1, 2]);
+  // Native opening, three query chunks of two turns, native closing, then one
+  // chunk per bookend: the second bookend's turn ends too late for the closing
+  // owner and app reads to end by the chunk's horizon.
+  expect(pages).toEqual([1, 2, 2, 2, 1, 1, 1]);
   expect(batches).toHaveLength(1);
   expect(batches[0]).toHaveLength(6);
-  expect(cursor.state.requests).toBe(mock.calls.length);
+  // Every request but the late second bookend, read again by the next chunk.
+  expect(mock.calls.length - cursor.state.requests).toBe(1);
+}, 120_000);
+
+test("a resumed chunk still validates its prefetched first search after its turn outlasts the 155 s soft check", async () => {
+  queuedTransport();
+  const opening = await Effect.runPromise(pickersChunk(PickersCursor.initial));
+  const cursor = reparse(opening);
+  expect(cursor).toMatchObject({ phase: "queries", next: 0 });
+  // The config and first search share one turn; in production its queue wait
+  // passes the wall-clock soft check before the first control runs.
+  const real = Date.now.bind(Date);
+  let queued = false;
+  const fetch = globalThis.fetch;
+  globalThis.fetch = Object.assign(
+    (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === PICKERS_CONFIG_URL) queued = true;
+      return fetch(input, init);
+    },
+    { preconnect: fetch.preconnect },
+  );
+  const now = spyOn(Date, "now").mockImplementation(
+    () => real() + (queued ? 160_000 : 0),
+  );
+  try {
+    const resumed = await Effect.runPromise(pickersChunk(cursor));
+    expect(resumed.pagesProcessed).toBe(1);
+    expect(reparse(resumed)).toMatchObject({ phase: "queries", next: 1 });
+  } finally {
+    now.mockRestore();
+    globalThis.fetch = fetch;
+  }
+}, 60_000);
+
+test("a late VinPlus turn defers or checkpoints instead of starting Pickers origin requests that cannot end before the chunk's horizon", async () => {
+  const mock = queuedTransport();
+  const origin = () =>
+    mock.calls.filter(
+      (call) =>
+        !call.url.startsWith(PICKERS_CONFIG_URL.split("/api/")[0] ?? ""),
+    ).length;
+  // A start chunk whose config turn arrives at about 326 s defers without a
+  // native make control.
+  const start = await runWithQueuedHost(pickersChunk(PickersCursor.initial), {
+    turnWaitMs: 325_000,
+  });
+  expect(Either.isLeft(start.result) && start.result.left).toBeInstanceOf(
+    ProviderTurnDeferred,
+  );
+  expect(mock.calls.some((call) => call.init?.method === "POST")).toBe(false);
+  // Reach the bookends without a queue.
+  let cursor: PickersCursor = PickersCursor.initial;
+  while (cursor.phase !== "bookends")
+    cursor = reparse(await Effect.runPromise(pickersChunk(cursor)));
+  expect(cursor.next).toBe(0);
+  // The last bookend's turn arrives too late for the closing owner and app
+  // reads, so the chunk checkpoints after the first bookend.
+  let before = origin();
+  const late = await runWithQueuedHost(pickersChunk(cursor), {
+    turnWaitMs: (turn) => (turn === 0 ? 1_000 : 320_000),
+  });
+  if (Either.isLeft(late.result)) throw late.result.left;
+  expect(late.result.right.status).toBe("paused");
+  expect(late.result.right.pagesProcessed).toBe(1);
+  cursor = reparse(late.result.right);
+  expect(cursor).toMatchObject({ phase: "bookends", next: 1 });
+  // Only the resumed native form guard, before the turn.
+  expect(origin() - before).toBe(1);
+  // Resumed at the last bookend, a late turn defers the chunk.
+  before = origin();
+  const deferred = await runWithQueuedHost(pickersChunk(cursor), {
+    turnWaitMs: 325_000,
+  });
+  expect(Either.isLeft(deferred.result) && deferred.result.left).toBeInstanceOf(
+    ProviderTurnDeferred,
+  );
+  expect(origin() - before).toBe(1);
+  // A timely turn completes the crawl from the same checkpoint.
+  const batches: unknown[][] = [];
+  const done = await runWithQueuedHost(pickersChunk(cursor, batches), {
+    turnWaitMs: 1_000,
+  });
+  if (Either.isLeft(done.result)) throw done.result.left;
+  expect(done.result.right.status).toBe("complete");
+  expect(batches).toHaveLength(1);
+  expect(batches[0]).toHaveLength(6);
 }, 120_000);

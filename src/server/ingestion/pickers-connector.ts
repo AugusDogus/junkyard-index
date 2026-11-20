@@ -39,7 +39,10 @@ import type { PickersCanonicalVehicle } from "./pickers-transform";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { ProviderChunkClock } from "./provider-chunk-clock";
-import { sharedProviderHostTurn } from "./shared-provider-host";
+import {
+  sharedProviderHostTurn,
+  VINPLUS_HOST_POLICY,
+} from "./shared-provider-host";
 import { SourceValidationPolicy } from "./source-validation";
 
 interface PickersOptions<E, R> {
@@ -56,6 +59,9 @@ export type PickersStreamResult = ConnectorChunkResult<
 type PickersSearchResponse = Effect.Effect.Success<
   ReturnType<typeof fetchPickersSearch>
 >;
+/** One Pickers origin request: its 20 s request and body deadline, then the
+ * 1.6 s request gate. */
+const PICKERS_ORIGIN_REQUEST_MS = 21_600;
 /** The literal pair a query or bookend control at `next` searches. */
 const searchIndex = (
   kind: "query" | "bookend",
@@ -256,6 +262,15 @@ export function streamPickersInventoryWithRequestGate<E, R>(
         addGuard(state, "config", config, config.value);
       });
     }
+    // Pickers origin requests take no shared host turn but can follow a late
+    // VinPlus turn. Requests that cannot end by the chunk's turn horizon are
+    // not started: an advanced chunk returns its checkpoint, any other chunk
+    // is deferred with its cursor unchanged.
+    const originFits = (requests: number) =>
+      ProviderChunkClock.fits(requests * PICKERS_ORIGIN_REQUEST_MS);
+    const originDeferred = Effect.flip(
+      ProviderChunkClock.deferred(VINPLUS_HOST_POLICY.label, "work"),
+    );
     const phaseLength =
       phase === "native-opening" || phase === "native-closing"
         ? state.makes.length
@@ -285,6 +300,10 @@ export function streamPickersInventoryWithRequestGate<E, R>(
             operation: "native directory",
             cause: "Missing exact native make",
           });
+        if (!(yield* originFits(1))) {
+          if (summary.pagesProcessed > 0) break;
+          return yield* originDeferred;
+        }
         const response = yield* fetchPickersInventory(gate, make, site);
         yield* pickersValidated("whole native stock control", () => {
           if (pickersHash(response.value.makes) !== pickersHash(state.makes))
@@ -341,6 +360,15 @@ export function streamPickersInventoryWithRequestGate<E, R>(
           );
           if (Option.isNone(read)) break;
           response = read.value;
+        }
+        // The last bookend leads straight to the closing owner and app reads.
+        if (
+          kind === "bookend" &&
+          next === phaseLength - 1 &&
+          !(yield* originFits(2))
+        ) {
+          if (summary.pagesProcessed > 0) break;
+          return yield* originDeferred;
         }
         yield* pickersValidated(
           "whole public records and stock binding",

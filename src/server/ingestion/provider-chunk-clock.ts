@@ -161,6 +161,19 @@ export const ProviderChunkClock = {
         ),
   ),
 
+  /** Whether work taking up to `ms` from now ends by the chunk's turn
+   * horizon. Requests outside a shared host turn that follow a late turn check
+   * this first. Outside a chunk deadline everything fits. */
+  fits: (ms: number): Effect.Effect<boolean> =>
+    Effect.flatMap(
+      ProviderChunkClock.turnHorizon,
+      Option.match({
+        onNone: () => Effect.succeed(true),
+        onSome: (horizon) =>
+          Effect.map(Clock.currentTimeMillis, (now) => now + ms <= horizon),
+      }),
+    ),
+
   /** A deferral describing the current chunk's elapsed and queued time. */
   deferred: (host: string, stage: "wait" | "work") =>
     Effect.flatMap(FiberRef.get(CurrentChunkClock), (clock) =>
