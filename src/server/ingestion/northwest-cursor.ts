@@ -92,13 +92,32 @@ export function northwestClosingControls(): NorthwestClosingControl[] {
 }
 
 // The model parser binds make and model paths and labels into every card.
+const censusKey = (
+  make: { path: string; label: string },
+  model: { path: string; label: string },
+) => JSON.stringify([make.path, make.label, model.path, model.label]);
+
 function northwestCensusControls(
   makes: readonly NorthwestMake[],
 ): ModelCensusControl[] {
   return northwestModels(makes).map(({ make, model }) => ({
-    key: JSON.stringify([make.path, make.label, model.path, model.label]),
+    key: censusKey(make, model),
     count: model.count,
   }));
+}
+
+/** True when every evidence page still matches its fingerprint and every card
+ * binds to the model its key names, so carried pages pass checkpoint checks. */
+function northwestCensusEvidenceHolds(census: NorthwestCensus): boolean {
+  return census.models.every(
+    ({ key, page }) =>
+      page.hash === northwestHash(page.records) &&
+      page.records.every(
+        (record) =>
+          censusKey(record.context.make, record.context.model) === key &&
+          record.sourceUrl === NORTHWEST_ORIGIN + record.context.model.path,
+      ),
+  );
 }
 
 /** Read or carry each published model. Latest arrivals are not read (the
@@ -330,7 +349,7 @@ export const NorthwestCursor = {
     if (cursor.day !== null) return { cursor, warning: null };
     const day = ModelCensus.day(now);
     const parsed = NorthwestCursorSchema.safeParse(previousCursor ?? undefined);
-    const previous =
+    const adopted =
       parsed.success && parsed.data.phase === "complete"
         ? ModelCensus.previous(parsed.data.census, scope, day)
         : {
@@ -340,6 +359,17 @@ export const NorthwestCursor = {
                 ? null
                 : "Previous Northwest checkpoint is not a readable terminal census; reading every model page.",
           };
+    // A carried page that fails its fingerprint or context check would fail
+    // every run that reloads the same published census, so start cold instead.
+    const previous =
+      adopted.kind === "incremental" &&
+      !northwestCensusEvidenceHolds(adopted.census)
+        ? {
+            kind: "cold" as const,
+            warning:
+              "Previous Northwest census evidence no longer matches its fingerprint or model context; reading every model page.",
+          }
+        : adopted;
     return {
       cursor: NorthwestCursor.checkpoint({
         ...cursor,

@@ -270,3 +270,50 @@ test("Northwest rejects a checkpoint whose carried page differs from its census"
     NorthwestCursor.checkpoint({ ...cursor, day: null, previous: null }),
   ).toThrow("run day or previous model census");
 });
+
+test("Northwest starts a warned cold census when carried evidence no longer holds", async () => {
+  const native = yard();
+  const cold = await census(native, 600, null);
+  const parsed = NorthwestCursor.parse(JSON.stringify(cold.terminal));
+  if (parsed.phase !== "complete" || !parsed.census)
+    throw new Error("Expected a terminal census");
+  const [first, second, ...rest] = parsed.census.models;
+  const record = first?.page.records[0];
+  if (!first || !second || !record) throw new Error("Expected model evidence");
+  const warning =
+    "Previous Northwest census evidence no longer matches its fingerprint or model context; reading every model page.";
+  // Records changed under an unchanged fingerprint (for example a new
+  // defaulted record field) would fail every run that carries model 0.
+  const stale = {
+    ...first,
+    page: {
+      ...first.page,
+      records: [
+        { ...record, inquiries: ["x"] },
+        ...first.page.records.slice(1),
+      ],
+    },
+  };
+  const fingerprint = await census(native, 601, {
+    ...parsed,
+    census: { ...parsed.census, models: [stale, second, ...rest] },
+  });
+  expect(fingerprint.models).toEqual(Array.from({ length: 12 }, (_, i) => i));
+  expect(fingerprint.warnings[0]).toBe(warning);
+  expect(fingerprint.vins).toEqual(allVins(native));
+  // A self-consistent page filed under another model's key is rejected too.
+  const swapped = await census(native, 601, {
+    ...parsed,
+    census: {
+      ...parsed.census,
+      models: [
+        { ...first, page: second.page },
+        { ...second, page: first.page },
+        ...rest,
+      ],
+    },
+  });
+  expect(swapped.models).toHaveLength(12);
+  expect(swapped.warnings[0]).toBe(warning);
+  expect(swapped.vins).toEqual(allVins(native));
+}, 120_000);
