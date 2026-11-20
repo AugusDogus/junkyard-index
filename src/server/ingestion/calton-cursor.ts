@@ -35,7 +35,7 @@ export const CALTON_MAX_CURSOR_BYTES = 64 * 1024 * 1024;
 /** Census contract for model pages carried between accepted runs. Bump it when
  * page parsing, page validation or the census key changes. */
 const CENSUS_AUTHORITY =
-  "calton/literal-model-graph/root-arrivals-union/incremental-model-census-v1";
+  "calton/literal-model-graph/root-arrivals-union/incremental-model-census-v2";
 const censusContract = (scope: string) => CENSUS_AUTHORITY + "/" + scope;
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
 const controls = z.array(CaltonControlSchema).min(1).max(1536);
@@ -177,8 +177,22 @@ export function caltonCensusPlan(
     )
       triggers.add(key);
   }
-  return ModelCensus.plan(controls, state.previous, state.day, triggers);
+  return ModelCensus.plan(controls, state.previous, state.day, {
+    cards: caltonCards,
+    triggers,
+  });
 }
+
+/** Cards a model page lists: the count `countCheck` compares with its badge. */
+const caltonCards = (page: CaltonCensusPage) => page.records.length;
+/** Minimum share of today's model badges the read and carried model cards must
+ * cover, each model capped at its badge. The November 13 capture covers
+ * 12,856 of 12,857 model badge cards (99.99%) on 630 models: the only short
+ * model is the native-empty `CHEVROLET_PASS.` (badge 1, no rows), and 22
+ * models list one row above their badge. A changed badge forces a read, so
+ * carried pages add no lag. Emptying any one sweep slice of that capture
+ * leaves 78.6% to 87.9%, below this floor on the first broken day. */
+export const CALTON_MINIMUM_BADGE_COVERAGE = 0.95;
 const checksum = (cursor: CaltonCursor) =>
   caltonHash({ ...cursor, checksum: undefined });
 
@@ -451,9 +465,33 @@ export const CaltonCursor = {
           censusControls(cursor.menus),
           cursor.pages,
           decisions,
+          // Calton has no closing pass: a short page read today is read again
+          // on the next run instead of being carried.
+          "unconfirmed",
+          caltonCards,
         ),
         summary: ModelCensus.summary(decisions),
       };
+    });
+  },
+  /** Fails a ready graph whose read and carried model cards fall short of
+   * today's model badges, before any snapshot, callback or terminal census. */
+  coverage(
+    cursor: Extract<CaltonCursor, { phase: "models" | "ready" }>,
+  ): CaltonResult<void> {
+    return caltonBoundary("model badge coverage", () => {
+      if (cursor.phase !== "ready")
+        throw new Error("Only a ready graph is checked for badge coverage");
+      const published = caltonModels(cursor.menus);
+      const shortfall = ModelCensus.coverage(
+        "Calton",
+        censusControls(cursor.menus),
+        cursor.pages,
+        caltonCards,
+        CALTON_MINIMUM_BADGE_COVERAGE,
+        (index) => published[index]?.model.path ?? "?",
+      );
+      if (shortfall) throw new Error(shortfall);
     });
   },
   fromWire(raw: string, contract: CaltonContract) {

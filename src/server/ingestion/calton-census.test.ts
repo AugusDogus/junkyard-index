@@ -10,7 +10,10 @@ import {
 } from "./calton-contract";
 import { CaltonCursor, type CaltonCursor as Cursor } from "./calton-cursor";
 import { CALTON_ORIGIN } from "./calton-html";
-import { caltonFixtureDocument } from "./calton-test-fixtures";
+import {
+  CALTON_EMPTY_REGION,
+  caltonFixtureDocument,
+} from "./calton-test-fixtures";
 import {
   MODEL_CENSUS_DAY_MS,
   MODEL_CENSUS_SWEEP_DAYS,
@@ -70,6 +73,11 @@ function yard() {
     }),
   );
   const arrival = { model: 0, stock: "S0A" };
+  // Models whose page renders the native empty result, omits its last donor,
+  // or lists one donor beyond its badge, while the menus keep their counts.
+  const broken = new Set<number>();
+  const short = new Set<number>();
+  const extra = new Set<number>();
   const document = (url: string): string | undefined => {
     if (url === CALTON_ROOT) {
       const model = models[arrival.model];
@@ -103,24 +111,37 @@ function yard() {
           .join("")}</div>`,
         "/parts/" + make,
       );
-    const model = models.find((m) => modelUrl(m) === url);
-    return model
-      ? caltonFixtureDocument(
-          `<div id="iiscont"><div class="aps-la-grid">${model.stocks
-            .map((stock) => card(model, stock))
-            .join("")}</div></div>`,
-          `/parts/${model.make}/${model.label}`,
-        )
-      : undefined;
+    const index = models.findIndex((m) => modelUrl(m) === url);
+    const model = models[index];
+    if (!model) return undefined;
+    const path = `/parts/${model.make}/${model.label}`;
+    if (broken.has(index))
+      return caltonFixtureDocument(CALTON_EMPTY_REGION, path);
+    const stocks = short.has(index)
+      ? model.stocks.slice(0, -1)
+      : extra.has(index)
+        ? [...model.stocks, `S${index}X`]
+        : model.stocks;
+    return caltonFixtureDocument(
+      `<div id="iiscont"><div class="aps-la-grid">${stocks
+        .map((stock) => card(model, stock))
+        .join("")}</div></div>`,
+      path,
+    );
   };
-  return { models, arrival, document };
+  return { models, arrival, broken, short, extra, document };
 }
 type Yard = ReturnType<typeof yard>;
 
-/** One daily pass in eight-request chunks, resuming from each paused cursor. */
-async function runDay(site: Yard, day: number, previousCursor: unknown) {
+/** One daily pass in eight-request chunks, resuming from each paused cursor.
+ * Published VINs land in `published`, so a caller can inspect a failed day. */
+async function runDay(
+  site: Yard,
+  day: number,
+  previousCursor: unknown,
+  published: string[] = [],
+) {
   const requests: string[] = [];
-  const published: string[] = [];
   let cursor: Cursor | undefined;
   let warnings: string[] = [];
   for (let chunk = 0; chunk < 64; chunk++) {
@@ -438,4 +459,62 @@ test("incremental checkpoints re-derive carried evidence and request accounting"
   ];
   for (const state of tampered)
     expect(CaltonCursor.checkpoint(state, contract).ok).toBe(false);
+});
+
+test("a model page read short of its badge is read again on the next run", async () => {
+  // Calton has no closing pass, so a short page read today is unconfirmed: the
+  // next run reads it again instead of carrying it for up to six days.
+  const site = yard();
+  const sweep = sweepAt(site, D + 1);
+  const outside = [...Array(MODEL_COUNT).keys()].filter(
+    (i) => !sweep.includes(i),
+  );
+  const [shortModel, extraModel] = outside;
+  const dropped = site.models[shortModel ?? -1]?.stocks.at(-1);
+  if (shortModel === undefined || extraModel === undefined || !dropped)
+    throw new Error("fixture needs two models outside the next slice");
+  site.short.add(shortModel);
+  // Rows above the badge (observed on 22 live models) are not short.
+  site.extra.add(extraModel);
+  const cold = await runDay(site, D, null);
+  expect(cold.published).not.toContain(vin(dropped));
+  if (cold.cursor.phase !== "complete" || !cold.cursor.census)
+    throw new Error("Expected a terminal census");
+  expect(cold.cursor.census.models[shortModel]).toMatchObject({
+    count: 2,
+    confirmed: false,
+  });
+  expect(cold.cursor.census.models[shortModel]?.page.records).toHaveLength(1);
+  // Day N + 1: the badge is unchanged and the page lists every donor again.
+  site.short.clear();
+  const next = await runDay(site, D + 1, cold.terminal);
+  expect(next.modelReads).toEqual(
+    urlsAt(
+      site,
+      [...sweep, shortModel].sort((a, b) => a - b),
+    ),
+  );
+  expect(next.published).toContain(vin(dropped));
+  expect(next.warnings).toContain(
+    `Calton Read ${sweep.length + 1} of ${MODEL_COUNT} model pages (${sweepAndOne(sweep, shortModel, "short")}); carried ${MODEL_COUNT - sweep.length - 1}.`,
+  );
+});
+
+test("a run fails when today's swept model pages render empty while their badges hold", async () => {
+  // A site fault empties model pages while the menus look normal. Carried
+  // pages keep the floors satisfied, so only the badge coverage check sees
+  // the one broken sweep slice.
+  const site = yard();
+  const cold = await runDay(site, D, null);
+  const sweep = sweepAt(site, D + 1);
+  expect(sweep.length).toBeGreaterThan(0);
+  for (const index of sweep) site.broken.add(index);
+  const published: string[] = [];
+  const failure = await runDay(site, D + 1, cold.terminal, published).then(
+    () => null,
+    (error: unknown) => error,
+  );
+  expect(String(failure)).toContain("Calton model badge coverage");
+  expect(String(failure)).toContain("below the 95% coverage floor");
+  expect(published).toEqual([]);
 });
