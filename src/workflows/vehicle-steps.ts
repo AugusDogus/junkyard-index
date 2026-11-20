@@ -11,7 +11,7 @@ import {
 import { InventorySnapshot } from "~/server/inventory-snapshot";
 import * as Sentry from "@sentry/nextjs";
 import { deliverDurableAlertIntentsBatch } from "~/server/alerts/durable-alert-delivery-runtime";
-import { runDurableAlertMatchingBatch } from "~/server/alerts/durable-search-alerts";
+import { runDailySearchAlertCheckBatch } from "~/server/alerts/search-alert-check-runtime";
 import { runDurableAlgoliaProjectionBatch } from "~/server/ingestion/algolia-projector";
 import {
   cleanupDurableIngestionStateBatch,
@@ -414,19 +414,24 @@ export async function runAlgoliaProjectorStep(runId: string) {
 }
 runAlgoliaProjectorStep.maxRetries = 2;
 
-export async function runVehicleSearchAlertsStep(runId: string) {
+export async function runSearchAlertCheckBatchStep(day: string) {
   "use step";
 
-  console.info("[Workflow] Matching vehicle search alerts", { runId });
   try {
-    const result = await runDurableAlertMatchingBatch(runId);
-    console.info("[Workflow] Vehicle search alert matching progress", result);
+    const result = await runDailySearchAlertCheckBatch(day);
+    console.info("[Workflow] Saved search alert check progress", {
+      day,
+      result,
+    });
     return result;
   } catch (error) {
-    throwRetryableStepError("Vehicle search alert matching", error);
+    throwRetryableStepError(
+      `Saved search alert check for ${day} (its cursor and every saved search's alert window are preserved for the next attempt)`,
+      error,
+    );
   }
 }
-runVehicleSearchAlertsStep.maxRetries = 2;
+runSearchAlertCheckBatchStep.maxRetries = 2;
 
 /** Updates the provider's status page row; never fails the run. */
 export async function reportProviderStatusStep(runId: string) {

@@ -207,7 +207,7 @@ test("batches alert windows into at most 50 queries per request", async () => {
       filters: {},
       lastCheckedAt: new Date(1000),
     })),
-    new Date(2000),
+    { checkedThrough: new Date(2000), latestFirstSeenAt: new Date(2000) },
   );
   expect(results).toHaveLength(103);
   expect(
@@ -232,11 +232,10 @@ test("skips windows without newer firstSeenAt seconds, including empty and faile
   });
   const searches = [{ query: "", filters: {}, lastCheckedAt: new Date(1999) }];
   for (const latest of [null, new Date(1000), new Date(1999)]) {
-    const results = await getAlertMatchStatsBatchWithClient(
-      client,
-      searches,
-      latest,
-    );
+    const results = await getAlertMatchStatsBatchWithClient(client, searches, {
+      checkedThrough: new Date(5000),
+      latestFirstSeenAt: latest,
+    });
     expect(results[0]).toEqual({
       status: "fulfilled",
       value: {
@@ -247,7 +246,10 @@ test("skips windows without newer firstSeenAt seconds, including empty and faile
     });
   }
   expect(calls).toBe(0);
-  await getAlertMatchStatsBatchWithClient(client, searches, new Date(2000));
+  await getAlertMatchStatsBatchWithClient(client, searches, {
+    checkedThrough: new Date(2000),
+    latestFirstSeenAt: new Date(2000),
+  });
   expect(calls).toBe(1);
 });
 
@@ -290,11 +292,10 @@ test("batched pagination retains each search's matches and incomplete scan handl
     filters: {},
     lastCheckedAt: new Date(1000),
   }));
-  const batched = await getAlertMatchStatsBatchWithClient(
-    client,
-    searches,
-    new Date(2000),
-  );
+  const batched = await getAlertMatchStatsBatchWithClient(client, searches, {
+    checkedThrough: new Date(2000),
+    latestFirstSeenAt: new Date(2000),
+  });
   expect(requests).toEqual([3, 1]);
   for (const [index, search] of searches.entries()) {
     const individual = await getAlertMatchStatsWithClient(
@@ -320,7 +321,7 @@ test("batched request failures remain failures for each affected search", async 
       },
     },
     [{ query: "", filters: {}, lastCheckedAt: new Date(1000) }],
-    new Date(2000),
+    { checkedThrough: new Date(2000), latestFirstSeenAt: new Date(2000) },
   );
   expect(results).toEqual([{ status: "rejected", reason: failure }]);
 });
@@ -335,7 +336,29 @@ test("batched skipped windows still reject invalid expressions", async () => {
         lastCheckedAt: new Date(2000),
       },
     ],
-    null,
+    { checkedThrough: new Date(5000), latestFirstSeenAt: null },
   );
   expect(results[0]).toMatchObject({ status: "rejected" });
+});
+
+test("batched matches stop at the checked-through second", async () => {
+  const requests: unknown[] = [];
+  await getAlertMatchStatsBatchWithClient(
+    emptySearchClient((input) => requests.push(input)),
+    [
+      {
+        query: "",
+        filters: { makes: ["Ford"] },
+        lastCheckedAt: new Date(1999),
+      },
+    ],
+    { checkedThrough: new Date(5999), latestFirstSeenAt: new Date(4000) },
+  );
+  expect(requests).toMatchObject([
+    {
+      requests: [
+        { filters: 'firstSeenAt > 1 AND firstSeenAt <= 5 AND make:"Ford"' },
+      ],
+    },
+  ]);
 });

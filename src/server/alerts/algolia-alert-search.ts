@@ -1,16 +1,19 @@
 import "server-only";
 
-import type { AlertMatchSearch } from "~/lib/alert-match-search";
+import type {
+  AlertMatchBound,
+  AlertMatchSearch,
+} from "~/lib/alert-match-search";
 import { getAlertMatchStatsBatchWithClient } from "~/lib/alert-match-search";
 import { algoliaSearchClient } from "~/server/algolia-search-client";
 
 export function getAlertMatchStatsBatch(
   searches: readonly AlertMatchSearch[],
-  latestFirstSeenAt: Date | null,
+  bound: AlertMatchBound,
 ) {
   return getAlertMatchStatsBatchWithClient(
     algoliaSearchClient,
     searches,
-    latestFirstSeenAt,
+    bound,
   );
 }

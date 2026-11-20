@@ -9,6 +9,7 @@ import {
 } from "./algolia-projector-helpers";
 import {
   publishFullReindexForRun,
+  releasedRunValues,
   withIndexGeneration,
 } from "./durable-algolia-publish";
 import {
@@ -201,6 +202,38 @@ async function resumeFailedFullReindexPublish(
   };
 }
 
+/**
+ * A run the previous release left matching alerts is already searchable.
+ * Release it without matching: searches it checked advanced their windows
+ * with their intents in one transaction, and the daily alert check covers
+ * the rest from their unchanged windows.
+ */
+async function releaseLegacyAlertMatchingRun(
+  runId: string,
+  searchPublishedAt: Date | null,
+): Promise<DurableAlgoliaProjectionBatchResult> {
+  const releasedAt = new Date();
+  const released = await database
+    .update(ingestionRun)
+    .set({
+      ...releasedRunValues(releasedAt),
+      searchPublishedAt: searchPublishedAt ?? releasedAt,
+    })
+    .where(
+      and(
+        eq(ingestionRun.id, runId),
+        eq(ingestionRun.status, "running"),
+        eq(ingestionRun.activeSlot, 1),
+        eq(ingestionRun.stage, "match_alerts"),
+      ),
+    );
+  if (released.rowsAffected === 0) return { status: "stopped" };
+  return {
+    status: "complete",
+    searchPublishedAt: searchPublishedAt ?? releasedAt,
+  };
+}
+
 async function projectChangeBatch(
   runId: string,
   cursor: number,
@@ -220,11 +253,7 @@ async function projectChangeBatch(
     const publishedAt = new Date();
     const published = await database
       .update(ingestionRun)
-      .set({
-        stage: "match_alerts",
-        searchPublishedAt: publishedAt,
-        lastProgressAt: publishedAt,
-      })
+      .set(releasedRunValues(publishedAt))
       .where(
         and(
           eq(ingestionRun.id, runId),
@@ -308,6 +337,13 @@ async function projectDurableAlgoliaBatch(
     .where(eq(ingestionRun.id, runId))
     .limit(1);
   if (!run) throw new Error(`Ingestion run ${runId} does not exist.`);
+  // Publication releases the run, so a retried final batch finds it here.
+  if (run.status === "success" && run.stage === "released") {
+    return {
+      status: "complete",
+      searchPublishedAt: run.searchPublishedAt ?? new Date(),
+    };
+  }
   if (run.status !== "running" || run.activeSlot !== 1) {
     return { status: "stopped" };
   }
@@ -328,11 +364,7 @@ async function projectDurableAlgoliaBatch(
         options?.configureIndex === true && run.projectorCursor === 0,
       );
     case "match_alerts":
-    case "released":
-      return {
-        status: "complete",
-        searchPublishedAt: run.searchPublishedAt ?? new Date(),
-      };
+      return releaseLegacyAlertMatchingRun(runId, run.searchPublishedAt);
     default:
       throw new Error(
         `Ingestion run ${runId} cannot project Algolia from stage ${run.stage}.`,

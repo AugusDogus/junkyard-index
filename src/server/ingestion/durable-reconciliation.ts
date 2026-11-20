@@ -916,8 +916,9 @@ async function reconcileBatch(
       `Ingestion run ${params.runId} has not validated its sources.`,
     );
   }
-  // Stamp vehicles with the commit claim so they follow every earlier run's
-  // alert matching. Local runs that never claim use their start.
+  // Stamp vehicles with the commit claim so they follow every earlier alert
+  // check, which bounds its window before any commit still in progress.
+  // Local runs that never claim use their start.
   const runTimestamp = run.commitStartedAt ?? run.startedAt;
   if (stage === "reconcile_upsert") {
     return runUpsertBatch({

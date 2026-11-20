@@ -13,13 +13,15 @@ test("daily notification migration preserves delivery history and in-flight prov
       insert into user values ('user-1');
       create table search_notification_intent (
         id text primary key, user_id text, channel text, status text,
-        delivered_at integer, attempts integer, run_id text, publication_sequence integer,
+        delivered_at integer, attempts integer, run_id text, alert_check_id text,
+        publication_sequence integer,
         saved_search_id text not null default 'search-1', search_match_version integer not null default 1,
         channel_config_version integer not null default 1, payload text not null default '{}',
         claim_token text, claimed_at integer, next_attempt_at integer, last_error text,
         created_at integer not null default 0, cancelled_at integer
       );
       create table ingestion_run (id text primary key, status text, stage text);
+      create table search_alert_check (id text primary key, status text not null);
       insert into ingestion_run values ('run-4', 'success', 'released');
       insert into search_notification_intent (id, user_id, channel, status, delivered_at, attempts, run_id, publication_sequence) values
         ('delivered-1', 'user-1', 'email', 'delivered', 1000, 1, 'run-1', 1),

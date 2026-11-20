@@ -18,8 +18,9 @@ const TEST_SCHEMA = `
     started_at integer not null,
     last_progress_at integer not null,
     commit_started_at integer,
+    search_published_at integer,
     released_at integer,
-    search_published_at integer
+    completed_at integer
   );
 
   create table vehicle_change_v2 (
@@ -159,10 +160,16 @@ describe("durable Algolia full-index publication", () => {
       expect(result.status).toBe("complete");
       expect(deleted).toEqual(["vehicles__rebuild_run-1"]);
       const row = await client.execute(
-        "select stage, full_reindex_move_task_id from ingestion_run where id = 'run-1'",
+        "select status, stage, active_slot, released_at, full_reindex_move_task_id from ingestion_run where id = 'run-1'",
       );
-      expect(row.rows[0]?.stage).toBe("match_alerts");
-      expect(row.rows[0]?.full_reindex_move_task_id).toBeNull();
+      // Publication releases the run; alerts are checked daily on their own.
+      expect(row.rows[0]).toMatchObject({
+        status: "success",
+        stage: "released",
+        active_slot: null,
+        released_at: expect.any(Number),
+        full_reindex_move_task_id: null,
+      });
     } finally {
       client.close();
     }
@@ -289,7 +296,7 @@ describe("durable Algolia full-index publication", () => {
           },
           {
             id: "run-1",
-            stage: "match_alerts",
+            stage: "released",
             full_reindex_required: 0,
           },
         ]),
@@ -575,7 +582,7 @@ describe("durable Algolia full-index publication", () => {
           },
           {
             id: "run-1",
-            stage: "match_alerts",
+            stage: "released",
             full_reindex_required: 0,
           },
         ]),

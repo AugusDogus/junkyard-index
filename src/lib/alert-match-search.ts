@@ -52,10 +52,21 @@ export interface AlertMatchSearch {
   lastCheckedAt: Date | null;
 }
 
+/**
+ * The newest vehicles a batched match may see: those first seen through
+ * `checkedThrough`, the newest of which was first seen at `latestFirstSeenAt`
+ * (null when there are none). Searches already checked through the latest
+ * vehicle skip Algolia.
+ */
+export interface AlertMatchBound {
+  checkedThrough: Date;
+  latestFirstSeenAt: Date | null;
+}
+
 async function scanSearch(
   searchPage: SearchPage,
   { query, filters, lastCheckedAt }: AlertMatchSearch,
-  latestFirstSeenAt?: Date | null,
+  bound?: AlertMatchBound,
 ): Promise<AlertMatchStats> {
   const expression =
     filters.expression === undefined
@@ -65,16 +76,19 @@ async function scanSearch(
     throw new Error(
       `Cannot match saved search expression: ${expression.error}`,
     );
-  const compilation = compileAlertFilters(filters, lastCheckedAt);
+  const compilation = compileAlertFilters(
+    filters,
+    lastCheckedAt,
+    bound?.checkedThrough ?? null,
+  );
   const yearQuery = SearchYearQuery.parse(query.trim());
   const parsedQuery = parseAdvancedSearchQuery(yearQuery.query);
-  // Algolia compares whole seconds. The commit claim keeps the catalog
-  // stable until all of this run's alert checkpoints are written.
+  // Algolia compares whole seconds.
   const hasNewVehicles =
-    latestFirstSeenAt === undefined ||
+    bound === undefined ||
     lastCheckedAt === null ||
-    (latestFirstSeenAt !== null &&
-      Math.floor(latestFirstSeenAt.getTime() / 1000) >
+    (bound.latestFirstSeenAt !== null &&
+      Math.floor(bound.latestFirstSeenAt.getTime() / 1000) >
         Math.floor(lastCheckedAt.getTime() / 1000));
   if (
     compilation.kind === "no_match" ||
@@ -133,11 +147,14 @@ export async function getAlertMatchStatsWithClient(
   );
 }
 
-/** Coalesces each pagination round while retaining each search's scan semantics. */
+/**
+ * Coalesces each pagination round into one multi-query request (up to 50
+ * queries) while retaining each search's scan semantics.
+ */
 export async function getAlertMatchStatsBatchWithClient(
   searchClient: AlertSearchClient,
   searches: readonly AlertMatchSearch[],
-  latestFirstSeenAt: Date | null,
+  bound: AlertMatchBound,
 ): Promise<PromiseSettledResult<AlertMatchStats>[]> {
   type Pending = {
     request: AlertSearchRequest;
@@ -172,6 +189,6 @@ export async function getAlertMatchStatsBatchWithClient(
         });
     });
   return Promise.allSettled(
-    searches.map((search) => scanSearch(searchPage, search, latestFirstSeenAt)),
+    searches.map((search) => scanSearch(searchPage, search, bound)),
   );
 }

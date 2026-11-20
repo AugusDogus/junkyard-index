@@ -13,6 +13,11 @@ export type DurableRunStage =
   | "full_reindex_publish"
   | "full_reindex_move_pending"
   | "full_reindex_publish_failed"
+  /**
+   * Legacy: runs matched saved-search alerts here before the daily alert
+   * check. No run enters it now; a run left here by the previous release is
+   * released without matching.
+   */
   | "match_alerts"
   | "released";
 

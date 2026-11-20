@@ -31,6 +31,7 @@ function intent(
   return {
     id,
     runId: "run-1",
+    alertCheckId: null,
     publicationSequence: 7,
     savedSearchId: searchId,
     userId: "user-1",

@@ -89,9 +89,12 @@ function buildStringOrFilter(
   return clauses.length === 1 ? firstClause : `(${clauses.join(" OR ")})`;
 }
 
+/** Matches vehicles first seen after `lastCheckedAt` and, when given, at or
+ * before `checkedThrough`. Algolia stores `firstSeenAt` in whole seconds. */
 export function compileAlertFilters(
   filters: AlertFilters,
   lastCheckedAt: Date | null,
+  checkedThrough: Date | null = null,
 ): AlertFilterCompilation {
   const clauses: string[] = [];
 
@@ -110,6 +113,10 @@ export function compileAlertFilters(
   if (lastCheckedAt) {
     const lastCheckedAtSeconds = Math.floor(lastCheckedAt.getTime() / 1000);
     clauses.push(`firstSeenAt > ${lastCheckedAtSeconds}`);
+  }
+  if (checkedThrough) {
+    const checkedThroughSeconds = Math.floor(checkedThrough.getTime() / 1000);
+    clauses.push(`firstSeenAt <= ${checkedThroughSeconds}`);
   }
 
   const makesClause = buildStringOrFilter("make", filters.makes ?? []);

@@ -1,7 +1,7 @@
 import { createHook, getWorkflowMetadata, sleep } from "workflow";
 import { start } from "workflow/api";
 import { hasDeliverableNotificationIntents } from "~/server/alerts/durable-alert-delivery-runtime";
-import { IngestionDay } from "~/server/ingestion/ingestion-day";
+import { startDailySearchAlerts } from "~/server/alerts/daily-search-alert-trigger";
 import {
   claimCommitTurn,
   runIngestionPass,
@@ -14,7 +14,6 @@ import {
 } from "~/server/ingestion/durable-ingestion-orchestrator";
 import {
   drainDurableCleanup,
-  drainDurablePhase,
   runDurablePublicationLifecycle,
   runProjectionWithFailureRecording,
 } from "~/server/ingestion/durable-post-ingestion-orchestrator";
@@ -37,7 +36,7 @@ import {
   reconcileDurableIngestionStep,
   runAlgoliaProjectorStep,
   runDurableSourceChunkStep,
-  runVehicleSearchAlertsStep,
+  runSearchAlertCheckBatchStep,
   validateDurableIngestionSourcesStep,
   warmInventoryAnnouncementStep,
 } from "./vehicle-steps";
@@ -54,6 +53,10 @@ const PASS_WATCHDOG_INTERVAL = "30m";
 const FAILED_RUN_RESUME_DELAY = "5m";
 // Time for requested pages to finish regenerating in the background.
 const PAGE_REGENERATION_DELAY = "2m";
+// Retry interval while an alert check batch could read incomplete results:
+// a run from the previous release is matching alerts, or a commit inside the
+// check's window is not searchable yet.
+const ALERT_CHECK_RETRY_DELAY = "10m";
 
 /** Starts or resumes each source run's workflow; live ones exit at once. */
 async function startIngestionRunWorkflowsStep(
@@ -68,23 +71,32 @@ async function startIngestionRunWorkflowsStep(
 }
 startIngestionRunWorkflowsStep.maxRetries = 2;
 
-/** Starts delivery once the day's pass ends, if a notification can go out. */
-async function deliverIngestionPassNotificationsStep(day: string) {
+/** The pass's end starts the day's saved-search alert check. */
+async function startDailySearchAlertsStep(day: string) {
   "use step";
 
-  // Once the next day starts, its sources are running and its pass delivers.
-  if (IngestionDay.key(new Date()) !== day) return;
+  await startDailySearchAlerts(day, {
+    check: (checkDay) => start(searchAlertCheckWorkflow, [checkDay]),
+    delivery: () => start(vehicleNotificationDeliveryWorkflow),
+  });
+}
+startDailySearchAlertsStep.maxRetries = 2;
+
+/** Starts delivery if a notification can go out now. */
+async function startNotificationDeliveryStep() {
+  "use step";
+
   if (await hasDeliverableNotificationIntents()) {
     await start(vehicleNotificationDeliveryWorkflow);
   }
 }
-deliverIngestionPassNotificationsStep.maxRetries = 2;
+startNotificationDeliveryStep.maxRetries = 2;
 
 /**
  * One ingestion day. The hourly cron starts it; a pass already running
  * deduplicates. Each due source runs as its own workflow and reports back
- * here, failed sources retry after their delay, and the day's notifications
- * go out once every source published or used its attempts.
+ * here, failed sources retry after their delay, and the day's saved-search
+ * alert check starts once every source published or used its attempts.
  */
 export async function vehicleIngestionPassWorkflow(day: string) {
   "use workflow";
@@ -114,7 +126,7 @@ export async function vehicleIngestionPassWorkflow(day: string) {
     },
     sleepUntil: (time) => sleep(new Date(time)),
     pauseAfterFailure: () => sleep(FAILED_RUN_RESUME_DELAY),
-    deliverNotifications: () => deliverIngestionPassNotificationsStep(day),
+    deliverNotifications: () => startDailySearchAlertsStep(day),
   });
   // Only the pass that ran sources refreshes the homepage. Rebuilding it
   // scans every live vehicle, and an hourly refresh stalled the homepage.
@@ -150,7 +162,8 @@ async function announceChangedInventoryPages(publicationSequence: number) {
 
 /**
  * One source run. Staging runs in parallel with other sources; the commit
- * (reconciliation, Algolia publication, alert matching) waits its turn.
+ * (reconciliation and Algolia publication) waits its turn. The run is
+ * released once its inventory is searchable; alerts are checked daily.
  */
 export async function vehicleIngestionWorkflow(runId: string, day?: string) {
   "use workflow";
@@ -200,8 +213,8 @@ async function runSourceIngestion(runId: string) {
   const staging = await stageDurableIngestion({ runId, operations });
   if (staging.status !== "staged") return staging;
 
-  // Committing writes the shared inventory, search index, and alert intents,
-  // so one run commits at a time. The claim lives in the database, so a run
+  // Committing writes the shared inventory and search index, so one run
+  // commits at a time. The claim lives in the database, so a run
   // whose workflow died mid-commit keeps it until a resumed workflow finishes
   // the commit or the run is abandoned. The releasing run wakes the waiters.
   using commitTurn = createHook<null>({
@@ -221,7 +234,7 @@ async function runSourceIngestion(runId: string) {
       ]);
       if (signal === "turn") {
         nextTurn = turns.next();
-        // The claim waits a second past the releasing run's alert checks.
+        // Let the releasing run's final writes settle before claiming.
         await sleep(COMMIT_TURN_SETTLE);
       }
     },
@@ -268,18 +281,10 @@ async function runSourceIngestion(runId: string) {
               markFailed: markRunFailed,
             }),
         }),
-      // Projection records its own failures; record the rest so a run that
-      // keeps failing while holding the commit is eventually abandoned.
-      matchAlerts: () =>
-        recordingFailure(runId, markRunFailed, () =>
-          drainDurablePhase(() => runVehicleSearchAlertsStep(runId)),
-        ),
       reportHealth: reportProviderStatusStep,
     });
     if (publicationResult.status === "stopped") return publicationResult;
 
-    // The day's pass delivers notifications once every source is done, so
-    // each recipient's one digest per day covers every source.
     await drainDurableCleanup(() =>
       cleanupDurableIngestionStateBatchStep(runId),
     );
@@ -287,11 +292,52 @@ async function runSourceIngestion(runId: string) {
       status: "completed" as const,
       ingestion: ingestionResult.ingestion,
       projector: publicationResult.projector,
-      alertMatching: publicationResult.alertMatching,
     };
   } finally {
     await signalCommitWaitersStep();
   }
+}
+
+/**
+ * The day's one saved-search alert check: each alert-enabled saved search is
+ * matched once against the vehicles first seen since its last check, then
+ * the matches are delivered as the day's digest. Started when the day's pass
+ * ends, and hourly after the day's alert deadline, so a stuck or abandoned
+ * source cannot hold back everyone's alerts; a check already finished only
+ * retries delivery.
+ */
+export async function searchAlertCheckWorkflow(day: string) {
+  "use workflow";
+
+  using alertCheck = createHook({
+    token: IngestionTokens.searchAlertCheck(day),
+  });
+  const activeCheck = await alertCheck.getConflict();
+  if (activeCheck) {
+    return { status: "deduplicated" as const, activeRunId: activeCheck.runId };
+  }
+  let searchesProcessed = 0;
+  let intentsCreated = 0;
+  while (true) {
+    const batch = await runSearchAlertCheckBatchStep(day);
+    if (batch.status === "waiting") {
+      await sleep(ALERT_CHECK_RETRY_DELAY);
+      continue;
+    }
+    if (batch.status === "not_started" || batch.status === "stopped") {
+      return { status: batch.status, day };
+    }
+    searchesProcessed += batch.searchesProcessed;
+    intentsCreated += batch.intentsCreated;
+    if (batch.status === "complete") break;
+  }
+  await startNotificationDeliveryStep();
+  return {
+    status: "completed" as const,
+    day,
+    searchesProcessed,
+    intentsCreated,
+  };
 }
 
 export async function vehicleNotificationDeliveryWorkflow() {
