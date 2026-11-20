@@ -12,7 +12,10 @@ import {
   alln1TestOwner,
   alln1TestPage,
   alln1TestRecords,
+  alln1TestReflect,
+  alln1TestRequest,
 } from "./alln1-test-fixtures";
+import type { Alln1Record } from "./alln1-parser";
 import type { Alln1CanonicalVehicle } from "./alln1-transform";
 import { runWithQueuedHost } from "./provider-host-test-support";
 import { ALLN1_ORIGIN, alln1PageNumber } from "./alln1-yard-metadata";
@@ -28,18 +31,33 @@ function mock(
 ) {
   const records = alln1TestRecords(600);
   const requests: number[] = [];
+  const nonces = new Set<string>();
   let ordinal = 0;
   globalThis.fetch = Object.assign(
     async (input: RequestInfo | URL) => {
-      const url = input instanceof Request ? input.url : String(input);
+      // Every inventory request carries its own cache-busting nonce; owner
+      // pages are read as published.
+      const { url, nonce } = alln1TestRequest(
+        input instanceof Request ? input.url : String(input),
+      );
+      if (nonce !== null && nonces.has(nonce))
+        throw new Error("Reused All-N-1 nonce");
+      if (nonce !== null) nonces.add(nonce);
       const page = url === ALLN1_ORIGIN + "/" ? 0 : alln1PageNumber(url);
       if (page === null) throw new Error("Unexpected All-N-1 request");
       requests.push(page);
       ordinal++;
       const body =
-        page === 0
+        nonce === null
           ? alln1TestOwner
-          : alln1TestPage(records.slice((page - 1) * 500, page * 500), page, 2);
+          : alln1TestReflect(
+              alln1TestPage(
+                records.slice((page - 1) * 500, page * 500),
+                page,
+                2,
+              ),
+              nonce,
+            );
       const rewritten = rewrite?.(body, page, ordinal) ?? body;
       return (
         response?.(rewritten) ??
@@ -352,3 +370,68 @@ test("All-N-1 completes a crawl when every shared host turn waits minutes", asyn
   // Closing reads still re-check the owner and the first page.
   expect(requests.slice(-2)).toEqual([0, 1]);
 }, 120_000);
+
+test("All-N-1 fails closed before searching more Set Date ties than one finishing turn fits", async () => {
+  // Five pages, each boundary splitting a Set Date tie: page n+1 opens by
+  // repeating page n's last donor, so four tie searches would be needed.
+  const dates = [
+    "2026-10-19",
+    "2026-10-18",
+    "2026-10-17",
+    "2026-10-16",
+    "2026-10-15",
+  ];
+  const unique = alln1TestRecords(500 + 4 * 499 + 1);
+  const pages: Alln1Record[][] = [];
+  let next = 0;
+  dates.forEach((date, index) => {
+    const size = index === 0 ? 500 : index === dates.length - 1 ? 1 : 499;
+    const own = unique
+      .slice(next, next + size)
+      .map((record) => ({ ...record, setDate: date }));
+    next += size;
+    const previous = pages.at(-1)?.at(-1);
+    pages.push(previous ? [previous, ...own] : own);
+  });
+  const served: string[] = [];
+  globalThis.fetch = Object.assign(
+    async (input: RequestInfo | URL) => {
+      const { url, nonce } = alln1TestRequest(
+        input instanceof Request ? input.url : String(input),
+      );
+      served.push(url);
+      if (nonce === null)
+        return new Response(alln1TestOwner, {
+          headers: { "content-type": "text/html" },
+        });
+      const page = alln1PageNumber(url);
+      const records = page === null ? undefined : pages[page - 1];
+      if (page === null || records === undefined)
+        throw new Error("Unexpected All-N-1 request " + url);
+      return new Response(
+        alln1TestReflect(alln1TestPage(records, page, pages.length), nonce),
+        { headers: { "content-type": "text/html" } },
+      );
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  let callbacks = 0;
+  const run = Effect.runPromise(
+    streamAlln1InventoryWithRequestGate(
+      {
+        maxPages: 32,
+        onBatch: () =>
+          Effect.sync(() => {
+            callbacks++;
+          }),
+      },
+      gate,
+    ),
+  );
+  await expect(run).rejects.toThrow(
+    "4 page boundaries split Set Date ties (2026-10-19, 2026-10-18, 2026-10-17, 2026-10-16), but one finishing turn fits at most 3 searches",
+  );
+  await expect(run).rejects.toThrow("previous inventory is preserved");
+  expect(callbacks).toBe(0);
+  expect(served.some((url) => url.includes("search="))).toBe(false);
+});

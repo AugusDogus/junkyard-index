@@ -1,4 +1,41 @@
 import type { Alln1Record } from "./alln1-parser";
+
+/**
+ * Splits a request into its canonical URL and cache-busting nonce. Owner
+ * pages are read as published (null nonce, and a nonce there fails); every
+ * inventory read must carry a fresh one.
+ */
+export function alln1TestRequest(raw: string): {
+  url: string;
+  nonce: string | null;
+} {
+  const url = new URL(raw);
+  const nonce = url.searchParams.get("cb");
+  if (url.pathname === "/") {
+    if (url.search)
+      throw new Error("All-N-1 owner read is not canonical: " + raw);
+    return { url: url.href, nonce: null };
+  }
+  if (nonce === null || !/^[a-f0-9]{16}$/.test(nonce))
+    throw new Error("All-N-1 request lacks a fresh cb nonce: " + raw);
+  url.searchParams.delete("cb");
+  return { url: url.href, nonce };
+}
+/** Reflects `nonce` into a canonical page like the live plugin does: a hidden
+ * search field after `view` and `cb` before `pagenum` in every page link. */
+export function alln1TestReflect(html: string, nonce: string): string {
+  return html
+    .replace(
+      /<input\b[^>]*\bname="view"[^>]*>/,
+      (input) =>
+        input + '<input type="hidden" name="cb" value="' + nonce + '">',
+    )
+    .replace(
+      /view=table(&#038;|&amp;)pagenum=/g,
+      (_match, amp: string) =>
+        "view=table" + amp + "cb=" + nonce + amp + "pagenum=",
+    );
+}
 export const alln1TestOwner =
   '<html><head><meta name="description" content="All-N-1 Auto Parts is a used auto parts store &amp; self-service junkyard in Kansas City, MO with online part locator tool."></head><body>2408 Blue Ridge Blvd Kansas City, MO 64129 816-252-3930</body></html>';
 export const alln1TestRecord = {
