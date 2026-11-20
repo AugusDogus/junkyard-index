@@ -7,7 +7,11 @@ import {
   SCOTTS_ORIGIN,
   SCOTTS_ROOT,
 } from "./scotts-yard-metadata";
-import { MODEL_CENSUS_DAY_MS } from "./model-census";
+import {
+  MODEL_CENSUS_DAY_MS,
+  MODEL_CENSUS_SWEEP_DAYS,
+  ModelCensus,
+} from "./model-census";
 import { scottsHash } from "./scotts-parser";
 
 const originalFetch = globalThis.fetch;
@@ -118,6 +122,27 @@ async function census(
   };
 }
 
+/** The census key Scotts builds for a fixture model (make path and label plus
+ * model path and label). */
+const key = (model: number) =>
+  JSON.stringify([
+    "/used-parts/ACURA",
+    "ACURA",
+    "/used-parts/ACURA/" + label(model),
+    label(model),
+  ]);
+/** Models in `day`'s sweep slice, in published order. */
+const sweep = (native: ReturnType<typeof yard>, day: number) =>
+  [...native.rows.keys()].filter(
+    (model) => ModelCensus.slice(key(model)) === day % MODEL_CENSUS_SWEEP_DAYS,
+  );
+/** Days after `from`, inside the age ceiling, whose sweep slice is not empty. */
+const sweepDays = (native: ReturnType<typeof yard>, from: number) =>
+  Array.from(
+    { length: MODEL_CENSUS_SWEEP_DAYS - 1 },
+    (_, i) => from + 1 + i,
+  ).filter((day) => sweep(native, day).length > 0);
+
 const allVins = (native: ReturnType<typeof yard>) =>
   [...native.rows]
     .flatMap(([model, list]) => list.map((n) => vin(model, n)))
@@ -134,29 +159,61 @@ test("Scotts cold start reads every model and publishes its census", async () =>
   expect(cold.warnings.at(-1)).toBe(
     "Scotts Read 12 of 12 model pages (cold 12); carried 0.",
   );
+  // The test's sweep slices are computed from the keys the connector publishes.
+  const parsed = ScottsCursorSchema.parse(cold.terminal);
+  if (parsed.phase !== "complete" || !parsed.census)
+    throw new Error("Expected a terminal census");
+  expect(parsed.census.models.map((m) => m.key)).toEqual(
+    Array.from({ length: 12 }, (_, i) => key(i)),
+  );
 });
 
 test("Scotts carries unread models, rotates the sweep and reads count changes", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
-  // Day 601: only the sweep slice (ordinal % 6 === 601 % 6) is read.
-  const next = await census(native, 601, cold.terminal);
-  expect(next.models).toEqual([1, 7]);
-  expect(next.requests).toBe(7);
+  // Two later days with non-empty, distinct sweep slices, both before any
+  // model reaches the age ceiling.
+  const [first, second] = sweepDays(native, 600);
+  if (first === undefined || second === undefined)
+    throw new Error("Fixture needs two non-empty sweep days");
+  const firstSweep = sweep(native, first);
+  const secondSweep = sweep(native, second);
+  expect(firstSweep.some((model) => secondSweep.includes(model))).toBe(false);
+
+  // Only the first day's sweep slice is read.
+  const next = await census(native, first, cold.terminal);
+  expect(next.models).toEqual(firstSweep);
+  expect(next.requests).toBe(5 + firstSweep.length);
   // Carried donors are still published in full.
   expect(next.vins).toEqual(allVins(native));
   expect(next.warnings.at(-1)).toBe(
-    "Scotts Read 2 of 12 model pages (sweep 2); carried 10.",
+    `Scotts Read ${firstSweep.length} of 12 model pages (sweep ${firstSweep.length}); carried ${12 - firstSweep.length}.`,
   );
 
-  // Day 602: a sold donor changes model 4's badge, and model 9 gains one.
-  native.rows.set(4, donors(29));
-  native.rows.set(9, [...donors(), 31]);
-  const changed = await census(native, 602, next.terminal);
-  expect(changed.models).toEqual([2, 4, 8, 9]);
+  // A sold donor changes one badge and another model gains a donor; both sit
+  // outside the second day's slice so only their count change reads them.
+  const [sold, gained] = [...native.rows.keys()].filter(
+    (model) => !secondSweep.includes(model),
+  );
+  if (sold === undefined || gained === undefined)
+    throw new Error("Fixture needs two models outside the sweep slice");
+  native.rows.set(sold, donors(29));
+  native.rows.set(gained, [...donors(), 31]);
+  const changed = await census(native, second, next.terminal);
+  expect(changed.models).toEqual(
+    [...secondSweep, sold, gained].sort((a, b) => a - b),
+  );
   expect(changed.vins).toEqual(allVins(native));
+  // The summary lists reasons in the order their first model is published.
+  const reasons = [
+    { model: Math.min(...secondSweep), text: `sweep ${secondSweep.length}` },
+    { model: Math.min(sold, gained), text: "count 2" },
+  ]
+    .sort((a, b) => a.model - b.model)
+    .map((reason) => reason.text)
+    .join(", ");
   expect(changed.warnings.at(-1)).toBe(
-    "Scotts Read 4 of 12 model pages (sweep 2, count 2); carried 8.",
+    `Scotts Read ${secondSweep.length + 2} of 12 model pages (${reasons}); carried ${10 - secondSweep.length}.`,
   );
 });
 
@@ -170,8 +227,8 @@ test("Scotts re-reads every model within six days, even across missed runs", asy
     const run = await census(native, day, previous);
     for (const model of run.models) lastRead.set(model, day);
     for (const read of lastRead.values()) expect(day - read).toBeLessThan(6);
-    // About a sixth of the models per day once caught up.
-    if (day > 606) expect(run.models).toHaveLength(2);
+    // Once caught up, each day reads exactly its sweep slice.
+    if (day > 606) expect(run.models).toEqual(sweep(native, day));
     expect(run.vins).toEqual(allVins(native));
     previous = run.terminal;
   }
@@ -234,8 +291,15 @@ test("Scotts reads every model with a warning when the previous cursor is unusab
 test("Scotts rejects checkpoints whose carried pages or request accounting were altered", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
-  const day = 601;
-  // Root, makes and the menu: the menu step carries models 0 and stops at 1.
+  // A day whose first read is not model 0, so the menu step carries a page.
+  const day = sweepDays(native, 600).find(
+    (candidate) => (sweep(native, candidate)[0] ?? 0) > 0,
+  );
+  const firstRead = day === undefined ? undefined : sweep(native, day)[0];
+  if (day === undefined || firstRead === undefined)
+    throw new Error("Fixture needs a sweep day that carries model 0");
+  // Root, makes and the menu: the menu step carries every model before the
+  // first read and stops there.
   const opening = await Effect.runPromise(
     streamScottsInventoryWithRequestGate(
       {
@@ -249,14 +313,14 @@ test("Scotts rejects checkpoints whose carried pages or request accounting were 
   );
   const cursor = opening.cursor;
   if (cursor.phase !== "models") throw new Error("Expected the model phase");
-  expect(cursor.pages).toHaveLength(1);
+  expect(cursor.pages).toHaveLength(firstRead);
   expect(cursor.requests).toBe(3);
-  const [carried] = cursor.pages;
+  const [carried, ...carriedRest] = cursor.pages;
   if (!carried) throw new Error("Expected a carried page");
   expect(() =>
     ScottsCursor.checkpoint({
       ...cursor,
-      pages: [{ records: [], hash: carried.hash }],
+      pages: [{ records: [], hash: carried.hash }, ...carriedRest],
     }),
   ).toThrow("fingerprint");
   // A self-consistent page that differs from the census evidence.
@@ -264,7 +328,7 @@ test("Scotts rejects checkpoints whose carried pages or request accounting were 
   expect(() =>
     ScottsCursor.checkpoint({
       ...cursor,
-      pages: [{ records: edited, hash: scottsHash(edited) }],
+      pages: [{ records: edited, hash: scottsHash(edited) }, ...carriedRest],
     }),
   ).toThrow("carried model page differs from its census");
   // Charging a GET for a carried page breaks request accounting.

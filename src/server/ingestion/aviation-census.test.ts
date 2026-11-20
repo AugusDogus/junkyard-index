@@ -20,7 +20,11 @@ import {
   aviationFixturePage,
   aviationFixtureRoot,
 } from "./aviation-test-fixtures";
-import { MODEL_CENSUS_DAY_MS } from "./model-census";
+import {
+  MODEL_CENSUS_DAY_MS,
+  MODEL_CENSUS_SWEEP_DAYS,
+  ModelCensus,
+} from "./model-census";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
@@ -152,6 +156,27 @@ const allVins = (native: ReturnType<typeof yard>) =>
     .sort();
 const every = Array.from({ length: 12 }, (_, i) => i);
 
+/** The census key aviationCensusControls builds for fixture model `i`. */
+const key = (i: number) =>
+  JSON.stringify([make.path, make.label, control(i, 0).path, label(i)]);
+/** Fixture models 0-11 in day `day`'s sweep slice, ascending. */
+const sweep = (day: number) =>
+  every.filter(
+    (i) => ModelCensus.slice(key(i)) === day % MODEL_CENSUS_SWEEP_DAYS,
+  );
+/** First day after `after` whose sweep slice holds a fixture model and whose
+ * lowest such model satisfies `accept`. */
+function sweepDay(
+  after: number,
+  accept: (first: number) => boolean = () => true,
+) {
+  for (let day = after + 1; day <= after + MODEL_CENSUS_SWEEP_DAYS; day++) {
+    const first = sweep(day)[0];
+    if (first !== undefined && accept(first)) return day;
+  }
+  throw new Error(`No fixture sweep slice after day ${after} fits the test`);
+}
+
 test("Aviation cold start reads every model and publishes its census", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
@@ -206,26 +231,46 @@ test("Aviation treats unreadable or incompatible previous censuses as warned col
 test("Aviation carries unread models, rotates the sweep and reads changes", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
-  // Day 601: only the sweep slice (ordinal % 6 === 601 % 6) is read.
-  const next = await census(native, 601, cold.terminal);
-  expect(next.models).toEqual([1, 7]);
-  // Four opening pages, one menu, two models, closing contact and makes.
-  expect(next.requests).toBe(9);
+  // Two later days with distinct, non-empty sweep slices, both before any
+  // day-600 evidence reaches the six-day ceiling.
+  const first = sweepDay(600);
+  const second = sweepDay(first);
+  expect(second - 600).toBeLessThan(MODEL_CENSUS_SWEEP_DAYS);
+  const firstSweep = sweep(first);
+  const secondSweep = sweep(second);
+  expect(firstSweep.length).toBeGreaterThan(0);
+  expect(secondSweep.length).toBeGreaterThan(0);
+  expect(secondSweep.some((i) => firstSweep.includes(i))).toBe(false);
+
+  // Only the first day's sweep slice is read.
+  const next = await census(native, first, cold.terminal);
+  expect(next.models).toEqual(firstSweep);
+  // Four opening pages, one menu, the sweep models, closing contact and makes.
+  expect(next.requests).toBe(7 + firstSweep.length);
   // Carried donors are still published in full.
   expect(next.vins).toEqual(allVins(native));
   expect(next.warnings.at(-1)).toBe(
-    "Aviation Read 2 of 12 model pages (sweep 2); carried 10.",
+    `Aviation Read ${firstSweep.length} of 12 model pages (sweep ${firstSweep.length}); carried ${12 - firstSweep.length}.`,
   );
 
-  // Day 602: a sold donor changes model 4's published count and a new model
-  // appears; both are read alongside the sweep slice.
-  native.rows.set(4, donors(4, 4));
+  // A sold donor changes the published count of a model outside the second
+  // day's slice and a new model appears; both are read alongside that slice.
+  const sold = every.find((i) => !secondSweep.includes(i));
+  if (sold === undefined)
+    throw new Error("Expected a model outside the second sweep slice");
+  native.rows.set(sold, donors(sold, 4));
   native.rows.set(12, donors(12));
-  const changed = await census(native, 602, next.terminal);
-  expect(changed.models).toEqual([2, 4, 8, 12]);
+  const changed = await census(native, second, next.terminal);
+  const reads = [...secondSweep, sold, 12].sort((a, b) => a - b);
+  expect(changed.models).toEqual(reads);
   expect(changed.vins).toEqual(allVins(native));
+  // Reasons are listed in the order they first occur in model order.
+  const reasons =
+    sold < (secondSweep[0] ?? Infinity)
+      ? `count 1, sweep ${secondSweep.length}`
+      : `sweep ${secondSweep.length}, count 1`;
   expect(changed.warnings.at(-1)).toBe(
-    "Aviation Read 4 of 13 model pages (sweep 2, count 1, new 1); carried 9.",
+    `Aviation Read ${reads.length} of 13 model pages (${reasons}, new 1); carried ${13 - reads.length}.`,
   );
 });
 
@@ -251,12 +296,18 @@ test("Aviation re-reads every model within six days, even across missed runs", a
 test("Aviation checkpoints reject carried pages that differ from the census and skipped reads", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
-  // Opening contact, root, parts, makes and the menu; model 0 is carried.
+  // A day whose sweep slice skips model 0, so the run opens on carried pages.
+  const day = sweepDay(600, (first) => first > 0);
+  const due = sweep(day);
+  const firstDue = due[0];
+  if (firstDue === undefined) throw new Error("Expected a non-empty sweep");
+  // Opening contact, root, parts, makes and the menu; models before the first
+  // due model are carried.
   const paused = await Effect.runPromise(
     streamAviationInventoryWithRequestGate(
       {
         previousCursor: cold.terminal,
-        now: at(601),
+        now: at(day),
         maxPages: 5,
         onBatch: () => Effect.void,
       },
@@ -267,16 +318,18 @@ test("Aviation checkpoints reject carried pages that differ from the census and 
   if (progress.phase !== "models" || progress.previous === null)
     throw new Error("Expected an incremental model checkpoint");
   const previous = progress.previous;
-  expect(progress.pages).toHaveLength(1);
+  expect(progress.pages).toHaveLength(firstDue);
   expect(() =>
     AviationCursor.checkpoint({
       ...progress,
-      pages: [aviationFixturePage(donors(0, 4))],
+      pages: [aviationFixturePage(donors(0, 4)), ...progress.pages.slice(1)],
     }),
   ).toThrow("carried model page differs");
-  // Model 1 is due today; skipping it as if carried is refused.
-  const carried = previous.models[1];
-  if (!carried) throw new Error("Expected census evidence for model 1");
+  // The first due model is in today's sweep; skipping it as if carried is
+  // refused.
+  const carried = previous.models[firstDue];
+  if (!carried)
+    throw new Error(`Expected census evidence for model ${firstDue}`);
   expect(() =>
     AviationCursor.checkpoint({
       ...progress,
@@ -289,7 +342,7 @@ test("Aviation checkpoints reject carried pages that differ from the census and 
   expect(() =>
     AviationCursor.checkpoint({
       ...progress,
-      previous: { ...previous, day: 602 },
+      previous: { ...previous, day: day + 1 },
     }),
   ).toThrow("run day or previous census");
   // The paused run resumes and completes without a previous cursor.
@@ -298,11 +351,12 @@ test("Aviation checkpoints reject carried pages that differ from the census and 
   while (cursor.phase !== "complete") {
     const result: AviationStreamResult = await Effect.runPromise(
       streamAviationInventoryWithRequestGate(
-        { startCursor: cursor, now: at(601), onBatch: () => Effect.void },
+        { startCursor: cursor, now: at(day), onBatch: () => Effect.void },
         gate,
       ),
     );
     cursor = result.cursor;
   }
-  expect(native.urls.length - before).toBe(4);
+  // The sweep models, then closing contact and makes.
+  expect(native.urls.length - before).toBe(due.length + 2);
 });

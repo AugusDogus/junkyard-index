@@ -13,11 +13,39 @@ import {
 } from "./denton-test-fixtures";
 import { dentonHash } from "./denton-traversal";
 import { DENTON_ARRIVALS, DENTON_MAKES } from "./denton-yard-metadata";
-import { MODEL_CENSUS_DAY_MS } from "./model-census";
+import { z } from "zod";
+import {
+  MODEL_CENSUS_DAY_MS,
+  MODEL_CENSUS_SWEEP_DAYS,
+  ModelCensus,
+} from "./model-census";
 
 const make = "https://dentonauto.com/used-parts/ACURA";
 const label = (model: number) => "M" + model;
 const modelUrl = (model: number) => `${make}/${label(model)}/`;
+const models = Array.from({ length: 12 }, (_, i) => i);
+/** The census key the Denton cursor binds to each model (make destination and
+ * label, model destination and label). The cold-start test pins it. */
+const censusKey = (model: number) =>
+  JSON.stringify([make, "ACURA", modelUrl(model), label(model)]);
+/** Models in `day`'s sweep slice, in published order. These fixture keys only
+ * land on odd slices, so tests pick days whose slice is non-empty. */
+const sweep = (day: number) =>
+  models.filter(
+    (model) =>
+      ModelCensus.slice(censusKey(model)) === day % MODEL_CENSUS_SWEEP_DAYS,
+  );
+const outside = (...days: number[]) =>
+  models.filter((model) => days.every((day) => !sweep(day).includes(model)));
+const sorted = (list: Iterable<number>) =>
+  [...new Set(list)].sort((a, b) => a - b);
+const terminalKeys = (terminal: unknown) =>
+  z
+    .object({
+      census: z.object({ models: z.array(z.object({ key: z.string() })) }),
+    })
+    .parse(terminal)
+    .census.models.map((m) => m.key);
 /** A donor is [model, ordinal]; its stock, VIN and destination derive from both. */
 type Donor = readonly [number, number];
 const index = ([model, n]: Donor) => model * 1000 + n;
@@ -30,7 +58,7 @@ const empty = "No Results Found. Try Browsing Our Parts Or Search Again";
  * arrivals list can be edited between runs. */
 function yard() {
   const owner = dentonTestGraph({ accepted: 1 }).pages;
-  const rows = new Map(Array.from({ length: 12 }, (_, i) => [i, donors(i)]));
+  const rows = new Map(models.map((i) => [i, donors(i)]));
   let arrivals: Donor[] = [];
   /** Models whose page renders the native empty result while the menu badge
    * still counts their rows (the TOWN & COUNTRY pattern). */
@@ -146,7 +174,9 @@ async function census(
 test("Denton cold start reads every model and publishes its census", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
-  expect(cold.models).toEqual(Array.from({ length: 12 }, (_, i) => i));
+  expect(cold.models).toEqual(models);
+  // Sweep expectations below derive from these exact keys.
+  expect(terminalKeys(cold.terminal)).toEqual(models.map(censusKey));
   // about, contact, makes, one menu, arrivals, 12 models; closing about,
   // contact and makes.
   expect(cold.requests).toBe(20);
@@ -160,36 +190,73 @@ test("Denton cold start reads every model and publishes its census", async () =>
 test("Denton carries unread models, rotates the sweep and reads changes", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
-  // Day 601: only the sweep slice (ordinal % 6 === 601 % 6) is read.
+  // Day 601: only the sweep slice (slice(key) === 601 % 6) is read.
+  expect(sweep(601).length).toBeGreaterThan(0);
   const next = await census(native, 601, cold.terminal);
-  expect(next.models).toEqual([1, 7]);
-  expect(next.requests).toBe(10);
+  expect(next.models).toEqual(sweep(601));
+  expect(next.requests).toBe(8 + sweep(601).length);
   // Carried donors are still published in full.
   expect(next.vins).toEqual(native.vins());
 
-  // Day 602: a sold donor changes model 4's count; on model 9 a donor is
-  // swapped for an arrival at the same count, which only the arrival reveals.
-  native.rows.set(4, donors(4, 69));
-  const arrival: Donor = [9, 71];
-  native.rows.set(9, [...donors(9).slice(1), arrival]);
-  native.setArrivals([arrival]);
-  const changed = await census(native, 602, next.terminal);
-  expect(changed.models).toEqual([2, 4, 8, 9]);
-  expect(changed.vins).toEqual(native.vins());
-  expect(changed.warnings.at(-1)).toBe(
-    "Denton Read 4 of 12 model pages (sweep 2, count 1, trigger 1); carried 8.",
+  // A second run on day 601 carries every model without a model GET.
+  const idle = await census(native, 601, next.terminal);
+  expect(idle.models).toEqual([]);
+  expect(idle.requests).toBe(8);
+  expect(idle.vins).toEqual(native.vins());
+  expect(idle.warnings.at(-1)).toBe(
+    "Denton Read 0 of 12 model pages; carried 12.",
   );
 
-  // Day 603 and 604: an arrival not yet on its model page keeps that model
+  // Day 603: the sweep rotates to another non-empty slice. Outside it, a sold
+  // donor changes one model's count; on another a donor is swapped for an
+  // arrival at the same count, which only the arrival reveals.
+  expect(sweep(603).length).toBeGreaterThan(0);
+  expect(sweep(603).some((model) => sweep(601).includes(model))).toBe(false);
+  const [sold, swapped] = outside(603);
+  if (sold === undefined || swapped === undefined)
+    throw new Error("Expected two models outside day 603's sweep slice");
+  native.rows.set(sold, donors(sold, 69));
+  const arrival: Donor = [swapped, 71];
+  native.rows.set(swapped, [...donors(swapped).slice(1), arrival]);
+  native.setArrivals([arrival]);
+  const changed = await census(native, 603, idle.terminal);
+  expect(changed.models).toEqual(sorted([...sweep(603), sold, swapped]));
+  expect(changed.vins).toEqual(native.vins());
+  const changedReads = sweep(603).length + 2;
+  const changedSummary = changed.warnings.at(-1) ?? "";
+  // Reasons are listed in published model order.
+  expect(changedSummary).toStartWith(
+    `Denton Read ${changedReads} of 12 model pages (`,
+  );
+  expect(changedSummary).toContain(`sweep ${sweep(603).length}`);
+  expect(changedSummary).toContain("count 1");
+  expect(changedSummary).toContain("trigger 1");
+  expect(changedSummary).toEndWith(`carried ${12 - changedReads}.`);
+
+  // Day 605 and 606: an arrival not yet on its model page keeps that model
   // due every day, while the arrivals page still publishes the donor.
-  const pending: Donor = [5, 99];
+  const waiting = outside(605, 606).find(
+    (model) => model !== sold && model !== swapped,
+  );
+  if (waiting === undefined)
+    throw new Error("Expected a model outside day 605 and 606 sweep slices");
+  const pending: Donor = [waiting, 99];
   native.setArrivals([pending]);
-  const first = await census(native, 603, changed.terminal);
-  expect(first.models).toEqual([3, 5, 9]);
+  const first = await census(native, 605, changed.terminal);
+  expect(first.models).toEqual(sorted([...sweep(605), waiting]));
   expect(first.vins).toContain(dentonTestVin(index(pending)));
-  const second = await census(native, 604, first.terminal);
-  expect(second.models).toEqual([4, 5, 10]);
+  const second = await census(native, 606, first.terminal);
+  // Days 602 and 604 had no run, so models last read by the day 600 cold
+  // census reach the six-day ceiling on day 606.
+  const readSince = new Set([
+    ...next.models,
+    ...changed.models,
+    ...first.models,
+  ]);
+  const stale = models.filter((model) => !readSince.has(model));
+  expect(second.models).toEqual(sorted([...sweep(606), waiting, ...stale]));
   expect(second.vins).toEqual(native.vins());
+  expect(second.warnings.at(-1)).toContain("trigger 1");
 }, 30_000);
 
 test("Denton re-reads every model within six days, even across missed runs", async () => {
@@ -198,17 +265,27 @@ test("Denton re-reads every model within six days, even across missed runs", asy
   const lastRead = new Map<number, number>();
   for (let i = 0; i < 12; i++) lastRead.set(i, 600);
   const reads: number[] = [];
+  // Day 606 also reads the slices of missed days 601 and 602 at the ceiling.
+  const expected = (day: number) =>
+    day === 606
+      ? sorted([...sweep(601), ...sweep(602), ...sweep(606)])
+      : sweep(day);
   // Skip day 601 and 602 entirely, then run daily.
   for (const day of [603, 604, 605, 606, 607, 608, 609, 610, 611, 612]) {
     const run = await census(native, day, previous);
+    expect(run.models).toEqual(expected(day));
     for (const model of run.models) lastRead.set(model, day);
     for (const read of lastRead.values()) expect(day - read).toBeLessThan(6);
     expect(run.vins).toEqual(native.vins());
     reads.push(run.models.length);
     previous = run.terminal;
   }
-  // About a sixth of the models a day once the missed-day catch-up is read.
-  expect(reads.slice(4)).toEqual([2, 2, 2, 2, 2, 2]);
+  // Once the missed-day catch-up is read, each day reads exactly its slice,
+  // and the six slices cover every model once.
+  const steady = [607, 608, 609, 610, 611, 612];
+  expect(reads.slice(4)).toEqual(steady.map((day) => sweep(day).length));
+  expect(sorted(steady.flatMap(sweep))).toEqual(models);
+  expect(steady.flatMap(sweep)).toHaveLength(models.length);
 }, 30_000);
 
 test("Denton rejects a run whose read and carried model cards fall short of today's model badges", async () => {
@@ -221,19 +298,22 @@ test("Denton rejects a run whose read and carried model cards fall short of toda
   native.rows.set(3, donors(3, 20));
   native.unreachable.add(3);
   const small = await census(native, 601, cold.terminal);
-  expect(small.models).toEqual([1, 3, 7]);
-  // Every model page now renders the native empty result while badges hold.
-  // Only the sweep slice is read, so the 765 floor and the 50% prior guard
-  // would pass on the carried pages; the badge deficit must not.
-  for (let model = 0; model < 12; model++) native.unreachable.add(model);
+  expect(small.models).toEqual(sorted([...sweep(601), 3]));
+  // On day 605 every model page renders the native empty result while badges
+  // hold. No evidence is past the ceiling and only the (non-empty) sweep slice
+  // is read, so the 765 floor and the 50% prior guard would pass on the
+  // carried pages; the badge deficit must not.
+  expect(sweep(605).length).toBeGreaterThan(0);
+  expect(sweep(605).length).toBeLessThan(4);
+  for (const model of models) native.unreachable.add(model);
   const before = native.calls.length;
   await expect(
-    census(native, 602, small.terminal, small.vins.length),
+    census(native, 605, small.terminal, small.vins.length),
   ).rejects.toThrow("opening model badges");
   // Only the sweep slice was read before the union was rejected.
   expect(
     native.calls.slice(before).filter((url) => /\/M\d+\/$/.test(url)),
-  ).toHaveLength(2);
+  ).toEqual(sweep(605).map(modelUrl));
 }, 30_000);
 
 test("Denton treats an unreadable or incompatible previous cursor as a warned cold census", async () => {
@@ -277,7 +357,9 @@ test("Denton treats an unreadable or incompatible previous cursor as a warned co
 test("Denton checkpoints reject carried pages that differ from the census, skipped carries and charged carries", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
-  // Day 601 opening up to arrivals: model 0 is carried before model 1's read.
+  // Day 601 opening up to arrivals: model 0 is carried before the first sweep
+  // read.
+  expect(sweep(601)[0]).toBeGreaterThan(0);
   const part = await Effect.runPromise(
     streamDentonInventory({
       previousAcceptedCount: null,
