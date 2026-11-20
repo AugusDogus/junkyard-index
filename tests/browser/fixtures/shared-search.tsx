@@ -43,13 +43,17 @@ queryClient.setQueryData(
     booleanOrSearchReady: params.get("fixtureBooleanReady") !== "0",
   },
 );
-queryClient.setQueryData(
-  getQueryKey(api.subscription.getAccountOverview, undefined, "query"),
-  // fixturePlan=free signs in an account without a paid subscription.
-  params.get("fixturePlan") === "free"
-    ? { kind: "none" }
-    : { kind: "active", tier: "full" },
-);
+// fixturePlan=free signs in an account without a paid subscription.
+// fixturePlan=pending or =unavailable leaves the plan to the network, which
+// the test holds open or fails.
+const fixturePlan = params.get("fixturePlan");
+if (fixturePlan !== "pending" && fixturePlan !== "unavailable")
+  queryClient.setQueryData(
+    getQueryKey(api.subscription.getAccountOverview, undefined, "query"),
+    fixturePlan === "free"
+      ? { kind: "none" }
+      : { kind: "active", tier: "full" },
+  );
 // Filter options come from Turso; this make and yard have no search results.
 // fixtureOptions=pending or =failed leaves them to the network, which the
 // test holds open or fails.

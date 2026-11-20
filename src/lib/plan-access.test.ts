@@ -12,6 +12,23 @@ describe("resolvePlanAccess", () => {
     ).toEqual({ kind: "unavailable", reason: "confirmation_timeout" });
   });
 
+  test("keeps a just-paid account loading, not free, while checkout confirmation polls", () => {
+    expect(
+      resolvePlanAccess({
+        isLoggedIn: true,
+        billingAccount: { kind: "none" },
+        confirmation: { kind: "polling", deadlineMs: 30_000 },
+      }),
+    ).toEqual({ kind: "loading" });
+    expect(
+      resolvePlanAccess({
+        isLoggedIn: true,
+        billingAccount: { kind: "active", tier: "lite" },
+        confirmation: { kind: "polling", deadlineMs: 30_000 },
+      }),
+    ).toEqual({ kind: "resolved", tier: "lite" });
+  });
+
   test("paid confirmation wins if the tier resolves after the deadline", () => {
     expect(
       resolvePlanAccess({

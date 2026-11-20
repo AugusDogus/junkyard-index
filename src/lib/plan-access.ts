@@ -27,6 +27,14 @@ export function resolvePlanAccess(input: {
   if (input.confirmation.kind === "timed_out") {
     return { kind: "unavailable", reason: "confirmation_timeout" };
   }
+  // Polar can lag a finished checkout. Until the poll confirms the new tier
+  // or times out, the plan is not known yet, not free.
+  if (
+    input.confirmation.kind === "polling" &&
+    input.billingAccount.kind !== "unavailable"
+  ) {
+    return { kind: "loading" };
+  }
 
   switch (input.billingAccount.kind) {
     case "none":

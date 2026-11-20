@@ -54,4 +54,14 @@ describe("SearchResultCap.resolve", () => {
       }),
     ).toEqual(firstPage("plan_unconfirmed"));
   });
+
+  test("only a visitor or free plan cap is the plan's limit", () => {
+    expect(SearchResultCap.isPlanLimit(firstPage("visitor"))).toBe(true);
+    expect(SearchResultCap.isPlanLimit(firstPage("free_plan"))).toBe(true);
+    expect(SearchResultCap.isPlanLimit(firstPage("plan_pending"))).toBe(false);
+    expect(SearchResultCap.isPlanLimit(firstPage("plan_unconfirmed"))).toBe(
+      false,
+    );
+    expect(SearchResultCap.isPlanLimit({ kind: "uncapped" })).toBe(false);
+  });
 });

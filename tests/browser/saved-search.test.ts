@@ -236,7 +236,7 @@ describe("auth save-search funnel", () => {
       await openFixture(page, "?auth=sign-up");
       await page
         .getByText(
-          "Browse every page free. Year and distance filters included. Save searches with Lite; alerts with Full.",
+          "Search free with year and distance filters. Lite adds every result and saved searches; Full adds alerts.",
           {
             exact: true,
           },
