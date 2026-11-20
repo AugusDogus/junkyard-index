@@ -44,6 +44,7 @@ function listing(vin: string, locationCode = "yard-1"): CanonicalVehicle {
 async function setup(params: {
   stage: "reconcile_upsert" | "reconcile_missing";
   vehicles: readonly CanonicalVehicle[];
+  observedVins?: readonly string[];
 }) {
   const client = createClient({ url: ":memory:" });
   await client.executeMultiple(RECONCILIATION_TEST_SCHEMA);
@@ -69,7 +70,10 @@ async function setup(params: {
   const chunk = await snapshotStore.put({
     runId: "run-pyp",
     source: "pyp",
-    chunk: { vehicles: [...params.vehicles], observedVins: [] },
+    chunk: {
+      vehicles: [...params.vehicles],
+      observedVins: [...(params.observedVins ?? [])],
+    },
   });
   await database.insert(ingestionSourceRun).values({
     id: "run-pyp:pyp",
@@ -217,6 +221,32 @@ test("a missing vehicle listed again withdraws the departure recorded while it w
 
     const vehicles = await client.execute(
       "select first_seen_at, missing_since_at from vehicle where vin = 'VIN-RETURNED'",
+    );
+    expect(
+      vehicles.rows.map((row) => [row.first_seen_at, row.missing_since_at]),
+    ).toEqual([[listedAt, null]]);
+    expect(await departures(client)).toEqual([]);
+  } finally {
+    client.close();
+  }
+});
+
+test("a missing vehicle its source observes again withdraws the departure recorded while it was missing", async () => {
+  const missingSinceAt = commitStartedAt.getTime() - DAY;
+  const { client, reconcile } = await setup({
+    stage: "reconcile_missing",
+    vehicles: [],
+    observedVins: ["VIN-OBSERVED"],
+  });
+  try {
+    await addVehicle(client, "VIN-OBSERVED", missingSinceAt);
+    // The hourly capture recorded it while it was missing.
+    await addDeparture(client, "VIN-OBSERVED", missingSinceAt);
+
+    expect((await reconcile()).status).toBe("complete");
+
+    const vehicles = await client.execute(
+      "select first_seen_at, missing_since_at from vehicle where vin = 'VIN-OBSERVED'",
     );
     expect(
       vehicles.rows.map((row) => [row.first_seen_at, row.missing_since_at]),
