@@ -1,6 +1,6 @@
 # Ingestion run retention
 
-Post-pass housekeeping and local ingestion prune terminal runs after 90 days.
+Post-pass housekeeping prunes terminal runs after 90 days.
 The fixed limit is 100 runs per atomic delete, at most ten batches per pass.
 Failures log the operation, cutoff, batch and error, then retry next pass.
 Publication and homepage refresh do not depend on pruning succeeding.
@@ -51,8 +51,8 @@ including all registered sources. The six foreign-key children all cascade:
 - `durable-reconciliation` allocates `max(publication_sequence) + 1`;
   `alert-config-repository` uses the same watermark for new subscriptions.
   Preserve the maximum sequence even if no search publication followed it.
-- `homepage-stats`, public status and provider heartbeat reporting use the latest
-  publication or an active run. Preserve each source's latest inventory-published
+- Public status and provider heartbeat reporting use the latest publication or
+  an active run. Preserve each source's latest inventory-published
   and search-published run.
 - `algolia-projector`, `durable-algolia-publish`, `algolia-rebuild-index`,
   `yard-checkpoint`, durable run steps and administrative run routes operate on
@@ -62,9 +62,9 @@ including all registered sources. The six foreign-key children all cascade:
   and settled-ingestion delivery read run ownership and publication state.
   Completed delivery history is independent of run history; unfinished intents
   retain their owner. Archival changes and delivered/cancelled intents cascade.
-- The local ingestion runner and Workflow post-pass housekeeping share the same
-  pruning entry point. Operational scripts use these ingestion functions rather
-  than introducing separate run references. Migration, reconciliation, scheduler,
+- Workflow post-pass housekeeping is the only pruning entry point. Operational
+  scripts use these ingestion functions rather than introducing separate run
+  references. Migration, reconciliation, scheduler,
   publication, alert and retention tests exercise these contracts offline.
 
 Older retained baselines are intentional. Once replaced and no longer referenced,
