@@ -15,14 +15,18 @@ import {
   chazFixtureModelPage,
   chazFixtureRoot,
 } from "./chaz-test-fixtures";
-import { MODEL_CENSUS_DAY_MS, ModelCensus } from "./model-census";
+import {
+  MODEL_CENSUS_DAY_MS,
+  MODEL_CENSUS_SWEEP_DAYS,
+  ModelCensus,
+} from "./model-census";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
   globalThis.fetch = originalFetch;
 });
 const gate = <A, E, R>(request: Effect.Effect<A, E, R>) => request;
-// A run day on a sweep boundary, so day D + k reads ordinals k and k + 6.
+// A run day on a sweep boundary, so day D + k sweeps the models in slice k.
 const D = 6 * Math.floor(ModelCensus.day(Date.parse("2026-11-01")) / 6);
 const date = (day: number) =>
   new Date(day * MODEL_CENSUS_DAY_MS).toISOString().slice(0, 10);
@@ -43,6 +47,43 @@ const record = (
 ];
 const donors = (model: number, n = 40) =>
   Array.from({ length: n }, (_, i) => record(model, i + 1));
+const ids = (n: number) => Array.from({ length: n }, (_, i) => i);
+/** The census key chazCensusControls builds for a fixture model. */
+const key = (model: number) =>
+  JSON.stringify([
+    make.path,
+    make.label,
+    `/parts/ACURA/${label(model)}/`,
+    label(model),
+  ]);
+/** Models among `models` whose sweep slice falls on `day`. */
+const sweep = (day: number, models: readonly number[]) =>
+  models.filter(
+    (model) => ModelCensus.slice(key(model)) === day % MODEL_CENSUS_SWEEP_DAYS,
+  );
+/** Models swept on none of `days`, so a read on those days is never a sweep. */
+const quiet = (days: readonly number[], models: readonly number[]) =>
+  models.filter((model) => days.every((day) => !sweep(day, [model]).length));
+/** Expected reads: the explicit reasons plus a sweep of every other model in
+ * today's slice. */
+const reads = (
+  day: number,
+  models: readonly number[],
+  reasons: ReadonlyArray<readonly [number, string]>,
+) => {
+  const expected = new Map<number, string>(reasons);
+  for (const model of sweep(day, models))
+    if (!expected.has(model)) expected.set(model, "sweep");
+  return new Map([...expected].sort(([a], [b]) => a - b));
+};
+/** The run summary for `expected`, with reasons in model order as planned. */
+const summary = (total: number, expected: ReadonlyMap<number, string>) => {
+  const counts = new Map<string, number>();
+  for (const reason of expected.values())
+    counts.set(reason, (counts.get(reason) ?? 0) + 1);
+  const reasons = [...counts].map(([reason, n]) => `${reason} ${n}`);
+  return `Chaz Read ${expected.size} of ${total} model pages${reasons.length ? ` (${reasons.join(", ")})` : ""}; carried ${total - expected.size}.`;
+};
 
 /** Twelve models with 40 donors each (above the 354 floor); `rows` and the
  * arrival cards can change between runs. */
@@ -208,52 +249,78 @@ test("Chaz cold start reads every model and publishes its census", async () => {
 
 test("Chaz carries unread models, rotates the sweep and reads changes", async () => {
   const native = yard();
+  const twelve = ids(12);
+  // The sweep rotates: D + 1 and D + 3 sweep different, non-empty slices.
+  expect(sweep(D + 1, twelve).length).toBeGreaterThan(0);
+  expect(sweep(D + 3, twelve).length).toBeGreaterThan(0);
+  expect(sweep(D + 3, twelve)).not.toEqual(sweep(D + 1, twelve));
+  // Changed models are swept on none of D + 2 to D + 4, so every read and
+  // every carry asserted below comes from the change, not from the sweep.
+  const [sold, swappedModel, excludedModel, staleModel] = quiet(
+    [D + 2, D + 3, D + 4],
+    twelve,
+  );
+  if (
+    sold === undefined ||
+    swappedModel === undefined ||
+    excludedModel === undefined ||
+    staleModel === undefined
+  )
+    throw new Error("Expected four models outside the D + 2 to D + 4 sweeps");
   const cold = await census(native, D, null);
-  // Day D + 1: only the sweep slice (ordinal % 6 === day % 6) is read.
+  // Day D + 1: only the sweep slice (ModelCensus.slice(key) === day % 6) is read.
   const next = await census(native, D + 1, cold.terminal);
-  expect(next.models).toEqual([1, 7]);
-  expect(next.requests).toBe(8);
+  expect(next.models).toEqual(sweep(D + 1, twelve));
+  expect(next.requests).toBe(6 + sweep(D + 1, twelve).length);
   // Carried donors are still published in full.
   expect(next.vins).toEqual(allVins(native));
 
-  // Day D + 2: a sold donor changes model 4's count; on model 9 a donor is
+  // Day D + 2: a sold donor changes one model's count; on another a donor is
   // swapped for a fresh arrival at the same count, which only the arrival
-  // reveals. A fresh arrival on model 5 never reaches its model page, and an
-  // arrival entered weeks ago on model 3 is missing too: neither page changes.
-  native.rows.set(4, donors(4, 39));
-  const swapped = record(9, 41, date(D + 1));
+  // reveals. A fresh arrival on a third model never reaches its model page,
+  // and an arrival entered weeks ago on a fourth is missing too: neither page
+  // changes.
+  native.rows.set(sold, donors(sold, 39));
+  const swapped = record(swappedModel, 41, date(D + 1));
   // Model cards carry no Enter Date; only the arrival card does.
-  native.rows.set(9, [...donors(9).slice(1), record(9, 41)]);
-  const excluded = record(5, 41, date(D + 1));
-  const stale = record(3, 41, date(D - 14));
+  native.rows.set(swappedModel, [
+    ...donors(swappedModel).slice(1),
+    record(swappedModel, 41),
+  ]);
+  const excluded = record(excludedModel, 41, date(D + 1));
+  const stale = record(staleModel, 41, date(D - 14));
   native.setArrivals([swapped, excluded, stale]);
   const changed = await census(native, D + 2, next.terminal);
-  expect(changed.models).toEqual([2, 4, 5, 8, 9]);
+  const changedReads = reads(D + 2, twelve, [
+    [sold, "count"],
+    [swappedModel, "trigger"],
+    [excludedModel, "trigger"],
+  ]);
+  expect(changed.models).toEqual([...changedReads.keys()]);
+  expect(changed.models).not.toContain(staleModel);
   // Arrival-only donors stay published through the arrival union.
   expect(changed.vins).toEqual(allVins(native));
   expect(changed.vins).toContain(excluded[0]);
   expect(changed.vins).toContain(stale[0]);
-  expect(changed.warnings.at(-1)).toBe(
-    "Chaz Read 5 of 12 model pages (sweep 2, count 1, trigger 2); carried 7.",
-  );
+  expect(changed.warnings.at(-1)).toBe(summary(12, changedReads));
 
   // Day D + 3: the excluded arrival (entered the day before the previous run)
-  // triggers once more; model 9 now carries its arrival.
+  // triggers once more; the swapped model now carries its arrival.
   const again = await census(native, D + 3, changed.terminal);
-  expect(again.models).toEqual([3, 5, 9]);
-  expect(again.warnings.at(-1)).toBe(
-    "Chaz Read 3 of 12 model pages (sweep 2, trigger 1); carried 9.",
-  );
+  const againReads = reads(D + 3, twelve, [[excludedModel, "trigger"]]);
+  expect(again.models).toEqual([...againReads.keys()]);
+  expect(again.models).not.toContain(swappedModel);
+  expect(again.warnings.at(-1)).toBe(summary(12, againReads));
 
   // Day D + 4: the excluded arrival is now too old to trigger, and a newly
   // published model is read.
   native.rows.set(12, donors(12));
   const added = await census(native, D + 4, again.terminal);
-  expect(added.models).toEqual([4, 10, 12]);
+  const addedReads = reads(D + 4, ids(13), [[12, "new"]]);
+  expect(added.models).toEqual([...addedReads.keys()]);
+  expect(added.models).not.toContain(excludedModel);
   expect(added.vins).toEqual(allVins(native));
-  expect(added.warnings.at(-1)).toBe(
-    "Chaz Read 3 of 13 model pages (sweep 2, new 1); carried 10.",
-  );
+  expect(added.warnings.at(-1)).toBe(summary(13, addedReads));
 });
 
 test("Chaz re-reads every model within six days, even across missed runs", async () => {
@@ -264,8 +331,8 @@ test("Chaz re-reads every model within six days, even across missed runs", async
   // Skip days D + 1 and D + 2 entirely, then run daily.
   for (let day = D + 3; day <= D + 12; day++) {
     const run = await census(native, day, previous);
-    // About a sixth of the models per day, never all of them.
-    expect(run.models.length).toBeLessThanOrEqual(6);
+    // Never a full census; the day after missed runs also reads stale models.
+    expect(run.models.length).toBeLessThan(12);
     for (const model of run.models) lastRead.set(model, day);
     for (const read of lastRead.values()) expect(day - read).toBeLessThan(6);
     expect(run.vins).toEqual(allVins(native));
@@ -275,43 +342,63 @@ test("Chaz re-reads every model within six days, even across missed runs", async
 
 test("Chaz re-reads a model page whose cards disagree with its badge on the next run", async () => {
   const native = yard();
+  const twelve = ids(12);
+  // The outage model is in the D + 3 sweep slice, so it is read that day.
+  const [down] = sweep(D + 3, twelve);
+  if (down === undefined) throw new Error("Expected a model swept on D + 3");
   let previous = (await census(native, D, null)).terminal;
   for (const day of [D + 1, D + 2])
     previous = (await census(native, day, previous)).terminal;
-  // Day D + 3: model 3 is in the sweep slice and answers with an explicit
+  // Day D + 3: the model is in the sweep slice and answers with an explicit
   // empty page while its badge still counts 40. The run stays above the floor.
-  native.outages.add(3);
+  native.outages.add(down);
   const outage = await census(native, D + 3, previous);
-  expect(outage.models).toEqual([3, 9]);
-  expect(outage.vins).not.toContain(record(3, 1)[0]);
+  expect(outage.models).toEqual(sweep(D + 3, twelve));
+  expect(outage.vins).not.toContain(record(down, 1)[0]);
   // Day D + 4: the badge is unchanged, but the carried page disagrees with it,
   // so the model is read again; it is still empty.
   const persistent = await census(native, D + 4, outage.terminal);
-  expect(persistent.models).toEqual([3, 4, 10]);
-  expect(persistent.warnings.at(-1)).toBe(
-    "Chaz Read 3 of 12 model pages (trigger 1, sweep 2); carried 9.",
-  );
+  const persistentReads = reads(D + 4, twelve, [[down, "trigger"]]);
+  expect(persistent.models).toEqual([...persistentReads.keys()]);
+  expect(persistent.warnings.at(-1)).toBe(summary(12, persistentReads));
   // Day D + 5: the page recovers and its donors are published again.
-  native.outages.delete(3);
+  native.outages.delete(down);
   const recovered = await census(native, D + 5, persistent.terminal);
-  expect(recovered.models).toEqual([3, 5, 11]);
+  expect(recovered.models).toEqual([
+    ...reads(D + 5, twelve, [[down, "trigger"]]).keys(),
+  ]);
   expect(recovered.vins).toEqual(allVins(native));
   // Day D + 6: the recovered page agrees with its badge and carries again.
+  // The models read only by the cold run reach the six-day ceiling today.
   const settled = await census(native, D + 6, recovered.terminal);
-  expect(settled.models).toEqual([0, 6]);
+  const unread = quiet([D + 1, D + 2, D + 3, D + 4, D + 5], twelve);
+  expect(settled.models).toEqual(
+    twelve.filter(
+      (model) => unread.includes(model) || sweep(D + 6, [model]).length > 0,
+    ),
+  );
+  expect(settled.models).not.toContain(down);
   expect(settled.vins).toEqual(allVins(native));
 });
 
 test("Chaz checkpoints reject carried pages, accounting and census days that disagree with the plan", async () => {
   const native = yard();
   const cold = await census(native, D, null);
-  // Day D + 1 opening: contact, arrivals, makes, menu; model 0 carries and
-  // model 1 is the next read.
+  // Opening on the first day whose first swept model is not model 0: contact,
+  // arrivals, makes, menu; the models before it carry and it is the next read.
+  const firstSwept = (day: number) =>
+    ids(12).findIndex((model) => sweep(day, [model]).length);
+  const day = [1, 2, 3, 4, 5, 6]
+    .map((offset) => D + offset)
+    .find((candidate) => firstSwept(candidate) > 0);
+  if (day === undefined)
+    throw new Error("fixture needs a day whose first swept model is not M0");
+  const firstRead = firstSwept(day);
   const opening = await Effect.runPromise(
     streamChazInventoryWithRequestGate(
       {
         previousCursor: cold.terminal,
-        now: () => (D + 1) * MODEL_CENSUS_DAY_MS,
+        now: () => day * MODEL_CENSUS_DAY_MS,
         maxPages: 4,
         onBatch: () => Effect.void,
       },
@@ -320,13 +407,16 @@ test("Chaz checkpoints reject carried pages, accounting and census days that dis
   );
   const state = opening.cursor;
   if (state.phase !== "models") throw new Error("Expected a model checkpoint");
-  expect(state.pages).toHaveLength(1);
+  expect(state.pages).toHaveLength(firstRead);
   expect(state.requests).toBe(4);
   const forged = [record(0, 99)];
   expect(() =>
     ChazCursor.checkpoint({
       ...state,
-      pages: [{ records: forged, hash: chazHash(forged) }],
+      pages: [
+        { records: forged, hash: chazHash(forged) },
+        ...state.pages.slice(1),
+      ],
     }),
   ).toThrow("carried model page differs");
   expect(() => ChazCursor.checkpoint({ ...state, pages: [] })).toThrow(

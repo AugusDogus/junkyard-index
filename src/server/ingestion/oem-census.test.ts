@@ -1,10 +1,15 @@
 import { expect, test } from "bun:test";
 import { Effect } from "effect";
 import { serializeDurableSourceCursor } from "./durable-cursor";
-import { MODEL_CENSUS_DAY_MS } from "./model-census";
+import {
+  MODEL_CENSUS_DAY_MS,
+  MODEL_CENSUS_SWEEP_DAYS,
+  ModelCensus,
+} from "./model-census";
 import { streamOemInventory } from "./oem-connector";
 import { OemCursor } from "./oem-cursor";
 import { OEM_ARRIVALS, OEM_MAKES, OEM_ORIGIN } from "./oem-html";
+import { oemControlUrl } from "./oem-parser";
 import { oemFixtureDocument } from "./oem-test-fixtures";
 
 const location = {
@@ -145,6 +150,50 @@ async function census(
   };
 }
 
+const MODELS = Array.from({ length: 12 }, (_, i) => i);
+/** The census key oemCensusControls builds for fixture model `model`: resolved
+ * make route and label, then resolved model route and label. */
+const modelKey = (model: number) =>
+  JSON.stringify([
+    oemControlUrl({ url: makeUrl, label: "FORD" }, 2),
+    "FORD",
+    oemControlUrl(
+      { url: "//oemautorecyclers.com" + modelPath(model), label: "M" + model },
+      3,
+    ),
+    "M" + model,
+  ]);
+/** Fixture models in the sweep slice of `day`, in menu order. */
+const sweep = (day: number) =>
+  MODELS.filter(
+    (m) => ModelCensus.slice(modelKey(m)) === day % MODEL_CENSUS_SWEEP_DAYS,
+  );
+/** First day from `from` on, while the day-600 cold evidence is still under the
+ * age ceiling, that satisfies `ok`. */
+function dayAfterCold(ok: (day: number) => boolean, from = 601) {
+  for (let day = from; day < 600 + MODEL_CENSUS_SWEEP_DAYS; day++)
+    if (ok(day)) return day;
+  throw new Error("No day before the age ceiling fits this fixture");
+}
+/** First fixture model other than M0 (which holds the default arrival) for
+ * which `ok` holds. */
+function pickModel(ok: (model: number) => boolean) {
+  const model = MODELS.find((m) => m !== 0 && ok(m));
+  if (model === undefined) throw new Error("No fixture model fits this test");
+  return model;
+}
+const sorted = (models: number[]) => [...models].sort((a, b) => a - b);
+/** The run summary for disjoint read reasons, listed in menu order of each
+ * reason's first model as ModelCensus.summary does. */
+function summary(reasons: [string, number[]][]) {
+  const used = reasons
+    .filter(([, models]) => models.length)
+    .sort(([, a], [, b]) => Math.min(...a) - Math.min(...b));
+  const read = used.reduce((n, [, models]) => n + models.length, 0);
+  const detail = used.map(([reason, models]) => `${reason} ${models.length}`);
+  return `OEM Read ${read} of 12 model pages${detail.length ? ` (${detail.join(", ")})` : ""}; carried ${12 - read}.`;
+}
+
 const allVins = (native: ReturnType<typeof yard>, extra: Donor[] = []) =>
   [
     ...new Set(
@@ -165,7 +214,9 @@ test("OEM cold start reads every model and publishes its census", async () => {
   ]);
   if (cold.terminal.state.phase !== "complete")
     throw new Error("Expected a terminal census");
-  expect(cold.terminal.state.census?.models).toHaveLength(12);
+  expect(cold.terminal.state.census?.models.map((m) => m.key)).toEqual(
+    MODELS.map(modelKey),
+  );
 });
 
 test("OEM unreadable or incompatible previous checkpoints start a warned cold census", async () => {
@@ -216,109 +267,155 @@ test("OEM unreadable or incompatible previous checkpoints start a warned cold ce
 test("OEM carries unread models, rotates the sweep and reads count changes", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
-  // Day 601: only the sweep slice (ordinal % 6 === 601 % 6) is read.
-  const next = await census(native, 601, cold.wire);
-  expect(next.models).toEqual([1, 7]);
-  expect(next.requests).toBe(6);
-  expect(next.terminal.requests).toBe(6);
+  // First day with a non-empty slice: only that slice (slice(key) === day % 6)
+  // is read.
+  const first = dayAfterCold((day) => sweep(day).length > 0);
+  expect(sweep(first).length).toBeGreaterThan(0);
+  const next = await census(native, first, cold.wire);
+  expect(next.models).toEqual(sweep(first));
+  expect(next.requests).toBe(4 + sweep(first).length);
+  expect(next.terminal.requests).toBe(4 + sweep(first).length);
   // Carried donors are still published in full.
   expect(next.vins).toEqual(allVins(native));
 
-  // Day 602: a sold donor changes model 4's badge and so the make badge. Only
-  // model 4 is read for it; its siblings keep carrying.
-  native.rows.set(4, donors(4, 39));
-  const changed = await census(native, 602, next.wire);
-  expect(changed.models).toEqual([2, 4, 8]);
+  // The next non-empty slice is a different set of models.
+  const second = dayAfterCold((day) => sweep(day).length > 0, first + 1);
+  expect(sweep(second).length).toBeGreaterThan(0);
+  expect(sweep(second)).not.toEqual(sweep(first));
+  // A sold donor changes one unswept model's badge and so the make badge. Only
+  // that model is read for it; its siblings keep carrying.
+  const sold = pickModel((m) => !sweep(second).includes(m));
+  native.rows.set(sold, donors(sold, 39));
+  const changed = await census(native, second, next.wire);
+  expect(changed.models).toEqual(sorted([...sweep(second), sold]));
   expect(changed.vins).toEqual(allVins(native));
   expect(changed.warnings.at(-1)).toBe(
-    "OEM Read 3 of 12 model pages (sweep 2, count 1); carried 9.",
+    summary([
+      ["sweep", sweep(second)],
+      ["count", [sold]],
+    ]),
   );
 });
 
 test("OEM arrivals publish lagging donors without triggering model reads", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
+  // A day with a non-empty slice that leaves M0 unswept, and an arrival model
+  // it leaves unswept.
+  const day = dayAfterCold((d) => sweep(d).length > 0 && !sweep(d).includes(0));
+  expect(sweep(day).length).toBeGreaterThan(0);
+  const lagging = pickModel((m) => !sweep(day).includes(m));
   // The arrival is not on its model page yet (model pages lag arrivals).
-  const arrival = donor(9, 41);
+  const arrival = donor(lagging, 41);
   native.setArrivals([arrival]);
-  const run = await census(native, 601, cold.wire);
+  const run = await census(native, day, cold.wire);
   // M0 is not read either: its departed arrival is on its carried page.
-  expect(run.models).toEqual([1, 7]);
+  expect(run.models).toEqual(sweep(day));
+  expect(run.models).not.toContain(lagging);
+  expect(run.models).not.toContain(0);
   expect(run.vins).toEqual(allVins(native, [arrival]));
 });
 
 test("OEM reads a model once when a departing arrival is missing from its carried page", async () => {
   const native = yard();
-  // Day 600: the M10 badge already counts arrival X, but its page lags.
-  const x = donor(10, 41);
-  native.badges.set(10, 41);
+  // Model M stays out of the sweep on days 601 to 603, so only the trigger
+  // can read it.
+  const m = pickModel((model) =>
+    [601, 602, 603].every((day) => !sweep(day).includes(model)),
+  );
+  // Day 600: the M badge already counts arrival X, but its page lags.
+  const x = donor(m, 41);
+  native.badges.set(m, 41);
   native.setArrivals([x]);
   const cold = await census(native, 600, null);
   expect(cold.vins).toEqual(allVins(native, [x]));
-  // Day 601: the page lists X with the badge unchanged, so M10 carries the
+  // Day 601: the page lists X with the badge unchanged, so M carries the
   // day-600 page without X; the arrivals page still publishes X.
-  native.rows.set(10, donors(10, 41));
+  native.rows.set(m, donors(m, 41));
   const lagging = await census(native, 601, cold.wire);
-  expect(lagging.models).toEqual([1, 7]);
+  expect(lagging.models).toEqual(sweep(601));
   expect(lagging.vins).toEqual(allVins(native));
-  // Day 602: X leaves the arrivals page. Its own destination binds M10 and
-  // the carried page lacks it, so M10 is read and X stays published.
+  // Day 602: X leaves the arrivals page. Its own destination binds M and the
+  // carried page lacks it, so M is read and X stays published.
   native.setArrivals([donor(0, 1)]);
   const departed = await census(native, 602, lagging.wire);
-  expect(departed.models).toEqual([2, 8, 10]);
+  expect(departed.models).toEqual(sorted([...sweep(602), m]));
   expect(departed.vins).toEqual(allVins(native));
   expect(departed.warnings.at(-1)).toBe(
-    "OEM Read 3 of 12 model pages (sweep 2, trigger 1); carried 9.",
+    summary([
+      ["sweep", sweep(602)],
+      ["trigger", [m]],
+    ]),
   );
-  // Day 603: the trigger fired once; M10 now carries its page with X.
+  // Day 603: the trigger fired once; M now carries its page with X.
   const after = await census(native, 603, departed.wire);
-  expect(after.models).toEqual([3, 9]);
+  expect(after.models).toEqual(sweep(603));
   expect(after.vins).toEqual(allVins(native));
 });
 
 test("OEM departing arrivals trigger one read even while the page still lags", async () => {
   const native = yard();
-  const x = donor(10, 41);
-  native.badges.set(10, 41);
+  // Model M stays out of the sweep on days 601 and 602.
+  const m = pickModel((model) =>
+    [601, 602].every((day) => !sweep(day).includes(model)),
+  );
+  const x = donor(m, 41);
+  native.badges.set(m, 41);
   native.setArrivals([x]);
   const cold = await census(native, 600, null);
   // X leaves arrivals before reaching its page: one read, then no re-reads.
   native.setArrivals([donor(0, 1)]);
   const departed = await census(native, 601, cold.wire);
-  expect(departed.models).toEqual([1, 7, 10]);
+  expect(departed.models).toEqual(sorted([...sweep(601), m]));
+  expect(departed.warnings.at(-1)).toBe(
+    summary([
+      ["sweep", sweep(601)],
+      ["trigger", [m]],
+    ]),
+  );
   const after = await census(native, 602, departed.wire);
-  expect(after.models).toEqual([2, 8]);
+  expect(after.models).toEqual(sweep(602));
 });
 
 test("OEM re-reads every model within six days, even across missed runs", async () => {
   const native = yard();
   let previous = (await census(native, 600, null)).wire;
   const lastRead = new Map<number, number>();
-  for (let i = 0; i < 12; i++) lastRead.set(i, 600);
+  for (const model of MODELS) lastRead.set(model, 600);
+  let aged = 0;
   // Skip days 601 and 602 entirely, then run daily.
   for (const day of [603, 604, 605, 606, 607, 608, 609, 610, 611, 612]) {
+    // Today's slice plus every model whose evidence reached the age ceiling.
+    const stale = MODELS.filter((m) => day - (lastRead.get(m) ?? day) >= 6);
+    const swept = sweep(day);
+    aged += stale.filter((m) => !swept.includes(m)).length;
     const run = await census(native, day, previous);
+    expect(run.models).toEqual(sorted([...new Set([...swept, ...stale])]));
     for (const model of run.models) lastRead.set(model, day);
     for (const read of lastRead.values()) expect(day - read).toBeLessThan(6);
     expect(run.vins).toEqual(allVins(native));
-    // Day 606 also reads the four models that reached the age ceiling; after
-    // that the sweep reads about a sixth of the models per day.
-    expect(run.models).toHaveLength(day === 606 ? 6 : 2);
     previous = run.wire;
   }
+  // The skipped days left some day-600 evidence to the age ceiling.
+  expect(aged).toBeGreaterThan(0);
   // Eleven resumable runs revalidate every checkpoint.
 }, 30_000);
 
 test("OEM rejects a checkpoint whose carried page differs from its census", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
-  // Arrivals, makes and the menu: models 0 and 1 are read on day 601 (0 is
-  // carried, 1 is due), so the paused cursor already holds carried page 0.
+  // A day whose first swept model follows M0, so M0 and every model before the
+  // first due one carry.
+  const day = dayAfterCold((d) => (sweep(d)[0] ?? 0) > 0);
+  const due = sweep(day)[0];
+  if (due === undefined) throw new Error("Expected a swept model");
+  // Arrivals, makes and the menu fill the budget before the first due model,
+  // so the paused cursor already holds the carried pages before it.
   const paused = await Effect.runPromise(
     streamOemInventory({
       startCursor: OemCursor.initial(),
       previousCursor: cold.wire,
-      now: () => 601 * MODEL_CENSUS_DAY_MS,
+      now: () => day * MODEL_CENSUS_DAY_MS,
       maxPages: 3,
       location,
       minimumUniqueInventory: 400,
@@ -329,7 +426,7 @@ test("OEM rejects a checkpoint whose carried page differs from its census", asyn
   );
   const state = paused.cursor.state;
   if (state.phase !== "models") throw new Error("Expected a models checkpoint");
-  expect(state.pages).toHaveLength(1);
+  expect(state.pages).toHaveLength(due);
   expect(paused.cursor.requests).toBe(3);
   const [carried] = state.pages;
   if (!carried) throw new Error("Expected a carried page");

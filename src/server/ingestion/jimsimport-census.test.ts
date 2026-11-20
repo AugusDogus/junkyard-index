@@ -16,7 +16,7 @@ import {
   JIMSIMPORT_ORIGIN,
   JIMSIMPORT_OWNER,
 } from "./jimsimport-yard-metadata";
-import { MODEL_CENSUS_DAY_MS } from "./model-census";
+import { MODEL_CENSUS_DAY_MS, ModelCensus } from "./model-census";
 
 const fixture = jimsimportOpeningFixture();
 const MODELS = fixture.pages.length;
@@ -120,8 +120,17 @@ async function census(
   };
 }
 
+/** Census key per fixture model, built exactly as the connector builds it
+ * (parent make path and label, model path and label). */
+const KEYS = jimsimportModels(fixture.menus).map(({ make, model }, index) => {
+  if (model.path !== fixture.pages[index]?.modelPath)
+    throw new Error("Fixture pages must follow published model order");
+  return JSON.stringify([make.path, make.label, model.path, model.label]);
+});
+
+/** Models in a day's sweep slice, by their stable key hash. */
 const slice = (day: number) =>
-  Array.from({ length: MODELS }, (_, i) => i).filter((i) => i % 6 === day % 6);
+  KEYS.flatMap((key, i) => (ModelCensus.slice(key) === day % 6 ? [i] : []));
 
 test("Jim's Import cold start reads every model and publishes its census", async () => {
   const native = yard();
@@ -140,7 +149,9 @@ test("Jim's Import cold start reads every model and publishes its census", async
 test("Jim's Import carries unread models, rotates the sweep and reads count changes", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
-  // Day 601: only the sweep slice (ordinal % 6 === 601 % 6) is read.
+  // Day 601: only the sweep slice (key hash % 6 === 601 % 6) is read.
+  expect(slice(601).length).toBeGreaterThan(0);
+  expect(slice(602).length).toBeGreaterThan(0);
   const next = await census(native, 601, cold.terminal);
   expect(next.models).toEqual(slice(601));
   expect(next.requests).toBe(2 + 33 + slice(601).length + 2);
@@ -152,7 +163,7 @@ test("Jim's Import carries unread models, rotates the sweep and reads count chan
   const published = new Set(native.vins());
   const changed = Array.from({ length: MODELS }, (_, i) => i).find(
     (i) =>
-      i % 6 !== 602 % 6 &&
+      !slice(602).includes(i) &&
       native.page(i).records.length >= 2 &&
       published.has(native.page(i).records[0]?.vin ?? ""),
   );
@@ -181,6 +192,7 @@ test("Jim's Import re-reads every model within six days, even across missed runs
   for (let i = 0; i < MODELS; i++) lastRead.set(i, 600);
   // Skip day 601 and 602 entirely, then run daily.
   for (const day of [603, 604, 605, 606, 607, 608]) {
+    expect(slice(day).length).toBeGreaterThan(0);
     const run = await census(native, day, previous);
     for (const model of run.models) lastRead.set(model, day);
     for (const read of lastRead.values()) expect(day - read).toBeLessThan(6);

@@ -22,7 +22,11 @@ import {
   CENTRAL_ORIGIN,
   CENTRAL_ROOT,
 } from "./central-yard-metadata";
-import { MODEL_CENSUS_DAY_MS } from "./model-census";
+import {
+  MODEL_CENSUS_DAY_MS,
+  MODEL_CENSUS_SWEEP_DAYS,
+  ModelCensus,
+} from "./model-census";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
@@ -136,6 +140,41 @@ async function census(
   };
 }
 
+/** The census key Central builds for a fixture model (see
+ * `centralCensusControls`). */
+const censusKey = (i: number, label: string) =>
+  JSON.stringify([
+    centralFixtureMake.path,
+    centralFixtureMake.label,
+    path(i),
+    label,
+  ]);
+
+/** Models, in list order, whose sweep slice falls on `day`. */
+const sweep = (native: ReturnType<typeof yard>, day: number) =>
+  [...native.rows.keys()].filter(
+    (i) =>
+      ModelCensus.slice(censusKey(i, native.labels.get(i) ?? "")) ===
+      day % MODEL_CENSUS_SWEEP_DAYS,
+  );
+
+/** The first day after `after` whose sweep slice holds a model. */
+function nextSweepDay(native: ReturnType<typeof yard>, after: number) {
+  for (let day = after + 1; day <= after + MODEL_CENSUS_SWEEP_DAYS; day++)
+    if (sweep(native, day).length > 0) return day;
+  throw new Error("Expected a non-empty sweep slice within six days");
+}
+
+/** Models in list order that are in `included` or are `extra`. */
+const inListOrder = (
+  native: ReturnType<typeof yard>,
+  included: readonly number[],
+  ...extra: number[]
+) =>
+  [...native.rows.keys()].filter(
+    (i) => included.includes(i) || extra.includes(i),
+  );
+
 const allVins = (native: ReturnType<typeof yard>) =>
   [...native.rows.values()]
     .flat()
@@ -202,39 +241,65 @@ test("Central treats unreadable or incompatible previous cursors as a warned col
 test("Central carries unread models and reads count and label changes", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
-  // Day 601: only the sweep slice (ordinal % 6 === 601 % 6) is read.
-  const next = await census(native, 601, cold.terminal);
-  expect(next.models).toEqual([1, 7]);
-  // root, makes, one menu, two models, closing root and makes.
-  expect(next.requests).toBe(7);
+  // Only the sweep slice (slice(key) === day % 6) is read.
+  const nextDay = nextSweepDay(native, 600);
+  const swept = sweep(native, nextDay);
+  const next = await census(native, nextDay, cold.terminal);
+  expect(next.models).toEqual(swept);
+  // root, makes, one menu, the swept models, closing root and makes.
+  expect(next.requests).toBe(5 + swept.length);
   // Carried donors are still published in full.
   expect(next.vins).toEqual(allVins(native));
 
-  // Day 602: a sold donor changes model 4's count, and model 10 is relabelled
-  // at the same path, so its carried cards no longer bind to the control.
-  native.rows.set(4, donors(4, "M4", 169));
-  native.labels.set(10, "MX");
-  native.rows.set(10, donors(10, "MX"));
-  const changed = await census(native, 602, next.terminal);
-  expect(changed.models).toEqual([2, 4, 8, 10]);
-  expect(changed.vins).toEqual(allVins(native));
-  expect(changed.warnings.at(-1)).toBe(
-    "Central Read 4 of 12 model pages (sweep 2, count 1, new 1); carried 8.",
+  // A sold donor changes one unswept model's count, and another unswept model
+  // is relabelled at the same path, so its carried cards no longer bind to
+  // the control.
+  const changedDay = nextSweepDay(native, nextDay);
+  const due = sweep(native, changedDay);
+  const [sold, relabelled] = [...native.rows.keys()].filter(
+    (i) => !due.includes(i),
   );
+  if (sold === undefined || relabelled === undefined)
+    throw new Error("Expected two models outside the sweep slice");
+  native.rows.set(sold, donors(sold, "M" + sold, 169));
+  native.labels.set(relabelled, "MX");
+  native.rows.set(relabelled, donors(relabelled, "MX"));
+  const changed = await census(native, changedDay, next.terminal);
+  const expected = inListOrder(native, due, sold, relabelled);
+  expect(changed.models).toEqual(expected);
+  expect(changed.vins).toEqual(allVins(native));
+  const reasons = new Map<string, number>();
+  for (const i of expected) {
+    const reason = i === sold ? "count" : i === relabelled ? "new" : "sweep";
+    reasons.set(reason, (reasons.get(reason) ?? 0) + 1);
+  }
+  expect(changed.warnings.at(-1)).toBe(
+    `Central Read ${expected.length} of 12 model pages (${[...reasons]
+      .map(([reason, n]) => `${reason} ${n}`)
+      .join(", ")}); carried ${12 - expected.length}.`,
+  );
+  expect(reasons.get("sweep")).toBe(due.length);
 });
 
 test("Central checkpoints refuse edited carried pages and unpaid carried reads", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
+  const day = nextSweepDay(native, 600);
+  const swept = sweep(native, day);
   let cursor: CentralCursor = CentralCursor.initial;
-  for (let chunk = 0; chunk < 2; chunk++) {
+  // One GET per chunk until the closing root has been read.
+  for (
+    let chunk = 0;
+    chunk < 20 && !(cursor.phase === "closing" && cursor.closing === 1);
+    chunk++
+  ) {
     const result: CentralStreamResult = await Effect.runPromise(
       streamCentralInventoryWithRequestGate(
         {
           startCursor: cursor,
           previousCursor: cold.terminal,
-          now: () => 601 * MODEL_CENSUS_DAY_MS,
-          maxPages: 3,
+          now: () => day * MODEL_CENSUS_DAY_MS,
+          maxPages: 1,
           onBatch: () => Effect.void,
         },
         gate,
@@ -243,18 +308,22 @@ test("Central checkpoints refuse edited carried pages and unpaid carried reads",
     cursor = result.cursor;
   }
   if (cursor.phase !== "closing") throw new Error("Expected a closing cursor");
-  // Root, makes, menu and the two sweep models, then the closing root.
-  expect(cursor.requests).toBe(6);
+  expect(cursor.closing).toBe(1);
+  // Root, makes, menu and the swept models, then the closing root.
+  expect(cursor.requests).toBe(4 + swept.length);
   expect(cursor.pages).toHaveLength(12);
   const state = cursor;
-  const page = state.pages[0];
-  if (!page) throw new Error("Expected a carried first page");
+  const carriedIndex = [...native.rows.keys()].findIndex(
+    (i) => !swept.includes(i),
+  );
+  const page = state.pages[carriedIndex];
+  if (!page) throw new Error("Expected a carried page");
   const records = page.records.slice(1);
   const edited = { records, hash: centralHash(records) };
   expect(() =>
     CentralCursor.checkpoint({
       ...state,
-      pages: [edited, ...state.pages.slice(1)],
+      pages: state.pages.map((p, i) => (i === carriedIndex ? edited : p)),
     }),
   ).toThrow("carried model page differs");
   expect(() =>
@@ -270,37 +339,57 @@ test("Central re-reads every model within six days, even across missed runs", as
   let previous = (await census(native, 600, null)).terminal;
   const lastRead = new Map<number, number>();
   for (let i = 0; i < 12; i++) lastRead.set(i, 600);
+  let steadyReads = 0;
   // Skip day 601 and 602 entirely, then run daily.
   for (const day of [603, 604, 605, 606, 607, 608, 609, 610, 611, 612]) {
     const run = await census(native, day, previous);
     for (const model of run.models) lastRead.set(model, day);
     for (const read of lastRead.values()) expect(day - read).toBeLessThan(6);
-    // Once the missed-run backlog is cleared, a sixth of the models per day.
-    if (day >= 607) expect(run.models).toHaveLength(2);
+    // Once the missed-run backlog is cleared, exactly that day's sweep slice.
+    if (day >= 607) {
+      expect(run.models).toEqual(sweep(native, day));
+      steadyReads += run.models.length;
+    }
     expect(run.vins).toEqual(allVins(native));
     previous = run.terminal;
   }
+  // Six steady days read every model exactly once.
+  expect(steadyReads).toBe(12);
 }, 60_000);
 
 test("Central confirms read models whose cards differ from their badge before carrying them", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
-  // Model 1 now shows 171 on its badge but keeps 170 cards on every read.
-  native.badges.set(1, 171);
-  const steady = await census(native, 601, cold.terminal);
-  // Sweep model 7 plus the count change on model 1, then its closing re-read.
-  expect(steady.models).toEqual([1, 7, 1]);
-  // root, makes, one menu, two models, closing root, makes and model 1.
-  expect(steady.requests).toBe(8);
+  const steadyDay = nextSweepDay(native, 600);
+  const carriedDay = nextSweepDay(native, steadyDay);
+  // A model outside both sweep slices now shows 171 on its badge but keeps
+  // 170 cards on every read.
+  const badged = [...native.rows.keys()].find(
+    (i) =>
+      !sweep(native, steadyDay).includes(i) &&
+      !sweep(native, carriedDay).includes(i),
+  );
+  if (badged === undefined) throw new Error("Expected an unswept model");
+  native.badges.set(badged, 171);
+  const steady = await census(native, steadyDay, cold.terminal);
+  // The sweep slice plus the count change, then its closing re-read.
+  const read = inListOrder(native, sweep(native, steadyDay), badged);
+  expect(steady.models).toEqual([...read, badged]);
+  // root, makes, one menu, the read models, closing root, makes and the
+  // badged model.
+  expect(steady.requests).toBe(6 + read.length);
   expect(steady.vins).toEqual(allVins(native));
   // Carried short evidence is not re-read at closing.
-  const carried = await census(native, 602, steady.terminal);
-  expect(carried.models).toEqual([2, 8]);
+  const carried = await census(native, carriedDay, steady.terminal);
+  expect(carried.models).toEqual(sweep(native, carriedDay));
 
-  // A short page on model 8's sweep day that does not repeat stops emission
+  // A short page on a model's sweep day that does not repeat stops emission
   // instead of being carried for six days.
-  native.once.set(8, donors(8, "M8", 120));
-  await expect(census(native, 608, carried.terminal)).rejects.toThrow(
+  const shortDay = nextSweepDay(native, carriedDay);
+  const short = sweep(native, shortDay).find((i) => i !== badged);
+  if (short === undefined) throw new Error("Expected a swept model");
+  native.once.set(short, donors(short, "M" + short, 120));
+  await expect(census(native, shortDay, carried.terminal)).rejects.toThrow(
     "model cards changed",
   );
 });

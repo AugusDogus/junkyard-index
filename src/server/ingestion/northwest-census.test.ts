@@ -8,7 +8,7 @@ import {
   NORTHWEST_ORIGIN,
   NORTHWEST_ROOT,
 } from "./northwest-yard-metadata";
-import { MODEL_CENSUS_DAY_MS } from "./model-census";
+import { MODEL_CENSUS_DAY_MS, ModelCensus } from "./model-census";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
@@ -138,6 +138,27 @@ async function census(
 const allVins = (native: ReturnType<typeof yard>) =>
   [...native.rows.values()].flat().sort();
 
+/** The census key the connector builds for fixture model `i` under `label`. */
+const censusKey = (i: number, label = "M" + i) =>
+  JSON.stringify([MAKE, "ACURA", `${MAKE}/M${i}/`, label]);
+
+/** Published models whose sweep slice falls on `day`, in published order. */
+const swept = (native: ReturnType<typeof yard>, day: number) =>
+  [...native.rows.keys()]
+    .filter(
+      (i) => ModelCensus.slice(censusKey(i, native.labels.get(i))) === day % 6,
+    )
+    .sort((a, b) => a - b);
+
+/** Expected run summary for read reasons listed in published model order. */
+function summary(total: number, reasons: readonly string[]) {
+  const counts = new Map<string, number>();
+  for (const reason of reasons)
+    counts.set(reason, (counts.get(reason) ?? 0) + 1);
+  const parts = [...counts].map(([reason, n]) => `${reason} ${n}`);
+  return `Northwest Read ${reasons.length} of ${total} model pages${parts.length ? ` (${parts.join(", ")})` : ""}; carried ${total - reasons.length}.`;
+}
+
 test("Northwest cold start reads every model and publishes its census", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
@@ -184,32 +205,68 @@ test("Northwest cold start reads every model and publishes its census", async ()
 test("Northwest carries unread models, rotates the sweep and reads changes", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
-  // Day 601: only the sweep slice (ordinal % 6 === 601 % 6) is read.
+  const parsed = NorthwestCursor.parse(JSON.stringify(cold.terminal));
+  if (parsed.phase !== "complete" || !parsed.census)
+    throw new Error("Expected a terminal census");
+  expect(parsed.census.models.map((m) => m.key)).toEqual(
+    Array.from({ length: 12 }, (_, i) => censusKey(i)),
+  );
+  // Day 601: only the sweep slice (slice(key) === 601 % 6) is read.
+  const sweep601 = swept(native, 601);
+  expect(sweep601.length).toBeGreaterThan(0);
   const next = await census(native, 601, cold.terminal);
-  expect(next.models).toEqual([1, 7]);
-  expect(next.requests).toBe(7);
+  expect(next.models).toEqual(sweep601);
+  expect(next.requests).toBe(5 + sweep601.length);
   // Carried donors are still published in full.
   expect(next.vins).toEqual(allVins(native));
   expect(next.warnings.at(-1)).toBe(
-    "Northwest Read 2 of 12 model pages (sweep 2); carried 10.",
+    summary(
+      12,
+      sweep601.map(() => "sweep"),
+    ),
   );
 
   // Day 602: a sold donor changes model 4's badge, and model 5 is relabelled
-  // at the same path and count, so its carried context no longer binds.
+  // at the same path and count, so its carried context no longer binds. Count
+  // and new outrank the sweep, so both reasons hold whatever their slices.
   native.rows.set(4, donors(4, 199));
   native.labels.set(5, "M5 SPORT");
+  const sweep602 = swept(native, 602);
+  const reasons602 = [...native.rows.keys()].flatMap((i) =>
+    i === 4
+      ? [{ i, reason: "count" }]
+      : i === 5
+        ? [{ i, reason: "new" }]
+        : sweep602.includes(i)
+          ? [{ i, reason: "sweep" }]
+          : [],
+  );
   const changed = await census(native, 602, next.terminal);
-  expect(changed.models).toEqual([2, 4, 5, 8]);
+  expect(changed.models).toEqual(reasons602.map(({ i }) => i));
   expect(changed.vins).toEqual(allVins(native));
   expect(changed.vins).not.toContain(vin(4, 200));
   expect(changed.warnings.at(-1)).toBe(
-    "Northwest Read 4 of 12 model pages (sweep 2, count 1, new 1); carried 8.",
+    summary(
+      12,
+      reasons602.map(({ reason }) => reason),
+    ),
   );
 
-  // Day 603: a newly published model is read outside its sweep slice.
+  // Next run (within the six-day ceiling of the cold census): a newly
+  // published model is read outside its sweep slice, and the sweep has
+  // rotated to another non-empty slice.
   native.rows.set(12, donors(12, 10));
-  const added = await census(native, 603, changed.terminal);
-  expect(added.models).toEqual([3, 9, 12]);
+  const addedDay = [603, 604, 605].find(
+    (day) =>
+      ModelCensus.slice(censusKey(12)) !== day % 6 &&
+      swept(native, day).length > 0,
+  );
+  if (addedDay === undefined)
+    throw new Error("fixture needs a day off model 12's slice with a sweep");
+  const sweepAdded = swept(native, addedDay);
+  expect(sweepAdded).not.toEqual(sweep601);
+  const added = await census(native, addedDay, changed.terminal);
+  expect(added.models).toEqual([...sweepAdded, 12]);
   expect(added.vins).toEqual(allVins(native));
 }, 120_000);
 
@@ -218,29 +275,45 @@ test("Northwest re-reads every model within six days, even across missed runs", 
   let previous = (await census(native, 600, null)).terminal;
   const lastRead = new Map<number, number>();
   for (let i = 0; i < 12; i++) lastRead.set(i, 600);
-  const perDay: number[] = [];
+  const perDay: number[][] = [];
   // Skip days 601 and 602 entirely, then run daily.
-  for (const day of [603, 604, 605, 606, 607, 608, 609, 610, 611, 612]) {
+  const days = [603, 604, 605, 606, 607, 608, 609, 610, 611, 612];
+  for (const day of days) {
     const run = await census(native, day, previous);
     for (const model of run.models) lastRead.set(model, day);
     for (const read of lastRead.values()) expect(day - read).toBeLessThan(6);
     expect(run.vins).toEqual(allVins(native));
-    perDay.push(run.models.length);
+    perDay.push(run.models);
     previous = run.terminal;
   }
-  // Once the missed days are absorbed, each run reads one sixth of the models.
-  expect(perDay.slice(-6)).toEqual([2, 2, 2, 2, 2, 2]);
+  // Once the missed days are absorbed, each run reads exactly its sweep slice,
+  // so six consecutive runs read every model exactly once.
+  const steady = days.slice(-6);
+  expect(perDay.slice(-6)).toEqual(steady.map((day) => swept(native, day)));
+  expect(
+    perDay
+      .slice(-6)
+      .flat()
+      .sort((a, b) => a - b),
+  ).toEqual(Array.from({ length: 12 }, (_, i) => i));
 }, 120_000);
 
 test("Northwest rejects a checkpoint whose carried page differs from its census", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
-  // Day 601 reads models 1 and 7; stop after the menu so model 0 is carried.
+  // The first day whose sweep slice does not start at model 0; stop after the
+  // menu so every model before the first read (including model 0) is carried.
+  const day = [601, 602, 603, 604, 605].find(
+    (candidate) => (swept(native, candidate)[0] ?? 12) > 0,
+  );
+  if (day === undefined)
+    throw new Error("fixture needs a day whose first swept model is not M0");
+  const firstRead = swept(native, day)[0] ?? 12;
   const first = await Effect.runPromise(
     streamNorthwestInventoryWithRequestGate(
       {
         previousCursor: cold.terminal,
-        now: () => 601 * MODEL_CENSUS_DAY_MS,
+        now: () => day * MODEL_CENSUS_DAY_MS,
         maxPages: 3,
         onBatch: () => Effect.void,
       },
@@ -249,7 +322,7 @@ test("Northwest rejects a checkpoint whose carried page differs from its census"
   );
   const cursor = first.cursor;
   if (cursor.phase !== "models") throw new Error("Expected the model phase");
-  expect(cursor.pages).toHaveLength(1);
+  expect(cursor.pages).toHaveLength(firstRead);
   expect(cursor.requests).toBe(3);
   const carried = cursor.pages[0];
   if (!carried) throw new Error("Expected a carried model page");
