@@ -2,6 +2,7 @@ import { createClient } from "@libsql/client";
 import { describe, expect, test } from "bun:test";
 import { drizzle } from "drizzle-orm/libsql";
 import {
+  clearLeftoverRebuildIndices,
   cleanupStaleRebuildIndices,
   cleanupInactiveRunRebuild,
   discardFailedRebuild,
@@ -86,6 +87,58 @@ describe("Algolia rebuild index cleanup", () => {
       expect(deleted).toEqual([
         "vehicles__rebuild_old",
         "vehicles__rebuild_abandoned",
+      ]);
+    } finally {
+      client.close();
+    }
+  });
+
+  test("a rebuild's start deletes every inactive run's copy, however recent, and tolerates a blocked app", async () => {
+    const client = createClient({ url: ":memory:" });
+    try {
+      await client.executeMultiple(SCHEMA);
+      await client.execute(
+        "insert into ingestion_run (id, status, active_slot, stage) values ('rebuilding', 'running', 1, 'full_reindex_prepare'), ('abandoned', 'abandoned', null, 'full_reindex_load'), ('failed', 'failed', null, 'full_reindex_load')",
+      );
+      const justNow = "2026-11-20T07:59:00Z";
+      const attempted: string[] = [];
+      const algolia = {
+        ...fakeAlgolia(
+          [
+            {
+              name: "vehicles",
+              updatedAt: justNow,
+              replicas: ["vehicles_distance"],
+            },
+            {
+              name: "vehicles_distance",
+              updatedAt: justNow,
+              primary: "vehicles",
+            },
+            { name: "vehicles__rebuild_rebuilding", updatedAt: justNow },
+            { name: "vehicles__rebuild_abandoned", updatedAt: justNow },
+            { name: "vehicles__rebuild_failed", updatedAt: justNow },
+            { name: "other__rebuild_abandoned", updatedAt: justNow },
+          ],
+          [],
+        ),
+        async deleteIndex({ indexName }: { indexName: string }) {
+          attempted.push(indexName);
+          if (indexName === "vehicles__rebuild_failed") return { taskID: 1 };
+          throw Object.assign(new Error("Application is blocked"), {
+            name: "ApiError",
+            status: 403,
+          });
+        },
+      } satisfies RebuildCleanupClient;
+      await clearLeftoverRebuildIndices({
+        database: drizzle(client),
+        algolia,
+        indexName: "vehicles",
+      });
+      expect(attempted).toEqual([
+        "vehicles__rebuild_abandoned",
+        "vehicles__rebuild_failed",
       ]);
     } finally {
       client.close();

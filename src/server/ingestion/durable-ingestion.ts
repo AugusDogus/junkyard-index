@@ -2,7 +2,10 @@ import { isValidationRejection } from "./ingestion-validation";
 import type { DurableWorkflowCursor } from "./durable-workflow-cursor";
 import { pruneIngestionRuns } from "./ingestion-run-retention";
 import { ALGOLIA_INDEX_NAME, getAlgoliaAdminClient } from "~/lib/algolia";
-import { cleanupStaleRebuildIndices } from "./algolia-rebuild-index";
+import {
+  cleanupInactiveRunRebuild,
+  cleanupStaleRebuildIndices,
+} from "./algolia-rebuild-index";
 import { env } from "~/env";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import { db, dbClient } from "~/lib/db";
@@ -236,16 +239,46 @@ export async function markDurableIngestionFailed(
   await persistDurableIngestionFailure(runId, message);
 }
 
+/** Whether an inactive run's temporary rebuild index is gone yet. */
+export type RebuildCleanup = "done" | "deferred";
+
 /**
- * Records a run failure in Turso only. A temporary rebuild index the run
- * leaves behind is removed by the stale-rebuild sweep, so an Algolia outage
- * cannot stop failures from being recorded.
+ * Deletes an inactive run's temporary rebuild index without ever failing the
+ * caller. A copy left behind (Algolia blocked or failing, or the run still
+ * active) is removed when the next rebuild starts, or by the stale-rebuild
+ * sweep.
+ */
+async function cleanupRunRebuildBestEffort(
+  runId: string,
+): Promise<RebuildCleanup> {
+  try {
+    const outcome = await cleanupInactiveRunRebuild({
+      runId,
+      database: db,
+      algolia: getAlgoliaAdminClient(),
+      indexName: ALGOLIA_INDEX_NAME,
+    });
+    return outcome === "deleted" ? "done" : "deferred";
+  } catch (error) {
+    console.error(
+      `Could not delete ingestion run ${runId}'s temporary Algolia rebuild index. The run's Turso state is saved; the next rebuild's start or the stale-rebuild sweep deletes the copy.`,
+      error,
+    );
+    return "deferred";
+  }
+}
+
+/**
+ * Records a run failure in Turso, then removes the copy of a run the failure
+ * abandoned, best effort: an Algolia outage cannot stop failures from being
+ * recorded.
  */
 export async function persistDurableIngestionFailure(
   runId: string,
   message: string,
 ): Promise<void> {
   await repository.markRunFailed(runId, message);
+  await cleanupRunRebuildBestEffort(runId);
 }
 
 /**
@@ -308,13 +341,14 @@ export type WorkflowCancellation = "cancelled" | "not_attached" | "failed";
 export interface DurableIngestionAbandonment {
   abandoned: { runId: string; workflowRunId: string | null };
   workflowCancellation: WorkflowCancellation;
-  /** The stale-rebuild sweep removes the run's temporary Algolia index. */
-  rebuildCleanup: "deferred";
+  /** Whether the run's temporary Algolia rebuild index is already gone. */
+  rebuildCleanup: RebuildCleanup;
 }
 
 /**
- * Abandons a run in Turso, then cancels its Workflow. Search is not touched:
- * an Algolia outage cannot turn a completed abandon into a failure.
+ * Abandons a run in Turso, cancels its Workflow, then deletes its rebuild copy
+ * best effort: an Algolia outage cannot turn a completed abandon into a
+ * failure.
  */
 export async function abandonDurableIngestion(params: {
   runId: string;
@@ -338,7 +372,7 @@ export async function abandonDurableIngestion(params: {
   return {
     abandoned: { runId: params.runId, workflowRunId },
     workflowCancellation,
-    rebuildCleanup: "deferred",
+    rebuildCleanup: await cleanupRunRebuildBestEffort(params.runId),
   };
 }
 

@@ -24,11 +24,17 @@ export function rebuildIndexName(runId: string, indexName: string): string {
   return `${indexName}__rebuild_${runId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 }
 
+/**
+ * `deleted` when the copy is gone (or never existed); `blocked` when the
+ * Algolia app rejected the delete and the copy stays until a later cleanup.
+ */
+export type RebuildIndexDeletion = "deleted" | "blocked";
+
 export async function deleteRebuildIndex(
   algolia: RebuildDeletionClient,
   indexName: string,
   runId: string,
-): Promise<void> {
+): Promise<RebuildIndexDeletion> {
   const temporaryIndex = rebuildIndexName(runId, indexName);
   try {
     const deleted = await algolia.deleteIndex({ indexName: temporaryIndex });
@@ -36,20 +42,22 @@ export async function deleteRebuildIndex(
       indexName: temporaryIndex,
       taskID: deleted.taskID,
     });
+    return "deleted";
   } catch (error) {
     const failure = AlgoliaError.classify(
       { operation: "deleteIndex", indexName: temporaryIndex },
       error,
     );
     // Moving an index removes the source. Deletion is also safe to retry.
-    if (failure._tag === "NotFound") return;
-    // A blocked app rejects every write. The copy is cleared before any reload
-    // and the stale-rebuild sweep removes it once Algolia accepts writes.
+    if (failure._tag === "NotFound") return "deleted";
+    // A blocked app rejects every write. The copy is cleared before any reload,
+    // and the next rebuild's start or the stale-rebuild sweep removes it once
+    // Algolia accepts writes again.
     if (failure._tag === "SearchBackendBlocked") {
       console.warn(
-        `Left temporary Algolia index ${temporaryIndex} in place; the stale-rebuild sweep deletes it after the block lifts. ${failure.message}`,
+        `Left temporary Algolia index ${temporaryIndex} in place; the next rebuild or the stale-rebuild sweep deletes it after the block lifts. ${failure.message}`,
       );
-      return;
+      return "blocked";
     }
     throw error;
   }
@@ -95,27 +103,30 @@ export async function discardFailedRebuild(
   }
 }
 
+/** Deletes a run's copy once the run no longer holds the commit. */
 export async function cleanupInactiveRunRebuild(
   params: RebuildContext,
-): Promise<void> {
+): Promise<RebuildIndexDeletion | "active"> {
   const [run] = await params.database
     .select({ activeSlot: ingestionRun.activeSlot })
     .from(ingestionRun)
     .where(eq(ingestionRun.id, params.runId))
     .limit(1);
-  if (run && run.activeSlot !== 1) {
-    await deleteRebuildIndex(params.algolia, params.indexName, params.runId);
-  }
+  if (run && run.activeSlot === 1) return "active";
+  return deleteRebuildIndex(params.algolia, params.indexName, params.runId);
 }
 
-/** A completed daily pass catches copies left by crashes or manual abandonment. */
-export async function cleanupStaleRebuildIndices(params: {
+/**
+ * Deletes rebuild copies of runs that no longer hold the commit, and keeps the
+ * live index, its replicas, unrelated indices and active runs' copies.
+ */
+async function deleteInactiveRebuildCopies(params: {
   database: LibSQLDatabase;
   algolia: RebuildCleanupClient;
   indexName: string;
-  now?: Date;
+  /** Only copies last updated before this time; null for every copy. */
+  updatedBefore: number | null;
 }): Promise<void> {
-  const cutoff = (params.now ?? new Date()).getTime() - 24 * 60 * 60 * 1000;
   const indices: Awaited<
     ReturnType<RebuildCleanupClient["listIndices"]>
   >["items"] = [];
@@ -146,7 +157,8 @@ export async function cleanupStaleRebuildIndices(params: {
     const suffix = index.name.slice(prefix.length);
     if (
       !/^[a-zA-Z0-9_-]+$/.test(suffix) ||
-      !(Date.parse(index.updatedAt) < cutoff)
+      (params.updatedBefore !== null &&
+        !(Date.parse(index.updatedAt) < params.updatedBefore))
     )
       continue;
     const active = await params.database
@@ -161,4 +173,31 @@ export async function cleanupStaleRebuildIndices(params: {
       continue;
     await deleteRebuildIndex(params.algolia, params.indexName, suffix);
   }
+}
+
+/** A completed daily pass catches copies left by crashes or manual abandonment. */
+export async function cleanupStaleRebuildIndices(params: {
+  database: LibSQLDatabase;
+  algolia: RebuildCleanupClient;
+  indexName: string;
+  now?: Date;
+}): Promise<void> {
+  await deleteInactiveRebuildCopies({
+    ...params,
+    updatedBefore: (params.now ?? new Date()).getTime() - 24 * 60 * 60 * 1000,
+  });
+}
+
+/**
+ * Before a full rebuild copies the live index, removes every other run's
+ * leftover copy, however recent. Live records, the new copy and leftovers
+ * together would otherwise exceed the plan's record cap. Only the commit
+ * holder rebuilds, so no inactive run's copy is in use.
+ */
+export async function clearLeftoverRebuildIndices(params: {
+  database: LibSQLDatabase;
+  algolia: RebuildCleanupClient;
+  indexName: string;
+}): Promise<void> {
+  await deleteInactiveRebuildCopies({ ...params, updatedBefore: null });
 }
