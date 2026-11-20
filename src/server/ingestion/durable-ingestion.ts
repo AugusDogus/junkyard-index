@@ -2,10 +2,7 @@ import { isValidationRejection } from "./ingestion-validation";
 import type { DurableWorkflowCursor } from "./durable-workflow-cursor";
 import { pruneIngestionRuns } from "./ingestion-run-retention";
 import { ALGOLIA_INDEX_NAME, getAlgoliaAdminClient } from "~/lib/algolia";
-import {
-  cleanupStaleRebuildIndices,
-  cleanupInactiveRunRebuild,
-} from "./algolia-rebuild-index";
+import { cleanupStaleRebuildIndices } from "./algolia-rebuild-index";
 import { env } from "~/env";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import { db, dbClient } from "~/lib/db";
@@ -239,17 +236,16 @@ export async function markDurableIngestionFailed(
   await persistDurableIngestionFailure(runId, message);
 }
 
+/**
+ * Records a run failure in Turso only. A temporary rebuild index the run
+ * leaves behind is removed by the stale-rebuild sweep, so an Algolia outage
+ * cannot stop failures from being recorded.
+ */
 export async function persistDurableIngestionFailure(
   runId: string,
   message: string,
 ): Promise<void> {
   await repository.markRunFailed(runId, message);
-  await cleanupInactiveRunRebuild({
-    runId,
-    database: db,
-    algolia: getAlgoliaAdminClient(),
-    indexName: ALGOLIA_INDEX_NAME,
-  });
 }
 
 /**
@@ -307,18 +303,43 @@ export async function cleanupStaleDurableAlgoliaRebuilds(): Promise<void> {
   });
 }
 
-export async function abandonDurableIngestion(
-  runId: string,
-  force = false,
-): Promise<string | null> {
-  const workflowRunId = await repository.abandon(runId, force);
-  await cleanupInactiveRunRebuild({
-    runId,
-    database: db,
-    algolia: getAlgoliaAdminClient(),
-    indexName: ALGOLIA_INDEX_NAME,
-  });
-  return workflowRunId;
+export type WorkflowCancellation = "cancelled" | "not_attached" | "failed";
+
+export interface DurableIngestionAbandonment {
+  abandoned: { runId: string; workflowRunId: string | null };
+  workflowCancellation: WorkflowCancellation;
+  /** The stale-rebuild sweep removes the run's temporary Algolia index. */
+  rebuildCleanup: "deferred";
+}
+
+/**
+ * Abandons a run in Turso, then cancels its Workflow. Search is not touched:
+ * an Algolia outage cannot turn a completed abandon into a failure.
+ */
+export async function abandonDurableIngestion(params: {
+  runId: string;
+  force: boolean;
+  cancelWorkflow: (workflowRunId: string) => Promise<void>;
+}): Promise<DurableIngestionAbandonment> {
+  const workflowRunId = await repository.abandon(params.runId, params.force);
+  let workflowCancellation: WorkflowCancellation = "not_attached";
+  if (workflowRunId) {
+    try {
+      await params.cancelWorkflow(workflowRunId);
+      workflowCancellation = "cancelled";
+    } catch (error) {
+      workflowCancellation = "failed";
+      console.error(
+        `Abandoned ingestion run ${params.runId}, but cancelling its Workflow ${workflowRunId} failed. The run stays abandoned in Turso; cancel the Workflow by hand if it is still running.`,
+        error,
+      );
+    }
+  }
+  return {
+    abandoned: { runId: params.runId, workflowRunId },
+    workflowCancellation,
+    rebuildCleanup: "deferred",
+  };
 }
 
 export const compactDurableWorkflowCursor = <

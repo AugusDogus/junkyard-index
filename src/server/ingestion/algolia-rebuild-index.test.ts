@@ -174,6 +174,23 @@ describe("Algolia rebuild index cleanup", () => {
       ),
     ).rejects.toBe(denied);
   });
+
+  test("deletion leaves a copy in place, without failing, while the Algolia app is blocked", async () => {
+    const blocked = Object.assign(new Error("Application is blocked"), {
+      name: "ApiError",
+      status: 403,
+    });
+    await deleteRebuildIndex(
+      {
+        async deleteIndex() {
+          throw blocked;
+        },
+        async waitForTask() {},
+      },
+      "vehicles",
+      "blocked",
+    );
+  });
 });
 
 test("terminal rebuild copies are removed immediately while active runs stay protected", async () => {

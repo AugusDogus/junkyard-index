@@ -1,6 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { ingestionRun } from "~/schema";
+import { AlgoliaError } from "./algolia-error";
 
 interface RebuildDeletionClient {
   deleteIndex(params: { indexName: string }): Promise<{ taskID: number }>;
@@ -36,13 +37,20 @@ export async function deleteRebuildIndex(
       taskID: deleted.taskID,
     });
   } catch (error) {
+    const failure = AlgoliaError.classify(
+      { operation: "deleteIndex", indexName: temporaryIndex },
+      error,
+    );
     // Moving an index removes the source. Deletion is also safe to retry.
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      Reflect.get(error, "status") === 404
-    )
+    if (failure._tag === "NotFound") return;
+    // A blocked app rejects every write. The copy is cleared before any reload
+    // and the stale-rebuild sweep removes it once Algolia accepts writes.
+    if (failure._tag === "SearchBackendBlocked") {
+      console.warn(
+        `Left temporary Algolia index ${temporaryIndex} in place; the stale-rebuild sweep deletes it after the block lifts. ${failure.message}`,
+      );
       return;
+    }
     throw error;
   }
 }
