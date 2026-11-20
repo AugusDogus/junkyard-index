@@ -62,8 +62,10 @@ Caller interruption aborts transport and waits for body-reader release. Refused
 responses attempt unread-body cancellation. A cleanup failure preserves both
 the original HTTP refusal and the cleanup error.
 
-Closing controls repeat ownership and the make directory. Per-model changes
-during a run surface as badge changes in the next run's opening menus.
+Closing controls repeat ownership, the make directory and every model read this
+run whose card count differs from its badge, so a short page that does not
+repeat is never carried forward. Other per-model changes during a run surface
+as badge changes in the next run's opening menus.
 Changed closing fingerprints stop emission. These controls do not establish an
 atomic snapshot or stability of unrefetched pages. All old badge differences
 remain diagnostics; the actual classified cards supply the quality denominator.

@@ -35,18 +35,21 @@ const donors = (model: number, label: string, n = 170): CentralRecord[] =>
     centralFixtureRecord(model * 1000 + i + 1, label),
   );
 
-/** Twelve models with 170 donors each (above the 1,985 floor); rows and
- * labels can be edited between runs. */
+/** Twelve models with 170 donors each (above the 1,985 floor); rows, labels
+ * and badges can be edited between runs, and `once` serves a model page a
+ * single time in place of its rows. */
 function yard() {
   const labels = new Map(Array.from({ length: 12 }, (_, i) => [i, "M" + i]));
   const rows = new Map(
     Array.from({ length: 12 }, (_, i) => [i, donors(i, "M" + i)]),
   );
+  const badges = new Map<number, number>();
+  const once = new Map<number, CentralRecord[]>();
   const urls: string[] = [];
   const model = (i: number): CentralControl => ({
     path: path(i),
     label: labels.get(i) ?? "",
-    count: rows.get(i)?.length ?? 0,
+    count: badges.get(i) ?? rows.get(i)?.length ?? 0,
   });
   globalThis.fetch = Object.assign(
     async (input: string | URL | Request) => {
@@ -59,6 +62,8 @@ function yard() {
       urls.push(url);
       const total = [...rows.values()].reduce((n, l) => n + l.length, 0);
       const index = /\/used-parts\/ACURA\/M(\d+)$/.exec(url);
+      const served = index ? once.get(Number(index[1])) : undefined;
+      if (index) once.delete(Number(index[1]));
       const body =
         url === CENTRAL_ROOT
           ? centralFixtureRoot
@@ -71,7 +76,7 @@ function yard() {
               ? centralFixtureDirectory([...rows.keys()].map(model), "models")
               : index
                 ? centralFixtureModelPage(
-                    rows.get(Number(index[1])) ?? [],
+                    served ?? rows.get(Number(index[1])) ?? [],
                     centralFixtureMake,
                     model(Number(index[1])),
                   )
@@ -84,7 +89,7 @@ function yard() {
     },
     { preconnect: originalFetch.preconnect },
   );
-  return { rows, labels, urls };
+  return { rows, labels, badges, once, urls };
 }
 
 /** One full run on `day`, seeded by the previous terminal cursor. */
@@ -275,4 +280,27 @@ test("Central re-reads every model within six days, even across missed runs", as
     expect(run.vins).toEqual(allVins(native));
     previous = run.terminal;
   }
+}, 60_000);
+
+test("Central confirms read models whose cards differ from their badge before carrying them", async () => {
+  const native = yard();
+  const cold = await census(native, 600, null);
+  // Model 1 now shows 171 on its badge but keeps 170 cards on every read.
+  native.badges.set(1, 171);
+  const steady = await census(native, 601, cold.terminal);
+  // Sweep model 7 plus the count change on model 1, then its closing re-read.
+  expect(steady.models).toEqual([1, 7, 1]);
+  // root, makes, one menu, two models, closing root, makes and model 1.
+  expect(steady.requests).toBe(8);
+  expect(steady.vins).toEqual(allVins(native));
+  // Carried short evidence is not re-read at closing.
+  const carried = await census(native, 602, steady.terminal);
+  expect(carried.models).toEqual([2, 8]);
+
+  // A short page on model 8's sweep day that does not repeat stops emission
+  // instead of being carried for six days.
+  native.once.set(8, donors(8, "M8", 120));
+  await expect(census(native, 608, carried.terminal)).rejects.toThrow(
+    "model cards changed",
+  );
 });

@@ -89,7 +89,7 @@ function nextUrl(state: CentralProgress): string {
       return CENTRAL_ORIGIN + entry.model.path;
     }
     case "closing": {
-      const entry = centralClosingControls()[state.closing];
+      const entry = centralClosingControls(state)[state.closing];
       if (!entry) throw new Error("Central closing native control is missing");
       return entry.url;
     }
@@ -144,7 +144,7 @@ function advance(state: CentralProgress, raw: string): CentralProgress {
       break;
     }
     case "closing": {
-      const entry = centralClosingControls()[state.closing];
+      const entry = centralClosingControls(state)[state.closing];
       if (!entry) throw new Error("Central closing context is missing");
       switch (entry.kind) {
         case "root":
@@ -155,6 +155,13 @@ function advance(state: CentralProgress, raw: string): CentralProgress {
             state.makes.map(({ models: _models, ...make }) => make),
             parseCentralDirectory(raw, "makes"),
             "make graph",
+          );
+          break;
+        case "model":
+          same(
+            state.pages[entry.index]?.hash,
+            parseCentralModel(raw, entry.make, entry.model).hash,
+            "model cards",
           );
           break;
       }
@@ -225,7 +232,7 @@ export function streamCentralInventoryWithRequestGate<E, R>(
       summary.pagesProcessed++;
       if (
         advanced.phase === "closing" &&
-        advanced.closing === centralClosingControls().length
+        advanced.closing === centralClosingControls(advanced).length
       ) {
         const snapshot = yield* attempt("complete native graph", () => {
           const value = centralSnapshot(advanced.makes, advanced.pages);

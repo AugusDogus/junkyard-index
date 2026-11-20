@@ -3,6 +3,7 @@ import {
   centralHash,
   CentralControlSchema,
   CentralPageSchema,
+  type CentralControl,
   type CentralPage,
 } from "./central-parser";
 import { centralModels, type CentralMake } from "./central-snapshot";
@@ -70,14 +71,43 @@ const progress = z
 export type CentralProgress = z.infer<typeof progress>;
 export type CentralClosingControl =
   | { kind: "root"; url: typeof CENTRAL_ROOT }
-  | { kind: "directory"; url: typeof CENTRAL_MAKES };
+  | { kind: "directory"; url: typeof CENTRAL_MAKES }
+  | {
+      kind: "model";
+      url: string;
+      make: CentralMake;
+      model: CentralControl;
+      index: number;
+    };
 
-/** Closing re-reads ownership and the make directory only. Per-model changes
- * during the run surface as count changes in the next run's opening menus. */
-export function centralClosingControls(): CentralClosingControl[] {
+/** Closing re-reads ownership, the make directory and every model read this
+ * run whose cards differ from its badge, so a short page that does not repeat
+ * is never carried forward. Other per-model changes during the run surface as
+ * count changes in the next run's opening menus. */
+export function centralClosingControls(
+  state: Pick<CentralProgress, "makes" | "pages" | "previous" | "day">,
+): CentralClosingControl[] {
+  const models = centralModels(state.makes);
+  const decisions = centralCensusPlan(state);
   return [
     { kind: "root", url: CENTRAL_ROOT },
     { kind: "directory", url: CENTRAL_MAKES },
+    ...state.pages.flatMap((page, index) => {
+      const entry = models[index];
+      if (!entry)
+        throw new Error("Central closing model is outside the published graph");
+      return decisions[index]?.kind === "read" &&
+        page.records.length !== entry.model.count
+        ? [
+            {
+              kind: "model",
+              url: CENTRAL_ORIGIN + entry.model.path,
+              ...entry,
+              index,
+            } satisfies CentralClosingControl,
+          ]
+        : [];
+    }),
   ];
 }
 
@@ -181,8 +211,7 @@ export const CentralCursorSchema = z
         (stage < 3 && state.pages.length !== 0) ||
         (stage === 3 && state.pages.length >= models.length) ||
         (stage === 4 && state.pages.length !== models.length) ||
-        (stage < 4 && state.closing !== 0) ||
-        (stage === 4 && state.closing > centralClosingControls().length)
+        (stage < 4 && state.closing !== 0)
       )
         throw new Error(
           "Central model or closing checkpoint prefix is inconsistent",
@@ -212,6 +241,10 @@ export const CentralCursorSchema = z
         });
         if (stage === 3 && decisions[state.pages.length]?.kind !== "read")
           throw new Error("Central next model page is not due for a read");
+        if (stage === 4 && state.closing > centralClosingControls(state).length)
+          throw new Error(
+            "Central model or closing checkpoint prefix is inconsistent",
+          );
       }
       if (
         state.requests !==
