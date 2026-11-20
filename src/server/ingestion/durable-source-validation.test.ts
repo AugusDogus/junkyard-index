@@ -16,10 +16,32 @@ import { RECONCILIATION_TEST_SCHEMA } from "./durable-reconciliation-test-fixtur
 
 const RUN_STARTED_AT = new Date("2026-11-15T07:44:11.000Z");
 
+/** A finished final checkpoint for the sources these tests validate. */
+function defaultNextCursor(
+  source: IngestionSource,
+  vehicles: readonly CanonicalVehicle[],
+): string {
+  if (source === "autorecycler")
+    return serializeDurableSourceCursor({
+      source: "autorecycler",
+      phase: "complete",
+      freshness: {
+        asOf: RUN_STARTED_AT.getTime(),
+        legacy: {},
+        eligibleYards: [...new Set(vehicles.map((v) => v.locationCode))],
+      },
+    });
+  // TAP cursors carry no completion marker; the connector status is the proof.
+  return serializeDurableSourceCursor(
+    DURABLE_SOURCE_DEFINITIONS[source].initialCursor,
+  );
+}
+
 /** Validates one terminal source snapshot in a run started at RUN_STARTED_AT. */
 async function validateSnapshot(
   source: IngestionSource,
   vehicles: readonly CanonicalVehicle[],
+  nextCursor = defaultNextCursor(source, vehicles),
 ) {
   const client = createClient({ url: ":memory:" });
   try {
@@ -46,26 +68,7 @@ async function validateSnapshot(
     });
     await client.execute({
       sql: "update ingestion_source_run set status = 'success', vehicles_processed = ?, next_cursor = ?, snapshot_chunks = ? where source = ?",
-      args: [
-        vehicles.length,
-        source === "autorecycler"
-          ? serializeDurableSourceCursor({
-              source: "autorecycler",
-              phase: "complete",
-              freshness: {
-                asOf: RUN_STARTED_AT.getTime(),
-                legacy: {},
-                eligibleYards: [
-                  ...new Set(vehicles.map((v) => v.locationCode)),
-                ],
-              },
-            })
-          : serializeDurableSourceCursor(
-              DURABLE_SOURCE_DEFINITIONS[source].initialCursor,
-            ),
-        JSON.stringify([pathname]),
-        source,
-      ],
+      args: [vehicles.length, nextCursor, JSON.stringify([pathname]), source],
     });
     const result = await validateDurableSourceRuns({
       runId: "validation",
@@ -132,6 +135,34 @@ describe("durable source validation inventory age", () => {
         : { availableDate: "2026-11-13T00:00:00.000Z", locationCode: "fresh" },
     );
     expect(await validateSnapshot("autorecycler", mixed)).toEqual({
+      accepted: true,
+      errors: [],
+    });
+  });
+});
+
+describe("durable source validation terminal evidence", () => {
+  const recent = (count: number) =>
+    vehicles("rightway", count, () => ({
+      availableDate: "2026-11-10T00:00:00.000Z",
+    }));
+
+  test("rejects a successful run whose final cursor stopped mid-crawl", async () => {
+    const midCrawl = serializeDurableSourceCursor(
+      DURABLE_SOURCE_DEFINITIONS.rightway.initialCursor,
+    );
+    expect(await validateSnapshot("rightway", recent(200), midCrawl)).toEqual({
+      accepted: false,
+      errors: ["rightway did not provide terminal cursor evidence"],
+    });
+  });
+
+  test("accepts the same run once its final cursor records completion", async () => {
+    const complete = serializeDurableSourceCursor({
+      source: "rightway",
+      phase: "complete",
+    });
+    expect(await validateSnapshot("rightway", recent(200), complete)).toEqual({
       accepted: true,
       errors: [],
     });

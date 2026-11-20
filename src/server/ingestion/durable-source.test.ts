@@ -48,10 +48,13 @@ describe("durable ingestion cursors", () => {
   );
   test("registers Jim's Import with eight native GETs and a checked durable cursor", () => {
     const initial = JimsimportCursor.initial();
-    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty("jimsimport", {
-      initialCursor: initial,
-      maxPagesPerChunk: 8,
-    });
+    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty(
+      "jimsimport",
+      expect.objectContaining({
+        initialCursor: initial,
+        maxPagesPerChunk: 8,
+      }),
+    );
     const wire = serializeDurableSourceCursor(initial);
     expect(parseDurableSourceCursor("jimsimport", wire)).toEqual(initial);
     expect(() =>
@@ -64,10 +67,13 @@ describe("durable ingestion cursors", () => {
   test("registers K&R with eight native GETs and a checked durable cursor", () => {
     const initial = KandrCursor.initial(KANDR_CONTRACT);
     if (!initial.ok) throw new Error(initial.error.message);
-    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty("kandr", {
-      initialCursor: initial.value,
-      maxPagesPerChunk: 8,
-    });
+    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty(
+      "kandr",
+      expect.objectContaining({
+        initialCursor: initial.value,
+        maxPagesPerChunk: 8,
+      }),
+    );
     const wire = serializeDurableSourceCursor(initial.value);
     expect(parseDurableSourceCursor("kandr", wire)).toEqual(initial.value);
     expect(() =>
@@ -78,10 +84,13 @@ describe("durable ingestion cursors", () => {
     ).toThrow();
   });
   test("registers Hagerman with twelve native GETs and a validated durable cursor", () => {
-    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty("hagerman", {
-      initialCursor: HagermanCursor.initial,
-      maxPagesPerChunk: 12,
-    });
+    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty(
+      "hagerman",
+      expect.objectContaining({
+        initialCursor: HagermanCursor.initial,
+        maxPagesPerChunk: 12,
+      }),
+    );
     const wire = serializeDurableSourceCursor(HagermanCursor.initial);
     expect(parseDurableSourceCursor("hagerman", wire)).toEqual(
       HagermanCursor.initial,
@@ -95,10 +104,13 @@ describe("durable ingestion cursors", () => {
   });
   test("registers oeM Garage with eight native GETs and a checked durable cursor", () => {
     const initial = OemgarageCursor.initial();
-    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty("oemgarage", {
-      initialCursor: initial,
-      maxPagesPerChunk: 8,
-    });
+    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty(
+      "oemgarage",
+      expect.objectContaining({
+        initialCursor: initial,
+        maxPagesPerChunk: 8,
+      }),
+    );
     const wire = serializeDurableSourceCursor(initial);
     expect(parseDurableSourceCursor("oemgarage", wire)).toEqual(initial);
     expect(() =>
@@ -109,44 +121,62 @@ describe("durable ingestion cursors", () => {
     ).toThrow();
   });
   test("registers Weber Brothers with ten native GETs and a validated resumable cursor", () => {
-    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty("weberbrothers", {
-      initialCursor: WeberbrothersCursor.initial,
-      maxPagesPerChunk: 10,
-    });
+    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty(
+      "weberbrothers",
+      expect.objectContaining({
+        initialCursor: WeberbrothersCursor.initial,
+        maxPagesPerChunk: 10,
+      }),
+    );
     const wire = serializeDurableSourceCursor(WeberbrothersCursor.initial);
     expect(parseDurableSourceCursor("weberbrothers", wire)).toEqual(
       WeberbrothersCursor.initial,
     );
   });
   test("registers Chase N Cars with six physical GETs per checkpoint", () => {
-    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty("chasencars", {
-      initialCursor: ChasencarsCursor.initial(null),
-      maxPagesPerChunk: 6,
-    });
+    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty(
+      "chasencars",
+      expect.objectContaining({
+        initialCursor: ChasencarsCursor.initial(null),
+        maxPagesPerChunk: 6,
+      }),
+    );
   });
   test("registers Dutcher with eight bounded native GETs per checkpoint", () => {
-    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty("dutchers", {
-      initialCursor: DutchersCursor.initial(),
-      maxPagesPerChunk: 8,
-    });
+    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty(
+      "dutchers",
+      expect.objectContaining({
+        initialCursor: DutchersCursor.initial(),
+        maxPagesPerChunk: 8,
+      }),
+    );
   });
   test("registers OEM with eight bounded native GETs per checkpoint", () => {
-    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty("oem", {
-      initialCursor: OemCursor.initial(),
-      maxPagesPerChunk: 8,
-    });
+    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty(
+      "oem",
+      expect.objectContaining({
+        initialCursor: OemCursor.initial(),
+        maxPagesPerChunk: 8,
+      }),
+    );
   });
   test("registers Scott's with six bounded native GETs per checkpoint", () => {
-    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty("scotts", {
-      initialCursor: ScottsCursor.initial,
-      maxPagesPerChunk: 6,
-    });
+    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty(
+      "scotts",
+      expect.objectContaining({
+        initialCursor: ScottsCursor.initial,
+        maxPagesPerChunk: 6,
+      }),
+    );
   });
   test("registers Rohner with three bounded native requests per checkpoint", () => {
-    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty("rohner", {
-      initialCursor: RohnerCursor.initial,
-      maxPagesPerChunk: 3,
-    });
+    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty(
+      "rohner",
+      expect.objectContaining({
+        initialCursor: RohnerCursor.initial,
+        maxPagesPerChunk: 3,
+      }),
+    );
     expect(() =>
       parseDurableSourceCursor(
         "rohner",
@@ -155,14 +185,20 @@ describe("durable ingestion cursors", () => {
     ).toThrow();
   });
   test("registers Kodak and six03 with their frozen native request budgets", () => {
-    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty("kodak", {
-      initialCursor: KodakCursor.initial,
-      maxPagesPerChunk: 2,
-    });
-    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty("six03", {
-      initialCursor: Six03Cursor.initial,
-      maxPagesPerChunk: 8,
-    });
+    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty(
+      "kodak",
+      expect.objectContaining({
+        initialCursor: KodakCursor.initial,
+        maxPagesPerChunk: 2,
+      }),
+    );
+    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty(
+      "six03",
+      expect.objectContaining({
+        initialCursor: Six03Cursor.initial,
+        maxPagesPerChunk: 8,
+      }),
+    );
   });
   test.each([
     ["awap", 2],
