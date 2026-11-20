@@ -1022,4 +1022,59 @@ describe("a tenant missing from the accepted census", () => {
     // both tenants reread every model, including those read five days ago.
     expect(modelReads(recovery)).toBe(2 * models.length);
   });
+
+  test("a recovery run fails only at its three-day deadline", async () => {
+    const cold = await run({ tenantList: pair, now: start, ...blockSecond });
+    const now = start + DAY;
+    const after = (offset: number) => (chunk: number) =>
+      chunk === 0 ? now : now + offset;
+    const recovery = await run({
+      tenantList: pair,
+      previous: cold.cursor,
+      now,
+      clock: after(3 * DAY - 9 * 60_000),
+    });
+    expect(recovery.cursor.runKind).toBe("recovery");
+    await expect(
+      run({
+        tenantList: pair,
+        previous: cold.cursor,
+        now,
+        clock: after(3 * DAY - 7 * 60_000),
+      }),
+    ).rejects.toThrow("three-day recovery census deadline");
+  });
+
+  test("a recovery run carries evidence under four days old and rereads older evidence", async () => {
+    const cold = await run({ tenantList: pair, now: start });
+    // Only the first tenant reads models while the second stays blocked.
+    let previous: unknown = cold.cursor;
+    const daily: string[][] = [];
+    for (const day of [1, 2, 3]) {
+      const result = await run({
+        tenantList: pair,
+        previous,
+        now: start + day * DAY,
+        ...blockSecond,
+      });
+      expect(result.cursor.runKind).toBe("incremental");
+      daily.push(readModels(result));
+      previous = result.cursor;
+    }
+    const [, dayTwo = [], dayThree = []] = daily;
+    const reread = dayTwo.filter((url) => !dayThree.includes(url));
+    // A four-day boundary must separate these, or the test proves nothing.
+    expect(reread.length).toBeGreaterThan(0);
+    expect(dayThree.length).toBeGreaterThan(0);
+    const recovery = await run({
+      tenantList: pair,
+      previous,
+      now: start + 6 * DAY + 3600_000,
+    });
+    expect(recovery.cursor.runKind).toBe("recovery");
+    // Day-three evidence is 3d1h old and carries; day-two evidence is 4d1h
+    // old and is reread. The second tenant rereads every model.
+    const firstTenantReads = readModels(recovery).length - models.length;
+    expect(firstTenantReads).toBe(models.length - new Set(dayThree).size);
+  });
 });
