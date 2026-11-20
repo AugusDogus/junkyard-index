@@ -55,12 +55,14 @@ The excluded Lexington listing receives neither this census nor a second yard.
 
 The connector reads official homepage ownership, latest arrivals, the make
 directory and every literal make on every run. Model pages follow the shared
-incremental census (`model-census.ts`): a model is read when it is new, its
-badge changed, an opening arrival names it but its carried page lacks that
-donor, its evidence is six run days old, or it falls in that day's stable
-one-sixth sweep slice. Every other model carries its last accepted page from
-the terminal cursor of the newest accepted, search-published run. A missing,
-incompatible or corrupt census starts a full (cold) census. Only owned HTTPS browse
+[incremental model census](model-census.md). On an incremental day, a model is
+read when it is new, its badge changed, an opening arrival names it but its
+carried page lacks that donor, its page is short, its evidence is six run days
+old, or it falls in that day's stable one-sixth sweep slice. Every other model
+carries its last accepted page from the terminal cursor of the newest accepted
+publication, whether or not search published it. When the last accepted census
+is more than one day old, every model page is read. A missing, incompatible or
+corrupt census starts a full (cold) census. Only owned HTTPS browse
 URLs are allowed. It never fetches donor details, images, parts searches or
 inferred routes. All supplier declarations must agree on `QQ91`. Complete
 HTML, native owner, physical address and a recognized native phone are checked.
@@ -68,11 +70,27 @@ Phone equality across surfaces is not required. HTTP must be complete,
 unredirected 200 text/html. Failures receive no automatic retry.
 
 Closing controls repeat ownership, the make directory and every model read
-this run whose cards differ from its badge. Carried models are not re-read;
-other per-model changes surface as badge changes in the next run's opening
-menus. Changed closing fingerprints stop emission. These controls do not claim
+this run whose cards differ from its badge or fall below its expected cards.
+Make menus and arrivals are not re-read at closing. Carried models are not
+re-read; other per-model changes surface as badge changes in the next run's
+opening menus. Changed closing fingerprints stop emission. A short page whose
+closing re-read matched is stored as confirmed. These controls do not claim
 simultaneous stability of every unrefetched model page. Explicit empty
 pages must bind their native h1 and lack donor continuation.
+
+[Model census](model-census.md) holds the shared rules for gap reads, short
+pages, the 97% replay floor and the outage path. A Plus specifics:
+
+- The badge floor is 95% (`APLUS_MINIMUM_BADGE_COVERAGE`), because published
+  model counts matched model cards exactly in every observed census (1,133 of
+  1,133 on 210 models).
+- Closing confirms short pages, so a confirmed short page is carried rather
+  than re-read on the next run.
+- With the November 12 graph (35 makes, 232 models), a cold or gap read costs
+  270 opening GETs plus two closing GETs and one re-read per short page. A
+  steady day costs about 80 GETs: 38 fixed opening GETs, about 39 sweep pages
+  and two closing GETs, plus new, changed, short, stale and arrival-triggered
+  models and their closing re-reads.
 
 Chunks perform at most eight serial GETs under a three-minute deadline.
 Each request and complete body share a 20-second deadline. Transport waits
@@ -135,8 +153,10 @@ preserves prior metadata for five rejected VINs, retires one absent seed and
 verifies the single yard. Its 1,227 live proof rows include those five preserved
 seeds; only 1,222 count as newly accepted donors. No production storage is used.
 
-Source replay evidence is
-`parallel-mt-wy-nd/aplus-application01/offline-replay-report.json`. Real parser,
+Historical source replay evidence is
+`parallel-mt-wy-nd/aplus-application01/offline-replay-report.json`. It predates
+the incremental census and used the earlier full-read closing controls, so its
+request and checkpoint numbers are historical. Real parser,
 cursor, connector and soak code read 270 pinned opening bodies, with four
 fresh captured closing overrides. Other mocked closing controls reuse their
 opening captures. Replay performs 312 mocked GETs across 39 serialized chunks,

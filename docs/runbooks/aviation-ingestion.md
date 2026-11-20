@@ -61,25 +61,35 @@ then enumerates every literal make and model. It never constructs donor routes
 from YMM, fetches hidden inventory links, individual details or images, submits
 lookups, follows redirects or retries a failed request.
 
-Closing checks repeat official ownership, the root-configured make directory and
-every model list read this run whose card count differs from its badge or falls
-below its expected count (`ModelCensus.closingReads`), so a short page that does
-not repeat is never carried forward. A model's expected count is its badge, or
-its last accepted card count when that was higher and the badge is unchanged
-(about 32 lists carry surplus cards). A list that only fell below that higher
-count is read again on the next run. Carried model lists
-were confirmed on the run that read them; other per-model changes surface as
-badge changes in the next run's opening menus. Changed graph/list fingerprints
-fail before emission.
-Before the snapshot, read and carried model cards, each model capped at its own
-badge, must cover at least 95% of today's model badges
-(`AVIATION_MINIMUM_BADGE_COVERAGE`). The November 12 capture covers 2,482 of
-2,482 (surplus cards never offset another model's shortfall). Models whose
-badge is unchanged must also list at least 97% of their last accepted cards
-(`MODEL_CENSUS_REPLAY_MINIMUM`). A sweep slice cut to one card per model leaves
-82.8% to 88.6% of the badges and 82.7% to 88.8% of the 2,524 replayed cards, so
-a fault that breaks pages a sixth at a time fails its first run and publishes
-nothing.
+Model lists use the shared incremental census. See
+[the model census rules](model-census.md) for which lists a run reads, gap and
+cold full reads, short-page confirmation, both coverage floors and seeding from
+the newest accepted publication. Aviation specifics:
+
+- Every run reads contact, root, `/parts/`, `/used-parts/makes/` and all 43
+  make menus. Closing re-reads official ownership, the root-configured make
+  directory and every model list read this run whose cards differ from its badge
+  or fall below its expected cards (`ModelCensus.closingReads`). A re-read that
+  differs fails the run, so Aviation confirms short pages at closing. About 32
+  lists carry surplus cards above their badge; that surplus stays in their
+  expected cards across badge changes. Changed graph/list fingerprints fail
+  before emission.
+- Badge floor: read and carried model cards, each model capped at its own
+  badge, must cover at least 95% of today's model badges
+  (`AVIATION_MINIMUM_BADGE_COVERAGE`). Every November 12 model list held at
+  least its badge (2,482 of 2,482 badge cards on 404 models), and November 19
+  badge changes matched card changes. The shared 97% replay floor
+  (`MODEL_CENSUS_REPLAY_MINIMUM`) also applies to every model with a last
+  accepted page. A sweep slice cut to one card per model leaves 82.8% to 88.6%
+  of the badges and 82.7% to 88.8% of the 2,524 replayed cards, so both floors
+  fail the first such run and nothing publishes.
+- Request cost, estimated from the November 12 graph: a cold or full read
+  (first run, or the day after a missed, failed or rejected run) is about 485
+  GETs (47 opening and make menus, 404 model lists, 2 closing controls and the
+  about 32 surplus lists). A steady day is about 120 GETs (47 opening and make
+  menus, about a sixth of the model lists plus changes, triggers and short
+  pages, and their closing re-reads). Both stay under the 650 GET run cap.
+
 The saved qualification has nine byte-stable live closing bodies: `/parts/`,
 KIA and Pontiac make directories, and the Rio, Tahoe, Mercedes C-Class,
 Mercedes GLC-Class, Yukon and Enclave model lists. Its final root has one rolling
@@ -89,14 +99,16 @@ read, no continuation controls appeared, and this narrower closing set supports
 qualification of the complete known finite graph plus arrivals. It does not
 prove simultaneous stability of every model list or inventory outside the
 published graph. Closing contact, every make directory and the broader model
-control set have not all been captured live. Saved replay reuses opening bodies
+control set (the historical closing set at qualification, before the
+incremental census) have not all been captured live. Saved replay reuses opening bodies
 for those added controls; a future authorized live run must execute them.
 
 Chunks contain at most eight serial GETs and have a three-minute deadline.
 Production transport waits 1.6 seconds after complete body consumption on both
 success and failure, including across chunk boundaries. Runs stop at 650 GETs.
 Each complete UTF-8 response is bounded to 4 MiB. The typed checkpoint is bounded
-to 1 MiB, 64 makes, 512 models and 10,000 model rows. Exceeding a bound fails
+to 4 MiB (`AVIATION_MAX_CURSOR_BYTES`: room for the previous census plus this
+run's pages), 64 makes, 512 models and 10,000 model rows. Exceeding a bound fails
 without accepting an advanced checkpoint.
 
 The cursor retains lossless native field tuples, published controls, semantic
@@ -108,7 +120,7 @@ zero accounting. Completion supplies disjoint totals and independently valid
 rejected VINs as presence evidence only. Callback failure yields no completed
 checkpoint.
 
-`AviationCursor.parse` enforces the 1 MiB UTF-8 wire bound before JSON decoding,
+`AviationCursor.parse` enforces the 4 MiB UTF-8 wire bound before JSON decoding,
 then validates the strict source-tagged schema. `AviationCursor.serialize`
 validates the typed checkpoint and produces the same full source-tagged format.
 Shared registration must use those codec hooks.
