@@ -14,10 +14,12 @@ export type DepartureCapture = {
 };
 
 /**
- * Records every vehicle currently marked missing as a departure, before
- * ingestion deletes it, then withdraws departures of listings that came back.
- * Runs repeatedly without duplicating rows: a departure is keyed by VIN and
- * the run that first missed it.
+ * Records every vehicle currently marked missing as a departure, then
+ * withdraws departures of listings that came back. Reconciliation records a
+ * departure in the batch that deletes the vehicle and withdraws it when the
+ * listing returns; this capture is the backstop. Runs repeatedly without
+ * duplicating rows: a departure is keyed by VIN and the run that first missed
+ * it.
  */
 export async function captureVehicleDepartures(
   database: LibSQLDatabase,
@@ -42,8 +44,9 @@ export async function captureVehicleDepartures(
   // returned and left again, which records a newer departure. Ingestion
   // updates last_seen_at when it clears the missing mark, so only recently
   // seen vehicles are checked: an index range on last_seen_at, then primary
-  // key lookups. A VIN listed anew after deletion has a new first-seen time,
-  // so its earlier departure stands.
+  // key lookups. A VIN relisted at its yard within 30 days of deletion keeps
+  // its first-seen time, so it counts as back. A VIN listed anew gets a new
+  // first-seen time, so its earlier departure stands.
   //
   // Ingestion stamps last_seen_at with its run's commit time (or its start,
   // before it claims the commit), which is hours old when a stalled commit
