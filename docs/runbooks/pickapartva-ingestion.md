@@ -12,27 +12,41 @@ image download, alternative host, inferred VIN or guessed detail route is used.
 ## Native protocol and checkpoints
 
 Each chunk enumerates the complete literal native Next chain from page 1,
-validates every physical owner and unfiltered control, and closes pages 1, 2
-and the terminal page before any callback. The measured catalog has 15 pages:
+validates every physical owner and unfiltered control, recovers donors hidden
+by Set Date ties, and closes pages 1, 2 and the terminal page before any
+callback. The measured catalog has 15 pages:
 500 cards on pages 1 through 14 and 449 on page 15. The terminal page has no
 Next link. These controls establish a bounded stable traversal, not an atomic
 provider snapshot or a source-published total count.
 
 The safety ceiling is 15 catalog pages, 500 cards per page, 4 MiB per body,
-18 requests per chunk, 25 seconds per request/body read and three minutes per
-chunk. Requests are serial, unredirected HTTPS GETs with no retry. Production
+32 requests per chunk (15 pages, at most 14 set-date searches and 3 closing
+reads), 25 seconds per request/body read and five minutes of provider work per
+chunk. The shared URG host turn is estimated at 24 requests of 8.5 seconds
+(204 seconds), which reserves six searches and still grants a turn after the
+two-minute queue waits seen at 07:00. Measured reads take longer: about 14
+seconds per catalog page at November 19 latency (11 at November 12 latency),
+10 per search and 5 per edge-cached closing read, about 286 seconds with six
+searches. A turn that waited long reaches the chunk horizon first and the
+chunk is deferred whole. A turn that waited under 40 seconds reaches the
+five-minute work limit first, so a census needing more than about seven
+searches (twelve at November 12 latency) fails with the chunk budget error.
+Neither advances a checkpoint, and previous inventory is preserved. At 500 cards per page, a catalog above 7,500 cards
+publishes page 16, which the page guard rejects. Requests are serial,
+unredirected HTTPS GETs with no retry. Production
 requests include a 1,600 ms finalizer delay on success and failure, preserving
 spacing across separately created durable chunks.
 
 `streamPickapartvaInventory` accepts `startCursor`, `maxPages`, `onBatch` and
 optional `onYards`. `maxPages` counts emitted raw-page partitions, from 1 to 15. Every partial emission chunk still validates the full native census.
-Normal ingestion uses 15, requiring 18 controls. Three five-page chunks require
+Normal ingestion uses 15, requiring 18 controls plus one search per tied date. Three five-page chunks require
 54 controls. Prefix pages are rebuilt without repeating inventory callbacks.
 
 `PickapartvaCursorSchema` validates these states:
 
 - `start`: source `pickapartva` and phase `start`.
 - `pages`: whole-snapshot fingerprint, all ordered page URL/hash receipts,
+  the set-date search date/URL/hash receipts (empty in earlier checkpoints),
   `lastPage`, `nextPage` and cumulative `processed`, `emitted`, `rejected` and
   `duplicates` counters. Rebuilt prefix counters must exactly match before
   another batch is emitted.
@@ -45,6 +59,31 @@ before callbacks and before terminal reconciliation. A failed chunk returns no
 advanced checkpoint. Previously accepted inventory stays intact. Inspect the
 native contract and restart a fresh run after resolving drift.
 
+## Set Date ties
+
+The catalog sorts by Set Date with LIMIT/OFFSET on that non-unique key, and
+each offset orders a date's donors differently. A page boundary that splits a
+date can show one donor of that date on both pages and never show another. The
+November 12 census repeated 18 cards this way at six dates (2026-11-07,
+2026-11-04, 2026-10-28, 2026-10-24, 2026-10-20 and 2026-10-16), so 18 donors
+were invisible to every catalog page.
+
+Because dates are strictly ordered across pages, a date's donors fill one
+fixed run of catalog slots. Each card of that date repeated on a later page
+stands in for exactly one hidden donor of that date. After the page chain, the
+connector requests the native search
+`https://pickapartva.com/inventory/ANY/ANY/?k=1&id=ANY&search=YYYY-MM-DD` for
+every date with repeated cards, in catalog order. A search page must pass the
+same owner, footer, yard selector, make selector and `iisupullurgid` checks,
+reflect the searched date in its form, publish no pagination, hold 1 to 499
+cards, and list only donors set on that date. It must add exactly as many
+unseen donors as the catalog repeated for that date. Otherwise the inventory
+changed between reads, the census fails, and previous inventory is preserved.
+Each recovered donor takes the repeated card's slot, so it is accounted once
+instead of as a duplicate, and its details link is the search URL with its
+stock fragment. If donors repeat while the catalog is no longer ordered by
+Set Date, the census fails because hidden donors cannot be located.
+
 ## Required identity and optional metadata
 
 The connector uses the existing `inventoryVin` contract, including supported
@@ -54,13 +93,15 @@ when a serialized prefix is replayed. Every raw card contributes exactly once
 to accepted, rejected or duplicate accounting in its emission partition.
 
 The saved census reconciles 7,449 cards to 7,422 unique donors, 7 invalid modern
-VINs and 20 duplicate cards. Fredericksburg has 5,168 unique donors and Stafford
+VINs and 20 duplicate cards. Eighteen of those duplicates are Set Date tie
+repeats, so tie recovery accepts 7,440 donors with 2 duplicates. Fredericksburg has 5,168 unique donors and Stafford
 has 2,254. Fourteen accepted donors use older serials. Source and per-yard checks
 retain the existing 10% rejection and 25% duplicate limits. The measured source
 floor in shared registration is 2,474, with the existing prior-run drift
 and reconciliation guards retained by shared orchestration.
 
-Eighteen duplicate cards repeat identical native donors. Two other VIN groups
+Eighteen duplicate cards repeat identical native donors at Set Date ties; tie
+recovery replaces each with a hidden donor. Two other VIN groups
 agree on all required identity and yard fields while their stock/date values
 disagree; one also disagrees on row. The connector merges all occurrences before
 emitting, setting only conflicting optional stock, date, row and image fields to
@@ -90,24 +131,36 @@ The original bare-ANY control is `new-leads/pickapartva-any.html`, SHA256
 with its exact HTTP 200 receipt in `new-leads/va-wa-native-field-screen.json`.
 It establishes the common destination used for conflicting-stock variants.
 
+The saved packet has no set-date searches, and its census repeats cards at
+six Set Dates. Only the 2026-10-16 search was captured. The supported replay
+of this census is `pickapartva-ties.test.ts`, which serves the same catalog
+pages and closing reads from `src/server/ingestion/pickapartva-test-fixtures/`
+with the captured search and five documented synthetic searches.
+
 Run focused tests with:
 
 ```sh
 bun test src/server/ingestion/pickapartva-*.test.ts
 ```
 
-Replay all real saved pages and closing controls without network or persistence:
+Replay saved pages, closing controls and set-date searches without network or
+persistence:
 
 ```sh
 bun scripts/soak-pickapartva.ts \
-  --saved .scratchpad/coverage/parallel-mn-ia-ne-sd/pickapartva-requalification/evidence \
-  --output .scratchpad/coverage/parallel-mn-ia-ne-sd/pickapartva-implementation-replay/full \
+  --saved <evidence directory> \
+  --searches <directory of search-YYYY-MM-DD.html bodies> \
+  --output <local replay directory> \
   --chunk-pages 15
 ```
 
+`--searches` must hold one saved search body per repeated Set Date. Without
+it, or with a date missing, the replay names the search it needs and writes
+nothing.
+
 Repeat with `--chunk-pages 5` and a different output directory to exercise three
 serialized chunks. The replay uses the real durable cursor codecs and
-`connectorChunkMetrics`, verifies every saved body against its receipt, writes
+`connectorChunkMetrics`, verifies every saved catalog body against its receipt, writes
 canonical vehicles and exact chunk accounting, and checks terminal replay makes
 zero reads/callbacks. The CLI has only saved transport and cannot fall through to
 live fetch. The exported soak driver delegates transport to its caller and has no

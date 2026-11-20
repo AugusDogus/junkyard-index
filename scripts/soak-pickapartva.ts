@@ -102,6 +102,7 @@ async function replaySaved(
   evidence: string,
   output: string,
   chunkPages: number,
+  searches: string | undefined,
 ) {
   const originalFetch = globalThis.fetch;
   const requests: string[] = [];
@@ -124,6 +125,32 @@ async function replaySaved(
         throw new Error(
           "Saved replay refused unexpected native destination " + rawUrl,
         );
+      const date = url.searchParams.get("search");
+      if (date !== null) {
+        // Set-date searches the census needs for repeated Set Dates. The
+        // connector validates the body like a live response.
+        if (searches === undefined)
+          throw new Error(
+            `Saved replay needs the set-date search ${rawUrl}, but no --searches directory was given. Pass a directory holding search-${date}.html for every repeated Set Date; nothing was written`,
+          );
+        const file = join(searches, `search-${date}.html`);
+        const body = await readFile(file).catch((cause: unknown) => {
+          throw new Error(
+            `Saved replay needs the set-date search ${rawUrl}, but ${file} could not be read. Save that search body there and rerun; nothing was written`,
+            { cause },
+          );
+        });
+        requests.push(rawUrl);
+        return new Response(
+          new TextDecoder("utf-8", { fatal: true }).decode(body),
+          {
+            headers: {
+              "content-type": "text/html; charset=UTF-8",
+              "content-length": String(body.length),
+            },
+          },
+        );
+      }
       const page = Number(url.searchParams.get("pagenum"));
       const occurrence = (occurrences.get(page) ?? 0) + 1;
       occurrences.set(page, occurrence);
@@ -265,11 +292,12 @@ if (import.meta.main) {
       saved: { type: "string" },
       output: { type: "string" },
       "chunk-pages": { type: "string", default: "15" },
+      searches: { type: "string" },
     },
   });
   if (!values.saved || !values.output)
     throw new Error(
-      "Use --saved <frozen evidence directory> --output <local replay directory> [--chunk-pages 5|15]. This command has no live transport.",
+      "Use --saved <frozen evidence directory> --output <local replay directory> [--chunk-pages 5|15] [--searches <directory of search-YYYY-MM-DD.html bodies>]. This command has no live transport.",
     );
   const chunkPages = z.coerce
     .number()
@@ -277,5 +305,5 @@ if (import.meta.main) {
     .min(1)
     .max(15)
     .parse(values["chunk-pages"]);
-  await replaySaved(values.saved, values.output, chunkPages);
+  await replaySaved(values.saved, values.output, chunkPages, values.searches);
 }

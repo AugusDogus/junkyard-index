@@ -5,7 +5,10 @@ import {
   fetchProviderResponse,
   type ProviderRequestGate,
 } from "./provider-http-client";
-import { pickapartvaPageUrl } from "./pickapartva-yard-metadata";
+import {
+  pickapartvaPageUrl,
+  pickapartvaSearchUrl,
+} from "./pickapartva-yard-metadata";
 
 export class PickapartvaProviderError extends Data.TaggedError(
   "PickapartvaProviderError",
@@ -18,7 +21,7 @@ export class PickapartvaProviderError extends Data.TaggedError(
 }
 export function fetchPickapartvaPage(url: string, gate: ProviderRequestGate) {
   return Effect.gen(function* () {
-    if (pickapartvaPageUrl(url) !== url)
+    if (pickapartvaPageUrl(url) !== url && pickapartvaSearchUrl(url) !== url)
       return yield* Effect.fail(new Error("Unverified native catalog URL"));
     const response = yield* fetchProviderResponse({
       url,
