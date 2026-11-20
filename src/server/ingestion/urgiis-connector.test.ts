@@ -237,17 +237,27 @@ test("URG IIS resumes a transient model failure from the saved frontier before e
       }),
     );
   while (reads < 4) cursor = (await run(false)).cursor;
-  const saved = UrgiisCursor.serialize(cursor, [tenant]);
-  await expect(run(true)).rejects.toThrow("HTTP500");
-  expect(UrgiisCursor.serialize(cursor, [tenant])).toEqual(saved);
+  const saved = cursor;
+  const failed = await run(true);
+  expect(failed.status).toBe("paused");
+  if (failed.cursor.phase !== "opening" || saved.phase !== "opening")
+    throw new Error("Expected the opening model frontier");
+  expect(failed.cursor.failedReads).toEqual({
+    url: tenant.origin + model.path,
+    attempts: 1,
+  });
+  expect(failed.cursor.entries).toEqual(saved.entries);
   expect(batches).toBe(0);
-  cursor = UrgiisCursor.fromWire(saved, [tenant]);
+  cursor = UrgiisCursor.fromWire(
+    UrgiisCursor.serialize(failed.cursor, [tenant]),
+    [tenant],
+  );
   while (cursor.phase !== "complete") cursor = (await run(false)).cursor;
   expect(reads).toBe(responses.length);
   expect(batches).toBe(1);
 });
 
-test("URG IIS accumulates model badge drift across resumed closing menus and fails without retrying", async () => {
+test("URG IIS accumulates model badge drift across resumed closing menus and blocks the tenant without retrying", async () => {
   const secondModelPath = "/parts/OTHER/ILX/";
   const fixture = [
     document(""),
@@ -278,21 +288,24 @@ test("URG IIS accumulates model badge drift across resumed closing menus and fai
           }),
       }),
     );
-    if (result.status === "failed") {
-      expect(result.errors.join(" ")).toContain("models badges changed by 4");
+    if (result.status === "failed") throw new Error(result.errors.join("; "));
+    if (result.cursor.phase === "complete")
       expect(result.pagesProcessed).toBe(1);
-      expect(reads).toBe(fixture.length);
-      expect(batches).toBe(0);
-      return;
-    }
     cursor = UrgiisCursor.fromWire(
       UrgiisCursor.serialize(result.cursor, [tenant]),
       [tenant],
     );
   }
-  throw new Error("Expected terminal closing failure");
+  expect(cursor.completed).toEqual([
+    {
+      code: tenant.code,
+      blocked: expect.stringContaining("models badges changed by 4"),
+    },
+  ]);
+  expect(reads).toBe(fixture.length);
+  expect(batches).toBe(0);
 });
-test("URG IIS fails closed on directory drift, source mixing, caps and corrupt checkpoints", async () => {
+test("URG IIS blocks the tenant on directory drift, source mixing and caps, and rejects corrupt checkpoints", async () => {
   for (const [changedIndex, changed] of [
     [5, document("").replace("123 Main St", "456 Other St")],
     [6, makes.replace(">ACURA<", ">Acura<")],
@@ -312,40 +325,32 @@ test("URG IIS fails closed on directory drift, source mixing, caps and corrupt c
     let reads = 0;
     let batches = 0;
     let cursor = UrgiisCursor.initial([tenant]);
-    let failure: unknown;
-    let failedStatus = false;
-    try {
-      while (cursor.phase !== "complete") {
-        const result = await Effect.runPromise(
-          streamUrgiisInventory({
-            tenants: [tenant],
-            startCursor: cursor,
-            maxPages: 3,
-            readPage: () => {
-              const index = reads++;
-              return Effect.succeed(
-                index === changedIndex ? changed : (responses[index] ?? ""),
-              );
-            },
-            onBatch: () =>
-              Effect.sync(() => {
-                batches++;
-              }),
-          }),
-        );
-        if (result.status === "failed") {
-          failedStatus = true;
-          throw new Error(result.errors.join("; "));
-        }
-        cursor = result.cursor;
-      }
-    } catch (cause) {
-      failure = cause;
+    while (cursor.phase !== "complete") {
+      const result = await Effect.runPromise(
+        streamUrgiisInventory({
+          tenants: [tenant],
+          startCursor: cursor,
+          maxPages: 3,
+          readPage: () => {
+            const index = reads++;
+            return Effect.succeed(
+              index === changedIndex ? changed : (responses[index] ?? ""),
+            );
+          },
+          onBatch: () =>
+            Effect.sync(() => {
+              batches++;
+            }),
+        }),
+      );
+      if (result.status === "failed") throw new Error(result.errors.join("; "));
+      cursor = result.cursor;
     }
-    expect(failure).toBeDefined();
+    expect(cursor.completed).toEqual([
+      { code: tenant.code, blocked: expect.any(String) },
+    ]);
     expect(batches).toBe(0);
     expect(reads).toBe(changedIndex + 1);
-    expect(failedStatus).toBe(changedIndex > 4);
   }
   expect(() =>
     iisCards(page.replaceAll("'AA01'", "'FOREIGN'"), tenant),
@@ -512,25 +517,27 @@ test("URG IIS refuses an empty model at the known native cap boundary", async ()
     menu.replace(">1<", ">500<"),
     document("No Results Found. Try Browsing Our Parts Or Search Again"),
   ];
-  await expect(
-    (async () => {
-      while (cursor.phase !== "complete") {
-        const result = await Effect.runPromise(
-          streamUrgiisInventory({
-            tenants: [tenant],
-            startCursor: cursor,
-            maxPages: 3,
-            readPage: () => Effect.succeed(capped[reads++] ?? ""),
-            onBatch: () =>
-              Effect.sync(() => {
-                emitted = true;
-              }),
+  while (cursor.phase !== "complete") {
+    const result = await Effect.runPromise(
+      streamUrgiisInventory({
+        tenants: [tenant],
+        startCursor: cursor,
+        maxPages: 3,
+        readPage: () => Effect.succeed(capped[reads++] ?? ""),
+        onBatch: () =>
+          Effect.sync(() => {
+            emitted = true;
           }),
-        );
-        cursor = result.cursor;
-      }
-    })(),
-  ).rejects.toThrow("explicit empty result");
+      }),
+    );
+    cursor = result.cursor;
+  }
+  expect(cursor.completed).toEqual([
+    {
+      code: tenant.code,
+      blocked: expect.stringContaining("explicit empty result"),
+    },
+  ]);
   expect(reads).toBe(5);
   expect(emitted).toBe(false);
 });
@@ -782,7 +789,7 @@ test("URG IIS reserves the last chunk before its one-day run deadline", async ()
 });
 
 for (const status of [403, 429] as const) {
-  test(`URG IIS ends a tenant on HTTP${status} without a Retry-After`, async () => {
+  test(`URG IIS blocks only the tenant on HTTP${status} without a Retry-After`, async () => {
     let reads = 0;
     const result = await Effect.runPromise(
       streamUrgiisInventory({
@@ -799,7 +806,10 @@ for (const status of [403, 429] as const) {
         onBatch: () => Effect.die("A blocked tenant cannot publish"),
       }),
     );
-    expect(result.status).toBe("failed");
+    expect(result.status).toBe("complete");
+    expect(result.cursor.completed).toEqual([
+      { code: tenant.code, blocked: expect.stringContaining(`HTTP${status}`) },
+    ]);
     expect(reads).toBe(1);
     expect(result.pagesProcessed).toBe(1);
   });
@@ -1177,3 +1187,187 @@ test("URG IIS keeps advancing when every shared host turn waits 150 seconds", as
   expect(vehicles).toBe(1);
   expect(requested).toEqual(paths.map((path) => site.origin + path));
 }, 120_000);
+
+const healthy: UrgiisTenant = {
+  ...tenant,
+  code: "healthy",
+  yard: { ...tenant.yard, code: "healthy" },
+};
+/** Crawls `tenants` chunk by chunk through the wire format, feeding each
+ * tenant its own copy of `responses` unless `read` overrides that read. */
+async function crawl(
+  tenants: readonly UrgiisTenant[],
+  read: (
+    index: number,
+    current: UrgiisTenant,
+  ) => ReturnType<
+    Parameters<typeof streamUrgiisInventory>[0]["readPage"]
+  > | null,
+) {
+  let cursor = UrgiisCursor.initial(tenants);
+  let state: unknown;
+  const reads = new Map<string, number>();
+  const published: string[] = [];
+  const warnings: string[] = [];
+  for (let chunks = 0; cursor.phase !== "complete"; chunks++) {
+    if (chunks > 40)
+      throw new Error("The crawl did not reach terminal evidence");
+    const result = await Effect.runPromise(
+      streamUrgiisInventory({
+        tenants,
+        startCursor: cursor,
+        maxPages: 1,
+        censusState: state,
+        readPage: (_url, current) => {
+          const index = reads.get(current.code) ?? 0;
+          reads.set(current.code, index + 1);
+          return read(index, current) ?? Effect.succeed(responses[index] ?? "");
+        },
+        onBatch: (batch) =>
+          Effect.sync(() => {
+            published.push(...batch.map((v) => v.locationCode));
+          }),
+      }),
+    );
+    if (result.status === "failed") throw new Error(result.errors.join("; "));
+    if (result.checkpointState) state = result.checkpointState;
+    warnings.push(...result.warnings);
+    cursor = UrgiisCursor.fromWire(
+      UrgiisCursor.serialize(result.cursor, tenants),
+      tenants,
+    );
+  }
+  return { cursor, reads, published, warnings };
+}
+const undeclared = (raw: string) => raw.replace("var urgid = 'AA01';", "");
+
+test("a page that declares no supplier is read again instead of blocking its tenant", async () => {
+  // Linder's (Nov 18) and Chuckran (Nov 19) each served one such model page.
+  const { cursor, reads, published, warnings } = await crawl(
+    [tenant],
+    (index) =>
+      index === 4
+        ? Effect.succeed(undeclared(responses[4] ?? ""))
+        : index > 4
+          ? Effect.succeed(responses[index - 1] ?? "")
+          : null,
+  );
+  expect(cursor.completed).toEqual([{ code: tenant.code, accepted: 1 }]);
+  expect(published).toEqual([tenant.code]);
+  expect(reads.get(tenant.code)).toBe(responses.length + 1);
+  expect(warnings.join(" ")).toContain("declares no supplier");
+});
+
+test("a page that never declares its supplier blocks only its tenant after three reads", async () => {
+  let modelReads = 0;
+  const { cursor, published } = await crawl(
+    [tenant, healthy],
+    (index, current) => {
+      if (current.code !== tenant.code || index < 4) return null;
+      modelReads++;
+      return Effect.succeed(undeclared(responses[4] ?? ""));
+    },
+  );
+  expect(modelReads).toBe(3);
+  expect(cursor.completed).toEqual([
+    {
+      code: tenant.code,
+      blocked: expect.stringContaining("supplier identity changed"),
+    },
+    { code: healthy.code, accepted: 1 },
+  ]);
+  expect(published).toEqual([healthy.code]);
+});
+
+test("HTTP 403 without Retry-After blocks only its tenant", async () => {
+  // United returned this on Nov 19 and stopped the whole source.
+  const { cursor, reads, published } = await crawl(
+    [tenant, healthy],
+    (index, current) =>
+      current.code === tenant.code && index === 1
+        ? Effect.fail({
+            ...urgiisError("request/body", "HTTP403"),
+            kind: "blocked" as const,
+            status: 403 as const,
+            retryAfterMs: 0,
+          })
+        : null,
+  );
+  expect(reads.get(tenant.code)).toBe(2);
+  expect(cursor.completed).toEqual([
+    { code: tenant.code, blocked: expect.stringContaining("HTTP403") },
+    { code: healthy.code, accepted: 1 },
+  ]);
+  expect(published).toEqual([healthy.code]);
+});
+
+test("a page that keeps failing blocks only its tenant after three chunk attempts", async () => {
+  const { cursor, reads, published, warnings } = await crawl(
+    [tenant, healthy],
+    (index, current) =>
+      current.code === tenant.code && index >= 1
+        ? Effect.fail(urgiisError("request/body", "HTTP500"))
+        : null,
+  );
+  expect(reads.get(tenant.code)).toBe(4);
+  expect(warnings.join(" ")).toContain("attempt 3 of 3");
+  expect(cursor.completed).toEqual([
+    {
+      code: tenant.code,
+      blocked: expect.stringContaining("failed in 3 separate chunks"),
+    },
+    { code: healthy.code, accepted: 1 },
+  ]);
+  expect(published).toEqual([healthy.code]);
+});
+
+test("a page that fails twice and then reads publishes its tenant", async () => {
+  const { cursor, reads } = await crawl([tenant], (index) =>
+    index === 1 || index === 2
+      ? Effect.fail(urgiisError("request/body", "HTTP500"))
+      : index > 2
+        ? Effect.succeed(responses[index - 2] ?? "")
+        : null,
+  );
+  expect(cursor.completed).toEqual([{ code: tenant.code, accepted: 1 }]);
+  expect(reads.get(tenant.code)).toBe(responses.length + 2);
+});
+
+test.each([
+  ["closing drift", 6, makes.replace(">1<", ">5<"), "badges changed by 4"],
+  [
+    "a changed opening directory",
+    3,
+    menu.replace("</div>", `${link("../", "UP", 1)}</div>`),
+    "directory",
+  ],
+] as const)(
+  "%s blocks only its tenant without rereading",
+  async (_name, at, changed, reason) => {
+    const { cursor, reads, published } = await crawl(
+      [tenant, healthy],
+      (index, current) =>
+        current.code === tenant.code && index === at
+          ? Effect.succeed(changed)
+          : null,
+    );
+    expect(reads.get(tenant.code)).toBe(at + 1);
+    expect(cursor.completed).toEqual([
+      { code: tenant.code, blocked: expect.stringContaining(reason) },
+      { code: healthy.code, accepted: 1 },
+    ]);
+    expect(published).toEqual([healthy.code]);
+  },
+);
+
+test("a tenant below its admission floor blocks only that tenant", async () => {
+  const { cursor, published } = await crawl(
+    [{ ...tenant, minimumInventory: 5 }, healthy],
+    () => null,
+  );
+  expect(cursor.completed).toEqual([
+    { code: tenant.code, blocked: expect.stringContaining("failed admission") },
+    { code: healthy.code, accepted: 1 },
+  ]);
+  expect(published).toEqual([healthy.code]);
+});

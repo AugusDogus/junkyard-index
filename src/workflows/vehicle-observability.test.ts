@@ -3,7 +3,10 @@ import type * as Sentry from "@sentry/nextjs";
 import {
   recordDurableRunFailure,
   recordDurableSourceRejections,
+  recordUrgiisBlockedTenant,
 } from "./vehicle-observability";
+import { UrgiisCursor } from "~/server/ingestion/urgiis-cursor";
+import { URGIIS_TENANTS } from "~/server/ingestion/urgiis-configuration";
 
 describe("vehicle ingestion observability", () => {
   test("reports failed-result and validation rejections after the durable write", async () => {
@@ -143,5 +146,57 @@ describe("vehicle ingestion observability", () => {
       }),
     ).rejects.toThrow("database unavailable");
     expect(captured).toBe(false);
+  });
+
+  test("reports each URG IIS tenant a chunk newly blocks, not accepted ones", () => {
+    const tenants = URGIIS_TENANTS.slice(0, 3);
+    const [first, second] = tenants;
+    if (!first || !second) throw new Error("Missing URG tenants");
+    const before = UrgiisCursor.nextTenant(
+      UrgiisCursor.initial(tenants),
+      { code: first.code, accepted: first.minimumInventory },
+      tenants,
+      "state",
+    );
+    const blocked = UrgiisCursor.nextTenant(
+      before,
+      { code: second.code, blocked: "returned HTTP403" },
+      tenants,
+      "state",
+    );
+    const captured: Parameters<typeof Sentry.captureMessage>[] = [];
+    const capture = (...args: Parameters<typeof Sentry.captureMessage>) => {
+      captured.push(args);
+      return "event-id";
+    };
+    recordUrgiisBlockedTenant({
+      runId: "run",
+      before: UrgiisCursor.initial(tenants),
+      after: before,
+      captureMessage: capture,
+    });
+    recordUrgiisBlockedTenant({
+      runId: "run",
+      before: blocked,
+      after: blocked,
+      captureMessage: capture,
+    });
+    expect(captured).toHaveLength(0);
+    recordUrgiisBlockedTenant({
+      runId: "run",
+      before,
+      after: blocked,
+      captureMessage: capture,
+    });
+    expect(captured).toEqual([
+      [
+        `urgiis tenant ${second.code} blocked; its yards keep their previous inventory`,
+        expect.objectContaining({
+          level: "warning",
+          fingerprint: ["vehicle-ingestion-urgiis-tenant-blocked", second.code],
+          extra: { runId: "run", reason: "returned HTTP403" },
+        }),
+      ],
+    ]);
   });
 });
