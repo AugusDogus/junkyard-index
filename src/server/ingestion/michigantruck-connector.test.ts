@@ -1,6 +1,8 @@
 import { afterEach, expect, test } from "bun:test";
 import { Effect } from "effect";
 import { streamMichigantruckInventoryWithRequestGate } from "./michigantruck-connector";
+import { getDurableSourceDefinition } from "./durable-source";
+import { soakMichigantruckInventory } from "../../../scripts/soak-michigantruck";
 import { MichigantruckCursorSchema } from "./michigantruck-cursor";
 import {
   michigantruckTestDetail,
@@ -14,6 +16,7 @@ import {
   MICHIGANTRUCK_SALVAGE,
 } from "./michigantruck-yard-metadata";
 import type { MichigantruckRecord } from "./michigantruck-record";
+import { MICHIGANTRUCK_MAX_PAGES } from "./michigantruck-parser";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
@@ -41,7 +44,13 @@ function mockSource(
       `<html><body>${michigantruckTestOwnership}</body></html>`,
     ],
     [MICHIGANTRUCK_CATALOG, michigantruckTestPage(rows, 1)],
-    [MICHIGANTRUCK_CATALOG + "?page_number=2", michigantruckTestPage(rows, 2)],
+    ...Array.from(
+      { length: Math.ceil(rows.length / 25) - 1 },
+      (_, index): [string, string] => [
+        MICHIGANTRUCK_CATALOG + "?page_number=" + (index + 2),
+        michigantruckTestPage(rows, index + 2),
+      ],
+    ),
     [MICHIGANTRUCK_SALVAGE, michigantruckTestPage(rows, 1, true)],
   ]);
   const control = rows.find((row) => row.condition === "Salvage");
@@ -281,7 +290,7 @@ test("Michigan Truck invalid budgets make no requests and HTTP denial is never r
         gate,
       ),
     ),
-  ).rejects.toThrow("1-8");
+  ).rejects.toThrow(`1-${MICHIGANTRUCK_MAX_PAGES}`);
   expect(mocked.calls).toEqual([]);
   let calls = 0;
   globalThis.fetch = Object.assign(
@@ -300,4 +309,66 @@ test("Michigan Truck invalid budgets make no requests and HTTP denial is never r
     ),
   ).rejects.toThrow("403");
   expect(calls).toBe(1);
+});
+
+const fleet = (count: number) =>
+  Array.from({ length: count }, (_, index) =>
+    michigantruckTestRecord(
+      index + 1,
+      index % 50 === 49 ? { condition: "Complete" } : {},
+    ),
+  );
+const chunk = (
+  maxPages: number,
+  startCursor?: Parameters<
+    typeof streamMichigantruckInventoryWithRequestGate
+  >[0]["startCursor"],
+) =>
+  Effect.runPromise(
+    streamMichigantruckInventoryWithRequestGate(
+      { startCursor, maxPages, onBatch: () => Effect.void },
+      gate,
+    ),
+  );
+
+test("Michigan Truck reads today's 195-row census in one production chunk", async () => {
+  const { maxPagesPerChunk } = getDurableSourceDefinition("michigantruck");
+  const mocked = mockSource(fleet(195));
+  const result = await chunk(maxPagesPerChunk);
+  expect(result.status).toBe("complete");
+  expect(result.pagesProcessed).toBe(8);
+  expect(result.accounting?.recordsProcessed).toBe(195);
+  // Contact, 8 new pages, the 8-page terminal reread, detail and selector.
+  expect(mocked.calls).toHaveLength(19);
+});
+
+test("Michigan Truck pages past 200 rows instead of failing its census bound", async () => {
+  const mocked = mockSource(fleet(201));
+  const first = await chunk(8);
+  expect(first.status).toBe("paused");
+  const last = await chunk(8, first.cursor);
+  expect(last.status).toBe("complete");
+  expect(
+    (first.accounting?.recordsProcessed ?? 0) +
+      (last.accounting?.recordsProcessed ?? 0),
+  ).toBe(201);
+  expect(mocked.calls).toContain(MICHIGANTRUCK_CATALOG + "?page_number=9");
+});
+
+test("Michigan Truck completes a 400-row census within its chunk request budget and refuses 401", async () => {
+  mockSource(fleet(400));
+  const first = await chunk(8);
+  const last = await chunk(8, first.cursor);
+  expect(last.status).toBe("complete");
+  mockSource(fleet(401));
+  await expect(chunk(8)).rejects.toThrow("exceeded its budget");
+});
+
+test("Michigan Truck soak finishes a census past 200 rows by default", async () => {
+  mockSource(fleet(201));
+  const summary = await soakMichigantruckInventory((cursor, maxPages) =>
+    chunk(maxPages, cursor),
+  );
+  expect(summary.status).toBe("complete");
+  expect(summary.pagesProcessed).toBe(9);
 });

@@ -19,7 +19,13 @@ import {
 } from "./michigantruck-yard-metadata";
 
 export const MICHIGANTRUCK_PAGE_SIZE = 25;
-export const MICHIGANTRUCK_MAX_PAGES = 8;
+/** Our census bound, not the site's: the catalog pages on with
+ * `page_number` and ignores `per_page`. It listed 195 rows (8 pages) in
+ * Nov 2026; 16 pages (400 rows) leaves room to grow. */
+export const MICHIGANTRUCK_MAX_PAGES = 16;
+/** Contact, every retained or new page, the terminal reread of every page,
+ * then the Salvage detail and selector controls. */
+export const MICHIGANTRUCK_MAX_CHUNK_REQUESTS = 2 * MICHIGANTRUCK_MAX_PAGES + 3;
 export interface MichigantruckPage {
   page: number;
   total: number;
@@ -202,7 +208,7 @@ export function parseMichigantruckPage(
       lastPage = Math.ceil(declared / 25);
     if (
       declared < 1 ||
-      declared > MICHIGANTRUCK_MAX_PAGES * 25 ||
+      declared > MICHIGANTRUCK_MAX_PAGES * MICHIGANTRUCK_PAGE_SIZE ||
       (total !== 0 && declared !== total) ||
       Number(range[1]) !== (requestedPage - 1) * 25 + 1 ||
       Number(range[2]) !== Math.min(requestedPage * 25, declared) ||

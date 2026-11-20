@@ -21,10 +21,25 @@ another inventory frontier. A changed reveal contract, extra head continuation,
 query pagination, hidden card or unlisted donor stops traversal.
 
 The opening catalog includes ten native article excerpts with explicit Unit
-Data fields. Those are retained observations of ten listed donor articles.
-The connector fetches the other 1,023 native donor controls in roster order.
-No URL is synthesized from YMM, VIN or stock. It requests no images, components,
-search forms, maps, WordPress page two or returned-link expansions.
+Data fields. The catalog fixes the roster; donor articles come from the site's
+public WordPress REST collection,
+`/wp-json/wp/v2/parts-vehicles?per_page=100&page=N&orderby=id&order=desc&_fields=id,slug,link,title,content`.
+Each item's `content.rendered` is the donor page's article and `title.rendered`
+its `entry-title`, so one parser reads both. In the Nov 2026 census all 1,024
+donors with a saved donor page parse to identical fields, headings and photo,
+and the ten excerpts match their articles' Unit Data. Eleven REST pages replace
+1,023 donor-page GETs and their per-session homepage loads.
+
+The REST census must equal the catalog roster exactly. Every page must declare
+the roster's donor count in `X-WP-Total` and `X-WP-TotalPages`, every page but
+the last must hold 100 donors, ids must descend strictly within and across
+pages, and every item must be a listed donor whose `link` matches its `slug`.
+A donor added or removed between page reads repeats or skips an id and stops
+the census. Items are strictly typed (`id`, `slug`, `link`, `title.rendered`,
+`content.rendered`, unprotected content); any other shape stops the census.
+No URL is synthesized from YMM, VIN or stock. It requests no donor pages,
+images, components, search forms, maps, WordPress page two or returned-link
+expansions.
 
 Required identity comes from the designated Unit Data `VIN` and
 `Year / Make / Model`, plus the primary sibling `Vehicle Record` H1. Remove
@@ -53,7 +68,7 @@ Missing/invalid VINs remain raw required rejections, including stock `TESTPY`.
 
 Optional stock, engine, transmission, exterior color, trim and donor image do
 not gate identity. Missing, malformed, oversized or conflicting optional values
-produce null metadata. Excerpts have no donor image claim. Generic yard images
+produce null metadata. Generic yard images
 and logos are not donor photos. No per-row current-parts, residence, date or
 optional-field requirement is imposed on this native own-yard catalog.
 
@@ -68,19 +83,27 @@ release the reader before returning. There are no retries or redirect follows.
 | ------------------------------ | ---------------------- |
 | Combined request/body deadline | 20 seconds             |
 | Complete UTF-8 HTML body       | 2 MiB                  |
-| Native GETs per chunk          | 1 to 8                 |
+| Complete UTF-8 REST JSON body  | 4 MiB                  |
+| Native GETs per chunk          | 1 to 18                |
 | Chunk lifetime                 | 3 minutes              |
+| Last GET start                 | 25 s before chunk end  |
 | Serialized cursor              | 1 MiB                  |
 | Native roster                  | At most 1,200 controls |
-| Total GET units                | At most 1,210          |
+| Total GET units                | At most 18             |
+
+A census is contact, catalog, one GET per REST page, then four closing reads:
+17 GETs for 1,033 donors, normally one chunk and one browser session. A slow
+site pauses the chunk at a checkpoint instead of starting a GET it cannot
+finish.
 
 The cursor strictly validates source, version, scope, checksum, native projection
-fingerprints, ordered detail membership, phase and request accounting. It stores
+fingerprints, REST page ids and roster membership, phase and request accounting. It stores
 compact native claims, not raw HTML or canonical vehicle arrays. Serialize with
 `Six03Cursor.serialize` and restore with `Six03Cursor.parse`.
 
 Closing controls recheck contact identity, ordered roster/local reveal graph,
-embedded observations, and first/last fetched donor projections. Nothing is
+embedded observations, and the first and last REST pages' ids and donor
+projections. Nothing is
 emitted before those controls and complete quality checks pass: no vehicles,
 yard callback, rejected VIN presence or accounting. A failure leaves the caller's
 last accepted checkpoint and prior inventory intact. Resume that checkpoint
@@ -112,7 +135,8 @@ Independent physical review is under
 
 Checked-in compressed fixtures retain the complete native catalog/contact,
 the exact native main/title/canonical/phone fragments of 1,023 donor bodies,
-and a complete Jeep detail example. `six03-test-fixtures/manifest.json` pins
+a complete Jeep detail example, and `rest-census.json.br`: the complete bodies
+and census headers of the eleven REST pages read on 2026-11-19. `six03-test-fixtures/manifest.json` pins
 each full source body and retained fragment. The saved-only generator
 `six03-test-fixtures/build-fixtures.py` preserves source CRLF bytes. Tests do
 not depend on ignored scratch files or network access.
@@ -120,8 +144,10 @@ not depend on ignored scratch files or network access.
 The independent Python/lxml oracle contains all 973 vehicles and all 25 fields
 (24,325 values). It does not import the app parser or transform. Oracle SHA256:
 `45f05e4469928cfd2e02f5bda8fea472c96430aacb81fb5bd1f8dd2194fb20cb`.
-The full connector replay visits 1,029 native GET units across 129 serialized
-chunks, compares every canonical value and verifies zero preterminal emission.
+The full connector replay reads the REST census in one 17-GET chunk and
+compares every canonical value. The only difference from the donor-page oracle
+is three excerpt donors (Matrix, Jeep, Flex) that now carry their article's
+main photo.
 
 ```sh
 bun test src/server/ingestion/six03-*.test.ts

@@ -2,6 +2,7 @@ import { Data, Effect } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { BIGD_ORIGIN } from "./bigd-yard-metadata";
+import { httpDocumentFetch, type DocumentFetch } from "./document-fetch";
 
 export class BigdProviderError extends Data.TaggedError("BigdProviderError")<{
   operation: string;
@@ -27,6 +28,7 @@ export function fetchBigdPage(
   path: "/" | "/contact/" | "/inventory/",
   session: BigdSession,
   gate: ProviderRequestGate,
+  fetchDocument: DocumentFetch = httpDocumentFetch,
 ) {
   const url = BIGD_ORIGIN + path;
   return gate(
@@ -42,7 +44,7 @@ export function fetchBigdPage(
             interrupted,
           ]);
           pending = (async () => {
-            const response = await fetch(url, {
+            const response = await fetchDocument(url, {
               method: "GET",
               redirect: "manual",
               signal,

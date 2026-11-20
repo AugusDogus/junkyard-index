@@ -161,7 +161,7 @@ describe("durable ingestion cursors", () => {
     });
     expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty("six03", {
       initialCursor: Six03Cursor.initial,
-      maxPagesPerChunk: 8,
+      maxPagesPerChunk: 18,
     });
   });
   test.each([
@@ -231,16 +231,28 @@ describe("durable ingestion cursors", () => {
       ).toThrow();
     },
   );
-  test.each(["kodak", "six03"] as const)(
-    "%s preserves strict source/version and complete checkpoint codecs",
-    (source) => {
+  test.each([
+    {
+      source: "kodak",
+      complete: { source: "kodak", version: 1, phase: "complete" },
+    },
+    {
+      source: "six03",
+      complete: { source: "six03", version: 2, phase: "complete" },
+    },
+  ] as const)(
+    "$source preserves strict source/version and complete checkpoint codecs",
+    ({ source, complete }) => {
       const initial = DURABLE_SOURCE_DEFINITIONS[source].initialCursor;
       const wire = serializeDurableSourceCursor(initial);
       expect(parseDurableSourceCursor(source, wire)).toEqual(initial);
       expect(() =>
         parseDurableSourceCursor(
           source,
-          wire.replace('"version":1', '"version":2'),
+          wire.replace(
+            `"version":${complete.version}`,
+            `"version":${complete.version + 1}`,
+          ),
         ),
       ).toThrow();
       expect(() =>
@@ -255,7 +267,6 @@ describe("durable ingestion cursors", () => {
           wire.slice(0, -1) + ',"extra":"field"}',
         ),
       ).toThrow();
-      const complete = { source, version: 1, phase: "complete" } as const;
       expect(
         parseDurableSourceCursor(
           source,

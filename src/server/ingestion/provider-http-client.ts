@@ -4,6 +4,7 @@ import {
   RequestTimeoutError,
   RetryableHttpStatusError,
 } from "./errors";
+import { httpDocumentFetch, type DocumentFetch } from "./document-fetch";
 
 const DEFAULT_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
@@ -40,6 +41,8 @@ type ProviderRequestParams = {
   body?: string;
   headers?: Record<string, string> | (() => Record<string, string>);
   requestGate?: ProviderRequestGate;
+  /** Transport for this request; defaults to the global fetch. */
+  fetchDocument?: DocumentFetch;
   onResponse?: (response: Response) => void;
   retry?: Partial<ProviderRetryPolicy>;
 };
@@ -139,7 +142,7 @@ export function fetchProviderResponse(
       typeof params.headers === "function" ? params.headers() : params.headers;
     const response = yield* Effect.tryPromise({
       try: () =>
-        fetch(params.url, {
+        (params.fetchDocument ?? httpDocumentFetch)(params.url, {
           method: params.method ?? "GET",
           redirect: params.redirect,
           body: params.body,

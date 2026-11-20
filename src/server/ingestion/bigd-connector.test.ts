@@ -98,6 +98,55 @@ test("replays a complete census through serialized durable chunks and terminal r
   expect(result.count).toBe(0);
   expect(calls).toHaveLength(8);
 });
+test("a browser session reads the census without the direct-HTTP cookie bootstrap", async () => {
+  // From Vercel, Cloudflare challenged every direct request, cookie or not.
+  globalThis.fetch = Object.assign(
+    async () => {
+      throw new Error("Production Big D reads must not use direct HTTP");
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  const requested: string[] = [];
+  let contacts = 0,
+    inventories = 0;
+  const fetchDocument = async (url: string) => {
+    requested.push(url);
+    const body =
+      url === "https://bigdsalvage.com/contact/"
+        ? ++contacts === 1
+          ? bigdNative.contact
+          : bigdNative.closingContact
+        : url === "https://bigdsalvage.com/inventory/"
+          ? ++inventories === 1
+            ? bigdNative.opening
+            : bigdNative.closing
+          : null;
+    if (body === null) throw new Error("Unexpected Big D request: " + url);
+    return new Response(body, { headers: { "content-type": "text/html" } });
+  };
+  const vehicles: BigdVehicle[] = [];
+  const result = await Effect.runPromise(
+    streamBigdInventoryWithRequestGate(
+      {
+        maxPages: 4,
+        onBatch: (batch) =>
+          Effect.sync(() => {
+            vehicles.push(...batch);
+          }),
+      },
+      direct,
+      { kind: "browser", fetchDocument },
+    ),
+  );
+  expect(result.status).toBe("complete");
+  expect(vehicles).toHaveLength(288);
+  expect(requested).toEqual([
+    "https://bigdsalvage.com/contact/",
+    "https://bigdsalvage.com/inventory/",
+    "https://bigdsalvage.com/contact/",
+    "https://bigdsalvage.com/inventory/",
+  ]);
+});
 test.each(["identity", "order", "optional", "ownership"] as const)(
   "blocks %s drift before callbacks",
   async (kind) => {

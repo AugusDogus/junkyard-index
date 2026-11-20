@@ -14,16 +14,19 @@ export interface KandrError {
   tag: "KandrError";
   operation: string;
   message: string;
+  /** The underlying failure, kept so the workflow can recognise a cooldown. */
+  cause?: unknown;
 }
 export type KandrResult<T> =
   | { ok: true; value: T }
   | { ok: false; error: KandrError };
 export const KandrError = {
-  create(operation: string, detail: string): KandrError {
+  create(operation: string, detail: string, cause?: unknown): KandrError {
     return {
       tag: "KandrError",
       operation,
       message: `K&R ${operation}: ${detail}. Prior inventory is preserved; inspect the evidence before resuming the last validated checkpoint.`,
+      ...(cause === undefined ? {} : { cause }),
     };
   },
 } as const;

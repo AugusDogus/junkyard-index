@@ -723,6 +723,12 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
   },
 ];
 
+/** Cloudflare challenges these origins from datacenter IPs regardless of
+ * headers, so production reads them in a browser session. Kept outside the
+ * tenant objects: transport is not part of the qualification contract, and
+ * changing a tenant would invalidate its checkpoints and census history. */
+export const URGIIS_BROWSER_TENANTS: ReadonlySet<string> = new Set(["united"]);
+
 export const URGIIS_MINIMUM_INVENTORY = URGIIS_TENANTS.reduce(
   (total, tenant) => total + tenant.minimumInventory,
   0,

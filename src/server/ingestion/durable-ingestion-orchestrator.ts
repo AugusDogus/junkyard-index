@@ -1,6 +1,7 @@
 import type {
   DurableWorkflowCursor,
   DurableWorkflowChunkResult,
+  DurableWorkflowDeferredChunk,
   DurableWorkflowStart,
 } from "./durable-workflow-cursor";
 import type {
@@ -12,6 +13,13 @@ import type { DurableSourceValidationSummary } from "./durable-source-validation
 // provider cursor codecs. Steps own cursor construction and comparison.
 import type { DurableIngestionSource } from "./durable-source";
 
+/** Consecutive busy-resource deferrals before a source fails. With the
+ * two-minute wait plus the in-step queue, this is roughly five hours. */
+export const MAX_CONSECUTIVE_CHUNK_DEFERRALS = 90;
+/** Provider cooldowns one chunk may take before its source fails. Each
+ * follows a chunk whose in-chunk retries were already spent. */
+export const MAX_CONSECUTIVE_PROVIDER_COOLDOWNS = 2;
+
 export interface DurableSourceOperations<
   Source extends DurableIngestionSource,
 > {
@@ -19,7 +27,9 @@ export interface DurableSourceOperations<
   runChunk: (
     runId: string,
     cursor: DurableWorkflowCursor<Source>,
-  ) => Promise<DurableWorkflowChunkResult<Source>>;
+  ) => Promise<
+    DurableWorkflowChunkResult<Source> | DurableWorkflowDeferredChunk<Source>
+  >;
   markFailed: (
     runId: string,
     source: Source,
@@ -32,7 +42,9 @@ export interface DurableIngestionOperations {
   runChunk: <Source extends DurableIngestionSource>(
     runId: string,
     cursor: DurableWorkflowCursor<Source>,
-  ) => Promise<DurableWorkflowChunkResult<Source>>;
+  ) => Promise<
+    DurableWorkflowChunkResult<Source> | DurableWorkflowDeferredChunk<Source>
+  >;
   markFailed: <Source extends DurableIngestionSource>(
     runId: string,
     source: Source,
@@ -100,6 +112,8 @@ export async function ingestDurableSource<
   const { runChunk, markFailed, sleepUntil } = params.operations;
   let cursor = params.initialCursor;
   const source = cursor.source;
+  let deferrals = 0;
+  let cooldowns = 0;
   try {
     while (true) {
       if (
@@ -119,6 +133,27 @@ export async function ingestDurableSource<
           `Source ${source} returned a ${result.cursor.source} cursor`,
         );
       }
+      if (result.status === "deferred") {
+        if (result.wait === "provider-cooldown") {
+          // The chunk ran, so busy-resource deferrals start over.
+          deferrals = 0;
+          if (++cooldowns > MAX_CONSECUTIVE_PROVIDER_COOLDOWNS)
+            throw new Error(
+              `Source ${source} kept failing after ${MAX_CONSECUTIVE_PROVIDER_COOLDOWNS} provider cooldowns on the same checkpoint, so it stops without publishing; prior inventory is preserved. Check the provider before the next scheduled run. Last reason: ${result.reason}`,
+            );
+        } else if (++deferrals > MAX_CONSECUTIVE_CHUNK_DEFERRALS)
+          throw new Error(
+            `Source ${source} waited through ${MAX_CONSECUTIVE_CHUNK_DEFERRALS} consecutive deferrals without starting its chunk. Last reason: ${result.reason}`,
+          );
+        if (!sleepUntil)
+          throw new Error(
+            `Source ${source} needs a durable wait before retrying its deferred chunk`,
+          );
+        await sleepUntil(result.retryAt);
+        continue;
+      }
+      deferrals = 0;
+      cooldowns = 0;
       if (result.status !== "paused") return result;
       cursor = result.cursor;
     }

@@ -5,6 +5,7 @@ import {
   type ProviderRequestGate,
 } from "./provider-http-client";
 import { michigantruckDetailUrl } from "./michigantruck-record";
+import { httpDocumentFetch, type DocumentFetch } from "./document-fetch";
 import {
   michigantruckPageUrl,
   MICHIGANTRUCK_MAX_PAGES,
@@ -21,7 +22,11 @@ export class MichigantruckProviderError extends Data.TaggedError(
     return `Michigan Truck ${this.operation}: ${this.cause instanceof Error ? this.cause.message : String(this.cause)}. Reconciliation is blocked and previous inventory is preserved. Inspect the native catalog and restart from a validated checkpoint.`;
   }
 }
-export function fetchMichigantruckPage(url: string, gate: ProviderRequestGate) {
+export function fetchMichigantruckPage(
+  url: string,
+  gate: ProviderRequestGate,
+  fetchDocument: DocumentFetch = httpDocumentFetch,
+) {
   return Effect.gen(function* () {
     const allowed =
       url === MICHIGANTRUCK_ORIGIN + "/contact/" ||
@@ -41,6 +46,7 @@ export function fetchMichigantruckPage(url: string, gate: ProviderRequestGate) {
       url,
       context: "Michigan Truck " + url,
       requestGate: gate,
+      fetchDocument,
       headers: { "User-Agent": "JunkyardIndex/1.0", Accept: "text/html" },
       retry: {
         timeoutMs: 20_000,

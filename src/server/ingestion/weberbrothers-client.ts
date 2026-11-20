@@ -3,6 +3,11 @@ import type { ProviderRequestGate } from "~/server/ingestion/provider-http-clien
 import { readIPullUPullResponseText } from "~/server/ingestion/ipullupull-response-text";
 import { WEBERBROTHERS_MAX_RESPONSE_BYTES } from "./weberbrothers-html";
 import {
+  fetchTransportResponse,
+  retryTransientRequest,
+  transientStatusCause,
+} from "./transient-request";
+import {
   isWeberbrothersDonorUrl,
   weberbrothersListingPage,
 } from "./weberbrothers-parser";
@@ -21,7 +26,7 @@ export class WeberbrothersProviderError extends Data.TaggedError(
 }
 
 async function readDocument(url: string, signal: AbortSignal): Promise<string> {
-  const response = await fetch(url, {
+  const response = await fetchTransportResponse("Weber Brothers " + url, url, {
     method: "GET",
     redirect: "manual",
     signal,
@@ -40,6 +45,7 @@ async function readDocument(url: string, signal: AbortSignal): Promise<string> {
   ) {
     const failure = new Error(
       `Expected complete, unredirected HTTP 200 HTML from ${url}; received ${response.status}`,
+      transientStatusCause("Weber Brothers " + url, response),
     );
     try {
       await response.body?.cancel();
@@ -59,7 +65,10 @@ async function readDocument(url: string, signal: AbortSignal): Promise<string> {
   );
 }
 
-/** The gate owns fetch, complete-body consumption and pending-call cleanup. */
+/** The gate owns fetch, complete-body consumption and pending-call cleanup.
+ * Transport failures and 5xx answers get two paced retries that honor
+ * Retry-After; past those the chunk ends in a durable cooldown. Deadlines are
+ * not retried: three 25-second attempts would overrun the 90-second chunk. */
 export function fetchWeberbrothersPage(url: string, gate: ProviderRequestGate) {
   if (weberbrothersListingPage(url) === null && !isWeberbrothersDonorUrl(url))
     return Effect.fail(
@@ -68,40 +77,43 @@ export function fetchWeberbrothersPage(url: string, gate: ProviderRequestGate) {
         cause: "URL is outside the native vehicle catalog",
       }),
     );
-  return gate(
-    Effect.suspend(() => {
-      const lifetime = new AbortController();
-      const deadline = AbortSignal.timeout(25_000);
-      let pending: Promise<string> | null = null;
-      return Effect.tryPromise({
-        try: (interruption) => {
-          pending = readDocument(
-            url,
-            AbortSignal.any([lifetime.signal, deadline, interruption]),
-          );
-          return pending;
-        },
-        catch: (cause) => cause,
-      }).pipe(
-        Effect.ensuring(
-          Effect.promise(async () => {
-            lifetime.abort();
-            if (pending)
-              await pending.then(
-                () => undefined,
-                () => undefined,
-              );
+  return retryTransientRequest(
+    gate(
+      Effect.suspend(() => {
+        const lifetime = new AbortController();
+        const deadline = AbortSignal.timeout(25_000);
+        let pending: Promise<string> | null = null;
+        return Effect.tryPromise({
+          try: (interruption) => {
+            pending = readDocument(
+              url,
+              AbortSignal.any([lifetime.signal, deadline, interruption]),
+            );
+            return pending;
+          },
+          catch: (cause) => cause,
+        }).pipe(
+          Effect.ensuring(
+            Effect.promise(async () => {
+              lifetime.abort();
+              if (pending)
+                await pending.then(
+                  () => undefined,
+                  () => undefined,
+                );
+            }),
+          ),
+          Effect.timeoutFail({
+            duration: "25 seconds",
+            onTimeout: () =>
+              new Error(
+                "Combined Weber request and complete-body deadline exceeded 25 seconds",
+              ),
           }),
-        ),
-        Effect.timeoutFail({
-          duration: "25 seconds",
-          onTimeout: () =>
-            new Error(
-              "Combined Weber request and complete-body deadline exceeded 25 seconds",
-            ),
-        }),
-      );
-    }),
+        );
+      }),
+    ),
+    { context: "Weber Brothers " + url, timeouts: false },
   ).pipe(
     Effect.mapError(
       (cause) => new WeberbrothersProviderError({ operation: url, cause }),

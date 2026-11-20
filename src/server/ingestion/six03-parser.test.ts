@@ -3,9 +3,16 @@ import {
   parseSix03Catalog,
   parseSix03Contact,
   parseSix03Detail,
+  parseSix03RestPage,
+  six03Hash,
   Six03DetailSchema,
+  type Six03Detail,
 } from "./six03-parser";
-import { six03NativeFixtures, six03FixtureDetail } from "./six03-test-fixtures";
+import {
+  six03NativeFixtures,
+  six03FixtureDetail,
+  six03RestFixtures,
+} from "./six03-test-fixtures";
 import { transformSix03Record } from "./six03-transform";
 import {
   SIX03_YARD,
@@ -226,4 +233,95 @@ test("603 malformed or ambiguous optional assertions become null without rejecti
       throw new Error("Optional metadata rejected a native donor");
     expect(result.vehicle[field]).toBeNull();
   }
+});
+
+const rest = six03RestFixtures().pages;
+const fields = (record: Six03Detail) =>
+  six03Hash([
+    record.path,
+    record.kind,
+    record.fields,
+    record.headings,
+    record.image,
+  ]);
+
+test("603 REST census covers exactly the catalog roster with every donor-page field", () => {
+  const details = rest.flatMap(
+    (page, index) =>
+      parseSix03RestPage(page.body, index + 1, page, catalog).details,
+  );
+  expect(details).toHaveLength(1033);
+  expect(new Set(details.map((record) => record.path))).toEqual(
+    new Set(catalog.posts.map(([path]) => path)),
+  );
+  // Every donor with a saved donor page parses to the same fields, headings
+  // and photo from its REST article.
+  const excerpts = new Set(catalog.embedded.map((record) => record.path));
+  let compared = 0;
+  for (const record of details) {
+    if (
+      excerpts.has(record.path) &&
+      record.path !== "/parts-vehicles/2007-jeep-commander-black/"
+    )
+      continue;
+    expect(fields(record)).toBe(
+      fields(
+        parseSix03Detail(six03FixtureDetail(record.path), post(record.path)),
+      ),
+    );
+    compared++;
+  }
+  expect(compared).toBe(1024);
+  // The catalog's excerpts carry the same Unit Data values as the articles.
+  for (const excerpt of catalog.embedded) {
+    const article = details.find((record) => record.path === excerpt.path);
+    expect(new Map(article?.fields)).toEqual(new Map(excerpt.fields));
+  }
+});
+
+test("603 REST pages refuse unexpected shape, protected or foreign donors and short pages", () => {
+  const page = rest[0];
+  if (!page) throw new Error("Missing saved REST page");
+  const items: Record<string, unknown>[] = JSON.parse(page.body);
+  const parse = (value: unknown, census = page) =>
+    parseSix03RestPage(JSON.stringify(value), 1, census, catalog);
+  const first = items[0];
+  if (!first) throw new Error("Missing saved REST donor");
+  expect(parse(items).details).toHaveLength(100);
+  for (const altered of [
+    { ...first, status: "publish" },
+    { ...first, content: { rendered: "", protected: true } },
+    { ...first, id: "99958" },
+    { ...first, link: "https://example.com/parts-vehicles/2000-ford-ranger/" },
+    { ...first, slug: "2000-ford-ranger-2" },
+  ])
+    expect(() => parse([altered, ...items.slice(1)])).toThrow();
+  expect(() => parse(items.slice(1))).toThrow("expected 100");
+  expect(() => parse([items[1], first, ...items.slice(2)])).toThrow(
+    "descending id order",
+  );
+  expect(() => parse({ items })).toThrow();
+  expect(() => parse(items, { ...page, total: 1032 })).toThrow(
+    "but the catalog lists 1033",
+  );
+  expect(() => parseSix03RestPage(page.body, 12, page, catalog)).toThrow(
+    "outside its 11-page census",
+  );
+});
+
+test("603 REST articles ignore markup inside script, style and comment text, like donor pages", () => {
+  const page = rest[0];
+  if (!page) throw new Error("Missing saved REST page");
+  const items: { content: { rendered: string } }[] = JSON.parse(page.body);
+  const decoys =
+    '<!-- <h1>Draft heading</h1> --><script>var x=\'<a href="/">Next</a><img id="main-vehicle-img" src="/decoy.jpg">\';</script><style>.x{}</style>';
+  const altered = items.map((item) => ({
+    ...item,
+    content: { ...item.content, rendered: decoys + item.content.rendered },
+  }));
+  const fields = (raw: string) =>
+    parseSix03RestPage(raw, 1, page, catalog).details.map((record) =>
+      six03Hash([record.fields, record.headings, record.image]),
+    );
+  expect(fields(JSON.stringify(altered))).toEqual(fields(page.body));
 });

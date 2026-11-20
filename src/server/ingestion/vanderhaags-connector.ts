@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { Effect } from "effect";
 import { Config } from "./context";
+import { withHyperbrowserSessionLease } from "./hyperbrowser-session";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import { ingestionValidation } from "./ingestion-validation";
 import { SourceValidationPolicy } from "./source-validation";
@@ -417,26 +418,30 @@ export function streamVanderHaagsInventory<E, R>(options: Options<E, R>) {
       ...empty,
       cursor: VanderHaagsCursorSchema.parse(options.startCursor),
     }));
-  return Effect.scoped(
-    Effect.gen(function* () {
-      const config = yield* Config;
-      const source = yield* acquireVanderHaagsSession(
-        config.hyperbrowserApiKey,
-      );
-      return yield* streamVanderHaagsInventoryFromSource(options, source);
-    }),
+  return withHyperbrowserSessionLease(
+    Effect.scoped(
+      Effect.gen(function* () {
+        const config = yield* Config;
+        const source = yield* acquireVanderHaagsSession(
+          config.hyperbrowserApiKey,
+        );
+        return yield* streamVanderHaagsInventoryFromSource(options, source);
+      }),
+    ).pipe(
+      Effect.timeoutFail({
+        duration: "4 minutes",
+        onTimeout: () =>
+          new Error("Vander Haags checkpoint exceeded four minutes"),
+      }),
+    ),
   ).pipe(
-    Effect.timeoutFail({
-      duration: "4 minutes",
-      onTimeout: () =>
-        new Error("Vander Haags checkpoint exceeded four minutes"),
-    }),
     Effect.mapError(
       (cause) =>
         new Error(
           "Vander Haags ingestion failed: " +
             String(cause) +
             ". Reconciliation is blocked and previous inventory is preserved. Inspect the native catalog, then restart enumeration.",
+          { cause },
         ),
     ),
   );

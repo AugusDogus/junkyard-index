@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
-import { inventoryHtmlAttribute } from "./inventory-html";
+import {
+  inventoryHtmlAttribute,
+  stripInventoryRawText,
+} from "./inventory-html";
 import {
   six03Class,
   six03Continuations,
@@ -12,6 +15,7 @@ import {
   SIX03_CATALOG,
   SIX03_CONTACT,
   SIX03_ORIGIN,
+  SIX03_REST_PAGE_SIZE,
   six03DonorPath,
 } from "./six03-yard-metadata";
 
@@ -304,11 +308,19 @@ export function parseSix03Catalog(raw: string): Six03Catalog {
   });
 }
 
-export function parseSix03Detail(raw: string, post: Six03Post): Six03Detail {
-  Six03PostSchema.parse(post);
-  const html = six03Document(raw, SIX03_ORIGIN + post[0]);
-  const main = completeMain(html);
-  six03Continuations(html, null);
+/** Where a donor's decorated title comes from: the full page's `entry-title`
+ * heading, or the REST item's `title.rendered`, which is that heading's text. */
+type Six03Title = { kind: "page" } | { kind: "rest"; rendered: string };
+
+/** The donor article: one Unit Data table, the primary heading before it and
+ * the optional main image. Shared by the full page and the REST item, whose
+ * `content.rendered` is the page article without its title header. */
+function articleDetail(
+  main: string,
+  title: Six03Title,
+  hash: string,
+  post: Six03Post,
+): Six03Detail {
   terminal(main);
   const units = six03Divs(main, (tag) => six03Class(tag, "vr-unit-data"));
   // Ten inspected older articles leave unrelated trailing layout divs open.
@@ -377,8 +389,8 @@ export function parseSix03Detail(raw: string, post: Six03Post): Six03Detail {
     (match) => !six03Class(match[1] ?? "", "entry-title"),
   );
   if (
-    headers.length !== 2 ||
-    entry.length !== 1 ||
+    headers.length !== (title.kind === "page" ? 2 : 1) ||
+    entry.length !== (title.kind === "page" ? 1 : 0) ||
     primary.length !== 1 ||
     (primary[0]?.index ?? main.length) >= main.indexOf(unit.tag)
   )
@@ -386,7 +398,7 @@ export function parseSix03Detail(raw: string, post: Six03Post): Six03Detail {
       "603 native decorated title / primary donor heading boundary changed",
     );
   const headings = [
-    six03Text(entry[0]?.[2] ?? ""),
+    six03Text(title.kind === "page" ? (entry[0]?.[2] ?? "") : title.rendered),
     six03Text(primary[0]?.[2] ?? ""),
   ];
   let malformedImage = false;
@@ -411,13 +423,106 @@ export function parseSix03Detail(raw: string, post: Six03Post): Six03Detail {
     }
   }
   return sealDetail({
-    hash: rawHash(raw),
+    hash,
     path: post[0],
     kind: "article",
     fields,
     headings,
     image,
   });
+}
+
+export function parseSix03Detail(raw: string, post: Six03Post): Six03Detail {
+  Six03PostSchema.parse(post);
+  const html = six03Document(raw, SIX03_ORIGIN + post[0]);
+  const main = completeMain(html);
+  six03Continuations(html, null);
+  return articleDetail(main, { kind: "page" }, rawHash(raw), post);
+}
+
+const RestDonorSchema = z
+  .object({
+    id: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+    slug: z.string().max(200),
+    link: z.string().max(300),
+    title: z.object({ rendered: z.string().max(500) }).strict(),
+    content: z
+      .object({
+        rendered: z.string().max(1024 * 1024),
+        protected: z.literal(false),
+      })
+      .strict(),
+  })
+  .strict();
+const RestPageSchema = z.array(RestDonorSchema).max(SIX03_REST_PAGE_SIZE);
+
+/** One REST page: its donors' ids in served (descending) order and their
+ * Unit Data articles, parsed exactly like the donor pages. */
+export interface Six03RestPage {
+  ids: number[];
+  details: Six03Detail[];
+}
+
+/** WordPress's census for the collection, from every REST page's headers. */
+export interface Six03RestCensus {
+  total: number;
+  totalPages: number;
+}
+
+export const six03RestPageCount = (donors: number) =>
+  Math.ceil(donors / SIX03_REST_PAGE_SIZE);
+
+/** Parses REST page `page` against the catalog roster. The collection must
+ * declare exactly the roster's donor count, the page must be full unless it
+ * is the last, and every item must be a roster donor in descending id order. */
+export function parseSix03RestPage(
+  raw: string,
+  page: number,
+  census: Six03RestCensus,
+  catalog: Six03Catalog,
+): Six03RestPage {
+  const pages = six03RestPageCount(catalog.posts.length);
+  if (census.total !== catalog.posts.length || census.totalPages !== pages)
+    throw new Error(
+      `603 REST collection declares ${census.total} donors on ${census.totalPages} pages, but the catalog lists ${catalog.posts.length} (${pages} pages); restart the census`,
+    );
+  if (!Number.isSafeInteger(page) || page < 1 || page > pages)
+    throw new Error(
+      `603 REST page ${page} is outside its ${pages}-page census`,
+    );
+  const value: unknown = JSON.parse(raw);
+  const items = RestPageSchema.parse(value);
+  const expected =
+    page < pages
+      ? SIX03_REST_PAGE_SIZE
+      : census.total - (pages - 1) * SIX03_REST_PAGE_SIZE;
+  if (items.length !== expected)
+    throw new Error(
+      `603 REST page ${page} served ${items.length} donors, expected ${expected}`,
+    );
+  const posts = new Map(catalog.posts.map((post) => [post[0], post]));
+  const details = items.map((item, index) => {
+    const path = six03DonorPath(item.link);
+    const post = path === null ? undefined : posts.get(path);
+    if (
+      !post ||
+      path !== `/parts-vehicles/${item.slug}/` ||
+      (index > 0 && item.id >= (items[index - 1]?.id ?? 0))
+    )
+      throw new Error(
+        `603 REST donor ${item.id} (${item.link}) is outside the catalog roster or out of descending id order`,
+      );
+    // Like the donor page, ignore comment, script and style text.
+    const content = stripInventoryRawText(item.content.rendered);
+    six03Continuations(content, null);
+    return articleDetail(
+      content,
+      { kind: "rest", rendered: item.title.rendered },
+      six03Hash(item),
+      post,
+    );
+  });
+  return { ids: items.map((item) => item.id), details };
 }
 
 export function parseSix03Contact(raw: string): string {

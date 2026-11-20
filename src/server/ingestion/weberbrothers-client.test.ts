@@ -4,6 +4,10 @@ import { fetchWeberbrothersPage } from "./weberbrothers-client";
 import { streamWeberbrothersInventory } from "./weberbrothers-connector";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { WEBERBROTHERS_CATALOG } from "./weberbrothers-yard-metadata";
+import {
+  findProviderCooldownError,
+  PROVIDER_COOLDOWN_MS,
+} from "./transient-request";
 
 const originalFetch = globalThis.fetch;
 const direct: ProviderRequestGate = (request) => request;
@@ -45,6 +49,55 @@ test("Weber stalled body deadline aborts its request and settles reader cleanup"
   expect(canceled).toBe(true);
   expect(signal?.aborted).toBe(true);
   expect(response.body?.locked).toBe(false);
+});
+
+test("Weber retries the transient HTTP 500 seen in production, then reads the donor page", async () => {
+  const url =
+    "https://www.weberbrothersauto.com/product/2016-hyundai-santa-fe-ta385/";
+  let calls = 0;
+  stub(async () => {
+    calls++;
+    return calls === 1
+      ? new Response("error", { status: 500 })
+      : new Response("<html>donor</html>", {
+          headers: { "content-type": "text/html" },
+        });
+  });
+  const result = await Effect.runPromise(
+    Effect.gen(function* () {
+      const fiber = yield* Effect.fork(fetchWeberbrothersPage(url, direct));
+      yield* Effect.promise(
+        () => new Promise((resolve) => setTimeout(resolve, 5)),
+      );
+      yield* TestClock.adjust("2 seconds");
+      return yield* Fiber.join(fiber);
+    }).pipe(Effect.provide(TestContext.TestContext)),
+  );
+  expect(result).toBe("<html>donor</html>");
+  expect(calls).toBe(2);
+});
+
+test("Weber does not retry a request deadline that would overrun its chunk", async () => {
+  let calls = 0;
+  stub(async () => {
+    calls++;
+    // The same rejection fetch produces when its deadline signal fires.
+    throw new DOMException("The operation timed out.", "TimeoutError");
+  });
+  const result = await Effect.runPromise(
+    Effect.gen(function* () {
+      const fiber = yield* Effect.fork(
+        fetchWeberbrothersPage(WEBERBROTHERS_CATALOG, direct),
+      );
+      yield* Effect.promise(
+        () => new Promise((resolve) => setTimeout(resolve, 5)),
+      );
+      yield* TestClock.adjust("10 seconds");
+      return yield* Effect.either(Fiber.join(fiber));
+    }).pipe(Effect.provide(TestContext.TestContext)),
+  );
+  expect(result._tag).toBe("Left");
+  expect(calls).toBe(1);
 });
 
 test("Weber denied response cancels its unread body exactly once without retry", async () => {
@@ -145,8 +198,8 @@ test("Weber overlapping default invocations hold the shared gate through failed 
         Effect.runSync(Deferred.succeed(started, undefined));
         return calls === 1
           ? response
-          : new Response("unavailable", {
-              status: 503,
+          : new Response("missing", {
+              status: 404,
               headers: { "content-type": "text/html" },
             });
       });
@@ -172,5 +225,31 @@ test("Weber overlapping default invocations hold the shared gate through failed 
       expect((yield* Fiber.join(second))._tag).toBe("Left");
       expect(response.body?.locked).toBe(false);
     }).pipe(Effect.provide(TestContext.TestContext)),
+  );
+});
+test("Weber retries 5xx answers in-chunk, then hands the workflow a durable cooldown", async () => {
+  let calls = 0;
+  stub(async () => {
+    calls++;
+    return new Response("unavailable", { status: 502 });
+  });
+  const result = await Effect.runPromise(
+    Effect.gen(function* () {
+      const fiber = yield* Effect.fork(
+        fetchWeberbrothersPage(WEBERBROTHERS_CATALOG, direct),
+      );
+      for (const step of ["2 seconds", "4 seconds", "1 minute"] as const) {
+        yield* Effect.promise(
+          () => new Promise((resolve) => setTimeout(resolve, 5)),
+        );
+        yield* TestClock.adjust(step);
+      }
+      return yield* Effect.either(Fiber.join(fiber));
+    }).pipe(Effect.provide(TestContext.TestContext)),
+  );
+  expect(calls).toBe(3);
+  if (result._tag !== "Left") throw new Error("expected a cooldown");
+  expect(findProviderCooldownError(result.left)?.retryAfterMs).toBe(
+    PROVIDER_COOLDOWN_MS,
   );
 });

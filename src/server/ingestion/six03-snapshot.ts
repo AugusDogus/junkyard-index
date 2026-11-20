@@ -11,16 +11,13 @@ import {
   type Six03CanonicalVehicle,
 } from "./six03-transform";
 
-export function six03PendingPosts(catalog: Six03Catalog) {
-  const embedded = new Set(catalog.embedded.map((record) => record.path));
-  return catalog.posts.filter((post) => !embedded.has(post[0]));
-}
-
 export function six03Snapshot(
   catalog: Six03Catalog,
   details: readonly Six03Detail[],
 ) {
-  const records = [...catalog.embedded, ...details];
+  // Every roster donor's full article comes from the REST census, including
+  // the ten the catalog also embeds as excerpts.
+  const records = details;
   if (
     records.length !== catalog.posts.length ||
     new Set(records.map((record) => record.path)).size !== records.length

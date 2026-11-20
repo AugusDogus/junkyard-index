@@ -1,6 +1,7 @@
 import { Hyperbrowser } from "@hyperbrowser/sdk";
 import { chromium } from "playwright-core";
 import { Effect } from "effect";
+import { createHyperbrowserSession } from "./hyperbrowser-session";
 import {
   VANDERHAAGS_CATALOG_PATH,
   VANDERHAAGS_ORIGIN,
@@ -17,14 +18,12 @@ export function acquireVanderHaagsSession(apiKey: string) {
   return Effect.gen(function* () {
     const client = new Hyperbrowser({ apiKey });
     const session = yield* Effect.acquireRelease(
-      Effect.tryPromise(() =>
-        client.sessions.create({
-          useStealth: true,
-          solveCaptchas: false,
-          acceptCookies: true,
-          region: "us-west",
-        }),
-      ),
+      createHyperbrowserSession(client.sessions, {
+        useStealth: true,
+        solveCaptchas: false,
+        acceptCookies: true,
+        region: "us-west",
+      }),
       (s) =>
         Effect.tryPromise(() => client.sessions.stop(s.id)).pipe(Effect.orDie),
     );

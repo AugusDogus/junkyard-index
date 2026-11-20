@@ -12,6 +12,7 @@ import { parseMichigantruckControl } from "./michigantruck-control";
 import { michigantruckDocument } from "./michigantruck-html";
 import {
   parseMichigantruckPage,
+  MICHIGANTRUCK_MAX_CHUNK_REQUESTS,
   MICHIGANTRUCK_MAX_PAGES,
   type MichigantruckPage,
 } from "./michigantruck-parser";
@@ -34,6 +35,8 @@ import {
 } from "./michigantruck-yard-metadata";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import type { ProviderRequestGate } from "./provider-http-client";
+import { withBrowserDocumentFetch } from "./browser-document-fetch";
+import { httpDocumentFetch, type DocumentFetch } from "./document-fetch";
 
 interface MichigantruckOptions<E, R> {
   startCursor?: MichigantruckCursor;
@@ -59,6 +62,7 @@ const attempt = <A>(operation: string, run: () => A) =>
 export function streamMichigantruckInventoryWithRequestGate<E, R>(
   options: MichigantruckOptions<E, R>,
   gate: ProviderRequestGate,
+  fetchDocument: DocumentFetch = httpDocumentFetch,
 ) {
   return Effect.gen(function* () {
     const parsed = MichigantruckCursorSchema.safeParse(
@@ -73,7 +77,7 @@ export function streamMichigantruckInventoryWithRequestGate<E, R>(
     )
       return yield* failure(
         "checkpoint",
-        "Use a validated cursor and a 1-8 new catalog page budget",
+        `Use a validated cursor and a 1-${MICHIGANTRUCK_MAX_PAGES} new catalog page budget`,
       );
     let cursor: MichigantruckCursor = parsed.data;
     const summary: MichigantruckStreamResult = {
@@ -96,12 +100,12 @@ export function streamMichigantruckInventoryWithRequestGate<E, R>(
     let requests = 0;
     const fetchPage = (url: string) =>
       Effect.gen(function* () {
-        if (++requests > 32)
+        if (++requests > MICHIGANTRUCK_MAX_CHUNK_REQUESTS)
           return yield* failure(
             "request budget",
-            "The 32-request chunk limit was reached; no advanced checkpoint returned",
+            `The ${MICHIGANTRUCK_MAX_CHUNK_REQUESTS}-request chunk limit was reached; no advanced checkpoint returned`,
           );
-        return yield* fetchMichigantruckPage(url, gate);
+        return yield* fetchMichigantruckPage(url, gate, fetchDocument);
       });
     const contact = yield* fetchPage(MICHIGANTRUCK_ORIGIN + "/contact/");
     yield* attempt("physical ownership", () => michigantruckDocument(contact));
@@ -283,7 +287,15 @@ export function streamMichigantruckInventory<E, R>(
   return Effect.scoped(
     RateLimiter.make({ limit: 1, interval: "1600 millis" }).pipe(
       Effect.flatMap((gate) =>
-        streamMichigantruckInventoryWithRequestGate(options, gate),
+        // Cloudflare challenges datacenter IPs regardless of headers, so
+        // production reads through a browser session on the yard's origin.
+        withBrowserDocumentFetch(MICHIGANTRUCK_ORIGIN, gate, (fetchDocument) =>
+          streamMichigantruckInventoryWithRequestGate(
+            options,
+            gate,
+            fetchDocument,
+          ),
+        ),
       ),
     ),
   );

@@ -65,7 +65,10 @@ export const MichigantruckCursorSchema = z
         excluded: count,
         rejected: count,
         duplicates: count,
-        seen: z.array(seen).min(25).max(175),
+        seen: z
+          .array(seen)
+          .min(MICHIGANTRUCK_PAGE_SIZE)
+          .max((MICHIGANTRUCK_MAX_PAGES - 1) * MICHIGANTRUCK_PAGE_SIZE),
         pages: z
           .array(z.object({ url: z.string().max(1000), hash }).strict())
           .min(1)

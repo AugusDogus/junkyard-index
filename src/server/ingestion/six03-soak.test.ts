@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { soakSix03Inventory } from "../../../scripts/soak-six03";
 import type { Six03StreamResult } from "./six03-connector";
-import { Six03Cursor } from "./six03-cursor";
+import { Six03Cursor, SIX03_MAX_REQUESTS } from "./six03-cursor";
 import { parseSix03Contact } from "./six03-parser";
 import { six03NativeFixtures } from "./six03-test-fixtures";
 
@@ -36,8 +36,8 @@ test("603 soak validates total/chunk budgets before invoking its supplied driver
   };
   for (const [total, chunk] of [
     [0, 8],
-    [1211, 8],
-    [8, 9],
+    [SIX03_MAX_REQUESTS + 1, 8],
+    [8, SIX03_MAX_REQUESTS + 1],
     [8, 0],
     [8, 1.5],
   ])

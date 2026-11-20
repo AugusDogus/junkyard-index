@@ -1,4 +1,12 @@
-import type { DurableWorkflowCursor } from "~/server/ingestion/durable-workflow-cursor";
+import type {
+  DurableWorkflowCursor,
+  DurableWorkflowDeferredChunk,
+} from "~/server/ingestion/durable-workflow-cursor";
+import { findHyperbrowserCapacityError } from "~/server/ingestion/hyperbrowser-session";
+import {
+  findProviderCooldownError,
+  MAX_PROVIDER_COOLDOWN_MS,
+} from "~/server/ingestion/transient-request";
 import { FatalError, RetryableError, getStepMetadata } from "workflow";
 import { revalidateTag } from "next/cache";
 import { resumeHook } from "workflow/api";
@@ -271,10 +279,49 @@ export async function runDurableSourceChunkStep<
     source: cursor.source,
   });
   const requestedCursor = await resolveDurableWorkflowCursor(runId, cursor);
-  const result = await runDurableSourceChunk({
+  const outcome = await runDurableSourceChunk({
     runId,
     cursor: requestedCursor,
-  }).catch((error: unknown) => {
+  }).catch((error: unknown): DurableWorkflowDeferredChunk<Source> => {
+    // A busy browser session is a queue position, not a provider failure:
+    // sleep durably instead of spending this chunk's retries.
+    const capacity = findHyperbrowserCapacityError(error);
+    if (capacity) {
+      console.info("[Workflow] Deferring source chunk", {
+        runId,
+        source: cursor.source,
+        reason: capacity.message,
+      });
+      return {
+        status: "deferred",
+        wait: "browser-session",
+        cursor,
+        retryAt: Date.now() + capacity.retryAfterMs,
+        reason: capacity.message,
+      };
+    }
+    // A provider failing transiently past its in-chunk retries (or asking for
+    // a long Retry-After) cools down durably; step retries would hit it again
+    // within seconds.
+    const cooldown = findProviderCooldownError(error);
+    if (cooldown) {
+      if (!(cooldown.retryAfterMs <= MAX_PROVIDER_COOLDOWN_MS))
+        throw new FatalError(
+          `${cooldown.message} That wait exceeds the ${MAX_PROVIDER_COOLDOWN_MS / 60_000}-minute cooldown limit, so ${cursor.source} stops for this run without publishing; the next scheduled run starts from its prior inventory.`,
+        );
+      console.info("[Workflow] Cooling down source chunk", {
+        runId,
+        source: cursor.source,
+        reason: cooldown.message,
+      });
+      return {
+        status: "deferred",
+        wait: "provider-cooldown",
+        cursor,
+        retryAt: Date.now() + cooldown.retryAfterMs,
+        reason: cooldown.message,
+      };
+    }
     try {
       Sentry.logger.warn("Vehicle ingestion source attempt failed", {
         runId,
@@ -290,6 +337,8 @@ export async function runDurableSourceChunkStep<
       error,
     );
   });
+  if (outcome.status === "deferred") return outcome;
+  const result = outcome;
   console.info("[Workflow] Completed source chunk", {
     source: result.cursor.source,
     status: result.status,

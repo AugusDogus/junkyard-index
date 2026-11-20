@@ -71,7 +71,7 @@ import { CentralCursor } from "./central-cursor";
 import { NorthwestCursor } from "./northwest-cursor";
 import { CoutuCursor } from "./coutu-cursor";
 import { KodakCursor } from "./kodak-cursor";
-import { Six03Cursor } from "./six03-cursor";
+import { Six03Cursor, SIX03_MAX_REQUESTS } from "./six03-cursor";
 import { RohnerCursor } from "./rohner-cursor";
 import { PrattCursor } from "./pratt-cursor";
 import { PRATT_CONTRACT } from "./pratt-configuration";
@@ -258,9 +258,10 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   bigd: { initialCursor: BigdCursor.initial, maxPagesPerChunk: 4 },
   pullsavewa: { initialCursor: PullsavewaCursor.initial, maxPagesPerChunk: 1 },
   littleton: { initialCursor: LittletonCursor.initial, maxPagesPerChunk: 16 },
+  // Eight pages cover today's 195-row census in one browser session.
   michigantruck: {
     initialCursor: MichigantruckCursor.initial,
-    maxPagesPerChunk: 1,
+    maxPagesPerChunk: 8,
   },
   joliet: { initialCursor: JolietCursor.initial, maxPagesPerChunk: 16 },
   alln1: { initialCursor: Alln1Cursor.initial, maxPagesPerChunk: 3 },
@@ -297,7 +298,11 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   northwest: { initialCursor: NorthwestCursor.initial, maxPagesPerChunk: 8 },
   coutu: { initialCursor: CoutuCursor.initial, maxPagesPerChunk: 8 },
   kodak: { initialCursor: KodakCursor.initial, maxPagesPerChunk: 2 },
-  six03: { initialCursor: Six03Cursor.initial, maxPagesPerChunk: 8 },
+  // The whole REST census is one chunk; it pauses early only on a slow site.
+  six03: {
+    initialCursor: Six03Cursor.initial,
+    maxPagesPerChunk: SIX03_MAX_REQUESTS,
+  },
   rohner: { initialCursor: RohnerCursor.initial, maxPagesPerChunk: 3 },
   pratt: {
     initialCursor: PrattCursor.initial(PRATT_CONTRACT),

@@ -1,5 +1,5 @@
 import { expect, spyOn, test } from "bun:test";
-import { Effect } from "effect";
+import { Effect, Fiber, TestClock, TestContext } from "effect";
 import { readUrgiisPage } from "./urgiis-client";
 import type { UrgiisTenant } from "./urgiis-tenant";
 
@@ -155,3 +155,41 @@ for (const status of [403, 429] as const) {
     }
   });
 }
+
+test("URG IIS retries a Cloudflare challenge as a paced failure instead of ending the source", async () => {
+  const fetch = spyOn(globalThis, "fetch").mockImplementation(
+    Object.assign(
+      async () =>
+        new Response("Just a moment...", {
+          status: 403,
+          headers: { "content-type": "text/html", "cf-mitigated": "challenge" },
+        }),
+      { preconnect: globalThis.fetch.preconnect },
+    ),
+  );
+  try {
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const fiber = yield* Effect.fork(
+          readUrgiisPage(tenant.origin + tenant.makesPath, tenant).pipe(
+            Effect.either,
+          ),
+        );
+        for (let second = 0; second < 30; second++) {
+          yield* Effect.promise(
+            () => new Promise((resolve) => setTimeout(resolve, 1)),
+          );
+          yield* TestClock.adjust("1 second");
+        }
+        return yield* Fiber.join(fiber);
+      }).pipe(Effect.provide(TestContext.TestContext)),
+    );
+    expect(result._tag).toBe("Left");
+    if (result._tag !== "Left") throw new Error("Expected a failure");
+    expect(result.left.kind).toBe("failure");
+    expect(result.left.message).toContain("Cloudflare challenge");
+    expect(fetch).toHaveBeenCalledTimes(3);
+  } finally {
+    fetch.mockRestore();
+  }
+});

@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { gunzipSync } from "node:zlib";
+import { brotliDecompressSync, gunzipSync } from "node:zlib";
 import { z } from "zod";
 
 const FixtureSchema = z
@@ -80,4 +80,39 @@ export function six03IndependentOracle() {
   ).toString("utf8");
   const candidate: unknown = JSON.parse(wire);
   return OracleSchema.parse(candidate);
+}
+
+const RestFixtureSchema = z
+  .object({
+    capturedAt: z.string(),
+    provenance: z.string(),
+    pages: z
+      .array(
+        z
+          .object({
+            url: z.string(),
+            total: z.number().int(),
+            totalPages: z.number().int(),
+            contentType: z.string(),
+            sha256: z.string(),
+            body: z.string(),
+          })
+          .strict(),
+      )
+      .min(1),
+  })
+  .strict();
+let cachedRest: z.infer<typeof RestFixtureSchema> | undefined;
+/** The live WordPress REST census of the same 1,033-donor roster as the
+ * saved catalog: every page body as served, with its census headers. */
+export function six03RestFixtures() {
+  if (cachedRest) return cachedRest;
+  const wire = brotliDecompressSync(
+    readFileSync(
+      new URL("./six03-test-fixtures/rest-census.json.br", import.meta.url),
+    ),
+  ).toString("utf8");
+  const candidate: unknown = JSON.parse(wire);
+  cachedRest = RestFixtureSchema.parse(candidate);
+  return cachedRest;
 }

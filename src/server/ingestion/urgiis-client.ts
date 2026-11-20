@@ -6,6 +6,7 @@ import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import { iisOwnedUrl, iisBrowsePath } from "./urgiis-catalog";
 import type { UrgiisTenant } from "./urgiis-tenant";
 import { urgiisModelRoute } from "./urgiis-model-route";
+import { httpDocumentFetch, type DocumentFetch } from "./document-fetch";
 
 export type UrgiisError = {
   tag: "UrgiisError";
@@ -27,7 +28,24 @@ export const urgiisError = (
 });
 const serial = Effect.runSync(Effect.makeSemaphore(1));
 export const URGIIS_MAX_BODY_BYTES = 4 * 1024 * 1024;
-export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
+/** Admits one request to a URG tenant: one at a time in this process, the
+ * shared URG host lease for its complete response lifetime (with the host
+ * gap), then the tenant's pacing. Document reads and the browser session's
+ * origin navigation both pass through it. */
+export const urgiisRequestGate =
+  (url: string, tenant: UrgiisTenant) =>
+  <A, E, R>(request: Effect.Effect<A, E, R>) =>
+    serial.withPermits(1)(
+      request.pipe(
+        sharedProviderHostSlot(url),
+        Effect.ensuring(Effect.sleep(tenant.pacingMs)),
+      ),
+    );
+export function readUrgiisPage(
+  url: string,
+  tenant: UrgiisTenant,
+  fetchDocument: DocumentFetch = httpDocumentFetch,
+) {
   const owned = iisOwnedUrl(url, tenant);
   if (
     !owned ||
@@ -57,7 +75,7 @@ export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
       try: async (signal) => {
         const timeout = AbortSignal.timeout(tenant.requestTimeoutMs);
         const combined = AbortSignal.any([signal, timeout]);
-        const response = await fetch(requestUrl, {
+        const response = await fetchDocument(requestUrl, {
           signal: combined,
           redirect: "manual",
           headers: {
@@ -98,7 +116,14 @@ export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
               },
               catch: (cause) => urgiisError("cancel response " + url, cause),
             });
-            if (response.status === 403 || response.status === 429) {
+            // A Cloudflare challenge scores this client, not the yard's
+            // capacity: it is an ordinary paced failure, not a host block.
+            const challenged =
+              response.headers.get("cf-mitigated") === "challenge";
+            if (
+              (response.status === 403 && !challenged) ||
+              response.status === 429
+            ) {
               const retryAfterMs = parseRetryAfterMs(
                 response.headers.get("Retry-After"),
                 Date.now(),
@@ -116,7 +141,7 @@ export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
             return yield* Effect.fail(
               urgiisError(
                 "request/body " + url,
-                `Expected complete HTTP200 text/html; received HTTP${response.status}`,
+                `Expected complete HTTP200 text/html; received HTTP${response.status}${challenged ? " (Cloudflare challenge)" : ""}`,
               ),
             );
           }
@@ -133,15 +158,14 @@ export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
         }),
       ),
     );
-    return serial.withPermits(1)(
-      request.pipe(
-        sharedProviderHostSlot(url),
-        Effect.mapError((cause) =>
-          cause instanceof Error
-            ? urgiisError("shared host " + url, cause)
-            : cause,
-        ),
-        Effect.ensuring(Effect.sleep(tenant.pacingMs)),
+    return urgiisRequestGate(
+      url,
+      tenant,
+    )(request).pipe(
+      Effect.mapError((cause) =>
+        cause instanceof Error
+          ? urgiisError("shared host " + url, cause)
+          : cause,
       ),
     );
   }).pipe(
