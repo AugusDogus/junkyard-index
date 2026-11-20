@@ -47,6 +47,9 @@ function yard() {
   const rows = new Map(Array.from({ length: 12 }, (_, i) => [i, donors(i)]));
   // Arrivals always list at least one card; this donor is already on M0.
   let arrivals: AplusRecord[] = [record(0, 1)];
+  // Models whose page renders the native empty result while the menus still
+  // count their donors.
+  const broken = new Set<number>();
   const urls: string[] = [];
   const models = () =>
     [...rows].map(
@@ -78,7 +81,9 @@ function yard() {
                 ? aplusFixtureDirectory(models(), "models")
                 : model
                   ? aplusFixtureModelPage(
-                      rows.get(Number(model[1])) ?? [],
+                      broken.has(Number(model[1]))
+                        ? []
+                        : (rows.get(Number(model[1])) ?? []),
                       `Used ACURA ${label(Number(model[1]))} Parts`,
                     )
                   : undefined;
@@ -92,6 +97,7 @@ function yard() {
   );
   return {
     rows,
+    broken,
     urls,
     setArrivals: (next: AplusRecord[]) => {
       arrivals = next;
@@ -262,4 +268,39 @@ test("A Plus re-reads every model within six days, even across missed runs", asy
     expect(run.vins).toEqual(allVins(native));
     previous = run.terminal;
   }
+});
+
+test("A Plus fails a run whose read and carried cards fall short of today's model counts", async () => {
+  // A site fault renders empty model pages while the menus look normal. Under
+  // a full daily read the floor caught it; with carried pages only today's
+  // sweep slice breaks, so the badge coverage check must catch it.
+  const native = yard();
+  const cold = await census(native, 600, null);
+  const day = [601, 602, 603, 604, 605].find((d) => swept(d).length > 0);
+  if (day === undefined) throw new Error("fixture needs a non-empty slice");
+  for (const model of swept(day)) native.broken.add(model);
+  let published = 0;
+  await expect(
+    (async () => {
+      let cursor: AplusCursor = AplusCursor.initial;
+      while (cursor.phase !== "complete") {
+        const result = await Effect.runPromise(
+          streamAplusInventoryWithRequestGate(
+            {
+              startCursor: cursor,
+              previousCursor: cold.terminal,
+              now: () => day * MODEL_CENSUS_DAY_MS,
+              onBatch: (batch) =>
+                Effect.sync(() => {
+                  published += batch.length;
+                }),
+            },
+            gate,
+          ),
+        );
+        cursor = result.cursor;
+      }
+    })(),
+  ).rejects.toThrow("coverage floor");
+  expect(published).toBe(0);
 });

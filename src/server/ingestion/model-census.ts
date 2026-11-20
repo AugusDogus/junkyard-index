@@ -9,6 +9,13 @@ import { z } from "zod";
  * arrival), its evidence reached the age ceiling, or it falls in today's sweep
  * slice. Every other model carries its last accepted page forward unchanged.
  *
+ * A page with fewer cards than its published count is carried only when the
+ * run that read it confirmed it with an identical re-read. An unconfirmed short
+ * page is read again on the next run, so a transient short read is never
+ * carried. `coverage` separately bounds the whole union of read and carried
+ * cards against today's published counts, so pages that break a sixth at a
+ * time still fail the run on the first broken day.
+ *
  * Run days are UTC day numbers fixed at run start. The sweep slice equals the
  * age ceiling, so a model read on day d is due again on day d + 6 by both rules,
  * and missed runs can only make the age rule fire earlier. A model's slice comes
@@ -31,7 +38,21 @@ export interface ModelCensusEvidence<Page> {
   /** Published count when the page was read. */
   count: number;
   readDay: number;
+  /** True only for a page with fewer cards than `count` that an identical
+   * re-read confirmed in the run that read it. */
+  confirmed: boolean;
   page: Page;
+}
+
+/** How a run treated short pages it read: confirmed by an identical in-run
+ * re-read (otherwise the run failed), or not confirmed at all. */
+export type ModelCensusShortPages = "confirmed" | "unconfirmed";
+
+export interface ModelCensusPlanOptions<Page> {
+  /** Cards a page lists, compared with its published count. */
+  cards: (page: Page) => number;
+  /** Keys a connector-specific signal (for example an arrival) forces to read. */
+  triggers?: ReadonlySet<string>;
 }
 
 export interface ModelCensus<Page> {
@@ -46,6 +67,7 @@ export type ModelCensusReadReason =
   | "new"
   | "count"
   | "trigger"
+  | "short"
   | "stale"
   | "sweep";
 
@@ -89,6 +111,7 @@ function schema<Page>(page: z.ZodType<Page>, maxModels: number) {
               key: z.string().min(1).max(2000),
               count: z.number().int().nonnegative().safe(),
               readDay: day,
+              confirmed: z.boolean(),
               page,
             })
             .strict(),
@@ -123,7 +146,7 @@ function plan<Page>(
   controls: readonly ModelCensusControl[],
   previous: ModelCensus<Page> | null,
   today: number,
-  triggers: ReadonlySet<string> = new Set(),
+  { cards, triggers = new Set() }: ModelCensusPlanOptions<Page>,
 ): ModelCensusDecision<Page>[] {
   if (!previous || previous.day > today)
     return controls.map(() => ({ kind: "read", reason: "cold" }));
@@ -134,6 +157,8 @@ function plan<Page>(
     if (before.count !== control.count)
       return { kind: "read", reason: "count" };
     if (triggers.has(control.key)) return { kind: "read", reason: "trigger" };
+    if (cards(before.page) < before.count && !before.confirmed)
+      return { kind: "read", reason: "short" };
     if (today - before.readDay >= MODEL_CENSUS_SWEEP_DAYS)
       return { kind: "read", reason: "stale" };
     if (
@@ -207,13 +232,17 @@ export const ModelCensus = {
   },
 
   /** Terminal census for the next run: fresh reads are dated today, carried
-   * evidence keeps its original read day. */
+   * evidence keeps its original read day and confirmation. A short page read
+   * today counts as confirmed only when the connector's closing re-read it
+   * identically (`shortPages: "confirmed"`). */
   accept<Page>(
     contract: string,
     today: number,
     controls: readonly ModelCensusControl[],
     pages: readonly Page[],
     decisions: readonly ModelCensusDecision<Page>[],
+    shortPages: ModelCensusShortPages,
+    cards: (page: Page) => number,
   ): ModelCensus<Page> {
     if (
       pages.length !== controls.length ||
@@ -230,15 +259,53 @@ export const ModelCensus = {
         const page = pages[index];
         if (!decision || page === undefined)
           throw new Error("Model census evidence is missing a published model");
-        return {
-          key: control.key,
-          count: control.count,
-          readDay:
-            decision.kind === "carry" ? decision.evidence.readDay : today,
-          page,
-        };
+        return decision.kind === "carry"
+          ? { ...decision.evidence, key: control.key, count: control.count }
+          : {
+              key: control.key,
+              count: control.count,
+              readDay: today,
+              confirmed:
+                shortPages === "confirmed" && cards(page) < control.count,
+              page,
+            };
       }),
     };
+  },
+
+  /**
+   * Reconciles the union of read and carried cards with today's published
+   * counts. Each model contributes at most its own count, so surplus cards on
+   * one model cannot hide a shortfall on another. Returns null when the union
+   * covers at least `minimum` of the counts, or an error message naming the
+   * largest shortfalls. Carried pages keep floors and drift guards satisfied
+   * while pages break a sixth at a time; this check fails the first such run.
+   */
+  coverage<Page>(
+    source: string,
+    controls: readonly ModelCensusControl[],
+    pages: readonly Page[],
+    cards: (page: Page) => number,
+    minimum: number,
+    label: (index: number) => string,
+  ): string | null {
+    let covered = 0;
+    let published = 0;
+    const shortfalls: { index: number; missing: number }[] = [];
+    controls.forEach((control, index) => {
+      const page = pages[index];
+      const listed = page === undefined ? 0 : cards(page);
+      covered += Math.min(listed, control.count);
+      published += control.count;
+      if (listed < control.count)
+        shortfalls.push({ index, missing: control.count - listed });
+    });
+    if (covered >= Math.ceil(published * minimum)) return null;
+    const largest = shortfalls
+      .sort((a, b) => b.missing - a.missing)
+      .slice(0, 5)
+      .map(({ index, missing }) => `${label(index)} (${missing})`);
+    return `${source} model pages list ${covered} of ${published} cards promised by today's model counts, below the ${Math.round(minimum * 1000) / 10}% coverage floor. Nothing was published and the last accepted census stays in place. Largest shortfalls: ${largest.join(", ")}. Check whether those native model pages still render their cards before retrying.`;
   },
 
   /** Plain summary for run warnings. */

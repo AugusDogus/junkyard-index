@@ -11,7 +11,10 @@ import {
 const contract = "fixture-contract";
 const controls = (n: number, count = 3): ModelCensusControl[] =>
   Array.from({ length: n }, (_, i) => ({ key: "model-" + i, count }));
-const page = (key: string, day: number) => key + "@" + day;
+/** A fixture page names its model, read day and listed card count. */
+const page = (key: string, day: number, listed: number) =>
+  `${key}@${day}#${listed}`;
+const cards = (value: string) => Number(value.split("#")[1]);
 const reads = (decisions: readonly ModelCensusDecision<string>[]) =>
   decisions.flatMap((d, i) => (d.kind === "read" ? [i] : []));
 
@@ -21,14 +24,34 @@ function run(
   previous: ModelCensusState<string> | null,
   day: number,
   triggers?: ReadonlySet<string>,
+  options: {
+    /** Cards a read page lists today, by key; otherwise its full count. */
+    listed?: ReadonlyMap<string, number>;
+    shortPages?: "confirmed" | "unconfirmed";
+  } = {},
 ) {
-  const decisions = ModelCensus.plan(models, previous, day, triggers);
-  const pages = decisions.map((d, i) =>
-    d.kind === "carry" ? d.evidence.page : page(models[i]?.key ?? "", day),
-  );
+  const decisions = ModelCensus.plan(models, previous, day, {
+    cards,
+    triggers,
+  });
+  const pages = decisions.map((d, i) => {
+    if (d.kind === "carry") return d.evidence.page;
+    const model = models[i];
+    if (!model) throw new Error("fixture decision has no model");
+    return page(model.key, day, options.listed?.get(model.key) ?? model.count);
+  });
   return {
     decisions,
-    census: ModelCensus.accept(contract, day, models, pages, decisions),
+    pages,
+    census: ModelCensus.accept(
+      contract,
+      day,
+      models,
+      pages,
+      decisions,
+      options.shortPages ?? "confirmed",
+      cards,
+    ),
   };
 }
 
@@ -78,7 +101,7 @@ describe("ModelCensus", () => {
     );
     expect(carried).toHaveLength(models.length - due.length);
     for (const evidence of carried) {
-      expect(evidence.page).toBe(page(evidence.key, 100));
+      expect(evidence.page).toBe(page(evidence.key, 100, 3));
       expect(evidence.readDay).toBe(100);
     }
     const accepted = new Map(next.census.models.map((m) => [m.key, m]));
@@ -196,6 +219,74 @@ describe("ModelCensus", () => {
     }
   });
 
+  test("an unconfirmed short page is read again on the next run, never carried", () => {
+    const models = controls(12, 10);
+    const short = new Map([["model-2", 3]]);
+    const cold = run(models, null, 100, undefined, {
+      listed: short,
+      shortPages: "unconfirmed",
+    });
+    expect(cold.census.models[2]?.confirmed).toBe(false);
+    const next = run(models, cold.census, 101);
+    expect(next.decisions[2]).toEqual({ kind: "read", reason: "short" });
+    // The full re-read is carried normally from then on.
+    expect(next.census.models[2]?.confirmed).toBe(false);
+    const after = run(models, next.census, 102);
+    expect(after.decisions[2]?.kind).toBe(
+      ModelCensus.slice("model-2") === 102 % MODEL_CENSUS_SWEEP_DAYS
+        ? "read"
+        : "carry",
+    );
+  });
+
+  test("a short page confirmed in-run carries, and keeps its confirmation", () => {
+    const models = controls(12, 10);
+    const cold = run(models, null, 100, undefined, {
+      listed: new Map([["model-2", 3]]),
+      shortPages: "confirmed",
+    });
+    expect(cold.census.models[2]?.confirmed).toBe(true);
+    // Full pages are never marked confirmed.
+    expect(cold.census.models[3]?.confirmed).toBe(false);
+    const day = [101, 102, 103, 104, 105].find(
+      (d) => ModelCensus.slice("model-2") !== d % MODEL_CENSUS_SWEEP_DAYS,
+    );
+    if (day === undefined) throw new Error("fixture needs an off-slice day");
+    const next = run(models, cold.census, day);
+    expect(next.decisions[2]?.kind).toBe("carry");
+    expect(next.census.models[2]?.confirmed).toBe(true);
+  });
+
+  test("coverage fails when read and carried cards fall short of today's counts", () => {
+    const models = controls(10, 10);
+    const label = (i: number) => "M" + i;
+    const full = models.map((m) => page(m.key, 100, 10));
+    expect(
+      ModelCensus.coverage("Fixture", models, full, cards, 0.95, label),
+    ).toBeNull();
+    // Surplus cards on one model never hide an empty model elsewhere.
+    const shifted = full.map((p, i) =>
+      i === 0
+        ? page("model-0", 100, 20)
+        : i === 1
+          ? page("model-1", 100, 0)
+          : p,
+    );
+    const message = ModelCensus.coverage(
+      "Fixture",
+      models,
+      shifted,
+      cards,
+      0.95,
+      label,
+    );
+    expect(message).toContain("90 of 100 cards");
+    expect(message).toContain("M1 (10)");
+    expect(
+      ModelCensus.coverage("Fixture", models, shifted, cards, 0.9, label),
+    ).toBeNull();
+  });
+
   test("a second run on the same day carries what the first run read", () => {
     const models = controls(12);
     const first = run(models, run(models, null, 100).census, 101);
@@ -231,7 +322,15 @@ describe("ModelCensus", () => {
       `Read ${swept} of 12 model pages (sweep ${swept}); carried ${12 - swept}.`,
     );
     expect(() =>
-      ModelCensus.accept(contract, 101, models, [], next.decisions),
+      ModelCensus.accept(
+        contract,
+        101,
+        models,
+        [],
+        next.decisions,
+        "confirmed",
+        cards,
+      ),
     ).toThrow("cannot close");
   });
 });

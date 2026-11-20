@@ -16,6 +16,7 @@ import {
   aplusCensus,
   aplusCensusPlan,
   aplusClosingControls,
+  aplusCoverageError,
   type AplusProgress,
 } from "./aplus-cursor";
 import { ModelCensus } from "./model-census";
@@ -261,6 +262,8 @@ export function streamAplusInventoryWithRequestGate<E, R>(
         advanced.closing === aplusClosingControls(advanced).length
       ) {
         const snapshot = yield* attempt("complete native union", () => {
+          const shortfall = aplusCoverageError(advanced);
+          if (shortfall) throw new Error(shortfall);
           const snapshot = aplusSnapshot(
             advanced.makes,
             advanced.pages,
