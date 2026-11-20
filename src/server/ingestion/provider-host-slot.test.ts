@@ -2,9 +2,12 @@ import { expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Redis } from "@upstash/redis";
 import { Effect, Fiber, TestClock, TestContext } from "effect";
 import {
+  RELEASE_HOST_SLOT,
   RESERVE_HOST_SLOT,
+  redisProviderHostStore,
   withProviderHostSlot,
   type ProviderHostPolicy,
 } from "./provider-host-slot";
@@ -84,44 +87,53 @@ test("shared backend retains its lease through response completion and the failu
   );
 });
 
+const hasRedis = Boolean(Bun.which("redis-server") && Bun.which("redis-cli"));
+
+/** Runs `use` against a throwaway Redis on a Unix socket. */
+async function withRedis(
+  use: (command: (...args: string[]) => string) => void | Promise<void>,
+) {
+  const directory = mkdtempSync(join(tmpdir(), "provider-host-"));
+  const socket = join(directory, "redis.sock");
+  const server = Bun.spawn(
+    [
+      "redis-server",
+      "--port",
+      "0",
+      "--unixsocket",
+      socket,
+      "--save",
+      "",
+      "--appendonly",
+      "no",
+    ],
+    { stdout: "ignore", stderr: "pipe" },
+  );
+  const command = (...args: string[]) => {
+    const result = Bun.spawnSync(["redis-cli", "-s", socket, "--raw", ...args]);
+    if (result.exitCode !== 0) throw new Error(result.stderr.toString());
+    return result.stdout.toString().trim();
+  };
+  try {
+    for (let attempts = 0; attempts < 100; attempts++) {
+      if (Bun.spawnSync(["redis-cli", "-s", socket, "ping"]).exitCode === 0)
+        break;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    await use(command);
+  } finally {
+    server.kill();
+    await server.exited;
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
 // Runs the production Lua, not an in-memory imitation. Redis is optional for
 // the normal unit suite; the launch runbook records the explicit local command.
-test.skipIf(!Bun.which("redis-server") || !Bun.which("redis-cli"))(
+test.skipIf(!hasRedis)(
   "Redis FIFO prevents a busy source overtaking either queued source and expires dead waiters",
-  async () => {
-    const directory = mkdtempSync(join(tmpdir(), "provider-host-"));
-    const socket = join(directory, "redis.sock");
-    const server = Bun.spawn(
-      [
-        "redis-server",
-        "--port",
-        "0",
-        "--unixsocket",
-        socket,
-        "--save",
-        "",
-        "--appendonly",
-        "no",
-      ],
-      { stdout: "ignore", stderr: "pipe" },
-    );
-    const command = (...args: string[]) => {
-      const result = Bun.spawnSync([
-        "redis-cli",
-        "-s",
-        socket,
-        "--raw",
-        ...args,
-      ]);
-      if (result.exitCode !== 0) throw new Error(result.stderr.toString());
-      return result.stdout.toString().trim();
-    };
-    try {
-      for (let attempts = 0; attempts < 100; attempts++) {
-        if (Bun.spawnSync(["redis-cli", "-s", socket, "ping"]).exitCode === 0)
-          break;
-        await new Promise((resolve) => setTimeout(resolve, 10));
-      }
+  () =>
+    withRedis((command) => {
       const keys = [
         "{host}:lease",
         "{host}:queue",
@@ -146,10 +158,135 @@ test.skipIf(!Bun.which("redis-server") || !Bun.which("redis-cli"))(
       command("ZADD", keys[2], "0", "cstruck-2");
       expect(reserve("next")).toBe("1");
       expect(command("ZCARD", keys[1])).toBe("0");
-    } finally {
-      server.kill();
-      await server.exited;
-      rmSync(directory, { recursive: true, force: true });
-    }
-  },
+    }),
+);
+
+test.skipIf(!hasRedis)(
+  "Redis caps a group's active lanes and gives free places to ready lanes in the order they became ready",
+  () =>
+    withRedis((command) => {
+      const group = "{group}";
+      const lane = (name: string) => [
+        `${group}:lane:${name}`,
+        `${group}:lane:${name}:queue`,
+        `${group}:lane:${name}:deadlines`,
+        `${group}:lane:${name}:sequence`,
+      ];
+      const ready = [
+        `${group}:ready`,
+        `${group}:ready-deadlines`,
+        `${group}:ready-sequence`,
+      ];
+      const active = `${group}:active`;
+      const reserve = (name: string, token: string) =>
+        command(
+          "EVAL",
+          RESERVE_HOST_SLOT,
+          "8",
+          ...lane(name),
+          ...ready,
+          active,
+          token,
+          "90000",
+          "2",
+        );
+      const release = (name: string, token: string) =>
+        command(
+          "EVAL",
+          RELEASE_HOST_SLOT,
+          "2",
+          lane(name)[0] ?? "",
+          active,
+          token,
+        );
+      expect(reserve("a", "a1")).toBe("1");
+      expect(reserve("b", "b1")).toBe("1");
+      // Two lanes are active: lane c waits for a place.
+      expect(reserve("c", "c1")).toBe("0");
+      // a2 waits behind its own lane, not for a place, so it is not ready.
+      expect(reserve("a", "a2")).toBe("0");
+      expect(reserve("d", "d1")).toBe("0");
+      expect(release("a", "a1")).toBe("1");
+      // d1 polls first, but c1 became ready first.
+      expect(reserve("d", "d1")).toBe("0");
+      expect(reserve("a", "a2")).toBe("0");
+      expect(reserve("c", "c1")).toBe("1");
+      expect(release("b", "b1")).toBe("1");
+      expect(reserve("a", "a2")).toBe("0");
+      expect(reserve("d", "d1")).toBe("1");
+      // A crashed holder's place expires with its lease.
+      command("ZADD", active, "0", "c1");
+      expect(reserve("a", "a2")).toBe("1");
+      expect(command("ZCARD", ready[0] ?? "")).toBe("0");
+      // A dead ready waiter expires instead of holding back later lanes.
+      expect(release("d", "d1")).toBe("1");
+      expect(reserve("e", "e1")).toBe("1");
+      expect(reserve("f", "f1")).toBe("0");
+      expect(reserve("g", "g1")).toBe("0");
+      expect(release("a", "a2")).toBe("1");
+      command("ZADD", ready[1] ?? "", "0", "f1");
+      expect(reserve("g", "g1")).toBe("1");
+      // A lost lease still frees its place.
+      command("DEL", lane("e")[0] ?? "");
+      expect(release("e", "e1")).toBe("0");
+      expect(command("ZCARD", active)).toBe("1");
+    }),
+);
+
+test.skipIf(!hasRedis)(
+  "grouped host stores share their group's places through Upstash, and a cancelled waiter leaves the ready queue",
+  () =>
+    withRedis(async (command) => {
+      // Upstash REST commands, answered by the local Redis.
+      const passthrough = globalThis.fetch;
+      const run = (body: unknown) => {
+        if (!Array.isArray(body)) throw new Error("Expected a Redis command");
+        return { result: Number(command(...body.map(String))) };
+      };
+      globalThis.fetch = Object.assign(
+        async (_input: RequestInfo | URL, init?: RequestInit) => {
+          const body: unknown = JSON.parse(String(init?.body));
+          return Response.json(
+            Array.isArray(body) && Array.isArray(body[0])
+              ? body.map(run)
+              : run(body),
+          );
+        },
+        { preconnect: passthrough.preconnect },
+      );
+      try {
+        const redis = new Redis({
+          url: "https://store.upstash.test",
+          token: "store-test",
+          retry: false,
+        });
+        const group = { key: "urg", activeLanes: 1 };
+        const first = redisProviderHostStore(
+          { ...policy, key: "urg:first", group },
+          redis,
+        );
+        const second = redisProviderHostStore(
+          { ...policy, key: "urg:second", group },
+          redis,
+        );
+        const tag = "{ingestion:host-group:urg:v1}";
+        expect(await first.reserve("first-1", 90_000)).toBe(true);
+        expect(await second.reserve("second-1", 90_000)).toBe(false);
+        expect(command("ZCARD", `${tag}:ready`)).toBe("1");
+        await second.cancel("second-1");
+        expect(command("ZCARD", `${tag}:ready`)).toBe("0");
+        expect(command("ZCARD", `${tag}:lane:urg:second:queue`)).toBe("0");
+        expect(await first.release("first-1")).toBe(true);
+        expect(command("ZCARD", `${tag}:active`)).toBe("0");
+        expect(await second.reserve("second-2", 90_000)).toBe(true);
+        expect(command("GET", `${tag}:lane:urg:second`)).toBe("second-2");
+        // Ungrouped lanes keep their existing keys.
+        const plain = redisProviderHostStore(policy, redis);
+        expect(await plain.reserve("plain-1", 90_000)).toBe(true);
+        expect(command("GET", "ingestion:host:offline:v1")).toBe("plain-1");
+        expect(await plain.release("plain-1")).toBe(true);
+      } finally {
+        globalThis.fetch = passthrough;
+      }
+    }),
 );

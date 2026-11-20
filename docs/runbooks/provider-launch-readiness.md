@@ -100,19 +100,34 @@ windows remain intact until a subsequent current-day pass settles.
 
 ## Shared backend pacing
 
-All configured URG IIS tenant origins and the native IIS catalogs of Aviation,
+The configured URG IIS tenant origins and the native IIS catalogs of Aviation,
 Chaz, A Plus, Central, Northwest, Pratt, Calton, Denton, OEM, Jim's Import, Scotts,
-Pick-A-Part VA, All-N-1, Grandpa John's, Midway, Indian River, Allied and I-Pull use
-one Redis-backed host queue. Distinct website origins do not receive separate
-backend budgets. This is conservative grouping, not a claim that DNS proves one
-server. Qualification explicitly treated the tenant origins as shared capacity:
-[URG IIS pacing](urgiis-ingestion.md#live-qualification-requests) and
-[batch B](urgiis-batch-b.md) document shared cross-process acquisition gates.
-The native IIS catalogs share the same URG/IIS page and supplier infrastructure;
-they are included conservatively rather than assuming independent capacity.
+Pick-A-Part VA, All-N-1, Grandpa John's, Midway and Allied use Redis-backed host
+queues, one per verified origin server:
 
-URG holds an exclusive lease through the entire response and an additional
-3.5-second gap, including failures. All six VinPlus API clients share the
+- URG's own AWS load balancer (six shared IPs, `x-urg-storage` header):
+  Aviation, Central, Calton, Jim's Import and Scotts;
+- Vultr 66.42.115.19: Lambert and Pratt;
+- Vultr 149.28.120.41: Chaz (Metro also lives there but is not a source);
+- every other host, including those behind Cloudflare, has its own queue.
+
+A November 2026 study of about 17,800 saved URG requests found that response
+times correlate within one origin server (r about 0.5 to 0.9) but barely across
+servers (about 0.01 to 0.11), with no HTTP 429. The WordPress plugin on every
+site does call a central URG API, so at most four URG queues may hold a lease at
+once. Queues that are ready for a lease take free places in the order they
+became ready. I-Pull (ifipull.com) and Indian River are not URG sites and keep
+only their own client pacing.
+
+The per-server queues replaced the single `ingestion:host:urg-iis:v1` lease
+without a rolling-deployment interlock. Workflow runs stay pinned to the
+deployment that started them, so a URG run started before the change keeps the
+old lease and does not see the new queues or their cap. Until such runs finish,
+one origin server can receive a request from each scheme at once. Deploy the
+change when no URG source run is in flight, or accept that overlap.
+
+Each URG queue holds an exclusive lease through the entire response and an
+additional 3.5-second gap, including failures. All six VinPlus API clients share the
 `inventory-search-api-581547763015.us-central1.run.app` lease with a 1.6-second gap.
 Their independent website hosts are not grouped into that API budget. Existing
 per-client pacing is retained, so some paths are slower than the shared minimum.
@@ -147,8 +162,11 @@ Every connector on these queues takes a shared host turn
 unit of sequential requests, each still followed by the policy gap. Requests
 that only together let a chunk advance share one turn: a context or owner fetch
 with the chunk's first data request, and a last page with the closing reads its
-cursor cannot hold separately. Pick-A-Part VA and I-Pull crawl atomically, so
-their whole crawl is one turn. A chunk therefore advances with a single turn.
+cursor cannot hold separately. Pick-A-Part VA crawls atomically, so its whole
+crawl is one turn. A chunk therefore advances with a single turn. Every request
+inside a turn still takes a host slot (`sharedProviderHostSlot`), which waits
+out the gap after the turn's previous request and records its own end; a client
+that makes one raw request per turn uses `sharedProviderHostRequest`.
 
 A chunk ends within six minutes of wall time: 800 seconds of function, less a
 step that can start inline five minutes into its invocation, less 140 seconds

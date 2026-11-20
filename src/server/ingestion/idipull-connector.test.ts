@@ -11,7 +11,6 @@ import {
   idipullTestRecord,
   idipullTestRow,
 } from "./idipull-test-fixtures";
-import { ProviderTurnDeferred } from "./provider-chunk-clock";
 import { runWithQueuedHost } from "./provider-host-test-support";
 
 const originalFetch = globalThis.fetch;
@@ -357,11 +356,10 @@ const queuedCatalog = (turnWaitMs: number) =>
     { turnWaitMs },
   );
 
-test("Idaho Falls reads its home page and both catalogs in one shared host turn", async () => {
-  // About 20 URG sources share one lease at 07:00, so each turn waits about
-  // two minutes. The opening and closing catalog reads hold one lease.
+test("Idaho Falls is not a URG site and takes no shared host turn", async () => {
+  // ifipull.com runs its own WordPress catalog; only its client paces it.
   const requests = mockInventory();
-  const { result, elapsedMs, turns } = await queuedCatalog(2 * 60_000);
+  const { result, turns } = await queuedCatalog(6 * 60_000);
   if (Either.isLeft(result)) throw result.left;
   expect(result.right).toMatchObject({
     status: "complete",
@@ -369,23 +367,5 @@ test("Idaho Falls reads its home page and both catalogs in one shared host turn"
     cursor: { source: "idipull", phase: "complete" },
   });
   expect(requests).toEqual(["/", "/inventory/", "/inventory/"]);
-  expect(elapsedMs).toBeLessThanOrEqual(6 * 60_000);
-  expect(turns).toHaveLength(1);
-  expect(turns[0]?.releasedAt).not.toBeNull();
-}, 120_000);
-
-test("an Idaho Falls catalog without a turn in time is deferred whole", async () => {
-  // Three requests still fit a five-minute turn before the chunk's turn
-  // horizon, so only a longer queue defers the crawl.
-  const requests = mockInventory();
-  const { result, elapsedMs, turns, cancelled } = await queuedCatalog(
-    6 * 60_000,
-  );
-  expect(Either.isLeft(result) && result.left).toBeInstanceOf(
-    ProviderTurnDeferred,
-  );
-  expect(elapsedMs).toBeLessThanOrEqual(6 * 60_000);
   expect(turns).toHaveLength(0);
-  expect(cancelled).toBe(1);
-  expect(requests).toEqual([]);
 }, 60_000);
