@@ -1,6 +1,9 @@
 import { afterEach, expect, test } from "bun:test";
 import { Effect } from "effect";
-import { streamChazInventoryWithRequestGate } from "./chaz-connector";
+import {
+  streamChazInventoryWithRequestGate,
+  type ChazStreamResult,
+} from "./chaz-connector";
 import { ChazCursor } from "./chaz-cursor";
 import { chazHash, type ChazControl, type ChazRecord } from "./chaz-parser";
 import {
@@ -92,9 +95,11 @@ function yard() {
   // Arrivals always list at least one card; this old donor is already on M0.
   let arrivals: ChazRecord[] = [record(0, 1, date(D - 20))];
   const urls: string[] = [];
-  // Models whose page transiently answers with an explicit empty result while
-  // the menu badge still counts its donors.
+  // Models whose page answers with an explicit empty result while the menu
+  // badge still counts its donors: on every request (`outages`, like the dead
+  // `&` routes) or only on the next one (`blips`).
   const outages = new Set<number>();
+  const blips = new Set<number>();
   const models = () =>
     [...rows].map(
       ([i, list]): ChazControl => ({
@@ -114,6 +119,7 @@ function yard() {
       urls.push(url);
       const total = [...rows.values()].reduce((n, l) => n + l.length, 0);
       const model = /\/parts\/ACURA\/M(\d+)\/$/.exec(url);
+      const blip = model !== null && blips.delete(Number(model[1]));
       const body =
         url === CHAZ_CONTACT
           ? chazFixtureContact
@@ -125,7 +131,7 @@ function yard() {
                 ? chazFixtureDirectory(models(), "models")
                 : model
                   ? chazFixtureModelPage(
-                      outages.has(Number(model[1]))
+                      blip || outages.has(Number(model[1]))
                         ? []
                         : (rows.get(Number(model[1])) ?? []),
                       `Used ACURA ${label(Number(model[1]))}`,
@@ -143,6 +149,7 @@ function yard() {
     rows,
     urls,
     outages,
+    blips,
     arrivals: () => arrivals,
     setArrivals: (next: ChazRecord[]) => {
       arrivals = next;
@@ -340,45 +347,119 @@ test("Chaz re-reads every model within six days, even across missed runs", async
   }
 });
 
-test("Chaz re-reads a model page whose cards disagree with its badge on the next run", async () => {
+/** One run on `day` that is expected to fail; resolves to the callbacks it
+ * made before failing. */
+async function failing(day: number, previousCursor: unknown, message: string) {
+  let callbacks = 0;
+  const callback = () =>
+    Effect.sync(() => {
+      callbacks++;
+    });
+  await expect(
+    (async () => {
+      let cursor: ChazCursor = ChazCursor.initial;
+      while (cursor.phase !== "complete") {
+        const result: ChazStreamResult = await Effect.runPromise(
+          streamChazInventoryWithRequestGate(
+            {
+              startCursor: cursor,
+              previousCursor,
+              now: () => day * MODEL_CENSUS_DAY_MS,
+              onBatch: callback,
+              onYards: callback,
+            },
+            gate,
+          ),
+        );
+        cursor = result.cursor;
+      }
+    })(),
+  ).rejects.toThrow(message);
+  return callbacks;
+}
+
+test("Chaz fails a run whose model page reads empty but its closing re-read lists its cards", async () => {
   const native = yard();
   const twelve = ids(12);
-  // The outage model is in the D + 3 sweep slice, so it is read that day.
+  // The model is in the D + 3 sweep slice, so it is read that day.
   const [down] = sweep(D + 3, twelve);
   if (down === undefined) throw new Error("Expected a model swept on D + 3");
   let previous = (await census(native, D, null)).terminal;
   for (const day of [D + 1, D + 2])
     previous = (await census(native, day, previous)).terminal;
-  // Day D + 3: the model is in the sweep slice and answers with an explicit
-  // empty page while its badge still counts 40. The run stays above the floor.
-  native.outages.add(down);
-  const outage = await census(native, D + 3, previous);
-  expect(outage.models).toEqual(sweep(D + 3, twelve));
-  expect(outage.vins).not.toContain(record(down, 1)[0]);
-  // Day D + 4: the badge is unchanged, but the carried page disagrees with it,
-  // so the model is read again; it is still empty.
-  const persistent = await census(native, D + 4, outage.terminal);
-  const persistentReads = reads(D + 4, twelve, [[down, "trigger"]]);
-  expect(persistent.models).toEqual([...persistentReads.keys()]);
-  expect(persistent.warnings.at(-1)).toBe(summary(12, persistentReads));
-  // Day D + 5: the page recovers and its donors are published again.
-  native.outages.delete(down);
-  const recovered = await census(native, D + 5, persistent.terminal);
-  expect(recovered.models).toEqual([
-    ...reads(D + 5, twelve, [[down, "trigger"]]).keys(),
-  ]);
-  expect(recovered.vins).toEqual(allVins(native));
-  // Day D + 6: the recovered page agrees with its badge and carries again.
-  // The models read only by the cold run reach the six-day ceiling today.
-  const settled = await census(native, D + 6, recovered.terminal);
-  const unread = quiet([D + 1, D + 2, D + 3, D + 4, D + 5], twelve);
-  expect(settled.models).toEqual(
-    twelve.filter(
-      (model) => unread.includes(model) || sweep(D + 6, [model]).length > 0,
+  // Day D + 3: the read answers with an explicit empty page under a badge of
+  // 40, and the closing re-read lists all 40 cards again. An unconfirmed empty
+  // page must never be published or carried, so the run fails before any
+  // callback and the D + 2 census stays the last accepted one.
+  native.blips.add(down);
+  const before = native.urls.length;
+  expect(
+    await failing(
+      D + 3,
+      previous,
+      "Closing Chaz model list " + label(down) + " changed",
     ),
-  );
-  expect(settled.models).not.toContain(down);
-  expect(settled.vins).toEqual(allVins(native));
+  ).toBe(0);
+  // The closing re-read is the model's second request of the run.
+  expect(
+    native.urls
+      .slice(before)
+      .filter((url) => url === CHAZ_ORIGIN + `/parts/ACURA/${label(down)}/`),
+  ).toHaveLength(2);
+  // A retry from the last accepted census publishes every donor.
+  const retry = await census(native, D + 3, previous);
+  expect(retry.models).toEqual(sweep(D + 3, twelve));
+  expect(retry.vins).toEqual(allVins(native));
+});
+
+test("Chaz confirms a persistently short model page at closing and carries it", async () => {
+  // A dead route (like TOWN & COUNTRY: badge 8, explicit empty page) re-reads
+  // identically at closing, so the run passes and the page carries as
+  // confirmed until its sweep instead of costing a read every day.
+  const native = yard();
+  native.rows.set(12, donors(12, 8));
+  native.outages.add(12);
+  const thirteen = ids(13);
+  const dead = new Set(donors(12, 8).map((r) => r[0]));
+  const live = () => allVins(native).filter((vin) => !dead.has(vin));
+  const cold = await census(native, D, null);
+  // contact, arrivals, makes, one menu, 13 models, closing contact, makes and
+  // the short model.
+  expect(cold.requests).toBe(20);
+  expect(cold.models).toEqual([...thirteen, 12]);
+  expect(cold.vins).toEqual(live());
+  let previous = cold.terminal;
+  let sweeps = 0;
+  for (let day = D + 1; day < D + MODEL_CENSUS_SWEEP_DAYS; day++) {
+    const run = await census(native, day, previous);
+    const expected = reads(day, thirteen, []);
+    const swept = expected.has(12);
+    if (swept) sweeps++;
+    expect(run.models).toEqual([...expected.keys(), ...(swept ? [12] : [])]);
+    expect(run.requests).toBe(6 + expected.size + (swept ? 1 : 0));
+    expect(run.warnings.at(-1)).toBe(summary(13, expected));
+    expect(run.vins).toEqual(live());
+    previous = run.terminal;
+  }
+  // The dead model's own sweep re-read is confirmed at closing again.
+  expect(sweeps).toBe(1);
+});
+
+test("Chaz fails a run whose swept model pages render empty while the menus keep their counts", async () => {
+  // A site fault empties every page read today. Carried pages hide it from
+  // the floor and the drift guards, so badge coverage must fail the run on the
+  // first broken day. Two of twelve models is the fixture's sixth; the rest
+  // stay above the 354 floor, so before this check the run published.
+  const native = yard();
+  const twelve = ids(12);
+  const cold = await census(native, D, null);
+  const day = [1, 2, 3, 4, 5]
+    .map((offset) => D + offset)
+    .find((d) => sweep(d, twelve).length === 2);
+  if (day === undefined)
+    throw new Error("fixture needs a day sweeping two models");
+  for (const model of sweep(day, twelve)) native.outages.add(model);
+  expect(await failing(day, cold.terminal, "coverage floor")).toBe(0);
 });
 
 test("Chaz checkpoints reject carried pages, accounting and census days that disagree with the plan", async () => {
