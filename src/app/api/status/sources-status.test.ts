@@ -13,8 +13,8 @@ function statusFor(published: Record<string, number>, paused: string[]) {
     const paused = ${JSON.stringify(paused)};
     const sources = ${JSON.stringify(ACTIVE_INGESTION_SOURCES)};
     mock.module("next/cache", () => ({ unstable_cache: (load) => load }));
-    mock.module("~/server/ingestion/durable-ingestion", () => ({
-      getDurableSourceFreshness: async () =>
+    mock.module("~/server/ingestion/source-freshness", () => ({
+      getSourceFreshness: async () =>
         Object.entries(published).map(([source, hoursAgo]) => ({
           source,
           lastAttemptAt: Date.now(),

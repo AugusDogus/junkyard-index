@@ -9,8 +9,8 @@ test("retired source status is 503 without reading cached publication state", ()
       `
     import { mock } from "bun:test";
     mock.module("next/cache", () => ({ unstable_cache: (load) => load }));
-    mock.module("~/server/ingestion/durable-ingestion", () => ({
-      getDurableSourceFreshness: () => { throw new Error("Retired status must not query publication state"); },
+    mock.module("~/server/ingestion/source-freshness", () => ({
+      getSourceFreshness: () => { throw new Error("Retired status must not query publication state"); },
     }));
     const { GET } = await import("./src/app/api/status/[source]/route.ts");
     for (const source of ["upullitne", "brandywine"]) {

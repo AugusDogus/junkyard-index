@@ -54,6 +54,9 @@ export const env = createEnv({
     // JSON object of ingestion source to its Better Stack status page row:
     // { "pyp": { "resourceId": 123, "heartbeatUrl": "https://..." }, ... }
     BETTERSTACK_PROVIDERS: z.string().optional(),
+    // JSON object of downstream consumer to its Better Stack heartbeat URL:
+    // { "inventory-downstream": "https://...", "maintenance": "https://..." }
+    BETTERSTACK_CONSUMER_HEARTBEATS: z.string().optional(),
     // Hyperbrowser (remote browser for protected provider ingestion)
     HYPERBROWSER_API_KEY: z.string(),
     // Vercel Blob (private store for staged ingestion snapshot chunks)
@@ -115,6 +118,8 @@ export const env = createEnv({
     BETTERSTACK_HEARTBEAT_URL: process.env.BETTERSTACK_HEARTBEAT_URL,
     BETTERSTACK_API_TOKEN: process.env.BETTERSTACK_API_TOKEN,
     BETTERSTACK_PROVIDERS: process.env.BETTERSTACK_PROVIDERS,
+    BETTERSTACK_CONSUMER_HEARTBEATS:
+      process.env.BETTERSTACK_CONSUMER_HEARTBEATS,
     HYPERBROWSER_API_KEY: process.env.HYPERBROWSER_API_KEY,
     BLOB_READ_WRITE_TOKEN: process.env.BLOB_READ_WRITE_TOKEN,
     PORTLESS_URL: process.env.PORTLESS_URL,

@@ -34,11 +34,9 @@ import {
   cleanupDurableIngestionStateBatchStep,
   cleanupStaleDurableAlgoliaRebuildsStep,
   cleanupStaleDurableIngestionSnapshotsStep,
-  announceInventoryStep,
   attachDurableIngestionWorkflowStep,
   claimDurableIngestionCommitStep,
   prepareIngestionPassStep,
-  refreshHomepageStep,
   reportIngestionRunStep,
   signalCommitWaitersStep,
   deliverVehicleSearchAlertIntentsStep,
@@ -51,7 +49,6 @@ import {
   runDurableSourceChunkStep,
   runSearchAlertCheckBatchStep,
   validateDurableIngestionSourcesStep,
-  warmInventoryAnnouncementStep,
 } from "./vehicle-steps";
 import { IngestionTokens } from "./ingestion-tokens";
 import { withAlgoliaWriterLock } from "~/server/ingestion/algolia-writer-lock";
@@ -66,8 +63,6 @@ const COMMIT_TURN_FALLBACK = "5m";
 const COMMIT_TURN_SETTLE = "2s";
 const PASS_WATCHDOG_INTERVAL = "30m";
 const FAILED_RUN_RESUME_DELAY = "5m";
-// Time for requested pages to finish regenerating in the background.
-const PAGE_REGENERATION_DELAY = "2m";
 // Retry interval while an alert check batch could read incomplete results:
 // a run from the previous release is matching alerts, or a commit inside the
 // check's window is not searchable yet.
@@ -168,36 +163,14 @@ export async function vehicleIngestionPassWorkflow(day: string) {
     pauseAfterFailure: () => sleep(FAILED_RUN_RESUME_DELAY),
     deliverNotifications: () => startDailySearchAlertsStep(day),
   });
-  // Only the pass that ran sources refreshes the homepage. Rebuilding it
-  // scans every live vehicle, and an hourly refresh stalled the homepage.
+  // The homepage, inventory caches, warmup and IndexNow run on their own
+  // inventory-downstream cron, so a pass that never completes cannot hold
+  // them back. The stale-rebuild sweep stays here until the search projector
+  // owns it.
   if (outcome === "completed") {
     await cleanupStaleDurableAlgoliaRebuildsStep();
-    const refreshed = await refreshHomepageStep();
-    if (refreshed !== null) {
-      try {
-        await announceChangedInventoryPages(refreshed);
-      } catch (error) {
-        // Best effort: the pass already published. The checkpoint stays
-        // behind, so the next publication's announcement includes these pages.
-        console.error(
-          `[Workflow] Could not announce publication ${refreshed}'s changed inventory pages to IndexNow; the next publication's announcement retries them: ${String(error)}`,
-        );
-      }
-    }
   }
   return { status: outcome, day };
-}
-
-/**
- * Announces the pages a publication changed once they show it: each page is
- * requested so it regenerates, then IndexNow engines hear about it, so a
- * crawler that follows gets the new page.
- */
-async function announceChangedInventoryPages(publicationSequence: number) {
-  const paths = await warmInventoryAnnouncementStep(publicationSequence);
-  if (paths.length === 0) return;
-  await sleep(PAGE_REGENERATION_DELAY);
-  await announceInventoryStep(publicationSequence, paths);
 }
 
 /**

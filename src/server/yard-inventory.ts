@@ -16,7 +16,7 @@ import {
   type IngestionSource,
 } from "~/lib/ingestion-source";
 import { YardInventory, type YardVehicle } from "~/lib/yard-inventory";
-import { getDurableSourceFreshness } from "~/server/ingestion/durable-ingestion";
+import { getSourceFreshness } from "~/server/ingestion/source-freshness";
 import { vehicle, yardInventory } from "~/schema";
 
 async function loadYardVehicles(
@@ -72,7 +72,7 @@ export const getYardVehicles = cacheInventory(loadYardVehicles, [
 async function loadSourcePublishedAt(): Promise<
   Partial<Record<IngestionSource, string>>
 > {
-  const freshness = await getDurableSourceFreshness(new Date());
+  const freshness = await getSourceFreshness(new Date());
   const published: Partial<Record<IngestionSource, string>> = {};
   for (const { source, lastPublishedAt } of freshness) {
     if (

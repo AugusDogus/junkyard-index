@@ -28,7 +28,10 @@ import type { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import { IngestionSchedule } from "./ingestion-schedule";
 import { SourcePublication } from "./source-publication";
 import { CommitLease } from "./commit-lease";
-import type { IngestionSourceFreshness } from "./durable-health";
+import {
+  loadSourceFreshness,
+  type IngestionSourceFreshness,
+} from "./durable-health";
 
 const SNAPSHOT_WRITE_BATCH_SIZE = 500;
 const CLEANUP_BATCH_SIZE = 5_000;
@@ -929,26 +932,8 @@ export function createDurableIngestionRepository(
     },
 
     /** Each source's latest attempt and accepted publication in the last 3 days. */
-    async getSourceFreshness(now: Date): Promise<IngestionSourceFreshness[]> {
-      const rows = await database
-        .select({
-          source: ingestionSourceRun.source,
-          lastAttemptAt: sql<number>`max(${ingestionSourceRun.startedAt})`,
-          lastPublishedAt: sql<number | null>`max(case
-            when ${SourcePublication.acceptedSql}
-            then ${SourcePublication.publishedAt}
-          end)`,
-        })
-        .from(ingestionSourceRun)
-        .innerJoin(ingestionRun, eq(ingestionRun.id, ingestionSourceRun.runId))
-        .where(
-          sql`${ingestionSourceRun.startedAt} > ${now.getTime() - 3 * 24 * 60 * 60 * 1000}`,
-        )
-        // `+source` stops SQLite walking the whole table in source-index order
-        // to group; it reads the started_at range instead (9.7 s to 0.3 s on
-        // production in November 2026).
-        .groupBy(sql`+${ingestionSourceRun.source}`);
-      return rows;
+    getSourceFreshness(now: Date): Promise<IngestionSourceFreshness[]> {
+      return loadSourceFreshness(database, now);
     },
 
     async getRun(runId: string) {
