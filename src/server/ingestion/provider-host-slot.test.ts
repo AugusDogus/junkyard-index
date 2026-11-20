@@ -44,12 +44,25 @@ test("production host gates keep the keys older deployments use", () => {
     readySequence: "{ingestion:host:offline:v1}:ready-sequence",
     active: "{ingestion:host:offline:v1}:active",
   });
-  const grouped = providerHostKeys(
-    { ...policy, key: "urg:first", group: { key: "urg", activeLanes: 1 } },
-    "production",
-  );
-  expect(grouped.lease).toBe("{ingestion:host-group:urg:v1}:lane:urg:first");
-  expect(grouped.active).toBe("{ingestion:host-group:urg:v1}:active");
+  // URG lanes share a group: old and new deployments must keep one queue.
+  const tag = "{ingestion:host-group:urg:v1}";
+  expect(
+    providerHostKeys(
+      { ...policy, key: "urg:first", group: { key: "urg", activeLanes: 1 } },
+      "production",
+    ),
+  ).toEqual({
+    lease: `${tag}:lane:urg:first`,
+    lane: [
+      `${tag}:lane:urg:first`,
+      `${tag}:lane:urg:first:queue`,
+      `${tag}:lane:urg:first:deadlines`,
+      `${tag}:lane:urg:first:sequence`,
+    ],
+    ready: [`${tag}:ready`, `${tag}:ready-deadlines`],
+    readySequence: `${tag}:ready-sequence`,
+    active: `${tag}:active`,
+  });
 });
 
 test.each(["preview", "development", "local"] as const)(
