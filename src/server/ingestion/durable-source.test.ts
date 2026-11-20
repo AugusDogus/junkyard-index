@@ -204,6 +204,7 @@ describe("durable ingestion cursors", () => {
     ["awap", 2],
     ["clearsalvage", 4],
     ["central", 4],
+    ["aplus", 4],
     ["sandw", 4],
     ["beavers", 2],
     ["indianriver", 8],
@@ -240,21 +241,17 @@ describe("durable ingestion cursors", () => {
       }
     },
   );
-  test.each([
-    "rustyhook",
-    "chaz",
-    "citymotors",
-    "aplus",
-    "coutu",
-    "six03",
-  ] as const)("%s rejects oversized wire before JSON decoding", (source) => {
-    for (const wire of [
-      "x".repeat(1024 * 1024 + 1),
-      '"' + "é".repeat(600_000) + '"',
-    ]) {
-      expect(() => parseDurableSourceCursor(source, wire)).toThrow(/1 MiB/);
-    }
-  });
+  test.each(["rustyhook", "chaz", "citymotors", "coutu", "six03"] as const)(
+    "%s rejects oversized wire before JSON decoding",
+    (source) => {
+      for (const wire of [
+        "x".repeat(1024 * 1024 + 1),
+        '"' + "é".repeat(600_000) + '"',
+      ]) {
+        expect(() => parseDurableSourceCursor(source, wire)).toThrow(/1 MiB/);
+      }
+    },
+  );
   test.each([...INGESTION_SOURCES])(
     "round trips the registered %s initial checkpoint and rejects malformed input",
     (source) => {

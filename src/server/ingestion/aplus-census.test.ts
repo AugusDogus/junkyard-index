@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { Effect } from "effect";
 import { streamAplusInventoryWithRequestGate } from "./aplus-connector";
-import { AplusCursor } from "./aplus-cursor";
+import { AplusCursor, AplusCursorSchema } from "./aplus-cursor";
 import type { AplusControl, AplusRecord } from "./aplus-parser";
 import {
   APLUS_CONTACT,
@@ -15,7 +15,11 @@ import {
   aplusFixtureModelPage,
   aplusFixtureRoot,
 } from "./aplus-test-fixtures";
-import { MODEL_CENSUS_DAY_MS } from "./model-census";
+import {
+  MODEL_CENSUS_DAY_MS,
+  MODEL_CENSUS_SWEEP_DAYS,
+  ModelCensus,
+} from "./model-census";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
@@ -105,14 +109,19 @@ async function census(
   let cursor: AplusCursor = AplusCursor.initial;
   const vins: string[] = [];
   const warnings: string[] = [];
+  let chunk = 0;
   while (cursor.phase !== "complete") {
+    // Only the first chunk may fix the run day and adopt a census. Later
+    // chunks see a junk previous cursor and a clock past midnight; re-applying
+    // either would change the plan and fail checkpoint validation.
+    const first = chunk++ === 0;
     const result = await Effect.runPromise(
       streamAplusInventoryWithRequestGate(
         {
           startCursor: cursor,
-          // Only the first chunk may adopt a census; later chunks must not.
-          previousCursor,
-          now: () => day * MODEL_CENSUS_DAY_MS + 7 * 60 * 60 * 1000,
+          previousCursor: first ? previousCursor : { source: "aplus" },
+          now: () =>
+            (first ? day : day + 1) * MODEL_CENSUS_DAY_MS + 7 * 60 * 60 * 1000,
           maxPages: 3,
           onBatch: (batch) =>
             Effect.sync(() => {
@@ -160,28 +169,76 @@ test("A Plus cold start reads every model and publishes its census", async () =>
   expect(fallback.warnings[0]).toContain("reading every model page");
 });
 
+test("A Plus starts a warned cold census when a carried page fails its fingerprint", async () => {
+  const native = yard();
+  const cold = await census(native, 600, null);
+  const terminal = AplusCursorSchema.parse(cold.terminal);
+  if (terminal.phase !== "complete" || !terminal.census)
+    throw new Error("Expected a terminal census");
+  const [first, ...rest] = terminal.census.models;
+  if (!first) throw new Error("Expected census evidence");
+  const tampered = {
+    ...terminal,
+    census: {
+      ...terminal.census,
+      models: [{ ...first, page: { ...first.page, records: [] } }, ...rest],
+    },
+  };
+  const next = await census(native, 601, tampered);
+  expect(next.models).toHaveLength(12);
+  expect(next.warnings[0]).toContain("record fingerprint");
+  expect(next.vins).toEqual(allVins(native));
+});
+
+/** Models in a day's sweep slice, keyed exactly as A Plus binds them. */
+const swept = (day: number) =>
+  Array.from({ length: 12 }, (_, i) => i).filter(
+    (i) =>
+      ModelCensus.slice(
+        JSON.stringify([
+          make.path,
+          make.label,
+          `/parts/ACURA/${label(i)}/`,
+          label(i),
+        ]),
+      ) ===
+      day % MODEL_CENSUS_SWEEP_DAYS,
+  );
+
 test("A Plus carries unread models, rotates the sweep and reads changes", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
-  // Day 601: only the sweep slice (ordinal % 6 === 601 % 6) is read.
+  // Day 601: only that day's sweep slice is read.
   const next = await census(native, 601, cold.terminal);
-  expect(next.models).toEqual([1, 7]);
-  expect(next.requests).toBe(8);
+  expect(next.models).toEqual(swept(601));
+  expect(next.models.length).toBeLessThan(12);
+  expect(next.requests).toBe(6 + swept(601).length);
   // Carried donors are still published in full.
   expect(next.vins).toEqual(allVins(native));
 
-  // Day 602: a sold donor changes model 4's count; on model 9 a donor is
+  // Day 602: a sold donor changes one model's count; on another a donor is
   // swapped for an arrival at the same count, which only the arrival reveals.
-  native.rows.set(4, donors(4, 39));
-  const arrival = record(9, 41);
-  native.rows.set(9, [...donors(9).slice(1), arrival]);
+  const [sold, swapped] = Array.from({ length: 12 }, (_, i) => i).filter(
+    (i) => !swept(602).includes(i),
+  );
+  if (sold === undefined || swapped === undefined)
+    throw new Error("fixture needs two models outside the day 602 slice");
+  native.rows.set(sold, donors(sold, 39));
+  const arrival = record(swapped, 41);
+  native.rows.set(swapped, [...donors(swapped).slice(1), arrival]);
   native.setArrivals([arrival]);
   const changed = await census(native, 602, next.terminal);
-  expect(changed.models).toEqual([2, 4, 8, 9]);
-  expect(changed.vins).toEqual(allVins(native));
-  expect(changed.warnings.at(-1)).toBe(
-    "Aplus Read 4 of 12 model pages (sweep 2, count 1, trigger 1); carried 8.",
+  expect(changed.models).toEqual(
+    [...swept(602), sold, swapped].sort((x, y) => x - y),
   );
+  expect(changed.vins).toEqual(allVins(native));
+  const sweeps = swept(602).length;
+  expect(changed.warnings.at(-1)).toContain(
+    `Read ${sweeps + 2} of 12 model pages (`,
+  );
+  expect(changed.warnings.at(-1)).toContain("count 1");
+  expect(changed.warnings.at(-1)).toContain("trigger 1");
+  expect(changed.warnings.at(-1)).toContain(`carried ${10 - sweeps}.`);
 });
 
 test("A Plus re-reads every model within six days, even across missed runs", async () => {

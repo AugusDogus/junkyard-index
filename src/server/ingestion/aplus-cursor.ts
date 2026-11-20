@@ -3,6 +3,7 @@ import {
   aplusHash,
   AplusControlSchema,
   AplusPageSchema,
+  type AplusControl,
   type AplusPage,
 } from "./aplus-parser";
 import { aplusModels, type AplusMake } from "./aplus-snapshot";
@@ -64,14 +65,50 @@ const progress = z
 export type AplusProgress = z.infer<typeof progress>;
 export type AplusClosingControl =
   | { kind: "contact"; url: typeof APLUS_CONTACT }
-  | { kind: "directory"; url: typeof APLUS_MAKES };
+  | { kind: "directory"; url: typeof APLUS_MAKES }
+  | {
+      kind: "model";
+      url: string;
+      make: AplusMake;
+      model: AplusControl;
+      index: number;
+    };
 
-/** Closing re-reads ownership and the make directory only. Per-model changes
- * during the run surface as count changes in the next run's opening menus. */
-export function aplusClosingControls(): AplusClosingControl[] {
+/** Closing re-reads ownership, the make directory and every model read this
+ * run whose cards differ from its badge, so a short page is confirmed before it
+ * can be carried. Carried pages were confirmed on the run that read them; other
+ * per-model changes surface as count changes in the next run's opening menus. */
+export function aplusClosingControls(
+  state: Pick<
+    AplusProgress,
+    "makes" | "pages" | "arrivals" | "previous" | "day"
+  >,
+): AplusClosingControl[] {
+  const models = aplusModels(state.makes);
+  const decisions =
+    state.day === null || state.pages.length !== models.length
+      ? []
+      : aplusCensusPlan(state);
+  const mismatched = decisions.flatMap((decision, index) => {
+    const value = models[index];
+    return decision.kind === "read" &&
+      value &&
+      state.pages[index]?.records.length !== value.model.count
+      ? [
+          {
+            kind: "model" as const,
+            url: APLUS_ORIGIN + value.model.path,
+            make: value.make,
+            model: value.model,
+            index,
+          },
+        ]
+      : [];
+  });
   return [
     { kind: "contact", url: APLUS_CONTACT },
     { kind: "directory", url: APLUS_MAKES },
+    ...mismatched,
   ];
 }
 
@@ -221,7 +258,7 @@ export const AplusCursorSchema = z
       }
       if (
         (stage < 5 && state.closing !== 0) ||
-        (stage === 5 && state.closing > aplusClosingControls().length)
+        (stage === 5 && state.closing > aplusClosingControls(state).length)
       )
         throw new Error("Aplus closing control prefix is inconsistent");
       if (
@@ -316,16 +353,27 @@ export const AplusCursor = {
     if (cursor.day !== null) return { cursor, warning: null };
     const day = ModelCensus.day(now);
     const parsed = AplusCursorSchema.safeParse(previousCursor ?? undefined);
+    const corrupt = (census: AplusCensus | undefined) =>
+      census?.models.some((m) => m.page.hash !== aplusHash(m.page.records)) ??
+      false;
     const previous =
-      parsed.success && parsed.data.phase === "complete"
-        ? ModelCensus.previous(parsed.data.census, scope, day)
-        : {
+      parsed.success &&
+      parsed.data.phase === "complete" &&
+      corrupt(parsed.data.census)
+        ? {
             kind: "cold" as const,
             warning:
-              previousCursor === null || previousCursor === undefined
-                ? null
-                : "Previous Aplus checkpoint is not a readable terminal census; reading every model page.",
-          };
+              "Previous Aplus census page fails its record fingerprint; reading every model page.",
+          }
+        : parsed.success && parsed.data.phase === "complete"
+          ? ModelCensus.previous(parsed.data.census, scope, day)
+          : {
+              kind: "cold" as const,
+              warning:
+                previousCursor === null || previousCursor === undefined
+                  ? null
+                  : "Previous Aplus checkpoint is not a readable terminal census; reading every model page.",
+            };
     return {
       cursor: AplusCursor.checkpoint({
         ...cursor,

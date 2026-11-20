@@ -99,7 +99,7 @@ function nextUrl(state: AplusProgress): string {
       return APLUS_ORIGIN + next.model.path;
     }
     case "closing": {
-      const control = aplusClosingControls()[state.closing];
+      const control = aplusClosingControls(state)[state.closing];
       if (!control) throw new Error("Missing Aplus closing control");
       return control.url;
     }
@@ -159,7 +159,7 @@ function advance(state: AplusProgress, raw: string): AplusProgress {
       break;
     }
     case "closing": {
-      const control = aplusClosingControls()[state.closing];
+      const control = aplusClosingControls(state)[state.closing];
       if (!control) throw new Error("Missing Aplus closing native context");
       switch (control.kind) {
         case "contact":
@@ -170,6 +170,13 @@ function advance(state: AplusProgress, raw: string): AplusProgress {
             state.makes.map(({ models: _models, ...make }) => make),
             parseAplusDirectory(raw, "makes"),
             "make directory",
+          );
+          break;
+        case "model":
+          same(
+            state.pages[control.index]?.hash,
+            parseAplusModel(raw, control.make, control.model).hash,
+            "model list " + control.model.label,
           );
           break;
       }
@@ -251,7 +258,7 @@ export function streamAplusInventoryWithRequestGate<E, R>(
       summary.pagesProcessed++;
       if (
         advanced.phase === "closing" &&
-        advanced.closing === aplusClosingControls().length
+        advanced.closing === aplusClosingControls(advanced).length
       ) {
         const snapshot = yield* attempt("complete native union", () => {
           const snapshot = aplusSnapshot(

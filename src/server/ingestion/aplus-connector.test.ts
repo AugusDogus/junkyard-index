@@ -405,3 +405,51 @@ test("Aplus keeps advancing when every shared host turn waits minutes", async ()
   expect(native.urls).toHaveLength(7);
   expect(vehicles).toBe(1000);
 }, 120_000);
+
+test("Aplus confirms a model read with fewer cards than its badge at closing", async () => {
+  const native = transport();
+  // The badges promise one more donor than the model page lists.
+  native.bodies.set(
+    APLUS_MAKES,
+    aplusFixtureDirectory([{ ...aplusFixtureMake, count: 1001 }], "makes"),
+  );
+  native.bodies.set(
+    APLUS_ORIGIN + aplusFixtureMake.path,
+    aplusFixtureDirectory([{ ...aplusFixtureModel, count: 1001 }], "models"),
+  );
+  const modelUrl = APLUS_ORIGIN + aplusFixtureModel.path;
+  const complete = await Effect.runPromise(
+    streamAplusInventoryWithRequestGate(
+      { maxPages: 8, onBatch: () => Effect.void },
+      gate,
+    ),
+  );
+  expect(complete.status).toBe("complete");
+  expect(native.urls.filter((url) => url === modelUrl)).toHaveLength(2);
+  expect(complete.pagesProcessed).toBe(8);
+
+  // A short page that does not repeat at closing is never accepted.
+  const reads = native.urls.length;
+  const nativeFetch = globalThis.fetch;
+  let modelReads = 0;
+  globalThis.fetch = Object.assign(
+    (input: string | URL | Request, init?: RequestInit) => {
+      if (input === modelUrl && modelReads++ === 1)
+        native.bodies.set(
+          modelUrl,
+          aplusFixtureModelPage(native.rows.slice(1)),
+        );
+      return nativeFetch(input, init);
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  await expect(
+    Effect.runPromise(
+      streamAplusInventoryWithRequestGate(
+        { maxPages: 8, onBatch: () => Effect.void },
+        gate,
+      ),
+    ),
+  ).rejects.toThrow("Closing Aplus model list");
+  expect(native.urls.length - reads).toBe(8);
+});
