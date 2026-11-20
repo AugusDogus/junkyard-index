@@ -28,7 +28,7 @@ const scope = aplusHash({
   version: 1,
   yard: APLUS_YARD,
   authority:
-    "literal-model-graph/native-arrival-union/all-conflicts-quarantined/incremental-model-census-v1",
+    "literal-model-graph/native-arrival-union/all-conflicts-quarantined/incremental-model-census-v2",
 });
 /** Every model page read by an accepted run, carried forward by the next one. */
 export const AplusCensusSchema = ModelCensus.schema(AplusPageSchema, 512);
@@ -145,7 +145,32 @@ export function aplusCensusPlan(
     if (key && !carried.get(key)?.records.some((r) => r[0] === record[0]))
       triggers.add(key);
   }
-  return ModelCensus.plan(controls, state.previous, state.day, triggers);
+  return ModelCensus.plan(controls, state.previous, state.day, {
+    cards: aplusCards,
+    triggers,
+  });
+}
+
+const aplusCards = (page: AplusPage) => page.records.length;
+/** Published model counts have matched model cards exactly in every observed
+ * A Plus census (1,133 of 1,133 on 210 models). */
+export const APLUS_MINIMUM_BADGE_COVERAGE = 0.95;
+
+/** Fails a run whose read and carried model cards fall short of today's model
+ * counts, before anything is published. */
+export function aplusCoverageError(state: AplusProgress): string | null {
+  const models = aplusModels(state.makes);
+  return ModelCensus.coverage(
+    "Aplus",
+    aplusCensusControls(state.makes),
+    state.pages,
+    aplusCards,
+    APLUS_MINIMUM_BADGE_COVERAGE,
+    (index) => {
+      const value = models[index];
+      return value ? value.make.label + " " + value.model.label : "?";
+    },
+  );
 }
 
 /** Terminal census for a fully closed run. */
@@ -157,6 +182,9 @@ export function aplusCensus(state: AplusProgress): AplusCensus {
     aplusCensusControls(state.makes),
     state.pages,
     aplusCensusPlan(state),
+    // Closing re-reads every short page read this run and fails on a change.
+    "confirmed",
+    aplusCards,
   );
 }
 
