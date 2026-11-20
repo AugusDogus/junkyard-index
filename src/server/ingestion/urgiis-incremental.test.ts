@@ -1,5 +1,5 @@
 import { urgiisBrokenModelRoute } from "./urgiis-model-coverage";
-import { beforeAll, expect, test } from "bun:test";
+import { beforeAll, describe, expect, test } from "bun:test";
 import { Effect } from "effect";
 import { URGIIS_TENANTS } from "./urgiis-configuration";
 import { UrgiisReplayArchive } from "./urgiis-replay-archive";
@@ -66,6 +66,8 @@ interface Day {
   closingOrdinary?: string;
   tenantList?: typeof tenants;
   emptyTenant?: string;
+  /** Limits `fail` to this tenant's reads. */
+  failTenant?: string;
   now?: number;
   arrivals?: UrgiisRecord[];
   badge?: string;
@@ -127,9 +129,10 @@ async function run(day: Day = {}) {
           reads.push(url);
           const path = new URL(url).pathname;
           if (
-            typeof day.fail === "string"
+            (!day.failTenant || currentTenant.code === day.failTenant) &&
+            (typeof day.fail === "string"
               ? path === day.fail
-              : day.fail?.includes(path)
+              : day.fail?.includes(path))
           )
             return Effect.fail({
               ...urgiisError("request/body " + url, "offline repeated HTTP500"),
@@ -949,4 +952,74 @@ test("an ordinary closing empty cannot extend the six-day carry bound", async ()
   });
   expect(result.vehicles).toEqual([]);
   expect(result.cursor.completed[0]).toHaveProperty("blocked");
+});
+
+describe("a tenant missing from the accepted census", () => {
+  const second = { ...tenant, code: "second" };
+  const pair = [tenant, second];
+  // Blocks the second tenant at its first page, after three reads.
+  const blockSecond = { fail: tenant.ownerPath, failTenant: second.code };
+  // Later chunks run 30 hours after the run starts: past a one-day deadline.
+  const late = (now: number) => (chunk: number) =>
+    chunk === 0 ? now : now + 30 * 3600_000;
+  const modelReads = (result: Awaited<ReturnType<typeof run>>) =>
+    readModels(result).length;
+
+  test("after a cold census that blocked it, gets a three-day recovery run", async () => {
+    const cold = await run({ tenantList: pair, now: start, ...blockSecond });
+    expect(cold.cursor.completed).toEqual([
+      { code: tenant.code, accepted: expect.any(Number) },
+      { code: second.code, blocked: expect.stringContaining("HTTP500") },
+    ]);
+    const now = start + DAY;
+    const recovery = await run({
+      tenantList: pair,
+      previous: cold.cursor,
+      now,
+      clock: late(now),
+    });
+    expect(recovery.cursor.runKind).toBe("recovery");
+    expect(recovery.cursor.completed).toEqual([
+      { code: tenant.code, accepted: expect.any(Number) },
+      { code: second.code, accepted: expect.any(Number) },
+    ]);
+    // The missing tenant reads every model; the other carries a day-old
+    // census and reads only today's slice.
+    const slice = models.filter(
+      (_, index) => index % 6 === Math.floor(now / DAY) % 6,
+    ).length;
+    expect(modelReads(recovery)).toBe(models.length + slice);
+    const next = await run({
+      tenantList: pair,
+      previous: recovery.cursor,
+      now: now + DAY,
+    });
+    expect(next.cursor.runKind).toBe("incremental");
+  });
+
+  test("after six days blocked, recovers in a three-day run that rereads evidence four days old", async () => {
+    const cold = await run({ tenantList: pair, now: start });
+    const blocked = await run({
+      tenantList: pair,
+      previous: cold.cursor,
+      now: start + DAY,
+      ...blockSecond,
+    });
+    expect(blocked.cursor.completed[1]).toHaveProperty("blocked");
+    const now = start + 6 * DAY + 3600_000;
+    const recovery = await run({
+      tenantList: pair,
+      previous: blocked.cursor,
+      now,
+      clock: late(now),
+    });
+    expect(recovery.cursor.runKind).toBe("recovery");
+    expect(recovery.cursor.completed).toEqual([
+      { code: tenant.code, accepted: expect.any(Number) },
+      { code: second.code, accepted: expect.any(Number) },
+    ]);
+    // Three days of run plus under four days of carry stays under seven:
+    // both tenants reread every model, including those read five days ago.
+    expect(modelReads(recovery)).toBe(2 * models.length);
+  });
 });

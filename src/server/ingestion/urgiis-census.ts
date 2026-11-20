@@ -14,13 +14,26 @@ import type { UrgiisRecord } from "./urgiis-schema";
 
 export const URGIIS_DAY_MS = 24 * 60 * 60 * 1000;
 export const URGIIS_SWEEP_MS = 7 * URGIIS_DAY_MS;
-// Reserve one day for a run to finish before the seven-day evidence ceiling.
-const carryMs = 6 * URGIIS_DAY_MS;
+/** How a run uses the accepted census, and so how long it may take. A cold run
+ * has no census. A recovery run has a census missing a tenant, or holding one
+ * too old to carry anything, so it rereads that tenant in full: it gets the
+ * cold deadline, and never more work than a cold census. */
+export type UrgiisRunKind = "cold" | "recovery" | "incremental";
+export const URGIIS_RUN_DAYS = {
+  cold: 3,
+  recovery: 3,
+  incremental: 1,
+} as const satisfies Record<UrgiisRunKind, number>;
+/** Carried evidence must be younger than this at run start, reserving the
+ * run's deadline before the seven-day ceiling at publication. */
+export const urgiisCarryMs = (kind: UrgiisRunKind) =>
+  URGIIS_SWEEP_MS - URGIIS_RUN_DAYS[kind] * URGIIS_DAY_MS;
+const carryMs = urgiisCarryMs("incremental");
 // A freshly read model refreshes its donors' seller details once they are this
 // old. That model's next read comes within the carry limit, so no seller
-// evidence reaches sellerMaxMs. Other model reads reuse unchanged details.
+// evidence reaches 21 days plus the carry limit. Other model reads reuse
+// unchanged details.
 const sellerRefreshMs = 21 * URGIIS_DAY_MS;
-const sellerMaxMs = sellerRefreshMs + carryMs;
 // Bump this whenever admission, traversal or interpretation of cached evidence changes.
 const contract = "incremental-census-v6";
 const tenantSchema = z
@@ -106,10 +119,15 @@ function previousModel(
 const slices = carryMs / URGIIS_DAY_MS;
 /** Balanced native-control slices start on the first incremental day, even when
  * bootstrap read every page at the same time. Age remains an independent ceiling. */
-export function urgiisSweepDue(index: number, now: number, readAt: number) {
+export function urgiisSweepDue(
+  index: number,
+  now: number,
+  readAt: number,
+  carry = carryMs,
+) {
   const day = Math.floor(now / URGIIS_DAY_MS);
   const readDay = Math.floor(readAt / URGIIS_DAY_MS);
-  if (now - readAt >= carryMs) return true;
+  if (now - readAt >= carry) return true;
   if (readDay >= day) return false;
   const slice = index % slices;
   if (slice === day % slices) return true;
@@ -129,6 +147,7 @@ export function urgiisCarry(
   entries: readonly UrgiisEntry[],
   previous: UrgiisTenantCensus | undefined,
   now: number,
+  carry = carryMs,
 ): UrgiisEntry | undefined {
   if (!previous) return undefined;
   if (task.kind === "detail") {
@@ -162,11 +181,11 @@ export function urgiisCarry(
     const limit =
       detail.seller === null
         ? models.length && !fresh
-          ? sellerMaxMs
+          ? sellerRefreshMs + carry
           : 0
         : fresh
           ? sellerRefreshMs
-          : sellerMaxMs;
+          : sellerRefreshMs + carry;
     const age = now - detail.readAt;
     return sameDonor && age >= 0 && age < limit
       ? { ...detail, bytes: 0 }
@@ -210,7 +229,7 @@ export function urgiisCarry(
     before.model.count !== task.model.count ||
     before.entry.freshness.kind === "deferred" ||
     unknownArrival ||
-    urgiisSweepDue(index, now, before.entry.freshness.readAt)
+    urgiisSweepDue(index, now, before.entry.freshness.readAt, carry)
   )
     return undefined;
   return {
@@ -224,6 +243,7 @@ export function urgiisDefer(
   entries: readonly UrgiisEntry[],
   previous: UrgiisTenantCensus | undefined,
   now: number,
+  carry = carryMs,
 ) {
   const before = previousModel(task, previous);
   if (
@@ -231,7 +251,7 @@ export function urgiisDefer(
     urgiisArrivalsCoverage(entries, previous).kind === "overflow" ||
     task.kind !== "model" ||
     task.model.count >= 500 ||
-    now - before.entry.freshness.readAt >= carryMs
+    now - before.entry.freshness.readAt >= carry
   )
     return undefined;
   return {
@@ -239,6 +259,20 @@ export function urgiisDefer(
     bytes: 0,
     freshness: { ...before.entry.freshness, kind: "deferred" as const },
   };
+}
+/** The run kind for `tenants` given the accepted census at run start. */
+export function urgiisRunKind(
+  census: UrgiisCensus,
+  tenants: readonly UrgiisTenant[],
+  now: number,
+): UrgiisRunKind {
+  if (!census.tenants.length) return "cold";
+  return tenants.every((tenant) => {
+    const entry = census.tenants.find((t) => t.code === tenant.code);
+    return entry !== undefined && now - entry.acceptedAt < carryMs;
+  })
+    ? "incremental"
+    : "recovery";
 }
 export const UrgiisCensus = {
   empty: (): UrgiisCensus => ({ version: 1, tenants: [] }),

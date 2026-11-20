@@ -23,7 +23,7 @@ const base = {
   scope: z.string(),
   startedAt: z.number().int().nonnegative().nullable(),
   // Absent on older checkpoints, which retain their one-day deadline.
-  runKind: z.enum(["cold", "incremental"]).optional(),
+  runKind: z.enum(["cold", "recovery", "incremental"]).optional(),
   retryAt: z.number().int().nonnegative().safe().optional(),
   asOf: z.number().int().nonnegative().nullable(),
   // The repository installs this pointer atomically with the snapshot checkpoint.

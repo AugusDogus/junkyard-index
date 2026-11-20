@@ -14,6 +14,8 @@ import {
   urgiisCarry,
   urgiisDefer,
   URGIIS_SWEEP_MS,
+  URGIIS_RUN_DAYS,
+  urgiisCarryMs,
   URGIIS_DAY_MS,
 } from "./urgiis-census";
 import { UrgiisTenant } from "./urgiis-tenant";
@@ -204,14 +206,17 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
           `URG IIS provider cooldown lasts until ${new Date(cursor.retryAt).toISOString()}; no requests made.`,
         ],
       };
-    const runDays = cursor.runKind === "cold" ? 3 : 1;
+    // Older checkpoints without a kind keep their one-day deadline.
+    const runKind = cursor.runKind ?? "incremental";
+    const runDays = URGIIS_RUN_DAYS[runKind];
+    const carry = urgiisCarryMs(runKind);
     if (wallNow - startedAt >= runDays * URGIIS_DAY_MS - 8 * 60_000)
       return {
         ...result,
         cursor,
         status: "failed" as const,
         errors: [
-          `URG IIS census has less than one chunk left before its ${runDays === 1 ? "one-day" : "three-day cold census"} deadline; restart with fresh evidence. Prior inventory is preserved.`,
+          `URG IIS census has less than one chunk left before its ${runDays === 1 ? "one-day" : `three-day ${runKind} census`} deadline; restart with fresh evidence. Prior inventory is preserved.`,
         ],
       };
     let unsealed = false;
@@ -422,7 +427,7 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
         );
       const carried =
         cursor.phase === "opening" && !retrying
-          ? urgiisCarry(task, cursor.entries, previousTenant, now)
+          ? urgiisCarry(task, cursor.entries, previousTenant, now, carry)
           : undefined;
       if (carried) {
         const entries = [...cursor.entries, carried];
@@ -462,7 +467,8 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
         !cursor.entries.some(
           (e) => e.kind === "model" && e.freshness.kind === "deferred",
         ) &&
-        urgiisDefer(task, cursor.entries, previousTenant, now) !== undefined;
+        urgiisDefer(task, cursor.entries, previousTenant, now, carry) !==
+          undefined;
       const read = yield* options.readPage(task.url, tenant).pipe(
         Effect.map(Either.right),
         Effect.catchAll((error) =>
@@ -515,7 +521,7 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
         }
         const deferred =
           cursor.phase === "opening"
-            ? urgiisDefer(task, cursor.entries, previousTenant, failedAt)
+            ? urgiisDefer(task, cursor.entries, previousTenant, failedAt, carry)
             : undefined;
         if (!deferred) {
           yield* attempt < URGIIS_PAGE_ATTEMPTS
@@ -595,7 +601,13 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
         entry.kind === "model" &&
         entry.freshness.kind === "retry"
       ) {
-        const deferred = urgiisDefer(task, cursor.entries, previousTenant, now);
+        const deferred = urgiisDefer(
+          task,
+          cursor.entries,
+          previousTenant,
+          now,
+          carry,
+        );
         const alreadyDeferred = cursor.entries.some(
           (e) => e.kind === "model" && e.freshness.kind === "deferred",
         );
