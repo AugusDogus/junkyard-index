@@ -56,6 +56,13 @@ const TEST_SCHEMA = `
 
   insert into ingestion_run (id, status, stage)
   values ('run-1', 'success', 'released');
+
+  -- Grouping and daily-limit tests run after each day's alert check finished.
+  insert into search_alert_check (id, day, status) values
+    ('done-2026-08-22', '2026-08-22', 'complete'),
+    ('done-2026-09-19', '2026-09-19', 'complete'),
+    ('done-2026-09-20', '2026-09-20', 'complete'),
+    ('done-2026-09-21', '2026-09-21', 'complete');
 `;
 
 describe("notification intent claims", () => {
@@ -520,10 +527,7 @@ describe("notification intent claims", () => {
         ('today-1', null, 'today', 'search-2', 2);
     `;
 
-    async function deliver(
-      database: LibSQLDatabase,
-      claimToken: string,
-    ) {
+    async function deliver(database: LibSQLDatabase, claimToken: string) {
       const claimed = await claimNotificationIntentGroup({
         channel: "email",
         database,
@@ -593,6 +597,115 @@ describe("notification intent claims", () => {
             )
           ).rows[0]?.status,
         ).toBe("pending");
+      } finally {
+        cleanup();
+      }
+    });
+  });
+
+  describe("across the 07:00 UTC day boundary", () => {
+    const leaseMs = 15 * 60 * 1000;
+
+    async function deliver(
+      database: LibSQLDatabase,
+      at: string,
+      claimToken: string,
+    ) {
+      const now = new Date(at);
+      const claimed = await claimNotificationIntentGroup({
+        channel: "email",
+        database,
+        now,
+        leaseMs,
+        claimToken,
+      });
+      if (claimed.length > 0)
+        await markNotificationGroupDelivered({
+          database,
+          userId: "user-1",
+          channel: "email",
+          intentIds: claimed.map((row) => row.id),
+          claimToken,
+          now,
+        });
+      return claimed.map((row) => row.id).sort();
+    }
+
+    const SETUP = `${TEST_SCHEMA}
+      insert into search_alert_check (id, day, status, last_progress_at)
+      values ('day-1', '2026-11-20', 'running', 0);
+      insert into search_notification_intent (id, run_id, alert_check_id, saved_search_id, created_at)
+      values ('day-1-match', null, 'day-1', 'search-1', 1);
+    `;
+
+    test("a check finishing after the boundary sends its matches in the new day's one digest", async () => {
+      const { client, cleanup } = createTestClient();
+      try {
+        await client.executeMultiple(SETUP);
+        const database = drizzle(client);
+        // Yesterday's check, retried overnight, finishes after 07:00 UTC.
+        await client.execute(
+          "update search_alert_check set status = 'complete' where id = 'day-1'",
+        );
+        // Today's check has not been created yet, so its matches are still
+        // to come.
+        expect(
+          await deliver(database, "2026-11-21T07:05:00Z", "early"),
+        ).toEqual([]);
+        await client.executeMultiple(`
+          insert into search_alert_check (id, day, status, last_progress_at)
+          values ('day-2', '2026-11-21', 'running', ${Date.parse("2026-11-21T15:00:00Z")});
+          insert into search_notification_intent (id, run_id, alert_check_id, saved_search_id, created_at)
+          values ('day-2-match', null, 'day-2', 'search-2', 2);
+        `);
+        expect(
+          await deliver(database, "2026-11-21T15:01:00Z", "running"),
+        ).toEqual([]);
+        await client.execute(
+          "update search_alert_check set status = 'complete' where id = 'day-2'",
+        );
+        expect(
+          await deliver(database, "2026-11-21T15:30:00Z", "digest"),
+        ).toEqual(["day-1-match", "day-2-match"]);
+      } finally {
+        cleanup();
+      }
+    });
+
+    test("no check by the deadline releases earlier intents", async () => {
+      const { client, cleanup } = createTestClient();
+      try {
+        await client.executeMultiple(SETUP);
+        await client.execute(
+          "update search_alert_check set status = 'complete' where id = 'day-1'",
+        );
+        const database = drizzle(client);
+        expect(
+          await deliver(database, "2026-11-21T17:59:00Z", "before"),
+        ).toEqual([]);
+        expect(
+          await deliver(database, "2026-11-21T18:00:00Z", "after"),
+        ).toEqual(["day-1-match"]);
+      } finally {
+        cleanup();
+      }
+    });
+
+    test("a digest already grouped retries while today's check progresses", async () => {
+      const { client, cleanup } = createTestClient();
+      try {
+        const now = Date.parse("2026-11-21T15:00:00Z");
+        await client.executeMultiple(`${TEST_SCHEMA}
+          insert into search_alert_check (id, day, status, last_progress_at)
+          values ('day-2', '2026-11-21', 'running', ${now});
+          insert into search_notification_intent (
+            id, run_id, saved_search_id, status, attempts, delivery_group_id,
+            next_attempt_at, created_at
+          ) values ('retrying', 'run-1', 'search-1', 'retry', 1, 'email:digest:old', ${now}, 1);
+        `);
+        expect(
+          await deliver(drizzle(client), "2026-11-21T15:00:00Z", "retry"),
+        ).toEqual(["retrying"]);
       } finally {
         cleanup();
       }

@@ -3,11 +3,7 @@ import type {
   SearchAlertCheckBatchResult,
   SearchAlertCheckState,
 } from "./search-alert-check";
-
-// 18:00 UTC. Passes usually finish by 16:00 UTC, including a failing
-// source's third attempt; the deadline keeps a stuck source from holding
-// back everyone's alerts.
-const ALERT_CHECK_DEADLINE_MS = 11 * 60 * 60 * 1000;
+import { SearchAlertSchedule } from "./search-alert-schedule";
 
 export interface DailySearchAlertsTriggered {
   check: boolean;
@@ -17,14 +13,13 @@ export interface DailySearchAlertsTriggered {
 /**
  * Starts the day's saved-search alert check while it is pending, and
  * delivery when a notification can go out. The check delivers when it
- * finishes; starting delivery here as well keeps retries, daily-limit
- * holdovers and earlier checks' intents moving when today's check keeps
- * failing. While today's check is progressing, the delivery claim holds
- * recipients' earlier intents so they share today's digest. Before the check
- * exists nothing holds them yet, so delivery is left to the check, which
- * delivers once it finishes or the next trigger finds it. A past day starts no check; the current day's check covers its
- * vehicles. Callers pass the lookups and workflow starts, so this stays out
- * of the workflow bundle's runtime imports.
+ * finishes; starting delivery here as well keeps retries and earlier
+ * intents moving when today's check keeps failing. The delivery claim
+ * decides what may go out: it holds recipients' earlier intents until
+ * today's check finishes, so they share today's digest. A past day starts
+ * no check; the current day's check covers its vehicles. Callers pass the
+ * lookups and workflow starts, so this stays out of the workflow bundle's
+ * runtime imports.
  */
 export async function startDailySearchAlerts(
   day: string,
@@ -42,17 +37,14 @@ export async function startDailySearchAlerts(
       : "finished";
   const check = state !== "finished";
   if (check) await operations.startCheck(day);
-  const delivery =
-    state !== "missing" && (await operations.hasDeliverableIntents());
+  const delivery = await operations.hasDeliverableIntents();
   if (delivery) await operations.startDelivery();
   return { check, delivery };
 }
 
 /** Whether the day's alert deadline has passed, so the cron starts the check. */
 export function isPastSearchAlertDeadline(now: Date): boolean {
-  return (
-    now.getTime() >= IngestionDay.start(now).getTime() + ALERT_CHECK_DEADLINE_MS
-  );
+  return SearchAlertSchedule.isPastDeadline(now);
 }
 
 export type SearchAlertCheckRunResult =

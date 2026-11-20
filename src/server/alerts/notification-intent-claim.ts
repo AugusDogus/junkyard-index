@@ -8,7 +8,7 @@ import {
   searchNotificationIntent,
   user,
 } from "~/schema";
-import { SEARCH_ALERT_CHECK_STALE_MS } from "./search-alert-check";
+import { SearchAlertSchedule } from "./search-alert-schedule";
 
 interface ClaimNotificationIntentGroupParams {
   database: LibSQLDatabase;
@@ -50,20 +50,34 @@ const ownerFinished = sql`(
 )`;
 
 /**
- * While today's alert check is matching, a recipient's earlier intents wait
- * for it, so they share today's one digest with its matches instead of using
- * up the daily allowance first. A check that stopped progressing (Algolia
- * failing, or stuck) releases them. Intents already grouped into a digest
- * are not held: nothing new can join their group.
+ * Until today's alert check finishes, a recipient's earlier intents wait for
+ * it, so they share today's one digest with its matches instead of using up
+ * the daily allowance first. That covers the hours from the 07:00 UTC day
+ * boundary until the pass or the deadline creates today's check, and the
+ * check while it progresses. A check that stopped progressing (Algolia
+ * failing, or stuck), or no check by the deadline, releases them. Intents
+ * already grouped into a digest are not held: nothing new can join their
+ * group.
  */
 function heldForTodaysCheck(now: Date) {
+  const today = IngestionDay.key(now);
+  const beforeDeadline = SearchAlertSchedule.isPastDeadline(now) ? 0 : 1;
   return sql`(
     ${searchNotificationIntent.deliveryGroupId} is null
-    and exists (
-      select 1 from ${searchAlertCheck} today
-      where today.day = ${IngestionDay.key(now)}
-        and today.status = 'running'
-        and today.last_progress_at >= ${now.getTime() - SEARCH_ALERT_CHECK_STALE_MS}
+    and (
+      exists (
+        select 1 from ${searchAlertCheck} today
+        where today.day = ${today}
+          and today.status = 'running'
+          and today.last_progress_at >= ${now.getTime() - SearchAlertSchedule.staleAfterMs}
+      )
+      or (
+        ${beforeDeadline} = 1
+        and not exists (
+          select 1 from ${searchAlertCheck} today
+          where today.day = ${today}
+        )
+      )
     )
   )`;
 }
