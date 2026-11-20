@@ -108,10 +108,20 @@ const slices = carryMs / URGIIS_DAY_MS;
  * bootstrap read every page at the same time. Age remains an independent ceiling. */
 export function urgiisSweepDue(index: number, now: number, readAt: number) {
   const day = Math.floor(now / URGIIS_DAY_MS);
+  const readDay = Math.floor(readAt / URGIIS_DAY_MS);
+  if (now - readAt >= carryMs) return true;
+  if (readDay >= day) return false;
+  const slice = index % slices;
+  if (slice === day % slices) return true;
+  // A slice day with no run since this read (the rest of a multi-day cold
+  // census, or an outage) would leave the model to its age read, on the same
+  // day as every other missed slice. Spread those catch-up reads over the
+  // four days before that age read. Read on schedule, a model has no missed
+  // slice day, so steady state is unchanged.
+  const lastSliceDay = day - ((day - slice) % slices);
   return (
-    now - readAt >= carryMs ||
-    (index % slices === day % slices &&
-      Math.floor(readAt / URGIIS_DAY_MS) < day)
+    lastSliceDay > readDay &&
+    day - readDay >= slices - (Math.floor(index / slices) % 4)
   );
 }
 export function urgiisCarry(
