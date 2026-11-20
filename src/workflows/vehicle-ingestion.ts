@@ -42,6 +42,7 @@ import {
   warmInventoryAnnouncementStep,
 } from "./vehicle-steps";
 import { IngestionTokens } from "./ingestion-tokens";
+import { withAlgoliaWriterLock } from "~/server/ingestion/algolia-writer-lock";
 
 const ALGOLIA_WRITES_TOKEN = "algolia-writes";
 const ALERT_DELIVERY_TOKEN = "vehicle-alert-delivery";
@@ -236,26 +237,22 @@ async function runSourceIngestion(runId: string) {
 
     const publicationResult = await runDurablePublicationLifecycle({
       runId,
-      project: async () => {
-        while (true) {
-          using algoliaWrites = createHook({ token: ALGOLIA_WRITES_TOKEN });
-          const activeWriter = await algoliaWrites.getConflict();
-          if (activeWriter) {
+      project: () =>
+        withAlgoliaWriterLock({
+          acquire: () => createHook({ token: ALGOLIA_WRITES_TOKEN }),
+          waitForWriter: async (activeRunId) => {
             console.info(
-              `[Workflow] Waiting for Algolia writer ${activeWriter.runId}`,
+              `[Workflow] Waiting for Algolia writer ${activeRunId}`,
             );
             await sleep(LOCK_RETRY_DELAY);
-            continue;
-          }
-          // Await inside the scope: a bare return disposes the hook, and
-          // releases the writer lock, before projection finishes.
-          return await runProjectionWithFailureRecording({
-            runId,
-            runBatch: () => runAlgoliaProjectorStep(runId),
-            markFailed: markRunFailed,
-          });
-        }
-      },
+          },
+          write: () =>
+            runProjectionWithFailureRecording({
+              runId,
+              runBatch: () => runAlgoliaProjectorStep(runId),
+              markFailed: markRunFailed,
+            }),
+        }),
       // Projection records its own failures; record the rest so a run that
       // keeps failing while holding the commit is eventually abandoned.
       matchAlerts: () =>
