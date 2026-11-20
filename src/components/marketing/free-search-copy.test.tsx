@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { PricingPlanCard } from "./PricingPlanCard";
 import { AdvancedFiltersUpsell } from "../search/FilterFields";
 
-test("pricing advertises free years, radius and the visitor page accurately", () => {
+test("pricing advertises free years, radius and the free first page accurately", () => {
   const free = renderToStaticMarkup(
     <PricingPlanCard
       tier="free"
@@ -14,8 +14,8 @@ test("pricing advertises free years, radius and the visitor page accurately", ()
     />,
   );
   expect(free).toContain("Year range and distance radius filters");
-  expect(free).toContain("24 results without an account");
-  expect(free).toContain("Full results with a free account");
+  expect(free).toContain("The first 24 results of every search");
+  expect(free).not.toContain("Full results");
   const lite = renderToStaticMarkup(
     <PricingPlanCard
       tier="lite"
@@ -27,6 +27,7 @@ test("pricing advertises free years, radius and the visitor page accurately", ()
   );
   expect(lite).not.toContain("yard, year");
   expect(lite).toContain("Unlimited saved searches");
+  expect(lite).toContain("Every result, not just the first 24");
   const full = renderToStaticMarkup(
     <PricingPlanCard
       tier="full"

@@ -31,7 +31,8 @@ export const ALGOLIA_NEWEST_INDEX_NAME = ALGOLIA_REPLICA_INDEX_NAMES[3];
 // Search configuration
 export const SEARCH_CONFIG = {
   DEBOUNCE_DELAY: 300,
-  ANONYMOUS_VISIBLE_RESULTS_LIMIT: 24,
+  // Visitors and free accounts see one page of results; paid plans see all.
+  FREE_VISIBLE_RESULTS_LIMIT: 24,
 } as const;
 
 // API endpoints

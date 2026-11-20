@@ -62,8 +62,8 @@ const FAQ_ITEMS = [
     question: "Is Junkyard Index free to use?",
     answer: (
       <p>
-        Yes. You can search for free, and a free account gives you full results
-        with unlimited searches. Lite adds advanced filters and saved searches.
+        Yes. Searches are free and unlimited, and each shows its first 24
+        results. Lite adds every result, advanced filters and saved searches.
         Full adds email and Discord alerts. See the{" "}
         <Link href="/pricing" className={inlineLinkClassName}>
           plan comparison

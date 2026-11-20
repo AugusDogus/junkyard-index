@@ -20,8 +20,7 @@ const PLAN_DETAILS: Record<
       "Unlimited searches",
       "Search by year, make, model, or VIN",
       "Year range and distance radius filters",
-      "24 results without an account",
-      "Full results with a free account",
+      "The first 24 results of every search",
       "No credit card required",
     ],
   },
@@ -29,6 +28,7 @@ const PLAN_DETAILS: Record<
     description: "Narrow your results and save your searches.",
     features: [
       "Everything in Free",
+      "Every result, not just the first 24",
       "Filter by source, make, color, state, and yard",
       "Unlimited saved searches",
       "Keep your filters between visits",

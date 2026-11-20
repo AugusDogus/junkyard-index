@@ -23,8 +23,7 @@ const routeConfig: Record<
   },
   "sign-up": {
     title: "Create your Junkyard Index account",
-    description:
-      "See full results and track inventory across salvage yard networks.",
+    description: "Track inventory across salvage yard networks.",
     Form: SignUpForm,
   },
   "forgot-password": {

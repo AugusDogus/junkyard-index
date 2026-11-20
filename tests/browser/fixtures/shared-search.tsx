@@ -45,10 +45,10 @@ queryClient.setQueryData(
 );
 queryClient.setQueryData(
   getQueryKey(api.subscription.getAccountOverview, undefined, "query"),
-  {
-    kind: "active",
-    tier: "full",
-  },
+  // fixturePlan=free signs in an account without a paid subscription.
+  params.get("fixturePlan") === "free"
+    ? { kind: "none" }
+    : { kind: "active", tier: "full" },
 );
 // Filter options come from Turso; this make and yard have no search results.
 // fixtureOptions=pending or =failed leaves them to the network, which the
