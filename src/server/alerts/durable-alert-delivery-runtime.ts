@@ -17,6 +17,7 @@ import {
   markNotificationGroupDelivered,
 } from "./notification-intent-claim";
 import { parseNotificationIntentPayload } from "./notification-intent-payload";
+import { SearchAlertsFlag } from "./search-alerts-flag";
 
 const DELIVERY_LEASE_MS = 15 * 60 * 1000;
 
@@ -61,6 +62,7 @@ function claimedGroup(intents: readonly ClaimedNotificationIntent[]) {
 }
 
 const operations: DurableAlertDeliveryOperations = {
+  alertsEnabled: async () => (await SearchAlertsFlag.mode()) === "enabled",
   claimEmailGroup: () => {
     const now = new Date();
     return claimNotificationIntentGroup({

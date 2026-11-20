@@ -70,6 +70,7 @@ type MatchCall = { searches: AlertMatchSearch[]; bound: AlertMatchBound };
 
 async function setup(options?: {
   onMatch?: (call: MatchCall) => Promise<void>;
+  alertsEnabled?: boolean;
 }) {
   const { client, cleanup } = createTestClient();
   await client.executeMultiple(SCHEMA);
@@ -79,6 +80,7 @@ async function setup(options?: {
     database: drizzle(client),
     client,
     appUrl: "https://example.test",
+    alertsEnabled: async () => options?.alertsEnabled ?? true,
     async matchSearches(searches, bound) {
       calls.push({ searches: [...searches], bound });
       await options?.onMatch?.({ searches: [...searches], bound });
@@ -235,6 +237,32 @@ describe("daily search alert check", () => {
       );
       expect(again).toMatchObject({ status: "complete", searchesProcessed: 0 });
       expect(calls).toHaveLength(1);
+    } finally {
+      cleanup();
+    }
+  });
+
+  test("paused alerts create no check, search nothing and keep every window", async () => {
+    const { client, cleanup, calls, counts, context } = await setup({
+      alertsEnabled: false,
+    });
+    try {
+      const lastChecked = Date.parse("2026-11-18T15:54:40Z");
+      await insertSearch(client, "search-a", lastChecked);
+      counts.set("search-a", 10_000);
+      expect(await runSearchAlertCheckBatch(context, DAY, NOW)).toEqual({
+        status: "alerts_disabled",
+      });
+      expect(calls).toHaveLength(0);
+      expect(await checks(client)).toEqual([]);
+      expect(await searchWindows(client)).toEqual([["search-a", lastChecked]]);
+      expect(
+        (
+          await client.execute(
+            "select count(*) as n from search_notification_intent",
+          )
+        ).rows[0]?.n,
+      ).toBe(0);
     } finally {
       cleanup();
     }

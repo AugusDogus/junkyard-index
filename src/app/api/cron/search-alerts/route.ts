@@ -6,7 +6,10 @@ import {
   isPastSearchAlertDeadline,
   startDailySearchAlerts,
 } from "~/server/alerts/daily-search-alert-trigger";
-import { openDailySearchAlertCheck } from "~/server/alerts/search-alert-check-runtime";
+import {
+  openDailySearchAlertCheck,
+  searchAlertsEnabled,
+} from "~/server/alerts/search-alert-check-runtime";
 import { hasValidCronAuthorization } from "~/server/workflows/cron-authorization";
 import { workflowStartRetryOptions } from "~/server/workflows/start-retry";
 import { IngestionDay } from "~/server/ingestion/ingestion-day";
@@ -38,6 +41,7 @@ export async function GET(request: Request) {
     () =>
       startDailySearchAlerts(day, {
         now,
+        alertsEnabled: searchAlertsEnabled,
         openCheck: openDailySearchAlertCheck,
         hasDeliverableIntents: hasDeliverableNotificationIntents,
         startCheck: (checkDay) => start(searchAlertCheckWorkflow, [checkDay]),

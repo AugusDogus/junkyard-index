@@ -38,6 +38,8 @@ type IntentCancellationReason =
   | "alert_entitlement_missing";
 
 export interface DurableAlertDeliveryOperations {
+  /** Whether saved-search alerts are switched on (fails closed). */
+  alertsEnabled(): Promise<boolean>;
   claimEmailGroup(): Promise<ClaimedNotificationIntent[]>;
   claimDiscordGroup(): Promise<ClaimedNotificationIntent[]>;
   loadTargets(
@@ -289,6 +291,11 @@ export interface DurableAlertDeliveryBatchResult {
 export async function deliverDurableAlertIntentBatch(
   operations: DurableAlertDeliveryOperations,
 ): Promise<DurableAlertDeliveryBatchResult> {
+  // Paused alerts send nothing; pending notifications keep their state and
+  // go out once alerts are switched back on.
+  if (!(await operations.alertsEnabled())) {
+    return { status: "complete", intentsProcessed: 0 };
+  }
   const emailIntents = await operations.claimEmailGroup();
   if (emailIntents.length > 0) {
     await deliverNotificationGroup(emailIntents, operations);

@@ -5,10 +5,9 @@ import type {
 } from "./search-alert-check";
 import { SearchAlertSchedule } from "./search-alert-schedule";
 
-export interface DailySearchAlertsTriggered {
-  check: boolean;
-  delivery: boolean;
-}
+export type DailySearchAlertsTriggered =
+  | { status: "alerts_disabled" }
+  | { status: "triggered"; check: boolean; delivery: boolean };
 
 /**
  * Starts the day's saved-search alert check while it is pending, and
@@ -27,6 +26,8 @@ export async function startDailySearchAlerts(
   day: string,
   operations: {
     now: Date;
+    /** Whether saved-search alerts are switched on (fails closed). */
+    alertsEnabled(): Promise<boolean>;
     /** Opens (creating while current) the day's check and returns its state. */
     openCheck(day: string): Promise<SearchAlertCheckState>;
     hasDeliverableIntents(): Promise<boolean>;
@@ -34,6 +35,8 @@ export async function startDailySearchAlerts(
     startDelivery(): Promise<unknown>;
   },
 ): Promise<DailySearchAlertsTriggered> {
+  // Paused alerts open no check (so no bound or hold) and start nothing.
+  if (!(await operations.alertsEnabled())) return { status: "alerts_disabled" };
   const state =
     IngestionDay.key(operations.now) === day
       ? await operations.openCheck(day)
@@ -42,7 +45,7 @@ export async function startDailySearchAlerts(
   if (check) await operations.startCheck(day);
   const delivery = await operations.hasDeliverableIntents();
   if (delivery) await operations.startDelivery();
-  return { check, delivery };
+  return { status: "triggered", check, delivery };
 }
 
 /** Whether the day's alert deadline has passed, so the cron starts the check. */
@@ -51,7 +54,7 @@ export function isPastSearchAlertDeadline(now: Date): boolean {
 }
 
 export type SearchAlertCheckRunResult =
-  | { status: "not_started" | "stopped" }
+  | { status: "not_started" | "stopped" | "alerts_disabled" }
   | { status: "completed"; searchesProcessed: number; intentsCreated: number };
 
 /**
@@ -74,6 +77,9 @@ export async function runSearchAlertCheck(operations: {
       await waitForRetry();
       continue;
     }
+    // Paused mid-check: stop without delivering; the check resumes from its
+    // cursor once alerts are switched back on.
+    if (batch.status === "alerts_disabled") return { status: batch.status };
     if (batch.status === "not_started" || batch.status === "stopped") {
       await startDelivery();
       return { status: batch.status };
