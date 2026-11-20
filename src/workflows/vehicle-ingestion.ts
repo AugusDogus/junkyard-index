@@ -33,7 +33,6 @@ import {
 import {
   cleanupDurableIngestionStateBatchStep,
   cleanupStaleDurableAlgoliaRebuildsStep,
-  cleanupStaleDurableIngestionSnapshotsStep,
   attachDurableIngestionWorkflowStep,
   claimDurableIngestionCommitStep,
   prepareIngestionPassStep,
@@ -213,7 +212,6 @@ async function runSourceIngestion(runId: string) {
   const markRunFailed = (failedRunId: string, message: string) =>
     markDurableIngestionFailedStep(failedRunId, message);
   const operations = {
-    cleanupStale: cleanupStaleDurableIngestionSnapshotsStep,
     initialize: initializeDurableIngestionStep,
     runChunk: runDurableSourceChunkStep,
     sleepUntil: (time: number) => sleep(new Date(time)),

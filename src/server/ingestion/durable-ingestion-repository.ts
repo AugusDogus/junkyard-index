@@ -1,6 +1,5 @@
 import { loadIngestionSourceDays } from "./ingestion-source-days";
 import { createDurableWorkflowCursorStore } from "./durable-workflow-cursor-store";
-import { urgiisPublishedStatePath } from "./urgiis-history";
 import { IngestionDay } from "./ingestion-day";
 import type { Client, InStatement } from "@libsql/client";
 import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
@@ -25,6 +24,10 @@ import {
   type DurableIngestionSource,
 } from "./durable-source";
 import type { IngestionSnapshotStore } from "./ingestion-snapshot-store";
+import {
+  IngestionSnapshotCleanup,
+  type StaleSnapshotCleanup,
+} from "./ingestion-snapshot-cleanup";
 import { IngestionSchedule } from "./ingestion-schedule";
 import { SourcePublication } from "./source-publication";
 import { CommitLease } from "./commit-lease";
@@ -35,10 +38,8 @@ import {
 
 const SNAPSHOT_WRITE_BATCH_SIZE = 500;
 const CLEANUP_BATCH_SIZE = 5_000;
-const STALE_SNAPSHOT_RUN_BATCH_SIZE = 50;
 const MAX_EXECUTION_FAILURES = 5;
 const CONCURRENT_WAKEUP_RECHECK_MS = 5 * 60 * 1000;
-const TERMINAL_INTENT_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;
 
 type SourceRunStatus = "running" | "success" | "partial" | "error";
 
@@ -149,18 +150,7 @@ function toChunkResult<Source extends DurableIngestionSource>(
   };
 }
 
-export function parseSnapshotChunks(json: string): string[] {
-  const parsed: unknown = JSON.parse(json);
-  if (
-    !Array.isArray(parsed) ||
-    !parsed.every((pathname) => typeof pathname === "string")
-  ) {
-    throw new Error(
-      `ingestion_source_run.snapshot_chunks must be a JSON array of Blob pathnames; got ${json.slice(0, 200)}.`,
-    );
-  }
-  return parsed;
-}
+export { parseSnapshotChunks } from "./ingestion-snapshot-cleanup";
 
 export function createDurableIngestionRepository(
   database: LibSQLDatabase,
@@ -171,30 +161,10 @@ export function createDurableIngestionRepository(
     database,
     snapshotStore,
   );
-  /** Deletes released runs' staged chunks and returns how many it deleted. */
-  async function deleteRunSnapshots(
+  const deleteRunSnapshots = (
     rows: readonly { id: string; snapshotChunks: string }[],
-  ): Promise<number> {
-    let deleted = 0;
-    const retainedCensus = rows.length
-      ? await urgiisPublishedStatePath(database)
-      : null;
-    for (const row of rows) {
-      const chunks = parseSnapshotChunks(row.snapshotChunks);
-      const pathnames = chunks.filter((path) => path !== retainedCensus);
-      await snapshotStore.delete(pathnames);
-      await database
-        .update(ingestionSourceRun)
-        .set({
-          snapshotChunks: JSON.stringify(
-            chunks.filter((path) => path === retainedCensus),
-          ),
-        })
-        .where(eq(ingestionSourceRun.id, row.id));
-      deleted += pathnames.length;
-    }
-    return deleted;
-  }
+  ) =>
+    IngestionSnapshotCleanup.deleteRunSnapshots(database, snapshotStore, rows);
 
   /**
    * Creates a running run for one source unless that source (or an
@@ -1089,7 +1059,7 @@ export function createDurableIngestionRepository(
       );
     },
 
-    async cleanupBatch(runId: string, now = new Date()) {
+    async cleanupBatch(runId: string) {
       const [run] = await database
         .select({ activeSlot: ingestionRun.activeSlot })
         .from(ingestionRun)
@@ -1126,22 +1096,6 @@ export function createDurableIngestionRepository(
             `,
             args: [CLEANUP_BATCH_SIZE],
           },
-          {
-            sql: `
-              delete from search_notification_intent
-              where id in (
-                select id from search_notification_intent
-                where status in ('delivered', 'cancelled')
-                  and created_at < ?
-                order by created_at, id
-                limit ?
-              )
-            `,
-            args: [
-              now.getTime() - TERMINAL_INTENT_RETENTION_MS,
-              CLEANUP_BATCH_SIZE,
-            ],
-          },
         ],
         "write",
       );
@@ -1157,45 +1111,9 @@ export function createDurableIngestionRepository(
       };
     },
 
-    async cleanupStaleSnapshots(): Promise<void> {
-      await deleteRunSnapshots(
-        await database
-          .select({
-            id: ingestionSourceRun.id,
-            snapshotChunks: ingestionSourceRun.snapshotChunks,
-          })
-          .from(ingestionSourceRun)
-          .innerJoin(
-            ingestionRun,
-            eq(ingestionRun.id, ingestionSourceRun.runId),
-          )
-          .where(
-            and(
-              isNull(ingestionRun.activeSlot),
-              ne(ingestionSourceRun.snapshotChunks, "[]"),
-            ),
-          )
-          .limit(STALE_SNAPSHOT_RUN_BATCH_SIZE),
-      );
-      // Drain rows staged before snapshots moved to Blob storage.
-      await database.run(sql`
-        delete from vehicle_observation where rowid in (
-          select observation.rowid from vehicle_observation observation
-          join ingestion_run run on run.id = observation.run_id
-          where run.active_slot is null
-          limit ${CLEANUP_BATCH_SIZE}
-        )
-      `);
-      await database.run(sql`
-        delete from vehicle_snapshot
-        where rowid in (
-          select snapshot.rowid
-          from vehicle_snapshot snapshot
-          join ingestion_run run on run.id = snapshot.run_id
-          where run.active_slot is null
-          limit ${CLEANUP_BATCH_SIZE}
-        )
-      `);
+    /** One batch of chunks left by runs no longer active. */
+    cleanupStaleSnapshots(): Promise<StaleSnapshotCleanup> {
+      return IngestionSnapshotCleanup.staleBatch(database, snapshotStore);
     },
   };
 }

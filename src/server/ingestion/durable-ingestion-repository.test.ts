@@ -968,7 +968,7 @@ describe("durable ingestion repository", () => {
     }
   });
 
-  test("cleans snapshots and bounded delivery history without deleting pending work", async () => {
+  test("cleans a released run's snapshots and processed changes without deleting pending work", async () => {
     const testDatabase = createTestClient();
     const { client } = testDatabase;
     try {
@@ -1014,12 +1014,10 @@ describe("durable ingestion repository", () => {
         values ('old-pending', 'run-cleanup', 'pending', 1);
       `);
 
-      expect(
-        await repository.cleanupBatch(
-          "run-cleanup",
-          new Date("2023-11-20T00:00:00.000Z"),
-        ),
-      ).toEqual({ deleted: 3, done: true });
+      expect(await repository.cleanupBatch("run-cleanup")).toEqual({
+        deleted: 2,
+        done: true,
+      });
 
       expect(snapshotStore.pathnames()).toHaveLength(0);
       const changes = await client.execute(
@@ -1029,7 +1027,9 @@ describe("durable ingestion repository", () => {
       const intents = await client.execute(
         "select id from search_notification_intent order by id",
       );
+      // Terminal intents are purged by the daily maintenance consumer.
       expect(intents.rows.map((row) => row.id)).toEqual([
+        "old-delivered",
         "old-pending",
         "recent-delivered",
       ]);

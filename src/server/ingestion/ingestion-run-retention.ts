@@ -6,20 +6,34 @@ const RUN_BATCH_SIZE = 100;
 const MAX_BATCHES_PER_PASS = 10;
 
 /**
+ * One pruning pass's result. Complete: no eligible run is left. A failed
+ * batch keeps the runs deleted before it; the next pass retries the rest.
+ */
+export type IngestionRunPruning =
+  | { status: "done"; deleted: number; complete: boolean }
+  | { status: "failed"; deleted: number; batch: number; message: string };
+
+/**
  * A single statement rechecks every reference under SQLite's write lock. Foreign
  * keys cascade all six child tables. Snapshot cleanup owns Blob deletion first.
  * Old failed URG attempts since its last publication remain heartbeat evidence.
  * Connector seeds and URG progress read the newest accepted inventory
  * publication (SourcePublication); the newest search publication is kept too.
  * IndexNow keeps its sequence cursor and the commit-time anchor it compares.
+ * Runs from before durable ingestion v2 ended as 'success' in stage
+ * 'sources' and prune like released runs, except while they still own rows
+ * of the legacy `vehicle_change` archive: that table is exported to Blob and
+ * dropped as a whole, and cascading millions of its rows here would destroy
+ * it unexported.
  */
 export async function pruneIngestionRuns(params: {
   database: LibSQLDatabase;
   now?: Date;
-}): Promise<void> {
+}): Promise<IngestionRunPruning> {
   const cutoff = new Date(
     (params.now ?? new Date()).getTime() - INGESTION_RUN_RETENTION_MS,
   );
+  let deleted = 0;
   for (let batch = 1; batch <= MAX_BATCHES_PER_PASS; batch += 1) {
     try {
       const result = await params.database.run(sql`
@@ -48,7 +62,7 @@ export async function pruneIngestionRuns(params: {
             and r.last_progress_at < ${cutoff.getTime()}
             and (r.released_at is null or r.released_at < ${cutoff.getTime()})
             and r.status in ('success', 'error', 'abandoned')
-            and (r.status != 'success' or r.stage = 'released')
+            and (r.status != 'success' or r.stage in ('released', 'sources'))
             and r.stage != 'full_reindex_move_pending'
             and r.full_reindex_required = 0
             and r.id not in (
@@ -92,10 +106,16 @@ export async function pruneIngestionRuns(params: {
             and not exists (
               select 1 from vehicle_change_v2 c where c.run_id = r.id and c.processed_at is null
             )
+            and (r.stage != 'sources' or not exists (
+              select 1 from vehicle_change legacy where legacy.run_id = r.id
+            ))
           order by r.completed_at, r.id limit ${RUN_BATCH_SIZE}
         )
       `);
-      if (result.rowsAffected < RUN_BATCH_SIZE) return;
+      deleted += result.rowsAffected;
+      if (result.rowsAffected < RUN_BATCH_SIZE) {
+        return { status: "done", deleted, complete: true };
+      }
     } catch (error) {
       console.error("Ingestion run pruning failed; retrying next pass", {
         operation: "prune_ingestion_runs",
@@ -104,7 +124,13 @@ export async function pruneIngestionRuns(params: {
         batchSize: RUN_BATCH_SIZE,
         error,
       });
-      return;
+      return {
+        status: "failed",
+        deleted,
+        batch,
+        message: error instanceof Error ? error.message : String(error),
+      };
     }
   }
+  return { status: "done", deleted, complete: false };
 }

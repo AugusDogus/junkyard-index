@@ -10,6 +10,10 @@ const CONSUMER_ENTRIES = {
     "src/app/api/cron/inventory-downstream/route.ts",
     "src/workflows/downstream-consumers.ts",
   ],
+  maintenance: [
+    "src/app/api/cron/ingestion-maintenance/route.ts",
+    "src/workflows/downstream-consumers.ts",
+  ],
 } as const;
 
 const transpilers = {

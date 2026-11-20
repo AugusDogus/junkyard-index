@@ -7,9 +7,10 @@ switch. None waits for a pass to complete, and none calls a search backend
 (`src/workflows/downstream-consumers-search.test.ts` checks each consumer's
 import graph).
 
-| Consumer               | Cron                                            | Checkpoint                                                  |
-| ---------------------- | ----------------------------------------------- | ----------------------------------------------------------- |
-| `inventory-downstream` | `/api/cron/inventory-downstream`, hourly at :10 | `ingestion_projector_checkpoint` row `inventory-downstream` |
+| Consumer               | Cron                                               | Checkpoint                                                          |
+| ---------------------- | -------------------------------------------------- | ------------------------------------------------------------------- |
+| `inventory-downstream` | `/api/cron/inventory-downstream`, hourly at :10    | `ingestion_projector_checkpoint` row `inventory-downstream`         |
+| `maintenance`          | `/api/cron/ingestion-maintenance`, daily 08:30 UTC | none: each task deletes only what is eligible, so reruns are no-ops |
 
 ## inventory-downstream
 
@@ -40,6 +41,24 @@ announcement includes anything that failed.
 
 Together the gate and the backoff keep the snapshot, which reads every live
 vehicle, to at most one read per 3 hours, whether refreshes succeed or fail.
+
+## maintenance
+
+`ingestionMaintenanceWorkflow` runs three tasks, each even if another fails,
+and reports each result as a value (`deleted`, `complete`, or the failure):
+
+- `prune-runs`: ingestion runs terminal for 90 days (see
+  `ingestion-run-retention.md`);
+- `stale-snapshots`: Blob snapshot chunks registered on runs no longer
+  active, except URG's latest published census. This used to run at the
+  start of every source run;
+- `terminal-intents`: delivered or cancelled notification intents older than
+  30 days. This used to run in every run's end-of-run cleanup.
+
+Each task is bounded per run; `complete: false` means tomorrow's run continues.
+A failed task fails the tick (Sentry issue, heartbeat `/fail`). The legacy
+`vehicle_snapshot` and `vehicle_observation` drains that ran on every source
+run were removed: both tables were empty in production in November 2026.
 
 ## Pausing a consumer
 
