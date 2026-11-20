@@ -143,6 +143,37 @@ export async function hasDeliverableNotificationIntent(params: {
   return intent !== undefined;
 }
 
+/**
+ * When the longest-waiting deliverable intent became deliverable, or null when
+ * none is deliverable now. An intent is deliverable no earlier than its
+ * creation, its retry time, its claim's expiry, and the latest alert check's
+ * completion (which releases intents held for it). A delivery worker should
+ * send it within one notification-delivery cron interval.
+ */
+export async function oldestDeliverableNotificationIntentAt(params: {
+  database: LibSQLDatabase;
+  now: Date;
+  leaseMs: number;
+}): Promise<Date | null> {
+  const [row] = await params.database
+    .select({
+      dueAt: sql<number | null>`min(max(
+        ${searchNotificationIntent.createdAt},
+        coalesce(${searchNotificationIntent.nextAttemptAt}, 0),
+        case when ${searchNotificationIntent.status} = 'sending'
+          then coalesce(${searchNotificationIntent.claimedAt}, 0) + ${params.leaseMs}
+          else 0 end,
+        coalesce((
+          select max(${searchAlertCheck.completedAt}) from ${searchAlertCheck}
+        ), 0)
+      ))`,
+    })
+    .from(searchNotificationIntent)
+    .where(deliverableNotificationIntent(params));
+  const dueAt = row?.dueAt ?? null;
+  return dueAt === null ? null : new Date(dueAt);
+}
+
 export async function claimNotificationIntentGroup(
   params: ClaimNotificationIntentGroupParams & { channel: "email" | "discord" },
 ) {

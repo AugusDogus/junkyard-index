@@ -17,9 +17,11 @@ import {
   markNotificationGroupDelivered,
 } from "./notification-intent-claim";
 import { parseNotificationIntentPayload } from "./notification-intent-payload";
+import { ConsumerFlags } from "~/server/ingestion/consumer-flags";
+import { notificationDeliveryAllowed } from "./notification-delivery-trigger";
 import { SearchAlertsFlag } from "./search-alerts-flag";
 
-const DELIVERY_LEASE_MS = 15 * 60 * 1000;
+export const DELIVERY_LEASE_MS = 15 * 60 * 1000;
 
 /** Whether a delivery workflow would find a notification to send now. */
 export function hasDeliverableNotificationIntents(): Promise<boolean> {
@@ -62,7 +64,13 @@ function claimedGroup(intents: readonly ClaimedNotificationIntent[]) {
 }
 
 const operations: DurableAlertDeliveryOperations = {
-  alertsEnabled: async () => (await SearchAlertsFlag.mode()) === "enabled",
+  alertsEnabled: async () => {
+    const [consumer, alerts] = await Promise.all([
+      ConsumerFlags.mode("notification-delivery"),
+      SearchAlertsFlag.mode(),
+    ]);
+    return notificationDeliveryAllowed({ consumer, alerts });
+  },
   claimEmailGroup: () => {
     const now = new Date();
     return claimNotificationIntentGroup({

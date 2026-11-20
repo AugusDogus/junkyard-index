@@ -3,7 +3,6 @@ import { FatalError, getStepMetadata } from "workflow";
 import { formatError, throwRetryableStepError } from "./step-errors";
 import { resumeHook } from "workflow/api";
 import * as Sentry from "@sentry/nextjs";
-import { deliverDurableAlertIntentsBatch } from "~/server/alerts/durable-alert-delivery-runtime";
 import { runDailySearchAlertCheckBatch } from "~/server/alerts/search-alert-check-runtime";
 import { runDurableAlgoliaProjectionBatch } from "~/server/ingestion/algolia-projector";
 import {
@@ -323,17 +322,6 @@ export async function reportProviderStatusStep(runId: string) {
     );
   }
 }
-
-export async function deliverVehicleSearchAlertIntentsStep() {
-  "use step";
-
-  try {
-    return await deliverDurableAlertIntentsBatch();
-  } catch (error) {
-    throwRetryableStepError("Vehicle search alert delivery", error);
-  }
-}
-deliverVehicleSearchAlertIntentsStep.maxRetries = 2;
 
 export async function cleanupDurableIngestionStateBatchStep(runId: string) {
   "use step";
