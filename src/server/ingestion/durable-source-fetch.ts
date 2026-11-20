@@ -271,12 +271,22 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
       await runIngestionEffect(
         streamJimsimportInventoryFromProvider({
           startCursor: cursor,
+          previousCursor:
+            cursor.phase !== "complete" && cursor.day === null
+              ? await loadPublishedSourceCursor(db, "jimsimport")
+              : null,
           maxPages: context.maxPages,
           // Shared validation compares the prior published complete count.
           previousUniqueInventory: null,
           onBatch: context.onBatch,
           onYards: context.onYards,
-        }),
+        }).pipe(
+          Effect.tap((result) =>
+            Effect.sync(() => {
+              for (const warning of result.warnings) console.warn(warning);
+            }),
+          ),
+        ),
       ),
       (next) => next,
       context.vehiclesByVin,
