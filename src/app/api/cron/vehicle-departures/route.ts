@@ -4,10 +4,9 @@ import { hasValidCronAuthorization } from "~/server/workflows/cron-authorization
 import { captureVehicleDepartures } from "~/server/vehicle-departures";
 
 /**
- * Records vehicles that left their yards. Runs hourly: ingestion deletes a
- * vehicle after 3 missed runs or 3 days, and a source whose runs fail after
- * reconciling can retry up to 3 times a day, 2 hours apart, so a vehicle can
- * go from listed to deleted in about 4 hours.
+ * Records vehicles that left their yards. Runs hourly. Ingestion deletes a
+ * vehicle once it has been missing for 72 hours, so hourly capture records a
+ * departure well before the row is gone.
  */
 export async function GET(request: Request) {
   if (
