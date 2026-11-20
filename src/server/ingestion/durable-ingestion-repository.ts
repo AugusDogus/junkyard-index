@@ -26,6 +26,7 @@ import {
 } from "./durable-source";
 import type { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import { IngestionSchedule } from "./ingestion-schedule";
+import { SourcePublication } from "./source-publication";
 import {
   reconciliationSourcePriority,
   reconciliationSourcePrioritySql,
@@ -263,7 +264,7 @@ export function createDurableIngestionRepository(
         .where(
           and(
             sql`${ingestionRun.completedAt} > ${now.getTime() - IngestionSchedule.retryDelayMs}`,
-            sql`(${ingestionSourceRun.acceptanceStatus} != 'accepted' or ${ingestionRun.searchPublishedAt} is null)`,
+            sql`not ${SourcePublication.acceptedSql}`,
           ),
         )
         .groupBy(ingestionSourceRun.source);
@@ -855,8 +856,8 @@ export function createDurableIngestionRepository(
           source: ingestionSourceRun.source,
           lastAttemptAt: sql<number>`max(${ingestionSourceRun.startedAt})`,
           lastPublishedAt: sql<number | null>`max(case
-            when ${ingestionSourceRun.acceptanceStatus} = 'accepted'
-            then ${ingestionRun.searchPublishedAt}
+            when ${SourcePublication.acceptedSql}
+            then ${SourcePublication.publishedAt}
           end)`,
         })
         .from(ingestionSourceRun)

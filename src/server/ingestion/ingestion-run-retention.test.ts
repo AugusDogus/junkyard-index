@@ -115,6 +115,8 @@ describe("ingestion run retention", () => {
     const { client, database } = await setup();
     for (const id of ["earlier", "published", "accepted", "watermark"])
       await addRun(database, id, {
+        // Search publishes after inventory, so a search-published run has both.
+        inventoryPublishedAt: id === "published" ? old : null,
         searchPublishedAt: id === "published" ? old : null,
         publicationSequence: id === "watermark" ? 100 : null,
       });
@@ -195,6 +197,7 @@ describe("ingestion run retention", () => {
         const id = `${source}:${kind}`;
         await addRun(database, id, {
           source,
+          inventoryPublishedAt: kind === "published" ? old : null,
           searchPublishedAt: kind === "published" ? old : null,
         });
         await database.insert(ingestionSourceRun).values({
@@ -278,7 +281,8 @@ describe("ingestion run retention", () => {
     ] as const) {
       await addRun(database, id, {
         source: "vanderhaags",
-        searchPublishedAt: publication === null ? null : new Date(publication),
+        inventoryPublishedAt:
+          publication === null ? null : new Date(publication),
       });
       await database.insert(ingestionSourceRun).values({
         id,
@@ -345,7 +349,7 @@ describe("ingestion run retention", () => {
     ] as const) {
       await addRun(database, id, {
         source: "urgiis",
-        searchPublishedAt: id === "baseline" ? new Date(2) : null,
+        inventoryPublishedAt: id === "baseline" ? new Date(2) : null,
       });
       await database.insert(ingestionSourceRun).values({
         id,
@@ -358,7 +362,9 @@ describe("ingestion run retention", () => {
     }
     await pruneIngestionRuns({ database, now });
     expect(await ids(client)).toEqual(["baseline", "retry"]);
-    await client.execute("update ingestion_run set search_published_at = null");
+    await client.execute(
+      "update ingestion_run set inventory_published_at = null",
+    );
     await pruneIngestionRuns({ database, now });
     expect(await ids(client)).toEqual(["baseline", "retry"]);
   });

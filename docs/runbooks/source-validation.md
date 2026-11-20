@@ -3,8 +3,8 @@
 Every source's snapshot is checked in
 `src/server/ingestion/source-validation.ts` before its run reconciles it. A
 rejected snapshot leaves the source's previously published inventory in place.
-A source with no accepted run goes stale on `/api/status/<source>` 30 hours
-after its last accepted publication.
+A source with no accepted run goes stale on `/api/status/<source>` 36 hours
+after its last accepted inventory publication.
 
 ## Inventory age
 
@@ -99,7 +99,7 @@ A rejected source is **not** a retired source. Rejection preserves its existing
 `vehicle` rows, yard summaries and search records; it does not mark them missing
 or queue deletions. Thus Brandywine inventory published before this guard stays
 published after its next rejected run. Its accepted-publication freshness stops
-advancing and becomes stale after 30 hours. Other sources can still replace
+advancing and becomes stale after 36 hours. Other sources can still replace
 individual VINs under the existing ownership rules. This PR changes none of
 that behavior. A later decision to withdraw the source would require retirement
 or another explicit withdrawal action.

@@ -1,6 +1,5 @@
-import { and, desc, eq, isNotNull } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
-import { ingestionRun, ingestionSourceRun } from "~/schema";
+import { SourcePublication } from "./source-publication";
 import { UrgiisCursor } from "./urgiis-cursor";
 
 /** Never seed a census from failed, rejected or unpublished inventory. A bad
@@ -8,20 +7,10 @@ import { UrgiisCursor } from "./urgiis-cursor";
 export async function loadUrgiisPublishedCursor(
   database: LibSQLDatabase,
 ): Promise<unknown> {
-  const [previous] = await database
-    .select({ cursor: ingestionSourceRun.nextCursor })
-    .from(ingestionSourceRun)
-    .innerJoin(ingestionRun, eq(ingestionRun.id, ingestionSourceRun.runId))
-    .where(
-      and(
-        eq(ingestionSourceRun.source, "urgiis"),
-        eq(ingestionSourceRun.status, "success"),
-        eq(ingestionSourceRun.acceptanceStatus, "accepted"),
-        isNotNull(ingestionRun.searchPublishedAt),
-      ),
-    )
-    .orderBy(desc(ingestionRun.searchPublishedAt))
-    .limit(1);
+  const previous = await SourcePublication.latestAcceptedCursor(
+    database,
+    "urgiis",
+  );
   if (!previous?.cursor) return null;
   try {
     return JSON.parse(previous.cursor);

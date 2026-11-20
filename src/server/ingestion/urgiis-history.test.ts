@@ -60,7 +60,7 @@ test("only accepted published census seeds history; cleanup retains its Blob unt
       });
       paths[id] = censusPath;
       await client.execute({
-        sql: "insert into ingestion_run (id, source, status, started_at, last_progress_at, search_published_at) values (?, 'urgiis', 'success', 1, 1, ?)",
+        sql: "insert into ingestion_run (id, source, status, started_at, last_progress_at, inventory_published_at) values (?, 'urgiis', 'success', 1, 1, ?)",
         args: [id, published],
       });
       await client.execute({
@@ -97,7 +97,7 @@ test("only accepted published census seeds history; cleanup retains its Blob unt
       },
     });
     await client.execute(
-      "insert into ingestion_run (id, source, status, started_at, last_progress_at, search_published_at) values ('next', 'urgiis', 'success', 1, 1, 500)",
+      "insert into ingestion_run (id, source, status, started_at, last_progress_at, inventory_published_at) values ('next', 'urgiis', 'success', 1, 1, 500)",
     );
     await client.execute({
       sql: "insert into ingestion_source_run (id, run_id, source, status, acceptance_status, next_cursor, snapshot_chunks, started_at) values ('next', 'next', 'urgiis', 'success', 'accepted', ?, ?, 1)",

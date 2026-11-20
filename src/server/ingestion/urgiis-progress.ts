@@ -39,7 +39,7 @@ export async function reportUrgiisCensusProgress(params: {
         ne(ingestionSourceRun.runId, params.runId),
         sql`json_extract(${cursor}, '$.scope') = ${after.scope}`,
         sql`${ingestionSourceRun.startedAt} >= (
-        select coalesce(max(r.search_published_at), 0)
+        select coalesce(max(r.inventory_published_at), 0)
         from ingestion_run r join ingestion_source_run s on s.run_id = r.id
         where s.source = 'urgiis' and s.status = 'success'
           and s.acceptance_status = 'accepted'

@@ -251,10 +251,10 @@ export async function persistDurableIngestionFailure(
 }
 
 /**
- * Shows a source run's outcome on its provider's public status row: a good
- * publication pings its heartbeat and clears a delay report; any other
- * outcome reports the provider delayed (yellow) while its last inventory stays
- * up.
+ * Shows a source run's outcome on its provider's public status row: an
+ * accepted inventory publication pings its heartbeat and clears a delay
+ * report, whether or not search has caught up; any other outcome reports the
+ * provider delayed (yellow) while its last inventory stays up.
  */
 export async function reportDurableProviderStatus(runId: string) {
   if (process.env.VERCEL_ENV !== "production") return;
@@ -266,8 +266,7 @@ export async function reportDurableProviderStatus(runId: string) {
     );
   }
   const published =
-    run.status === "success" &&
-    run.searchPublishedAt !== null &&
+    run.inventoryPublishedAt !== null &&
     parseAcceptedSources(run.acceptedSources).includes(run.source);
   await BetterStackProviders.report({
     providers: betterStackProviders,

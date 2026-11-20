@@ -6,6 +6,7 @@ import {
   validationRejection,
 } from "./ingestion-validation";
 import { AutorecyclerProviderError } from "./errors";
+import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { createDurableIngestionRepository } from "./durable-ingestion-repository";
 import {
@@ -162,7 +163,7 @@ for (const guard of [
       });
       if (guard === "drift") {
         await client.execute(
-          "insert into ingestion_run (id, source, status, stage, started_at, last_progress_at, search_published_at) values ('prior', 'pyp', 'success', 'released', 1, 1, 1)",
+          "insert into ingestion_run (id, source, status, stage, started_at, last_progress_at, inventory_published_at, search_published_at) values ('prior', 'pyp', 'success', 'released', 1, 1, 1, 1)",
         );
         await client.execute(
           "insert into ingestion_source_run (id, run_id, source, status, acceptance_status, unique_vehicles, started_at) values ('prior:pyp', 'prior', 'pyp', 'success', 'accepted', 20000, 1)",
@@ -210,3 +211,84 @@ for (const guard of [
     }
   });
 }
+
+// The drift guard compares against the source's newest accepted inventory
+// publication, even one search never published (skipped search publication),
+// never an older search-published run.
+test.each([
+  { newest: 20000, olderSearched: 5000, outcome: "rejected" },
+  { newest: 5000, olderSearched: 20000, outcome: "accepted" },
+] as const)(
+  "drift compares 5,000 vehicles with the newest inventory publication ($newest), not an older search publication ($olderSearched)",
+  async ({ newest, olderSearched, outcome }) => {
+    const client = createClient({ url: ":memory:" });
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const store = IngestionSnapshotStore.memory();
+      for (const [id, unique, inventory, search] of [
+        ["older-searched", olderSearched, 1, 1],
+        ["newest-search-skipped", newest, 2, null],
+      ] as const) {
+        await client.execute({
+          sql: "insert into ingestion_run (id, source, status, stage, started_at, last_progress_at, inventory_published_at, search_published_at) values (?, 'pyp', 'success', 'released', 1, 1, ?, ?)",
+          args: [id, inventory, search],
+        });
+        await client.execute({
+          sql: "insert into ingestion_source_run (id, run_id, source, status, acceptance_status, unique_vehicles, started_at) values (?, ?, 'pyp', 'success', 'accepted', ?, 1)",
+          args: [`${id}:pyp`, id, unique],
+        });
+      }
+      const path = await store.put({
+        runId: "current",
+        source: "pyp",
+        chunk: {
+          vehicles: Array.from({ length: 5000 }, (_, index) =>
+            makeVehicle(`VIN-${index}`),
+          ),
+          observedVins: [],
+        },
+      });
+      await client.execute({
+        sql: "insert into ingestion_run (id, source, status, stage, active_slot, started_at, last_progress_at) values ('current', 'pyp', 'running', 'sources', 1, 2, 2)",
+      });
+      await client.execute({
+        sql: "insert into ingestion_source_run (id, run_id, source, status, next_cursor, snapshot_chunks, vehicles_processed, started_at) values ('current:pyp', 'current', 'pyp', 'success', ?, ?, 5000, 2)",
+        args: [
+          JSON.stringify({
+            source: "pyp",
+            storeCodes: null,
+            storeIndex: 0,
+            page: 0,
+          }),
+          JSON.stringify([path]),
+        ],
+      });
+
+      const validation = await validateDurableSourceRuns({
+        runId: "current",
+        database: drizzle(client),
+        batchClient: client,
+        snapshotStore: store,
+      });
+
+      expect(validation).toMatchObject(
+        outcome === "accepted"
+          ? { status: "ready", acceptedSources: ["pyp"], rejectedSources: [] }
+          : {
+              status: "ready",
+              acceptedSources: [],
+              rejectedSources: [
+                {
+                  source: "pyp",
+                  errors: expect.arrayContaining([
+                    expect.stringContaining("drift limit"),
+                  ]),
+                },
+              ],
+            },
+      );
+    } finally {
+      client.close();
+    }
+  },
+);

@@ -196,7 +196,7 @@ source-local connector performs no database lookup.
 Registered durable ingestion starts with a static ready cursor whose local
 baseline is null. This does not assert that a production baseline is absent.
 Before allowing reconciliation, `validateDurableSourceRuns` independently
-queries the latest accepted source run with a non-null `searchPublishedAt` and
+queries the latest accepted inventory publication (`SourcePublication`) and
 applies the unchanged shared 50% drift guard to that authoritative count.
 
 Root owns qualification and enablement. Later authorized live runs must complete

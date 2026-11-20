@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import { IngestionSchedule } from "./ingestion-schedule";
@@ -559,6 +560,54 @@ describe("durable ingestion repository", () => {
     }
   });
 
+  test("an accepted inventory publication is done for the day while search has not published it", async () => {
+    const client = createClient({ url: ":memory:" });
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const repository = createDurableIngestionRepository(
+        drizzle(client),
+        client,
+        IngestionSnapshotStore.memory(),
+      );
+      const now = new Date("2026-08-22T09:00:00.000Z");
+      const runId = startedRun(await repository.prepareWakeup(now, ["row52"]));
+      // Turso published the source, then the run released without search
+      // (skipped publication) or was abandoned in a search stage.
+      for (const ending of [
+        "status = 'success', stage = 'released', full_reindex_required = 1",
+        "status = 'abandoned', stage = 'project_changes', full_reindex_required = 1",
+      ]) {
+        await client.execute({
+          sql: `
+            update ingestion_run
+            set ${ending}, active_slot = null, publication_sequence = 1,
+                inventory_outcome = 'published', inventory_published_at = ?,
+                search_published_at = null, completed_at = ?
+            where id = ?
+          `,
+          args: [now.getTime(), now.getTime(), runId],
+        });
+        await client.execute({
+          sql: "update ingestion_source_run set status = 'success', acceptance_status = 'accepted' where run_id = ?",
+          args: [runId],
+        });
+        // No retry: the source is done today and starts no cooldown.
+        expect(await repository.prepareWakeup(now, ["row52"])).toEqual({
+          status: "complete",
+        });
+        expect(await repository.getSourceFreshness(now)).toEqual([
+          {
+            source: "row52",
+            lastAttemptAt: now.getTime(),
+            lastPublishedAt: now.getTime(),
+          },
+        ]);
+      }
+    } finally {
+      client.close();
+    }
+  });
+
   test("retries a failed source on its own and completes the pass after its last attempt", async () => {
     const testDatabase = createTestClient();
     const { client } = testDatabase;
@@ -580,10 +629,11 @@ describe("durable ingestion repository", () => {
             update ingestion_run
             set status = 'success', stage = 'released', active_slot = null,
                 full_reindex_required = 0, publication_sequence = 1,
-                inventory_outcome = ?, search_published_at = ?, completed_at = ?
+                inventory_outcome = ?, inventory_published_at = ?,
+                search_published_at = ?, completed_at = ?
             where id = ?
           `,
-          args: [outcome, now.getTime(), now.getTime(), runId],
+          args: [outcome, now.getTime(), now.getTime(), now.getTime(), runId],
         });
         await client.execute({
           sql: "update ingestion_source_run set status = 'success', acceptance_status = ? where run_id = ?",
