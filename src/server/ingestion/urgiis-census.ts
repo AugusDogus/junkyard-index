@@ -16,8 +16,13 @@ export const URGIIS_DAY_MS = 24 * 60 * 60 * 1000;
 export const URGIIS_SWEEP_MS = 7 * URGIIS_DAY_MS;
 // Reserve one day for a run to finish before the seven-day evidence ceiling.
 const carryMs = 6 * URGIIS_DAY_MS;
+// A freshly read model refreshes its donors' seller details once they are this
+// old. That model's next read comes within the carry limit, so no seller
+// evidence reaches sellerMaxMs. Other model reads reuse unchanged details.
+const sellerRefreshMs = 21 * URGIIS_DAY_MS;
+const sellerMaxMs = sellerRefreshMs + carryMs;
 // Bump this whenever admission, traversal or interpretation of cached evidence changes.
-const contract = "incremental-census-v5";
+const contract = "incremental-census-v6";
 const tenantSchema = z
   .object({
     code: z.string(),
@@ -57,11 +62,12 @@ function validate(
     if (!task) throw new Error("IIS accepted census has excess evidence");
     validateUrgiisEntry(entry, task, tenant);
     if (
-      entry.kind === "model" &&
-      (entry.freshness.kind === "retry" ||
-        entry.freshness.readAt > census.acceptedAt)
+      (entry.kind === "model" &&
+        (entry.freshness.kind === "retry" ||
+          entry.freshness.readAt > census.acceptedAt)) ||
+      (entry.kind === "detail" && entry.readAt > census.acceptedAt)
     )
-      throw new Error("IIS accepted model evidence is dated in the future");
+      throw new Error("IIS accepted evidence is dated in the future");
   });
 }
 function previousModel(
@@ -116,17 +122,44 @@ export function urgiisCarry(
 ): UrgiisEntry | undefined {
   if (!previous) return undefined;
   if (task.kind === "detail") {
-    // Reuse ownership only for an unchanged donor in a carried model. A fresh
-    // model read must refresh its own seller evidence, even for an old stock.
-    const models = entries
-      .filter((e) => e.kind === "model")
-      .filter((e) => e.records.some((r) => r.destinations.includes(task.url)));
-    if (!models.length || models.some((e) => e.freshness.kind === "read"))
-      return undefined;
+    // Reuse a seller only for the same donor: its detail URL binds stock and
+    // year, and the previous card for that URL claimed the same single VIN.
     const detail = previous.entries.find(
       (e) => e.kind === "detail" && e.url === task.url,
     );
-    return detail ? { ...detail, bytes: 0 } : undefined;
+    if (detail?.kind !== "detail") return undefined;
+    const sameDonor = previous.entries.some(
+      (e) =>
+        (e.kind === "model" || e.kind === "arrivals") &&
+        e.records.some((r) => {
+          const vins = new Set(
+            r.vins.map((v) => v.trim().toUpperCase()).filter(Boolean),
+          );
+          return (
+            r.destinations.includes(task.url) &&
+            vins.size === 1 &&
+            vins.has(task.vin)
+          );
+        }),
+    );
+    const models = entries
+      .filter((e) => e.kind === "model")
+      .filter((e) => e.records.some((r) => r.destinations.includes(task.url)));
+    const fresh = models.some((e) => e.freshness.kind === "read");
+    // Unattributed evidence keeps the earlier rule: reused only inside a
+    // carried model. A seller is refreshed by a model read once it is old.
+    const limit =
+      detail.seller === null
+        ? models.length && !fresh
+          ? sellerMaxMs
+          : 0
+        : fresh
+          ? sellerRefreshMs
+          : sellerMaxMs;
+    const age = now - detail.readAt;
+    return sameDonor && age >= 0 && age < limit
+      ? { ...detail, bytes: 0 }
+      : undefined;
   }
   const before = previousModel(task, previous);
   if (

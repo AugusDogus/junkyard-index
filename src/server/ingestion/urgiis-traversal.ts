@@ -48,6 +48,8 @@ const entrySchema = z.discriminatedUnion("kind", [
       ...receipt,
       kind: z.literal("detail"),
       seller: z.string().nullable(),
+      // Run start of the read that produced this seller evidence.
+      readAt: z.number().int().nonnegative(),
     })
     .strict(),
   z

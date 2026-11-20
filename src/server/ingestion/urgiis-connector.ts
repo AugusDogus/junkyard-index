@@ -114,6 +114,7 @@ function parseEntry(
       ...receipt,
       kind: "detail",
       seller: urgiisDetailSeller(raw, tenant, task),
+      readAt: now,
     };
   const page = iisCards(
     raw,

@@ -203,6 +203,7 @@ try {
             ...receipt,
             kind: "detail",
             seller: urgiisDetailSeller(response.html, tenant, task),
+            readAt: start,
           });
         else {
           const records = iisCards(response.html, tenant, task.kind).records;

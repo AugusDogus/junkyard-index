@@ -191,9 +191,10 @@ function checkpoint(
     state.entries.forEach((entry, i) => {
       if (
         state.runKind === "cold" &&
-        entry.kind === "model" &&
-        (entry.freshness.kind === "carried" ||
-          entry.freshness.kind === "deferred")
+        ((entry.kind === "model" &&
+          (entry.freshness.kind === "carried" ||
+            entry.freshness.kind === "deferred")) ||
+          (entry.kind === "detail" && entry.bytes === 0))
       )
         throw new Error("IIS cold census cannot carry prior model evidence");
       const task = tasks[i];
@@ -248,6 +249,20 @@ function checkpoint(
       )
     )
       throw new Error("IIS model freshness is inconsistent with its run");
+    // A detail read in this run is dated at its start; a reused one earlier.
+    if (
+      state.entries.some(
+        (e) =>
+          e.kind === "detail" &&
+          (state.startedAt === null ||
+            state.asOf === null ||
+            e.readAt > state.asOf ||
+            e.bytes > 0 !== e.readAt >= state.startedAt),
+      )
+    )
+      throw new Error(
+        "IIS seller detail freshness is inconsistent with its run",
+      );
     if (
       state.requests < currentRequests ||
       state.bytes < state.entries.reduce((n, e) => n + e.bytes, 0)

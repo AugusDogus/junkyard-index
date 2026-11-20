@@ -73,6 +73,7 @@ for (const tenant of URGIIS_TENANTS) {
           ...receipt,
           kind: "detail",
           seller: urgiisDetailSeller(response.html, tenant, task),
+          readAt: start,
         });
       else {
         const html =
@@ -216,7 +217,9 @@ for (const tenant of URGIIS_TENANTS) {
                     readAt: start + day * URGIIS_DAY_MS,
                   },
                 }
-              : original),
+              : original.kind === "detail"
+                ? { ...original, readAt: start + day * URGIIS_DAY_MS }
+                : original),
         );
         if (!carry) count++;
       });

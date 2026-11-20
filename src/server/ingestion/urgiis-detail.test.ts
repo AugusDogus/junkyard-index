@@ -1,4 +1,5 @@
-import { expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
+import { urgiisCarry } from "./urgiis-census";
 import { urgiisDetailSeller } from "./urgiis-detail";
 import { UrgiisTenant } from "./urgiis-tenant";
 import {
@@ -185,5 +186,150 @@ test("URG IIS derives detail tasks only from a completed native model frontier",
     stock: "23C012",
     year: "2015",
     vin: "1HGCR2F36FA076065",
+  });
+});
+
+describe("URG IIS seller detail reuse", () => {
+  const day = 24 * 60 * 60 * 1000;
+  const acceptedAt = Date.UTC(2026, 10, 20, 7);
+  const make = { path: "/parts/HONDA", label: "HONDA", count: 1 };
+  const model = { path: "/parts/HONDA/ACCORD/", label: "ACCORD", count: 1 };
+  const url = tenant.origin + "/parts/HONDA/ACCORD/23C012/2015";
+  const record = {
+    years: ["2015"],
+    titles: ["HONDA ACCORD"],
+    vins: ["1HGCR2F36FA076065"],
+    inquiries: [],
+    destinations: [url],
+    stock: "23C012",
+    image: null,
+    date: null,
+  };
+  const entries = (options: {
+    model?: "read" | "carried" | "none";
+    readAt: number;
+    vin?: string;
+    seller?: string | null;
+    detail?: boolean;
+  }): UrgiisEntry[] => {
+    const donor = { ...record, vins: [options.vin ?? record.vins[0] ?? ""] };
+    const list: unknown[] = [
+      { bytes: 1, kind: "owner", url: tenant.origin + "/", identity: "o" },
+      {
+        bytes: 1,
+        kind: "makes",
+        url: tenant.origin + tenant.makesPath,
+        controls: [make],
+      },
+      {
+        bytes: 1,
+        kind: "arrivals",
+        url: tenant.origin + tenant.arrivalsPath,
+        records: options.model === "none" ? [donor] : [],
+      },
+      {
+        bytes: 1,
+        kind: "menu",
+        url: tenant.origin + make.path,
+        controls: [model],
+      },
+      {
+        bytes: options.model === "carried" ? 0 : 1,
+        kind: "model",
+        url: tenant.origin + model.path,
+        records: options.model === "none" ? [] : [donor],
+        freshness: {
+          kind: options.model === "carried" ? "carried" : "read",
+          readAt: options.readAt,
+        },
+      },
+      ...(options.detail === false
+        ? []
+        : [
+            {
+              bytes: 1,
+              kind: "detail",
+              url,
+              seller: options.seller === undefined ? "NJ12" : options.seller,
+              readAt: options.readAt,
+            },
+          ]),
+    ];
+    return list.map((entry) => UrgiisEntrySchema.parse(entry));
+  };
+  const previous = (options: Parameters<typeof entries>[0]) => ({
+    code: tenant.code,
+    scope: "fixture",
+    acceptedAt,
+    entries: entries(options),
+  });
+  const reuse = (
+    before: Parameters<typeof entries>[0],
+    today: Omit<Parameters<typeof entries>[0], "detail">,
+    age: number,
+  ) => {
+    const current = entries({ ...today, detail: false });
+    const task = urgiisTasks(current, tenant).at(-1);
+    if (task?.kind !== "detail") throw new Error("Expected a seller task");
+    return urgiisCarry(task, current, previous(before), acceptedAt + age);
+  };
+
+  test("a freshly read model reuses an unchanged donor's seller instead of refetching it", () => {
+    expect(
+      reuse({ readAt: acceptedAt }, { readAt: acceptedAt + 6 * day }, 6 * day),
+    ).toEqual({
+      kind: "detail",
+      url,
+      bytes: 0,
+      seller: "NJ12",
+      readAt: acceptedAt,
+    });
+  });
+
+  test("a freshly read model refreshes a seller 21 days old", () => {
+    expect(
+      reuse(
+        { readAt: acceptedAt },
+        { readAt: acceptedAt + 21 * day },
+        21 * day,
+      ),
+    ).toBeUndefined();
+  });
+
+  test("a carried model reuses its seller until 27 days, then refreshes it", () => {
+    const today = { model: "carried" as const, readAt: acceptedAt };
+    expect(reuse({ readAt: acceptedAt }, today, 26 * day)?.bytes).toBe(0);
+    expect(reuse({ readAt: acceptedAt }, today, 27 * day)).toBeUndefined();
+  });
+
+  test("a changed VIN at the same stock and year refetches the seller", () => {
+    expect(
+      reuse(
+        { readAt: acceptedAt, vin: "1HGCR2F36FA000000" },
+        { readAt: acceptedAt + day },
+        day,
+      ),
+    ).toBeUndefined();
+  });
+
+  test("an unattributed detail is reused only inside a carried model", () => {
+    const before = { readAt: acceptedAt, seller: null };
+    expect(reuse(before, { readAt: acceptedAt + day }, day)).toBeUndefined();
+    expect(
+      reuse(before, { model: "carried", readAt: acceptedAt }, day),
+    ).toMatchObject({ kind: "detail", seller: null });
+    expect(
+      reuse({ ...before, model: "none" }, { model: "none", readAt: 0 }, day),
+    ).toBeUndefined();
+  });
+
+  test("an arrivals-only donor reuses its seller", () => {
+    expect(
+      reuse(
+        { model: "none", readAt: acceptedAt },
+        { model: "none", readAt: acceptedAt + day },
+        day,
+      ),
+    ).toMatchObject({ kind: "detail", seller: "NJ12" });
   });
 });
