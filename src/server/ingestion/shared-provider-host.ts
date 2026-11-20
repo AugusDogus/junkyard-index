@@ -71,7 +71,8 @@ export const sharedProviderHostSlot =
 
 /**
  * One queue turn for `requests` sequential requests to `url`'s backend, each
- * still followed by the policy gap. Connectors take a turn at every request
+ * still followed by the policy gap. `afterMs` reserves chunk time for work
+ * outside any turn that must follow this one. Connectors take a turn at every request
  * site, grouping requests that only together let a chunk advance, so every
  * chunk advances with one turn. Inside a chunk deadline a turn that cannot end
  * before the chunk's turn horizon fails with `ProviderTurnDeferred` (see
@@ -79,8 +80,8 @@ export const sharedProviderHostSlot =
  * is `unit`.
  */
 export const sharedProviderHostTurn =
-  (url: string, requests = 1) =>
+  (url: string, requests = 1, afterMs = 0) =>
   <A, E, R>(unit: Effect.Effect<A, E, R>) => {
     const policy = sharedProviderHostPolicy(url);
-    return policy ? providerHostTurn(policy, requests, unit) : unit;
+    return policy ? providerHostTurn(policy, requests, unit, afterMs) : unit;
   };
