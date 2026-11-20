@@ -610,9 +610,18 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
           // Durable validation checks the previous published count before reconciliation.
           previousUniqueInventory: null,
           startCursor: cursor,
+          previousCursor:
+            cursor.phase !== "complete" && cursor.day === null
+              ? await loadPublishedSourceCursor(db, "calton")
+              : null,
           maxPages: context.maxPages,
           onBatch: context.onBatch,
         }).pipe(
+          Effect.tap((result) =>
+            Effect.sync(() => {
+              for (const warning of result.warnings) console.warn(warning);
+            }),
+          ),
           Effect.tap((result) =>
             result.status === "complete"
               ? context.onYards([CALTON_YARD])

@@ -20,6 +20,10 @@ export interface CaltonOptions<E, R> {
   contract: CaltonContract;
   previousUniqueInventory: number | null;
   startCursor?: unknown;
+  /** Terminal cursor of the last accepted, published run; read only when the
+   * start cursor has not begun a census yet. */
+  previousCursor?: unknown;
+  now?: () => number;
   maxPages?: number;
   /** Complete bounded HTTP 200 documents, or saved fixtures. No retry here. */
   readPage: (url: string) => Effect.Effect<string, CaltonError>;
@@ -82,6 +86,16 @@ export function streamCaltonInventory<E, R>(options: CaltonOptions<E, R>) {
         duplicateVehicles: 0,
       },
     };
+    const begun = yield* unwrap(
+      CaltonCursor.begin(
+        cursor,
+        (options.now ?? Date.now)(),
+        options.previousCursor,
+        contract,
+      ),
+    );
+    cursor = begun.cursor;
+    if (begun.warning) summary.warnings.push(begun.warning);
     while (cursor.phase !== "complete") {
       if (cursor.phase === "ready") {
         const snapshot = CaltonSnapshot.create(
@@ -95,6 +109,7 @@ export function streamCaltonInventory<E, R>(options: CaltonOptions<E, R>) {
             previousUniqueInventory: options.previousUniqueInventory,
           }),
         );
+        const census = yield* unwrap(CaltonCursor.census(cursor));
         // Construct the terminal checkpoint before callbacks, but publish it only
         // after the caller accepts the one complete validated batch.
         const complete = yield* unwrap(
@@ -106,6 +121,7 @@ export function streamCaltonInventory<E, R>(options: CaltonOptions<E, R>) {
               requests: cursor.requests,
               bytes: cursor.bytes,
               phase: "complete",
+              census: census.census,
             },
             contract,
           ),
@@ -115,7 +131,9 @@ export function streamCaltonInventory<E, R>(options: CaltonOptions<E, R>) {
         summary.accounting = snapshot.accounting;
         summary.observedVins = snapshot.observedVins;
         summary.warnings = [
+          ...summary.warnings,
           "Calton retained native required rejects and global identity conflicts. Menu count differences are diagnostic; optional metadata remains nullable.",
+          "Calton " + census.summary,
         ];
         cursor = complete;
       } else {

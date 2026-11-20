@@ -92,6 +92,11 @@ const donorParentAliases = new Map([
     "/parts/LINCOLN/LINCOLN_and__TOWN_CAR",
   ],
 ]);
+/** Donor destination parents that bind to a published model path. */
+export const caltonDonorParents = (modelPath: string) => {
+  const alias = donorParentAliases.get(modelPath);
+  return alias ? [modelPath, alias] : [modelPath];
+};
 function stockSegment(value: string): string | null {
   try {
     return decodeURIComponent(value);
@@ -169,8 +174,7 @@ function assess(
   if (
     destination &&
     record.context.kind === "model" &&
-    donorParent !== record.context.model.path &&
-    donorParent !== donorParentAliases.get(record.context.model.path)
+    !caltonDonorParents(record.context.model.path).includes(donorParent)
   )
     reasons.push("native-donor-destination-parent-conflict");
   if (destination && yearRaw && parts[5] !== yearRaw)
