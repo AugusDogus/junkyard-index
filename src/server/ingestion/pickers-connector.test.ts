@@ -1061,3 +1061,65 @@ test("a late VinPlus turn defers or checkpoints instead of starting Pickers orig
   expect(batches).toHaveLength(1);
   expect(batches[0]).toHaveLength(6);
 }, 120_000);
+
+test("a VinPlus turn granted in time whose requests run long defers or checkpoints instead of starting Pickers origin requests that cannot end before the chunk's horizon", async () => {
+  // Each turn arrives inside its wait budget, but its VinPlus requests take
+  // 19 s each against a 5 s estimate, so the Pickers origin reads after it no
+  // longer fit before the chunk's turn horizon.
+  const mock = queuedTransport();
+  const vinplus = PICKERS_CONFIG_URL.split("/api/")[0] ?? "";
+  const origin = () =>
+    mock.calls.filter((call) => !call.url.startsWith(vinplus)).length;
+  const slow = {
+    requestMs: (url: string) => (url.startsWith(vinplus) ? 19_000 : 0),
+  };
+  // A start chunk's config turn arrives at about 300 s and ends at about
+  // 322 s: no native make control fits.
+  const start = await runWithQueuedHost(pickersChunk(PickersCursor.initial), {
+    turnWaitMs: 300_000,
+    ...slow,
+  });
+  expect(Either.isLeft(start.result) && start.result.left).toBeInstanceOf(
+    ProviderTurnDeferred,
+  );
+  expect(start.turns).toHaveLength(1);
+  expect(mock.calls.some((call) => call.init?.method === "POST")).toBe(false);
+  let cursor: PickersCursor = PickersCursor.initial;
+  while (cursor.phase !== "bookends")
+    cursor = reparse(await Effect.runPromise(pickersChunk(cursor)));
+  expect(cursor.next).toBe(0);
+  // After the first bookend, the last bookend's turn arrives at about 281 s
+  // and ends at about 302 s: the closing owner and app reads do not fit, so
+  // the chunk checkpoints after the first bookend.
+  let before = origin();
+  const advanced = await runWithQueuedHost(pickersChunk(cursor), {
+    turnWaitMs: (turn) => (turn === 0 ? 1_000 : 238_000),
+    ...slow,
+  });
+  if (Either.isLeft(advanced.result)) throw advanced.result.left;
+  expect(advanced.result.right.pagesProcessed).toBe(1);
+  expect(advanced.turns).toHaveLength(2);
+  cursor = reparse(advanced.result.right);
+  expect(cursor).toMatchObject({ phase: "bookends", next: 1 });
+  // Only the resumed native form guard.
+  expect(origin() - before).toBe(1);
+  // Resumed at the last bookend, the config and search turn arrives at about
+  // 271 s and ends at about 313 s: the chunk defers.
+  before = origin();
+  const deferred = await runWithQueuedHost(pickersChunk(cursor), {
+    turnWaitMs: 270_000,
+    ...slow,
+  });
+  expect(Either.isLeft(deferred.result) && deferred.result.left).toBeInstanceOf(
+    ProviderTurnDeferred,
+  );
+  expect(deferred.turns).toHaveLength(1);
+  expect(origin() - before).toBe(1);
+  // A timely turn completes the crawl from the same checkpoint.
+  const done = await runWithQueuedHost(pickersChunk(cursor), {
+    turnWaitMs: 1_000,
+    ...slow,
+  });
+  if (Either.isLeft(done.result)) throw done.result.left;
+  expect(done.result.right.status).toBe("complete");
+}, 120_000);
