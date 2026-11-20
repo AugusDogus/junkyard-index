@@ -448,6 +448,30 @@ test("the shipped client meters searches and page-view ends report them", async 
   }
 }, 30_000);
 
+for (const [label, query, key] of [
+  ["a visitor", "q=pagination&fixtureGuest=1", "fixture-free-key"],
+  ["a paid account", "q=pagination", "fixture-full-key"],
+] as const) {
+  test(`${label} searches with the key the server minted for its plan`, async () => {
+    const { page } = await open(query);
+    try {
+      await page
+        .getByText("Showing 24 of 96 vehicles", { exact: true })
+        .waitFor();
+      await page.waitForFunction(
+        () => (document.documentElement.dataset.searchRequests ?? "0") !== "0",
+      );
+      expect(
+        await page.evaluate(
+          () => document.documentElement.dataset.searchApiKey,
+        ),
+      ).toBe(key);
+    } finally {
+      await closePage(page);
+    }
+  }, 30_000);
+}
+
 test("signed-in pagination survives sort switches and rows do not overlap after resizing", async () => {
   const { page, html } = await open("q=pagination");
   try {

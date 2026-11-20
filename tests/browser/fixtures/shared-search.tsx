@@ -13,6 +13,7 @@ import { hydrateRoot } from "react-dom/client";
 import { renderToReadableStream, renderToStaticMarkup } from "react-dom/server";
 import superjson from "superjson";
 import { SearchPageContent } from "~/components/search/SearchPageContent";
+import type { SearchKeyGrant } from "~/lib/search-key-grant";
 import { SearchServerRender } from "~/lib/search-server-render";
 import { api } from "~/trpc/react";
 import { serverSearches } from "./shared-search-client";
@@ -32,6 +33,12 @@ const serverSearch: SearchServerRender =
           [...params].filter(([key]) => !key.startsWith("fixture")),
         ),
       });
+// The server mints this per plan; the browser must search with it.
+const searchKey: SearchKeyGrant = {
+  apiKey: isLoggedIn ? "fixture-full-key" : "fixture-free-key",
+  validUntil: 4_102_444_800,
+  tier: isLoggedIn ? "full" : "free",
+};
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: Infinity, retry: false } },
 });
@@ -152,6 +159,7 @@ function Fixture() {
                     initialIsMobile={params.get("fixtureMobile") === "1"}
                     knownYardNames={["RTP Pick-A-Part - Hebron, KY"]}
                     serverSearch={serverSearch}
+                    searchKey={searchKey}
                   />
                   <HydrationMarker />
                 </Suspense>

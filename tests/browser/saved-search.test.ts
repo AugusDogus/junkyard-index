@@ -16,7 +16,6 @@ beforeAll(async () => {
       "process.env.NODE_ENV": '"production"',
       "process.env.SKIP_ENV_VALIDATION": '"1"',
       "process.env.NEXT_PUBLIC_ALGOLIA_APP_ID": '"test"',
-      "process.env.NEXT_PUBLIC_ALGOLIA_SEARCH_API_KEY": '"test"',
     },
   });
   const output = build.outputs[0];

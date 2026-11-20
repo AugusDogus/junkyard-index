@@ -123,7 +123,17 @@ for (const scenario of [
     page.on("pageerror", (error) => errors.push(error.message));
     try {
       await page.route("http://shared-search.test/**", (route) => {
-        const isScript = new URL(route.request().url()).pathname === "/app.js";
+        const { pathname } = new URL(route.request().url());
+        // A plan change asks the server for a key minted for the new plan.
+        if (pathname === "/api/search-key")
+          return route.fulfill({
+            json: {
+              apiKey: "fixture-renewed-free-key",
+              validUntil: 4_102_444_800,
+              tier: "free",
+            },
+          });
+        const isScript = pathname === "/app.js";
         return route.fulfill({
           contentType: isScript ? "text/javascript" : "text/html",
           body: isScript ? script : html,
@@ -154,6 +164,16 @@ for (const scenario of [
                 requestAnimationFrame(() => resolve()),
               ),
             ),
+        );
+        // The remount's search uses a key for the plan it now shows.
+        expect(
+          await page.evaluate(
+            () => document.documentElement.dataset.searchApiKey,
+          ),
+        ).toBe(
+          scenario.button === "Switch plan"
+            ? "fixture-renewed-free-key"
+            : "fixture-full-key",
         );
       }
       expect(await page.getByRole("searchbox").inputValue()).toBe(

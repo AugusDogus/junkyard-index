@@ -17,7 +17,14 @@ import {
   SEARCH_SORT_OPTIONS,
 } from "~/components/search/search-routing";
 import { ALGOLIA_INDEX_NAME, getSearchClient } from "~/lib/algolia-search";
+import { browserSearchKey } from "~/lib/browser-search-key";
 import { createSearchRouteSync } from "~/lib/search-route-sync";
+
+browserSearchKey.prime({
+  apiKey: "fixture-key",
+  validUntil: 4_102_444_800,
+  tier: "full",
+});
 
 // Mirror Next's history bridge, including a new searchParams object per write.
 for (const method of ["pushState", "replaceState"] as const) {
