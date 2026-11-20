@@ -54,15 +54,15 @@ The nearest accepted yard was Mount Airy, about 35.5 km away.
 ## Runtime contract
 
 The connector reads official contact, recent arrivals, the make directory and
-every literal make link. Model pages go through the shared incremental census
-(`model-census.ts`): a model is read when it is new, its badge changed, it is
-in today's sixth of the sweep, or its evidence is six run days old. It is also
-read when a recent arrival entered since the day before the last accepted run
-binds to it by destination but is missing from its carried page, or when its
-carried page lists fewer cards than it was expected to (its badge, or a higher
-earlier card count under the same badge) and was not confirmed by the run that
-read it. Every other model carries its last accepted page at no request
-cost, so the union always covers every published model. Only owned HTTPS browse
+every literal make link. Model pages go through the shared
+[incremental model census](model-census.md). The day after an accepted run, a
+model is read when it is new, its badge changed, it is short, it is stale, or
+it is in today's sweep slice. Chaz adds one trigger: a recent arrival entered
+no earlier than the day before the last accepted run binds to the model by
+destination but is missing from its carried page. Every other model carries
+its last accepted page at no request cost, so the union always covers every
+published model. After a missed, failed or rejected run, every model page is
+read. Only owned HTTPS browse
 URLs are allowed. It never requests donor details, images, hidden routes,
 part searches or an inferred model route. Supplier declarations must all agree
 on `MD08`. Complete document, native owner, address and phone checks apply.
@@ -71,14 +71,15 @@ without automatic retry.
 
 Closing controls repeat contact, the make directory and every model page read
 this run whose cards differ from its badge or fall below its expected count
-(`ModelCensus.closingReads`: the badge, or the last accepted card count when
-that was higher under the same badge). A changed fingerprint stops the run
-before emission, so a transient short or empty page is never published or
-carried. A page that re-reads identically, such as the dead `&` routes
-(TOWN & COUNTRY: badge 8, explicit empty), is confirmed and carries until its
-sweep. Each such page costs one closing GET on the runs that read it. A page
-that only fell below a higher last accepted card count is never confirmed and
-is read again on the next run. Other model-level changes surface as badge
+(`ModelCensus.closingReads`: the badge plus any surplus the last accepted page
+listed above its own badge; the surplus carries across badge changes). A
+changed fingerprint stops the run before emission, so a transient short or
+empty page is never published or carried. A page below its badge that re-reads
+identically, such as the dead `&` routes (TOWN & COUNTRY: badge 8, explicit
+empty), is confirmed when the replay floor judged the run, and carries until
+its sweep. Each such page costs one closing GET on the runs that read it. A
+page that only lost surplus cards without its badge dropping is never
+confirmed and is read again on the next run. Other model-level changes surface as badge
 changes in the next run's opening menus.
 
 Before the snapshot, the union of read and carried cards, each model capped at
@@ -93,10 +94,21 @@ Cutting a slice to one card per page is subtler. Nov 18's lightest slice
 (slice 5: 30 models, 102 badge cards) cut that way still covers 93.5% of
 badges (1,043 of 1,116), above the badge floor. The shared replay floor
 (`MODEL_CENSUS_REPLAY_MINIMUM`, 97%) also compares the union with the last
-accepted card counts of models whose badge did not change. That cut lists only
-94.1% of them (1,043 of 1,108), so it fails. Cut to one card per page, every
+accepted card counts of every model with a last accepted page, each lowered by
+any drop in its badge. That cut lists only 94.1% of them (1,043 of 1,108), so
+it fails. A full read after a gap is judged the same way while the last
+accepted run is under six days old; after that, only the badge floor applies. Cut to one card per page, every
 slice of either capture lists 78.9% to 94.1% of its last accepted cards (the
 Nov 12 slice 5 also 94.1%). Healthy incremental runs sit near 100%.
+
+Chaz specifics against the [shared census rules](model-census.md): the badge
+floor is 92% because the Nov 12 capture's 68 unexplained badge overcounts hold
+healthy runs at 94.2%, while emptying any sweep slice falls to 90.9% or less.
+Closing confirms short pages. On the Nov 18 graph (35 makes, 240 models) a
+cold or gap full read costs 282 GETs: 278 opening reads, then contact, the
+make directory and the two dead `&` routes at closing. A steady day costs about
+80: 38 opening reads, about 40 model pages plus changes and triggers, and the
+closing controls.
 
 Nonempty model destinations must match the requested literal model parent.
 Explicit empty pages must retain their native model heading; labels containing `&` also accept the native `-and`
@@ -143,7 +155,8 @@ The application replay receipt is
 parser, snapshot and connector read all 287 saved native bodies and reproduce
 1,166 processed, 1,063 accepted, 49 rejected and 54 duplicate observations,
 with three independently preserved rejected VINs. It performs 376 mocked
-requests over 47 serialized eight-request chunks, with a peak 180,001-byte
+requests over 47 serialized eight-request chunks (historical: a full
+traversal under the pre-incremental contract, not a current daily cost), with a peak 180,001-byte
 checkpoint and only terminal callbacks for 1,063 donors and one yard.
 All 1,063 VIN/YMM/destination identities and optional stock, image and date
 values match the independently frozen candidate oracle after existing make
@@ -163,7 +176,8 @@ The parent full suite passed 2,711 tests across 249 files. A subsequent tuple
 annotation fixes a test-only TypeScript error; its four parser tests and the
 workspace lint/typecheck pass. Source and shared-file formatting and diff checks
 pass. The local admission is `chaz-local-admission.json`, with code and receipt
-pins in `parent-chaz-application-validation.json`. Enablement remains off.
+pins in `parent-chaz-application-validation.json`. Enablement was off at
+qualification; the source now runs by default.
 
 The independent application review at
 `parallel-wa-or-id/chaz-application-review01/report.json` passed with no open

@@ -24,26 +24,36 @@ without deriving model URLs. It validates AK01 ownership, native physical addres
 complete HTML, literal headings, card boundaries, VIN/YMM, inquiries and donor
 links. New continuation controls fail closed for inspection. All native identity
 conflicts share the existing connected quarantine rules. No inventory is emitted
-until closing root, directory, every make, first/last model and every contradictory
-model witnesses match. Model pages follow the shared incremental census
-(`model-census.ts`); a short page is carried only after its closing re-read
-confirmed it. Closing also re-reads a page that fell below the higher card count
-the last census listed under an unchanged badge, and the next run reads it
-again. Before anything is published, read and carried cards, each model capped
-at its badge, must cover at least 95% of today's model badges, and models with
-unchanged badges must list at least 97% of their last accepted cards. The saved
-census covers 99.63% (6,934 of 6,960); emptying any one sweep slice of it
-leaves 76.0% to 88.9%. Cutting any one sweep slice to one card per model leaves
-77.0% to 89.6% of badges and 77.3% to 90.0% of last accepted cards, so both
-floors fail it. The 1% unrecovered rule still applies. Checkpoints
-retain the complete native claims and validate contiguous graph prefixes,
-request counts, context and hashes.
+until the closing root, make directory and model re-reads match. The 1% unrecovered
+rule still applies. Checkpoints retain the complete native claims and validate
+contiguous graph prefixes, request counts, context and hashes.
 
-This follow-up made 17 provider requests: 14 HTML pages, one published JavaScript
-resource and two native year-search AJAX calls. All returned 200. One additional
-US Census request supplied an exact-address street-range match for 5700 Camelot
-Drive, Anchorage AK 99504: 61.220492673939, -149.775910317066. The range is
-5500-5798 Camelot Drive, not a rooftop point.
+Model pages follow the shared [incremental model census](model-census.md): gap
+full reads, short-page confirmation, the badge floor and the 97% replay floor.
+Northwest specifics:
+
+- Every run reads the root, the make directory and all 36 make menus. Closing
+  re-reads the root, the make directory and every model page read this run whose
+  cards differ from its badge or fall below its expected cards, so Northwest
+  confirms short pages. Make menus are not re-read at closing; a menu change
+  shows up as a badge change in the next run's menus.
+- Badge floor: 95% (`NORTHWEST_MINIMUM_BADGE_COVERAGE`). The saved census covers
+  99.63% (6,934 of 6,960 badge cards). Emptying any one sweep slice of it leaves
+  76.0% to 88.9%. Cutting any one slice to one card per model leaves 77.0% to
+  89.6% of badges and 77.3% to 90.0% of last accepted cards, so both floors fail it.
+- Requests per day: a cold or full read (first run, contract change, or any run
+  after a missed, failed or rejected run until one is accepted) is 380 requests
+  on the saved census: root, directory, 36 menus and 334 models, then closing
+  root, directory and the six models whose cards differ from their badges. A
+  steady day is about 96: the 38 opening pages, about 56 sweep models and 2
+  closing pages, plus changed, new or short models and their closing re-reads.
+- Census contract `incremental-model-census-v3`; cursor cap 16 MiB.
+
+The Nov 14 qualification follow-up made 17 provider requests: 14 HTML pages,
+one published JavaScript resource and two native year-search AJAX calls. All
+returned 200. One additional US Census request supplied an exact-address
+street-range match for 5700 Camelot Drive, Anchorage AK 99504: 61.220492673939,
+-149.775910317066. The range is 5500-5798 Camelot Drive, not a rooftop point.
 
 ## Unrecovered donor warnings
 
@@ -79,7 +89,8 @@ part search. All responses and the native script are saved.
 ## Offline verification and evidence
 
 `northwest-expansion.test.ts` traverses all 334 models through the real client,
-serializes each checkpoint, and verifies 418 replay requests, terminal counts,
+serializes each checkpoint, and verifies 380 cold-census replay requests (the
+original qualification replay made 418 under the older closing), terminal counts,
 Census geography, pause flags and destinations. It tests the 1% boundary,
 missing models, changed checkpoints, new continuation, wrong supplier, truncation
 and HTTP refusals without emissions.

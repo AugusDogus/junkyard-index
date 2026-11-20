@@ -26,21 +26,36 @@ classified separately from inventory pagination. Menu badges remain diagnostics:
 35 count discrepancies and the explicit dotted `CHEVROLET_PASS.` no-results
 response are preserved. No atomic provider-wide snapshot is claimed.
 
-Daily runs read every menu, then only new, recounted, arrival-triggered, stale
-or swept model pages, and carry the rest from the last accepted census. Calton
-has no closing pass, so a model page read short of its badge is read again on
-the next run instead of being carried. Rows above the badge are not short, but
-22 captured models list one row above their badge, and a page that falls below
-its last accepted card count while its badge holds is also read again on the
-next run. Before the snapshot, read and carried model cards, each model capped
-at its own badge, must cover at least 95% of today's model badges
-(`CALTON_MINIMUM_BADGE_COVERAGE`), and models with unchanged badges must still
-list 97% of their last accepted cards (the shared replay floor). The November 13
-capture covers 12,856 of 12,857; only `CHEVROLET_PASS.` is short. Emptying one
-sweep slice leaves 78.6% to 87.9% of badges. Cutting one slice to a single card
-per model leaves 79.4% to 88.8% of badges and of the 12,879 accepted cards (the
-lightest slice, 111 models and 1,554 cards, keeps 11,413 of 12,857 badges and
-11,435 of 12,879 cards). Either fault fails its first run and publishes nothing.
+Model pages follow the shared
+[incremental model census](model-census.md): its read reasons, gap full reads,
+replay floor, outage path and seeding rules apply here. Every run reads the
+homepage arrivals, the make directory and every make menu. A model is also read
+when a homepage arrival's donor destination binds to it but its carried page
+lacks that destination. A missed, failed or rejected run makes the next run read
+every model page. The census contract is
+`calton/literal-model-graph/root-arrivals-union/incremental-model-census-v3`.
+
+Calton has no closing pass, so no short page is ever confirmed. A model page
+read below its expected cards (its badge plus any surplus its last accepted page
+listed) is read again on the next run instead of being carried. In the November
+13 capture, 22 models list one row above their badge, and that surplus counts
+toward their expected cards.
+
+Before the snapshot, read and carried model cards, each model capped at its own
+badge, must cover at least 95% of today's model badges
+(`CALTON_MINIMUM_BADGE_COVERAGE`). The shared 97% replay floor also applies to
+every model with a last accepted page, lowered by any count drop. The November
+13 capture covers 12,856 of 12,857 badge cards; only the native-empty
+`CHEVROLET_PASS.` is short. Emptying one sweep slice leaves 78.6% to 87.9% of
+badges. Cutting one slice to a single card per model leaves 79.4% to 88.8% of
+badges and of the 12,879 accepted cards (the lightest slice, 111 models and
+1,554 cards, keeps 11,413 of 12,857 badges and 11,435 of 12,879 cards). Either
+fault fails both floors on its first run and publishes nothing.
+
+A cold census, or the full read after a missed, failed or rejected run, makes
+about 679 requests (the November 13 graph). A steady day makes the 49 fixed
+requests (homepage, make directory and 47 make menus) plus about a sixth of the
+630 model pages and any new, recounted, triggered or short ones.
 
 Required VIN or supported historical serial, year, make, model and owned donor
 destination come from native claims. No VIN decoder fills or changes identity.
@@ -79,8 +94,11 @@ cursor is published only after the caller accepts the terminal batch.
 Requests are serialized with a 1.6-second pacing interval. Each request/body
 lifetime is limited to 20 seconds and 2 MiB, with no automatic retry or redirect.
 The graph is bounded at 2,048 requests and 256 MiB; serialized cursor input is
-bounded at 64 MiB. Saved nonterminal checkpoints reached 14,043,927 bytes;
-the complete pre-emission ready state was 14,104,437 bytes.
+bounded at 64 MiB (`CALTON_MAX_CURSOR_BYTES`). In the historical full-read
+replay, before the incremental census, saved nonterminal checkpoints reached
+14,043,927 bytes and the complete pre-emission ready state was 14,104,437
+bytes. A checkpoint now also carries the previous census; the code estimates
+that state at about 27 MB for 12.9k rows.
 
 After an HTTP, parser, continuation, cursor or quality failure, preserve prior
 inventory and inspect the exact saved failure. Resume only the last validated

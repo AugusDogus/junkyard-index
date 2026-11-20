@@ -43,15 +43,20 @@ physical yards.
 ## Runtime contract
 
 The connector reads official homepage ownership, the make directory and all
-literal make controls. Model pages go through the shared incremental census
-(`model-census.ts`): a model page is read when it is new, its badge changed
-since the last accepted run, its evidence is six run days old, or it falls in
-today's one-sixth sweep slice. Every other model carries its last accepted
-page forward at zero request cost, keyed by make path/label and model
-path/label. The terminal cursor stores that census; a missing, unreadable or
-incompatible one starts a cold census that reads every model. The
+literal make controls. Model pages go through the shared incremental census;
+[model-census.md](model-census.md) states its rules (incremental and gap
+reads, short pages, closing, coverage floors and seeding). Central keys each
+model by make path/label and model path/label. It has no arrival triggers: the
 `/iislatestarrivals/` page omits about 38% of new donors, so it is not read or
-used as a delta. It requests only owned HTTPS
+used as a delta. Its badge floor is 95% (below). Its closing confirms short
+pages. Counted from the saved graph, a cold or gap full read is about 629 GETs:
+583 opening pages, then closing reads of the root, the make directory and the
+44 surplus models. A steady day is about 146 GETs: the root, the directory, 46
+make menus and about 89 sweep pages, then closing reads of the root, the
+directory and the roughly 7 sweep pages that list surplus cards. Each new,
+changed, short or stale model adds a read. The census contract is
+`DD15/literal-premium-model-graph/all-required-destination-conflicts-quarantined/incremental-model-census-v3`;
+a contract change starts a cold census. It requests only owned HTTPS
 browse URLs. It does not construct aliases or request donor details, components,
 images or forms. All supplier declarations must agree on DD15. Documents must
 be complete HTML with the native owner and contact identity. HTTP must be
@@ -64,24 +69,27 @@ the original HTTP refusal and the cleanup error.
 
 Closing controls repeat ownership, the make directory and every model read this
 run whose card count differs from its badge or falls below its expected count
-(`ModelCensus.closingReads`), so a short page that does not repeat is never
-carried forward. A model's expected count is its badge, or its last accepted
-card count when that was higher and the badge is unchanged (44 saved models
-list surplus cards). A page below its badge that repeats is stored as confirmed
-evidence and may be carried. A surplus page that only fell toward its badge is
-never confirmed, so the next run reads it again. Other per-model changes during
-a run surface as badge changes in the next run's opening menus.
+(`ModelCensus.closingReads`), and the run fails if a re-read differs. A model's
+expected count is its badge plus any surplus its last accepted page listed
+above its own badge (44 saved models list surplus cards). A page below its
+badge that repeats is stored as confirmed evidence only when the replay floor
+judged the run. Any other page below its expected count, including a surplus
+page that only fell toward its badge, is read again next run. Other per-model
+changes during a run surface as badge changes in the next run's opening menus.
 
 Before the snapshot, the union of read and carried cards, each model capped at
 its own badge, must cover at least 95% of today's model badges, or nothing is
 published. The saved census covers 100% (6,463 of 6,463 badge cards; all 44
-mismatched models list surplus cards). The same union, capped at the last
-accepted card counts of models whose badge is unchanged, must also cover the
-shared 97% replay floor. One sweep slice of models listing a single card each
-drops badge coverage to 81.9% to 89.9% and replay coverage to 81.8% to 89.9%
-across the six slices (lightest: slice 5, 87 models and 745 cards, at 89.87%
-badge and 89.90% replay), while the 1,985 floor still passes, so both checks
-fail the first broken day.
+mismatched models list surplus cards). The same union, against the last
+accepted card count of every model with a last accepted page (lowered by any
+badge drop), must also cover the shared 97% replay floor while the last
+accepted run is under six days old. One sweep slice of models listing a single
+card each drops badge coverage to 81.9% to 89.9% and replay coverage to 81.8%
+to 89.9% across the six slices (lightest: slice 5, 87 models and 745 cards, at
+89.87% badge and 89.90% replay), while the 1,985 floor still passes, so both
+checks fail the first broken day. After a missed, failed or rejected run, the next run
+reads every model and is judged against the same last accepted census. Once
+that census is six or more days old, only the badge floor applies.
 Changed closing fingerprints stop emission. These controls do not establish an
 atomic snapshot or stability of unrefetched pages. All old badge differences
 remain diagnostics; the actual classified cards supply the quality denominator.
@@ -142,8 +150,10 @@ VIN/year/make/model/destination, stock, primary image and nullable optional
 fields are compared against the independent native oracle. No provider HTTP
 is issued by the replay.
 
-The replay performs 677 mocked GETs across 85 serialized chunks, peaks at an
-821,323-byte checkpoint and emits one yard and one terminal batch. All 71,484
+This replay predates the incremental census. Its request and checkpoint
+figures are historical: it performed 677 mocked GETs across 85 serialized
+chunks, peaked at an 821,323-byte checkpoint and emitted one yard and one
+terminal batch. Current cursors also hold the last accepted census. All 71,484
 oracle field comparisons match, including all 5,957 stocks and 4,588 valid
 primary images. The 21 quarantined VINs remain disjoint presence evidence.
 
