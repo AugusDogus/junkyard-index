@@ -3,18 +3,24 @@ import {
   chazHash,
   ChazControlSchema,
   ChazPageSchema,
-  type ChazControl,
+  type ChazPage,
 } from "./chaz-parser";
 import { chazModels, type ChazMake } from "./chaz-snapshot";
+import {
+  ModelCensus,
+  type ModelCensusControl,
+  type ModelCensusDecision,
+} from "./model-census";
 import {
   CHAZ_CONTACT,
   CHAZ_MAKES,
   CHAZ_ORIGIN,
-  CHAZ_ROOT,
   CHAZ_YARD,
   chazBrowsePath,
 } from "./chaz-yard-metadata";
 
+// A full in-run cursor peaked at about 180 KB in the 248-model replay; the
+// previous census adds about the same again, well inside 1 MiB.
 export const CHAZ_MAX_CURSOR_BYTES = 1024 * 1024;
 export const CHAZ_MAX_REQUESTS = 1024;
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
@@ -22,8 +28,11 @@ const scope = chazHash({
   version: 1,
   yard: CHAZ_YARD,
   authority:
-    "literal-model-graph/native-arrival-union/all-conflicts-quarantined-v1",
+    "literal-model-graph/native-arrival-union/all-conflicts-quarantined/incremental-model-census-v1",
 });
+/** Every model page read by an accepted run, carried forward by the next one. */
+export const ChazCensusSchema = ModelCensus.schema(ChazPageSchema, 512);
+export type ChazCensus = z.infer<typeof ChazCensusSchema>;
 const MakeSchema = ChazControlSchema.extend({
   models: z.array(ChazControlSchema).max(128).nullable(),
 });
@@ -44,78 +53,92 @@ const progress = z
     contact: hash.nullable(),
     makes: z.array(MakeSchema).max(64),
     pages: z.array(ChazPageSchema).max(512),
-    arrivals: z.array(ChazPageSchema).max(2),
+    arrivals: z.array(ChazPageSchema).max(1),
     closing: z.number().int().min(0).max(1024),
     requests: z.number().int().min(0).max(CHAZ_MAX_REQUESTS),
+    /** UTC run day fixed before the first request; null only in the initial cursor. */
+    day: z.number().int().nonnegative().safe().nullable(),
+    /** Compatible census from the last accepted run, or null for a cold census. */
+    previous: ChazCensusSchema.nullable(),
   })
   .strict();
 export type ChazProgress = z.infer<typeof progress>;
 export type ChazClosingControl =
   | { kind: "contact"; url: typeof CHAZ_CONTACT }
-  | { kind: "directory"; url: typeof CHAZ_MAKES }
-  | { kind: "make"; url: string; make: ChazMake }
-  | {
-      kind: "model";
-      url: string;
-      make: ChazMake;
-      model: ChazControl;
-      index: number;
-    }
-  | { kind: "root"; url: typeof CHAZ_ROOT };
+  | { kind: "directory"; url: typeof CHAZ_MAKES };
 
-export function chazClosingControls(
-  state: Pick<ChazProgress, "makes" | "pages" | "arrivals">,
-): ChazClosingControl[] {
-  const models = chazModels(state.makes);
-  const selected = new Set<number>(models.length ? [0, models.length - 1] : []);
-  state.pages.forEach((page, index) => {
-    if (page.records.length !== models[index]?.model.count) selected.add(index);
-  });
-  // Close every literal model containing an arrival absent from its own list.
-  // A native arrival-only model with no published control remains in the union;
-  // its detail URL is not repurposed into an invented browse route.
-  for (const record of state.arrivals[0]?.records ?? []) {
-    const path = record[4].startsWith(CHAZ_ORIGIN)
-      ? record[4].slice(CHAZ_ORIGIN.length)
-      : record[4];
-    const parent = path.split("/").slice(0, -2).join("/");
-    const index = models.findIndex(
-      (m) => m.model.path.replace(/\/$/, "") === parent,
-    );
-    if (
-      index >= 0 &&
-      !state.pages[index]?.records.some((r) => r[0] === record[0])
-    )
-      selected.add(index);
-  }
-  const modelControls = [...selected]
-    .sort((a, b) => a - b)
-    .map((index) => {
-      const value = models[index];
-      if (!value)
-        throw new Error("Chaz closing model is outside the published graph");
-      return {
-        kind: "model",
-        url: CHAZ_ORIGIN + value.model.path,
-        make: value.make,
-        model: value.model,
-        index,
-      } satisfies ChazClosingControl;
-    });
+/** Closing re-reads ownership and the make directory only. Per-model changes
+ * during the run surface as count changes in the next run's opening menus. */
+export function chazClosingControls(): ChazClosingControl[] {
   return [
     { kind: "contact", url: CHAZ_CONTACT },
     { kind: "directory", url: CHAZ_MAKES },
-    ...state.makes.map(
-      (make) =>
-        ({
-          kind: "make",
-          url: CHAZ_ORIGIN + make.path,
-          make,
-        }) satisfies ChazClosingControl,
-    ),
-    ...modelControls,
-    { kind: "root", url: CHAZ_ROOT },
   ];
+}
+
+/** The model page parser binds both paths and both labels. */
+function chazCensusControls(makes: readonly ChazMake[]): ModelCensusControl[] {
+  return chazModels(makes).map(({ make, model }) => ({
+    key: JSON.stringify([make.path, make.label, model.path, model.label]),
+    count: model.count,
+  }));
+}
+
+/** UTC day of a labelled `YYYY-MM-DD` Enter Date, or null when unusable. */
+function enterDay(value: string | null): number | null {
+  if (value === null || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const time = Date.parse(value + "T00:00:00Z");
+  return Number.isNaN(time) ? null : ModelCensus.day(time);
+}
+
+/**
+ * Read or carry each published model. A carried model is also read when a
+ * recent arrival whose own destination binds to it is missing from its carried
+ * page and was entered no earlier than the day before the previous accepted
+ * run. About 15% of arrivals never reach their model page, so an unbounded
+ * trigger would re-read those models every day for the 21-day arrival window;
+ * the Enter Date bound fires each such arrival at most twice. Arrival donors
+ * are published from the arrival page either way, and older swaps wait for the
+ * six-day sweep.
+ */
+export function chazCensusPlan(
+  state: Pick<ChazProgress, "makes" | "arrivals" | "previous" | "day">,
+): ModelCensusDecision<ChazPage>[] {
+  if (state.day === null) throw new Error("Chaz census plan needs a run day");
+  const controls = chazCensusControls(state.makes);
+  const models = chazModels(state.makes);
+  const previous = state.previous;
+  const triggers = new Set<string>();
+  if (previous) {
+    const carried = new Map(previous.models.map((m) => [m.key, m.page]));
+    for (const record of state.arrivals[0]?.records ?? []) {
+      const entered = enterDay(record[6]);
+      if (entered === null || entered < previous.day - 1) continue;
+      const path = record[4].startsWith(CHAZ_ORIGIN)
+        ? record[4].slice(CHAZ_ORIGIN.length)
+        : record[4];
+      const parent = path.split("/").slice(0, -2).join("/");
+      const index = models.findIndex(
+        (m) => m.model.path.replace(/\/$/, "") === parent,
+      );
+      const key = controls[index]?.key;
+      if (key && !carried.get(key)?.records.some((r) => r[0] === record[0]))
+        triggers.add(key);
+    }
+  }
+  return ModelCensus.plan(controls, previous, state.day, triggers);
+}
+
+/** Terminal census for a fully closed run. */
+export function chazCensus(state: ChazProgress): ChazCensus {
+  if (state.day === null) throw new Error("Chaz census has no run day");
+  return ModelCensus.accept(
+    scope,
+    state.day,
+    chazCensusControls(state.makes),
+    state.pages,
+    chazCensusPlan(state),
+  );
 }
 
 function checksum(state: Omit<ChazProgress, "checksum"> | ChazProgress) {
@@ -130,6 +153,8 @@ function checksum(state: Omit<ChazProgress, "checksum"> | ChazProgress) {
     arrivals: state.arrivals,
     closing: state.closing,
     requests: state.requests,
+    day: state.day,
+    previous: state.previous,
   });
 }
 
@@ -140,6 +165,8 @@ export const ChazCursorSchema = z
         source: z.literal("chaz"),
         version: z.literal(1),
         phase: z.literal("complete"),
+        // Pre-incremental terminal cursors stay readable but seed a cold census.
+        census: ChazCensusSchema.optional(),
       })
       .strict(),
     progress,
@@ -167,13 +194,7 @@ export const ChazCursorSchema = z
       ).length;
       if (
         (stage === 0) !== (state.contact === null) ||
-        (stage < 2
-          ? state.arrivals.length !== 0
-          : state.arrivals.length !==
-            (state.phase === "closing" &&
-            state.closing === chazClosingControls(state).length
-              ? 2
-              : 1))
+        state.arrivals.length !== (stage < 2 ? 0 : 1)
       )
         throw new Error("Chaz owner/root phase evidence is inconsistent");
       if (
@@ -196,8 +217,29 @@ export const ChazCursorSchema = z
       )
         throw new Error("Chaz model page phase/order is inconsistent");
       if (
+        state.day === null
+          ? state.requests !== 0 || state.previous !== null
+          : state.previous !== null &&
+            (state.previous.contract !== scope ||
+              state.previous.day > state.day)
+      )
+        throw new Error("Chaz run day or previous census is inconsistent");
+      // Carried pages are exactly the previous census evidence and cost no GET.
+      let readPages = 0;
+      if (stage >= 4) {
+        const decisions = chazCensusPlan(state);
+        state.pages.forEach((page, index) => {
+          const decision = decisions[index];
+          if (decision?.kind === "read") readPages++;
+          else if (decision?.evidence.page.hash !== page.hash)
+            throw new Error("Chaz carried model page differs from its census");
+        });
+        if (stage === 4 && decisions[state.pages.length]?.kind !== "read")
+          throw new Error("Chaz next model page is not due for a read");
+      }
+      if (
         (stage < 5 && state.closing !== 0) ||
-        (stage === 5 && state.closing > chazClosingControls(state).length)
+        (stage === 5 && state.closing > chazClosingControls().length)
       )
         throw new Error("Chaz closing control prefix is inconsistent");
       if (
@@ -206,9 +248,8 @@ export const ChazCursorSchema = z
           state.arrivals.length +
           (state.makes.length ? 1 : 0) +
           completedMakes +
-          state.pages.length +
-          state.closing -
-          (state.arrivals.length === 2 ? 1 : 0)
+          readPages +
+          state.closing
       )
         throw new Error("Chaz request accounting is inconsistent");
       if (
@@ -255,6 +296,8 @@ const initial: Omit<ChazProgress, "checksum"> = {
   arrivals: [],
   closing: 0,
   requests: 0,
+  day: null,
+  previous: null,
 };
 export const ChazCursor = {
   initial: { ...initial, checksum: checksum(initial) },
@@ -281,6 +324,35 @@ export const ChazCursor = {
       );
     return value;
   },
+  /** Fixes the run day and adopts the last accepted census before the first
+   * request. Anything unusable starts a cold census with a warning. */
+  begin(
+    cursor: ChazProgress,
+    now: number,
+    previousCursor: unknown,
+  ): { cursor: ChazProgress; warning: string | null } {
+    if (cursor.day !== null) return { cursor, warning: null };
+    const day = ModelCensus.day(now);
+    const parsed = ChazCursorSchema.safeParse(previousCursor ?? undefined);
+    const previous =
+      parsed.success && parsed.data.phase === "complete"
+        ? ModelCensus.previous(parsed.data.census, scope, day)
+        : {
+            kind: "cold" as const,
+            warning:
+              previousCursor === null || previousCursor === undefined
+                ? null
+                : "Previous Chaz checkpoint is not a readable terminal census; reading every model page.",
+          };
+    return {
+      cursor: ChazCursor.checkpoint({
+        ...cursor,
+        day,
+        previous: previous.kind === "incremental" ? previous.census : null,
+      }),
+      warning: previous.kind === "cold" ? previous.warning : null,
+    };
+  },
   checkpoint(
     state: Omit<ChazProgress, "checksum"> | ChazProgress,
   ): ChazProgress {
@@ -297,6 +369,11 @@ export const ChazCursor = {
   initial: ChazProgress;
   parse: (value: string) => ChazCursor;
   serialize: (cursor: ChazCursor) => string;
+  begin: (
+    cursor: ChazProgress,
+    now: number,
+    previousCursor: unknown,
+  ) => { cursor: ChazProgress; warning: string | null };
   checkpoint: (
     state: Omit<ChazProgress, "checksum"> | ChazProgress,
   ) => ChazProgress;

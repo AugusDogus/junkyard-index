@@ -9,9 +9,12 @@ import {
   ChazCursor,
   ChazCursorSchema,
   CHAZ_MAX_REQUESTS,
+  chazCensus,
+  chazCensusPlan,
   chazClosingControls,
   type ChazProgress,
 } from "./chaz-cursor";
+import { ModelCensus } from "./model-census";
 import {
   chazHash,
   parseChazContact,
@@ -39,6 +42,10 @@ import { sharedProviderHostTurn } from "./shared-provider-host";
 
 interface ChazOptions<E, R> {
   startCursor?: ChazCursor;
+  /** Terminal cursor of the last accepted, published run; read only when the
+   * start cursor has not begun a census yet. */
+  previousCursor?: unknown;
+  now?: () => number;
   /** One unit is one serial native GET; no donor details or images are fetched. */
   maxPages?: number;
   onBatch: (vehicles: ChazCanonicalVehicle[]) => Effect.Effect<void, E, R>;
@@ -88,7 +95,7 @@ function nextUrl(state: ChazProgress): string {
       return CHAZ_ORIGIN + next.model.path;
     }
     case "closing": {
-      const control = chazClosingControls(state)[state.closing];
+      const control = chazClosingControls()[state.closing];
       if (!control) throw new Error("Missing Chaz closing control");
       return control.url;
     }
@@ -122,7 +129,14 @@ function advance(state: ChazProgress, raw: string): ChazProgress {
           ? { ...m, models: parseChazDirectory(raw, "models", make) }
           : m,
       );
-      if (next.makes.every((m) => m.models !== null)) next.phase = "models";
+      if (next.makes.every((m) => m.models !== null)) {
+        // Carried models before the first due read cost no request.
+        next.pages = ModelCensus.carriedRun(chazCensusPlan(next), 0);
+        next.phase =
+          next.pages.length === chazModels(next.makes).length
+            ? "closing"
+            : "models";
+      }
       break;
     }
     case "models": {
@@ -131,13 +145,17 @@ function advance(state: ChazProgress, raw: string): ChazProgress {
       next.pages = [
         ...state.pages,
         parseChazModel(raw, context.make, context.model),
+        ...ModelCensus.carriedRun(
+          chazCensusPlan(state),
+          state.pages.length + 1,
+        ),
       ];
       if (next.pages.length === chazModels(state.makes).length)
         next.phase = "closing";
       break;
     }
     case "closing": {
-      const control = chazClosingControls(state)[state.closing];
+      const control = chazClosingControls()[state.closing];
       if (!control) throw new Error("Missing Chaz closing native context");
       switch (control.kind) {
         case "contact":
@@ -149,23 +167,6 @@ function advance(state: ChazProgress, raw: string): ChazProgress {
             parseChazDirectory(raw, "makes"),
             "make directory",
           );
-          break;
-        case "make":
-          same(
-            control.make.models,
-            parseChazDirectory(raw, "models", control.make),
-            "model directory " + control.make.label,
-          );
-          break;
-        case "model":
-          same(
-            state.pages[control.index]?.hash,
-            parseChazModel(raw, control.make, control.model).hash,
-            "model list " + control.model.label,
-          );
-          break;
-        case "root":
-          next.arrivals = [...state.arrivals, parseChazRoot(raw)];
           break;
       }
       next.closing++;
@@ -207,6 +208,14 @@ export function streamChazInventoryWithRequestGate<E, R>(
     };
     if (cursor.phase === "complete")
       return { ...summary, status: "complete" as const };
+    const now = options.now ?? Date.now;
+    const pending = cursor;
+    const begun = yield* attempt("begin census", () =>
+      ChazCursor.begin(pending, now(), options.previousCursor),
+    );
+    cursor = begun.cursor;
+    summary.cursor = cursor;
+    if (begun.warning) summary.warnings.push(begun.warning);
     const started = Date.now();
     while (summary.pagesProcessed < budget && cursor.phase !== "complete") {
       if (Date.now() - started > 150_000) break;
@@ -230,7 +239,7 @@ export function streamChazInventoryWithRequestGate<E, R>(
       summary.pagesProcessed++;
       if (
         advanced.phase === "closing" &&
-        advanced.closing === chazClosingControls(advanced).length
+        advanced.closing === chazClosingControls().length
       ) {
         const snapshot = yield* attempt("complete native union", () => {
           const snapshot = chazSnapshot(
@@ -245,14 +254,19 @@ export function streamChazInventoryWithRequestGate<E, R>(
         summary.accounting = { ...snapshot.accounting };
         summary.count = snapshot.vehicles.length;
         summary.observedVins = [...snapshot.observedVins];
+        const census = yield* attempt("close model census", () =>
+          chazCensus(advanced),
+        );
         summary.warnings = [
+          ...summary.warnings,
           "Chaz preserved required identity rejects and quarantined every conflicting VIN occurrence. Published badge count discrepancies remain raw observations; optional metadata is nullable.",
+          "Chaz " + ModelCensus.summary(chazCensusPlan(advanced)),
         ];
         if (options.onYards) yield* options.onYards([{ ...CHAZ_YARD }]);
         yield* options.onBatch(
           snapshot.vehicles.map((vehicle) => ({ ...vehicle })),
         );
-        cursor = { source: "chaz", version: 1, phase: "complete" };
+        cursor = { source: "chaz", version: 1, phase: "complete", census };
       } else cursor = advanced;
     }
     return {

@@ -53,22 +53,27 @@ The nearest accepted yard was Mount Airy, about 35.5 km away.
 
 ## Runtime contract
 
-The connector reads official contact, recent arrivals, the make directory,
-every literal make link and every literal model link. Only owned HTTPS browse
+The connector reads official contact, recent arrivals, the make directory and
+every literal make link. Model pages go through the shared incremental census
+(`model-census.ts`): a model is read when it is new, its badge changed, it is
+in today's sixth of the sweep, or its evidence is six run days old. It is also
+read when a recent arrival entered since the day before the last accepted run
+binds to it by destination but is missing from its carried page. Every other
+model carries its last accepted page at no request cost, so the union always
+covers every published model. Only owned HTTPS browse
 URLs are allowed. It never requests donor details, images, hidden routes,
 part searches or an inferred model route. Supplier declarations must all agree
 on `MD08`. Complete document, native owner, address and phone checks apply.
 Redirects, partial content, non-HTML responses and request failures stop the run
 without automatic retry.
 
-Closing controls repeat contact, the make directory, every make directory,
-the first and last model, every model with a badge/card discrepancy, and every
-published model missing an opening recent VIN. A final recent refresh joins
-the observation union. Changed directory/list fingerprints stop the run before
-emission. Nonempty model destinations must match the requested literal model
-parent. Explicit empty pages must retain their native model heading, including
-the captured Chrysler display variant. These checks do not claim simultaneous
-stability of unrefetched model pages.
+Closing controls repeat contact and the make directory. A changed fingerprint
+stops the run before emission. Model-level changes during a run surface as
+badge changes in the next run's opening menus. Nonempty model destinations must
+match the requested literal model parent. Explicit empty pages must retain
+their native model heading; labels containing `&` also accept the native `-and`
+spelling. These checks do not claim simultaneous stability of unrefetched or
+carried model pages.
 
 Chunks perform at most eight serial GETs with a three-minute deadline. Each
 request and complete body share a 20-second deadline. Transport waits 1.6 seconds
