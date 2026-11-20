@@ -51,15 +51,18 @@ queryClient.setQueryData(
   },
 );
 // Filter options come from Turso; this make and yard have no search results.
-queryClient.setQueryData(
-  getQueryKey(api.search.filterOptions, undefined, "query"),
-  {
-    makes: ["Ford", "Saab", "Toyota"],
-    colors: ["Red"],
-    states: ["Alabama", "California"],
-    salvageYards: ["Fixture yard", "Turso-only yard"],
-  },
-);
+// fixtureOptions=pending or =failed leaves them to the network, which the
+// test holds open or fails.
+if (!params.has("fixtureOptions"))
+  queryClient.setQueryData(
+    getQueryKey(api.search.filterOptions, undefined, "query"),
+    {
+      makes: ["Ford", "Saab", "Toyota"],
+      colors: ["Red"],
+      states: ["Alabama", "California"],
+      salvageYards: ["Fixture yard", "Turso-only yard"],
+    },
+  );
 queryClient.setQueryData(
   getQueryKey(api.user.getLocationPreference, undefined, "query"),
   { hasPreference: false },

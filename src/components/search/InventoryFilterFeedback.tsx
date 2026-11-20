@@ -5,10 +5,13 @@ export function InventoryFilterFeedback({
   isPending,
   isError,
   retry,
+  canTypeValues = true,
 }: {
   isPending: boolean;
   isError: boolean;
   retry: () => void;
+  /** Whether the list accepts typed values that are not in the options. */
+  canTypeValues?: boolean;
 }) {
   if (isPending)
     return (
@@ -21,7 +24,8 @@ export function InventoryFilterFeedback({
     <Alert variant="destructive">
       <AlertTitle>Filter suggestions could not load</AlertTitle>
       <AlertDescription>
-        Your selections are preserved. You can still type values to add them.
+        Your selections are preserved.
+        {canTypeValues ? " You can still type values to add them." : null}
         <Button type="button" variant="outline" size="sm" onClick={retry}>
           Retry loading filters
         </Button>
