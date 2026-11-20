@@ -85,6 +85,16 @@ const client = {
       | { requests: (SearchParams & { indexName: string })[] },
   ) {
     if (typeof document === "undefined") serverSearches.count += 1;
+    // A query of "blocked" answers as a blocked Algolia app does.
+    if (
+      (Array.isArray(input) ? input : input.requests).some((request) =>
+        JSON.stringify(request).includes('"query":"blocked"'),
+      )
+    )
+      throw Object.assign(new Error("Application is blocked"), {
+        name: "ApiError",
+        status: 403,
+      });
     if (typeof document !== "undefined") {
       const previous = Number(
         document.documentElement.dataset.searchRequests ?? 0,

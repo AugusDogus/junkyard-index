@@ -58,7 +58,7 @@ class ErrorBoundary extends React.Component<
   }
 }
 
-function DefaultErrorFallback({
+export function DefaultErrorFallback({
   error,
   retry,
 }: {
@@ -71,8 +71,9 @@ function DefaultErrorFallback({
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Something went wrong</AlertTitle>
+          {/* Never show error.message: it can be a vendor's raw text. */}
           <AlertDescription className="mt-2">
-            {error.message || "An unexpected error occurred"}
+            This part of the page could not load. Try again, or reload the page.
           </AlertDescription>
         </Alert>
 

@@ -1,4 +1,10 @@
 import { Cause, Data, Runtime } from "effect";
+import {
+  AlgoliaFailureTag,
+  type AlgoliaErrorTag,
+} from "~/lib/algolia-failure-tag";
+
+const { messageOf, statusOf } = AlgoliaFailureTag;
 
 /** Where an Algolia call failed and what Algolia (or the transport) said. */
 interface AlgoliaFailure {
@@ -49,8 +55,6 @@ export type AlgoliaError =
   | InvalidRequest
   | Transient;
 
-type AlgoliaErrorTag = AlgoliaError["_tag"];
-
 /** Most specific first: an aggregate reports its most telling failure. */
 const SPECIFICITY: readonly AlgoliaErrorTag[] = [
   "SearchBackendBlocked",
@@ -70,25 +74,6 @@ function isAlgoliaError(value: unknown): value is AlgoliaError {
     value instanceof InvalidRequest ||
     value instanceof Transient
   );
-}
-
-function messageOf(value: unknown): string {
-  if (value instanceof Error) return value.message;
-  if (typeof value === "string") return value;
-  if (
-    typeof value === "object" &&
-    value !== null &&
-    "message" in value &&
-    typeof value.message === "string"
-  )
-    return value.message;
-  return String(value);
-}
-
-function statusOf(value: unknown): number | null {
-  if (typeof value !== "object" || value === null || !("status" in value))
-    return null;
-  return typeof value.status === "number" ? value.status : null;
 }
 
 /**
@@ -114,17 +99,6 @@ function nestedErrors(error: unknown): unknown[] {
   };
   visit(error);
   return found;
-}
-
-function tagOf(status: number | null, detail: string): AlgoliaErrorTag {
-  if ((status === 403 || status === 429) && /quota/i.test(detail))
-    return "QuotaExceeded";
-  if (status === 403 && /\bblocked\b/i.test(detail))
-    return "SearchBackendBlocked";
-  if (status === 429) return "RateLimited";
-  if (status === 404) return "NotFound";
-  if (status !== null && status >= 400 && status < 500) return "InvalidRequest";
-  return "Transient";
 }
 
 const CONSEQUENCE: Record<AlgoliaErrorTag, string> = {
@@ -190,7 +164,9 @@ export const AlgoliaError = {
         const status = statusOf(value);
         if (status === null) return [];
         const detail = messageOf(value);
-        return [{ status, detail, tag: tagOf(status, detail) }];
+        return [
+          { status, detail, tag: AlgoliaFailureTag.fromAnswer(status, detail) },
+        ];
       })
       .sort((a, b) => rank(a.tag) - rank(b.tag));
     if (

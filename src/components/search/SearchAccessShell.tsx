@@ -10,6 +10,7 @@ import {
 import { InstantSearchNext } from "react-instantsearch-nextjs";
 import { ErrorBoundary } from "~/components/ErrorBoundary";
 import { createSearchRouting } from "~/components/search/search-routing";
+import { SearchErrorFallback } from "~/components/search/SearchErrorFallback";
 import { SearchExpressionFeedback } from "~/components/search/SearchExpressionFeedback";
 import { SearchPageSkeleton } from "./SearchPageSkeleton";
 import { useCheckoutPlanAccess } from "~/hooks/use-checkout-plan-access";
@@ -157,7 +158,7 @@ export function SearchAccessShell({
       future={INSTANT_SEARCH_FUTURE}
     >
       <ConsumeSearchHydration />
-      <ErrorBoundary>
+      <ErrorBoundary fallback={SearchErrorFallback}>
         {children({
           planAccess,
           vinPatternIndexReady,

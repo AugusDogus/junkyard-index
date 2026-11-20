@@ -87,6 +87,7 @@ import {
   type AlgoliaVehicleHit,
 } from "~/lib/search-vehicles";
 import { primeSearchCounts } from "~/lib/algolia-search";
+import { SearchFailure } from "~/lib/search-failure";
 import { SearchHitsCache } from "~/lib/search-hits-cache";
 import { cn } from "~/lib/utils";
 import type { DataSource, SearchResult as SearchResultType } from "~/lib/types";
@@ -1298,7 +1299,7 @@ function AlgoliaSearchInner({
     lifecycle: {
       hasActiveSearch,
       isSearching,
-      hasError: Boolean(error),
+      failure: error ? SearchFailure.classify(error) : null,
       searchResult,
     },
     header: {

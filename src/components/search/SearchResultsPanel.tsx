@@ -24,6 +24,7 @@ import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import type { PlanAccessState } from "~/lib/plan-access";
+import type { SearchFailure } from "~/lib/search-failure";
 import { trackRequestYardClick } from "~/lib/track-request-yard-click";
 import type { SearchResult } from "~/lib/types";
 import { cn } from "~/lib/utils";
@@ -69,7 +70,7 @@ export type SearchResultsPanelModel =
       header: SearchResultsHeaderModel;
       list: Pick<SearchResultsListModel, "showMore">;
     }
-  | { kind: "error" }
+  | { kind: "error"; failure: SearchFailure }
   | ({ kind: "empty" } & EmptySearchResultsModel)
   | {
       kind: "results";
@@ -82,7 +83,7 @@ export function resolveSearchResultsPanelModel(input: {
   lifecycle: {
     hasActiveSearch: boolean;
     isSearching: boolean;
-    hasError: boolean;
+    failure: SearchFailure | null;
     searchResult: SearchResult | null;
   };
   header: {
@@ -96,7 +97,8 @@ export function resolveSearchResultsPanelModel(input: {
 }): SearchResultsPanelModel {
   const { lifecycle } = input;
   if (!lifecycle.hasActiveSearch) return { kind: "inactive" };
-  if (lifecycle.hasError && !lifecycle.isSearching) return { kind: "error" };
+  if (lifecycle.failure && !lifecycle.isSearching)
+    return { kind: "error", failure: lifecycle.failure };
   if (!lifecycle.searchResult) {
     return {
       kind: "loading",
@@ -341,7 +343,17 @@ function SearchResultsPanelContent({
           <AlertCircle />
           <AlertTitle>Search is temporarily unavailable</AlertTitle>
           <AlertDescription>
-            Your filters are preserved. Try the search again in a moment.
+            {model.failure.kind === "backend_blocked" ? (
+              <>
+                Yard pages still work.{" "}
+                <Link href="/junkyards" className="underline">
+                  Browse yards
+                </Link>{" "}
+                while search is down. Your filters are preserved.
+              </>
+            ) : (
+              "Your filters are preserved. Try the search again in a moment."
+            )}
           </AlertDescription>
         </Alert>
       );
