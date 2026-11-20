@@ -234,11 +234,38 @@ test("checkpoints reject altered accounting, impossible ready prefixes and moved
   }
   expect(run.batches).toEqual([]);
 });
+/** A second ACURA model of `stocks.length` donors, so a one-card native empty
+ * model stays inside the badge coverage floor as it does at live scale (one
+ * of 12,857 cards). */
+function filler(run: ReturnType<typeof harness>, stocks: readonly string[]) {
+  const path = "/parts/ACURA/FILLER";
+  const url = "https://caltonautoparts.com" + path;
+  const cards = stocks.map(
+    (stock, index) =>
+      `<div id="${stock}" class="aps-la-card-premium"><a href="${url}/${stock}/2015" class="aps-la-card-link-premium"><div class="aps-la-content-premium aps-la-car-details"><h3 class="aps-la-title-premium">ACURA FILLER</h3><p class="aps-la-subtitle-premium aps-la-subtitle-premium--vin">VIN: 19UUB1F3${String(index).padStart(9, "0")}</p><div class="aps-la-right-val-premium"><span class="aps-la-field-label">Year</span> 2015</div><div class="aps-la-stat-premium"><div class="aps-la-stat-label">Stock</div><div class="aps-la-stat-value">${stock}</div></div></div></a></div>`,
+  );
+  run.documents.set(
+    makeUrl,
+    menu("/parts/ACURA/TLX", "TLX", 8, "/parts/ACURA", true).replace(
+      "</a></div>",
+      `</a><a href="${url}"><span class="aps-make-link__label">FILLER</span><span class="aps-make-link__count">${stocks.length}</span></a></div>`,
+    ),
+  );
+  run.documents.set(
+    url,
+    caltonFixtureDocument(
+      `<div id="iiscont"><div class="aps-la-grid">${cards.join("")}</div></div>`,
+      path,
+    ),
+  );
+}
 test("the published dot-ending explicit empty model remains a required observation", async () => {
   const run = harness();
   const emptyMakeUrl = "https://caltonautoparts.com/parts/CHEVROLET";
   const emptyPath = "/parts/CHEVROLET/CHEVROLET_PASS.";
   const emptyUrl = "https://caltonautoparts.com" + emptyPath;
+  const donors = Array.from({ length: 12 }, (_, i) => "F" + i);
+  filler(run, donors);
   run.documents.set(
     CALTON_MAKES,
     menu("/parts/ACURA", "ACURA", 8, "/parts/").replace(
@@ -255,7 +282,7 @@ test("the published dot-ending explicit empty model remains a required observati
     caltonFixtureDocument(CALTON_EMPTY_REGION, emptyPath),
   );
   const prefix = await Effect.runPromise(
-    streamCaltonInventory({ ...run.options, maxPages: 5 }),
+    streamCaltonInventory({ ...run.options, maxPages: 6 }),
   );
   expect(prefix.status).toBe("paused");
   expect(run.batches).toEqual([]);
@@ -267,7 +294,7 @@ test("the published dot-ending explicit empty model remains a required observati
   );
   if (!ready.ok) throw new Error(ready.error.message);
   if (ready.value.phase !== "ready") throw new Error("Expected ready graph");
-  expect(ready.value.pages[1]).toMatchObject({
+  expect(ready.value.pages[2]).toMatchObject({
     sourceUrl: emptyUrl,
     records: [],
     nativeEmptyResult: "No Results.. Try Browsing Our Parts Or Search Again",
@@ -277,7 +304,7 @@ test("the published dot-ending explicit empty model remains a required observati
     streamCaltonInventory({ ...run.options, startCursor: prefix.cursor }),
   );
   expect(complete.status).toBe("complete");
-  expect(complete.count).toBe(8);
+  expect(complete.count).toBe(8 + donors.length);
   expect(run.requests.at(-1)).toBe(emptyUrl);
   expect(run.batches).toHaveLength(1);
 });
@@ -337,16 +364,31 @@ test("unread controls, missing documents and failed source validation never emit
   }
 });
 test("native count differences are diagnostic and a failed batch cannot mark complete", async () => {
+  // Rows one above the badge, as on 22 live models, stay diagnostic.
   const run = harness();
   run.documents.set(
     makeUrl,
-    menu("/parts/ACURA/TLX", "TLX", 9, "/parts/ACURA", true),
+    menu("/parts/ACURA/TLX", "TLX", 7, "/parts/ACURA", true),
   );
   const result = await Effect.runPromise(
     streamCaltonInventory({ ...run.options, maxPages: 4 }),
   );
   expect(result.status).toBe("complete");
   expect(result.count).toBe(8);
+  // One card short of nine is 89% of the badges, below the coverage floor.
+  const short = harness();
+  short.documents.set(
+    makeUrl,
+    menu("/parts/ACURA/TLX", "TLX", 9, "/parts/ACURA", true),
+  );
+  const shortfall = await Effect.runPromise(
+    Effect.either(streamCaltonInventory({ ...short.options, maxPages: 4 })),
+  );
+  if (shortfall._tag !== "Left") throw new Error("Expected a coverage failure");
+  expect(shortfall.left.message).toContain(
+    "8 of 9 cards promised by today's model counts",
+  );
+  expect(short.batches).toEqual([]);
   const failed = harness();
   const prefix = await Effect.runPromise(
     streamCaltonInventory({ ...failed.options, maxPages: 3 }),

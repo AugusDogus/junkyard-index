@@ -26,6 +26,16 @@ classified separately from inventory pagination. Menu badges remain diagnostics:
 35 count discrepancies and the explicit dotted `CHEVROLET_PASS.` no-results
 response are preserved. No atomic provider-wide snapshot is claimed.
 
+Daily runs read every menu, then only new, recounted, arrival-triggered, stale
+or swept model pages, and carry the rest from the last accepted census. Calton
+has no closing pass, so a model page read short of its badge is read again on
+the next run instead of being carried. Rows above the badge are not short.
+Before the snapshot, read and carried model cards, each model capped at its own
+badge, must cover at least 95% of today's model badges
+(`CALTON_MINIMUM_BADGE_COVERAGE`). The November 13 capture covers 12,856 of
+12,857; only `CHEVROLET_PASS.` is short. Emptying one sweep slice leaves 78.6%
+to 87.9%, so that fault fails its first run and publishes nothing.
+
 Required VIN or supported historical serial, year, make, model and owned donor
 destination come from native claims. No VIN decoder fills or changes identity.
 Eight literal serials from 1972 through 1980 follow the existing `inventoryVin`

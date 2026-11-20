@@ -98,6 +98,7 @@ export function streamCaltonInventory<E, R>(options: CaltonOptions<E, R>) {
     if (begun.warning) summary.warnings.push(begun.warning);
     while (cursor.phase !== "complete") {
       if (cursor.phase === "ready") {
+        yield* unwrap(CaltonCursor.coverage(cursor));
         const snapshot = CaltonSnapshot.create(
           [cursor.arrivals, ...cursor.pages],
           cursor.makes.controls.map((make) => make.label),
