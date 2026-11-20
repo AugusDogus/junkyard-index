@@ -203,7 +203,7 @@ describe("durable ingestion cursors", () => {
   test.each([
     ["awap", 2],
     ["clearsalvage", 4],
-    ["central", 2],
+    ["central", 4],
     ["sandw", 4],
     ["beavers", 2],
     ["indianriver", 8],
