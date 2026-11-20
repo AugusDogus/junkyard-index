@@ -42,8 +42,16 @@ physical yards.
 
 ## Runtime contract
 
-The connector reads official homepage ownership, the make directory, all literal
-make controls and all literal model controls. It requests only owned HTTPS
+The connector reads official homepage ownership, the make directory and all
+literal make controls. Model pages go through the shared incremental census
+(`model-census.ts`): a model page is read when it is new, its badge changed
+since the last accepted run, its evidence is six run days old, or it falls in
+today's one-sixth sweep slice. Every other model carries its last accepted
+page forward at zero request cost, keyed by make path/label and model
+path/label. The terminal cursor stores that census; a missing, unreadable or
+incompatible one starts a cold census that reads every model. The
+`/iislatestarrivals/` page omits about 38% of new donors, so it is not read or
+used as a delta. It requests only owned HTTPS
 browse URLs. It does not construct aliases or request donor details, components,
 images or forms. All supplier declarations must agree on DD15. Documents must
 be complete HTML with the native owner and contact identity. HTTP must be
@@ -54,8 +62,8 @@ Caller interruption aborts transport and waits for body-reader release. Refused
 responses attempt unread-body cancellation. A cleanup failure preserves both
 the original HTTP refusal and the cleanup error.
 
-Closing controls repeat ownership, the make directory, every make directory,
-the first and last model and every model with a badge/card count discrepancy.
+Closing controls repeat ownership and the make directory. Per-model changes
+during a run surface as badge changes in the next run's opening menus.
 Changed closing fingerprints stop emission. These controls do not establish an
 atomic snapshot or stability of unrefetched pages. All old badge differences
 remain diagnostics; the actual classified cards supply the quality denominator.
@@ -65,7 +73,7 @@ Chunks allow one to eight serial native GETs under a three-minute deadline.
 The default transport waits 1.6 seconds after complete body consumption on
 success and failure, including across serialized chunks. The full-run request
 ceiling is 1,600. Bounds are 64 makes, 128 models per make, 1,024 total models,
-1,000 cards per model, 20,000 raw cards and a 2 MiB cursor. These source bounds
+1,000 cards per model, 20,000 raw cards and a 4 MiB cursor. These source bounds
 accommodate the measured graph and preserve prior inventory on excess.
 
 `CentralCursor.initial`, `.parse` and `.serialize` validate source-tagged,
