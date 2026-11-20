@@ -218,8 +218,9 @@ const TURN_REQUEST_ESTIMATE_MS = 5_000;
  * turn to make progress.
  *
  * Inside a chunk deadline the turn must end by the chunk's turn horizon: it
- * waits only while the estimated work still fits, and work still running at
- * the horizon is interrupted. Either way it fails with `ProviderTurnDeferred`
+ * waits only while the estimated work, plus `afterMs` of work outside any turn
+ * that must follow it in the chunk, still fits. Work still running at the
+ * horizon is interrupted. Either way it fails with `ProviderTurnDeferred`
  * and nothing from the turn is returned. Outside a chunk each request may take
  * the policy's usual request time. A turn inside a held lease runs directly.
  */
@@ -228,6 +229,7 @@ export function withProviderHostTurn<A, E, R>(
   store: ProviderHostStore,
   requests: number,
   unit: Effect.Effect<A, E, R>,
+  afterMs = 0,
 ): Effect.Effect<A, E | Error | ProviderTurnDeferred, R> {
   const bound = requests * policy.requestMs;
   // Fresh state for every run of the turn, including retries.
@@ -253,7 +255,8 @@ export function withProviderHostTurn<A, E, R>(
         }),
       onSome: (horizon) =>
         Effect.gen(function* () {
-          const work = requests * (TURN_REQUEST_ESTIMATE_MS + policy.gapMs);
+          const work =
+            requests * (TURN_REQUEST_ESTIMATE_MS + policy.gapMs) + afterMs;
           const waitMs = horizon - work - (yield* Clock.currentTimeMillis);
           if (waitMs <= 0)
             return yield* Effect.flip(
@@ -330,13 +333,15 @@ export function providerHostTurn<A, E, R>(
   policy: ProviderHostPolicy,
   requests: number,
   unit: Effect.Effect<A, E, R>,
+  afterMs = 0,
 ): Effect.Effect<A, E | Error | ProviderTurnDeferred, R> {
   return Effect.flatMap(FiberRef.get(HeldHostTurns), (turns) =>
     turns.has(policy.key)
       ? unit
       : onHostStore(
           policy,
-          (store) => withProviderHostTurn(policy, store, requests, unit),
+          (store) =>
+            withProviderHostTurn(policy, store, requests, unit, afterMs),
           unit,
         ),
   );

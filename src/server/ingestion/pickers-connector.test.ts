@@ -970,8 +970,8 @@ test("Pickers keeps advancing when every VinPlus request waits minutes for a sha
   expect(pages).toEqual([1, 2, 2, 2, 1, 1, 1]);
   expect(batches).toHaveLength(1);
   expect(batches[0]).toHaveLength(6);
-  // Every request but the late second bookend, read again by the next chunk.
-  expect(mock.calls.length - cursor.state.requests).toBe(1);
+  // A turn too late for the closing reads makes no request.
+  expect(cursor.state.requests).toBe(mock.calls.length);
 }, 120_000);
 
 test("a resumed chunk still validates its prefetched first search after its turn outlasts the 155 s soft check", async () => {
@@ -1020,6 +1020,8 @@ test("a late VinPlus turn defers or checkpoints instead of starting Pickers orig
     ProviderTurnDeferred,
   );
   expect(mock.calls.some((call) => call.init?.method === "POST")).toBe(false);
+  // The turn gave up its place instead of spending a VinPlus read.
+  expect(start.turns).toHaveLength(0);
   // Reach the bookends without a queue.
   let cursor: PickersCursor = PickersCursor.initial;
   while (cursor.phase !== "bookends")
@@ -1034,6 +1036,7 @@ test("a late VinPlus turn defers or checkpoints instead of starting Pickers orig
   if (Either.isLeft(late.result)) throw late.result.left;
   expect(late.result.right.status).toBe("paused");
   expect(late.result.right.pagesProcessed).toBe(1);
+  expect(late.turns).toHaveLength(1);
   cursor = reparse(late.result.right);
   expect(cursor).toMatchObject({ phase: "bookends", next: 1 });
   // Only the resumed native form guard, before the turn.
@@ -1046,6 +1049,7 @@ test("a late VinPlus turn defers or checkpoints instead of starting Pickers orig
   expect(Either.isLeft(deferred.result) && deferred.result.left).toBeInstanceOf(
     ProviderTurnDeferred,
   );
+  expect(deferred.turns).toHaveLength(0);
   expect(origin() - before).toBe(1);
   // A timely turn completes the crawl from the same checkpoint.
   const batches: unknown[][] = [];

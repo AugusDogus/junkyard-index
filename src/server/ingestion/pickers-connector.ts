@@ -62,6 +62,18 @@ type PickersSearchResponse = Effect.Effect.Success<
 /** One Pickers origin request: its 20 s request and body deadline, then the
  * 1.6 s request gate. */
 const PICKERS_ORIGIN_REQUEST_MS = 21_600;
+/** Pickers origin requests that directly follow a VinPlus read for the control
+ * at `next`: a native make control, or the closing owner and app reads after
+ * the last bookend. */
+const originRequestsAfter = (
+  phase: "native-opening" | "queries" | "native-closing" | "bookends",
+  next: number,
+) =>
+  phase === "native-opening" || phase === "native-closing"
+    ? 1
+    : phase === "bookends" && next === 1
+      ? 2
+      : 0;
 /** The literal pair a query or bookend control at `next` searches. */
 const searchIndex = (
   kind: "query" | "bookend",
@@ -179,7 +191,8 @@ export function streamPickersInventoryWithRequestGate<E, R>(
       const app = yield* fetchPickersApp(gate, site);
       const inventory = yield* fetchPickersInventory(gate, undefined, site);
       const config = yield* fetchPickersConfig(gate, site).pipe(
-        sharedProviderHostTurn(site.configUrl),
+        // A native make control follows the config read.
+        sharedProviderHostTurn(site.configUrl, 1, PICKERS_ORIGIN_REQUEST_MS),
       );
       state = {
         ...(site.code === "pickers-texarkana" ? {} : { siteCode: site.code }),
@@ -251,7 +264,13 @@ export function streamPickersInventoryWithRequestGate<E, R>(
           ? yield* fetchPickersSearch(firstPair, gate, site)
           : null;
         return { config, search };
-      }).pipe(sharedProviderHostTurn(site.configUrl, firstPair ? 2 : 1));
+      }).pipe(
+        sharedProviderHostTurn(
+          site.configUrl,
+          firstPair ? 2 : 1,
+          originRequestsAfter(phase, next) * PICKERS_ORIGIN_REQUEST_MS,
+        ),
+      );
       const { config } = resumed;
       prefetched = resumed.search;
       yield* pickersValidated("resumed public location", () => {
@@ -269,7 +288,7 @@ export function streamPickersInventoryWithRequestGate<E, R>(
     const originFits = (requests: number) =>
       ProviderChunkClock.fits(requests * PICKERS_ORIGIN_REQUEST_MS);
     const originDeferred = Effect.flip(
-      ProviderChunkClock.deferred(VINPLUS_HOST_POLICY.label, "work"),
+      ProviderChunkClock.deferred(VINPLUS_HOST_POLICY.label, "wait"),
     );
     const phaseLength =
       phase === "native-opening" || phase === "native-closing"
@@ -355,7 +374,11 @@ export function streamPickersInventoryWithRequestGate<E, R>(
           prefetched = null;
         } else {
           const read = yield* fetchPickersSearch(pair, gate, site).pipe(
-            sharedProviderHostTurn(PICKERS_SEARCH_URL),
+            sharedProviderHostTurn(
+              PICKERS_SEARCH_URL,
+              1,
+              originRequestsAfter(phase, next) * PICKERS_ORIGIN_REQUEST_MS,
+            ),
             ProviderChunkClock.unlessDeferred(summary.pagesProcessed > 0),
           );
           if (Option.isNone(read)) break;
