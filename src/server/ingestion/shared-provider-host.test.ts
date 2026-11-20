@@ -1,4 +1,6 @@
 import { expect, spyOn, test } from "bun:test";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { Effect, Fiber, TestClock, TestContext } from "effect";
 import {
   sharedProviderHostPolicy,
@@ -108,4 +110,68 @@ test("deployed URG and every VinPlus API client fail closed without Redis", asyn
     if (token === undefined) delete process.env.UPSTASH_REDIS_REST_TOKEN;
     else process.env.UPSTASH_REDIS_REST_TOKEN = token;
   }
+});
+
+/** Top-level argument count of each `name(...)` call in `source`. */
+function callArity(source: string, name: string): number[] {
+  const arities: number[] = [];
+  for (const match of source.matchAll(new RegExp(`\\b${name}\\(`, "g"))) {
+    let depth = 1,
+      commas = 0,
+      trailing = false;
+    for (let index = match.index + match[0].length; depth > 0; index++) {
+      const character = source[index];
+      if (character === undefined) break;
+      if ("([{".includes(character)) depth++;
+      else if (")]}".includes(character)) depth--;
+      else if (character === "," && depth === 1) commas++;
+      if (depth === 1 && character.trim() !== "") trailing = character === ",";
+    }
+    arities.push(commas + 1 - (trailing ? 1 : 0));
+  }
+  return arities;
+}
+
+test("a shared host turn around raw requests covers one request, and every request it shares a turn with takes a host slot", () => {
+  // A turn holds the policy gap after its last request, and host slots inside
+  // it keep the gap between requests. A raw request can therefore only be a
+  // turn's single request: anything sharing its turn would follow it at once.
+  const sources = new Map(
+    readdirSync(import.meta.dir)
+      .filter((file) => file.endsWith(".ts") && !file.endsWith(".test.ts"))
+      .map((file) => [file, readFileSync(join(import.meta.dir, file), "utf8")]),
+  );
+  const raw = (source: string) => /(?<![.\w])fetch\(/.test(source);
+  const slotted = (source: string) =>
+    source.includes("sharedProviderHostSlot(");
+  const rawTurns: string[] = [];
+  for (const [file, source] of sources) {
+    const arities = callArity(source, "sharedProviderHostTurn");
+    if (arities.length === 0) continue;
+    if (raw(source)) {
+      rawTurns.push(file);
+      expect({ file, arities }).toEqual({
+        file,
+        arities: arities.map(() => 1),
+      });
+    }
+    // Request helpers (fetch*, read*, request*) from modules that request
+    // without a host slot would run inside a turn without the gap.
+    for (const [, names = "", module] of source.matchAll(
+      /import \{([^}]*)\} from "\.\/([\w-]+)"/g,
+    )) {
+      const imported = sources.get(module + ".ts");
+      const requests = names
+        .split(",")
+        .map((name) => name.trim())
+        .filter((name) => /^(fetch|read|request)/i.test(name));
+      if (imported && raw(imported) && !slotted(imported))
+        expect({ file, module, requests }).toEqual({
+          file,
+          module,
+          requests: [],
+        });
+    }
+  }
+  expect(rawTurns).toEqual(["urgiis-client.ts"]);
 });

@@ -5,6 +5,7 @@ import {
   ProviderTurnDeferred,
 } from "./provider-chunk-clock";
 import { runWithQueuedHost } from "./provider-host-test-support";
+import { URG_HOST_POLICY } from "./shared-provider-host";
 import { readUrgiisPage } from "./urgiis-client";
 import type { UrgiisTenant } from "./urgiis-tenant";
 
@@ -189,6 +190,40 @@ test("a URG IIS read whose retry cannot get a shared host turn in this chunk end
     expect(run.turns).toHaveLength(2);
     expect(run.cancelled).toBe(1);
     expect(fetch).toHaveBeenCalledTimes(2);
+  } finally {
+    fetch.mockRestore();
+  }
+}, 60_000);
+
+test("a URG IIS read keeps the shared URG gap inside its turn's lease", async () => {
+  // The turn wraps the raw fetch, so it must hold the 3.5 s gap itself before
+  // another URG source may reach the shared backend.
+  const site: UrgiisTenant = { ...tenant, origin: "https://eagleautopart.com" };
+  const fetch = spyOn(globalThis, "fetch").mockImplementation(
+    Object.assign(
+      async () =>
+        new Response("native HTML", {
+          headers: { "content-type": "text/html; charset=UTF-8" },
+        }),
+      { preconnect: globalThis.fetch.preconnect },
+    ),
+  );
+  try {
+    for (const read of [
+      readUrgiisPage(site.origin + site.makesPath, site),
+      ProviderChunkClock.deadline({
+        duration: "3 minutes",
+        onTimeout: () => new Error("work deadline"),
+      })(readUrgiisPage(site.origin + site.makesPath, site)),
+    ]) {
+      const run = await runWithQueuedHost(read, { turnWaitMs: 10_000 });
+      expect(run.result).toEqual(Either.right("native HTML"));
+      expect(run.turns).toHaveLength(1);
+      const turn = run.turns[0];
+      expect(
+        (turn?.releasedAt ?? 0) - (turn?.acquiredAt ?? 0),
+      ).toBeGreaterThanOrEqual(URG_HOST_POLICY.gapMs);
+    }
   } finally {
     fetch.mockRestore();
   }
