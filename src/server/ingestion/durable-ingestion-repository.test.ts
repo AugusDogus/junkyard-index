@@ -4,7 +4,6 @@ import { drizzle } from "drizzle-orm/libsql";
 import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import { IngestionSchedule } from "./ingestion-schedule";
 import { reconciliationSourcePriority } from "./reconciliation-policy";
-import { canMatchSettledIngestionAlerts } from "~/server/alerts/settled-ingestion-alerts";
 import { createDurableIngestionRepository } from "./durable-ingestion-repository";
 import type {
   DurableIngestionWakeupResult,
@@ -891,8 +890,9 @@ describe("durable ingestion repository", () => {
       expect(run.activeSlot).toBeNull();
       expect(run.executionFailures).toBe(5);
 
-      // Alert matching stays resumable: abandoning it would cancel intents
-      // whose searches already advanced their checkpoints.
+      // A run the previous release left matching alerts stays resumable:
+      // abandoning it would cancel intents whose searches already advanced
+      // their checkpoints.
       const matching = startedRun(
         await repository.prepareWakeup(
           new Date(Date.now() + IngestionSchedule.retryDelayMs),
@@ -1263,6 +1263,38 @@ test("provider progress and its resume path checkpoint atomically and use normal
   }
 });
 
+test("a first claim stamped inside a daily alert check's window waits", async () => {
+  const { client, cleanup } = createTestClient();
+  try {
+    await client.executeMultiple(TEST_SCHEMA);
+    const repository = createDurableIngestionRepository(
+      drizzle(client),
+      client,
+      IngestionSnapshotStore.memory(),
+    );
+    const now = new Date("2026-11-20T18:00:00.000Z");
+    const runId = startedRun(await repository.prepareWakeup(now, ["pyp"]));
+    await client.execute({
+      sql: "update ingestion_run set stage = 'reconcile_upsert' where id = ?",
+      args: [runId],
+    });
+    const checkedThrough = new Date("2026-11-20T17:58:59.999Z");
+    await client.execute({
+      sql: `insert into search_alert_check
+        (id, day, status, checked_through, started_at, last_progress_at)
+        values ('check', '2026-11-20', 'running', ?, ?, ?)`,
+      args: [checkedThrough.getTime(), now.getTime(), now.getTime()],
+    });
+    // Its vehicles would be stamped inside the check's matched window.
+    expect(await repository.claimCommit(runId, checkedThrough)).toBe("busy");
+    const claimedAt = new Date(checkedThrough.getTime() + 1);
+    expect(await repository.claimCommit(runId, claimedAt)).toBe("claimed");
+    expect((await repository.getRun(runId)).commitStartedAt).toEqual(claimedAt);
+  } finally {
+    cleanup();
+  }
+});
+
 test("a fetching native source does not delay AutoRecycler publication; ready native runs still win the turn", async () => {
   const { client, cleanup } = createTestClient();
   try {
@@ -1335,11 +1367,6 @@ test.each(["autorecycler", "harrys", "budget"] as const)(
         status: "running",
         activeSlot: 1,
       });
-      // Search publication can proceed, but this early run cannot match a
-      // source-filtered digest while native ownership is still being fetched.
-      expect(
-        await canMatchSettledIngestionAlerts(database, ready.id, readyAt),
-      ).toBe(false);
     } finally {
       cleanup();
     }

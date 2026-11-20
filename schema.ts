@@ -622,13 +622,43 @@ export const vehicleChange = sqliteTable(
   ],
 );
 
+// One saved-search alert check per ingestion day, independent of source
+// runs. It matches vehicles first seen through `checkedThrough`, a bound that
+// stops short of any commit whose vehicles are not yet in the search index.
+export const searchAlertCheck = sqliteTable(
+  "search_alert_check",
+  {
+    id: text("id").primaryKey(),
+    day: text("day").notNull(), // IngestionDay key
+    status: text("status", {
+      enum: ["running", "complete", "superseded"],
+    }).notNull(),
+    checkedThrough: integer("checked_through", {
+      mode: "timestamp_ms",
+    }).notNull(),
+    // Last saved search id checked, in id order.
+    searchCursor: text("search_cursor"),
+    startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
+    lastProgressAt: integer("last_progress_at", {
+      mode: "timestamp_ms",
+    }).notNull(),
+    completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [uniqueIndex("search_alert_check_day_idx").on(table.day)],
+);
+
 export const searchNotificationIntent = sqliteTable(
   "search_notification_intent",
   {
     id: text("id").primaryKey(),
-    runId: text("run_id")
-      .notNull()
-      .references(() => ingestionRun.id, { onDelete: "cascade" }),
+    // Intents from before daily alert checks belong to the ingestion run
+    // that matched them; newer ones belong to their alert check.
+    runId: text("run_id").references(() => ingestionRun.id, {
+      onDelete: "cascade",
+    }),
+    alertCheckId: text("alert_check_id").references(() => searchAlertCheck.id, {
+      onDelete: "cascade",
+    }),
     publicationSequence: integer("publication_sequence").notNull(),
     savedSearchId: text("saved_search_id")
       .notNull()
@@ -665,10 +695,15 @@ export const searchNotificationIntent = sqliteTable(
       table.id,
     ),
     index("search_notification_intent_run_idx").on(table.runId),
+    index("search_notification_intent_alert_check_idx").on(table.alertCheckId),
     index("search_notification_intent_recipient_idx").on(
       table.userId,
       table.channel,
       table.status,
+    ),
+    check(
+      "search_notification_intent_owner_check",
+      sql`(run_id is null) <> (alert_check_id is null)`,
     ),
   ],
 );

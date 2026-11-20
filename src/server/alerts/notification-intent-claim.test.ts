@@ -17,9 +17,15 @@ const TEST_SCHEMA = `
     stage text not null
   );
 
+  create table search_alert_check (
+    id text primary key,
+    status text not null
+  );
+
   create table search_notification_intent (
     id text primary key,
-    run_id text not null default 'run-1',
+    run_id text default 'run-1',
+    alert_check_id text,
     publication_sequence integer not null default 1,
     saved_search_id text not null default 'search-1',
     user_id text not null default 'user-1',
@@ -493,6 +499,55 @@ describe("notification intent claims", () => {
           { id: "active-intent", status: "pending" },
         ]),
       );
+    } finally {
+      cleanup();
+    }
+  });
+
+  test("claims a daily alert check's intents together once the check stops running", async () => {
+    const { client, cleanup } = createTestClient();
+    try {
+      await client.executeMultiple(`${TEST_SCHEMA}
+        insert into search_alert_check (id, status)
+        values ('check-running', 'running'), ('check-superseded', 'superseded');
+        insert into search_notification_intent (id, run_id, alert_check_id, saved_search_id)
+        values
+          ('running-1', null, 'check-running', 'search-1'),
+          ('running-2', null, 'check-running', 'search-2'),
+          ('superseded-1', null, 'check-superseded', 'search-3');
+      `);
+      const database = drizzle(client);
+      const claim = (claimToken: string) =>
+        claimNotificationIntentGroup({
+          channel: "email",
+          database,
+          now: new Date("2026-08-22T07:00:00.000Z"),
+          leaseMs: 15 * 60 * 1000,
+          claimToken,
+        });
+
+      // A superseded check wrote these with their advanced windows.
+      expect((await claim("claim-a")).map((row) => row.id)).toEqual([
+        "superseded-1",
+      ]);
+      await client.execute(
+        "update search_notification_intent set status = 'delivered', claim_token = null where id = 'superseded-1'",
+      );
+      // The day's digest waits until every search has been checked.
+      expect(
+        await hasDeliverableNotificationIntent({
+          database,
+          now: new Date("2026-08-22T07:00:00.000Z"),
+          leaseMs: 15 * 60 * 1000,
+        }),
+      ).toBe(false);
+      await client.execute(
+        "update search_alert_check set status = 'complete' where id = 'check-running'",
+      );
+      expect((await claim("claim-b")).map((row) => row.id).sort()).toEqual([
+        "running-1",
+        "running-2",
+      ]);
     } finally {
       cleanup();
     }

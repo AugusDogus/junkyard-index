@@ -340,14 +340,14 @@ export function createDurableIngestionRepository(
 
     /**
      * Claims the shared commit for a staged run. One active run holds it at a
-     * time, even across workflow failures, so reconciliation, Algolia
-     * publication, and alert matching never interleave between runs.
+     * time, even across workflow failures, so reconciliation and Algolia
+     * publication never interleave between runs.
      *
      * Ready runs claim in source-priority order; fetching runs do not hold up
      * publication. Reconciliation preserves native ownership regardless of
-     * arrival order. Alerts wait for the settled daily pass, so a marketplace
-     * copy cannot produce an alert before a native source takes it over.
-     * The claim time follows every earlier alert check.
+     * arrival order. The daily alert check runs after the pass has had its
+     * chance to publish, so a marketplace copy rarely alerts before a native
+     * source takes it over. The claim time follows every earlier alert check.
      * A full rebuild left by a finished (abandoned) run is taken on here, since
      * runs created before it was abandoned did not inherit it.
      */
@@ -396,6 +396,12 @@ export function createDurableIngestionRepository(
                     select coalesce(max(last_checked_at), 0) + 1000
                     from saved_search
                   )
+                  -- A claim stamped inside a daily alert check's window
+                  -- would be missed by it; restamp and retry instead.
+                  and ? > (
+                    select coalesce(max(checked_through), 0)
+                    from search_alert_check
+                  )
                 ))
             `,
             args: [
@@ -405,6 +411,7 @@ export function createDurableIngestionRepository(
               runId,
               runId,
               reconciliationSourcePriority(current.source),
+              now.getTime(),
               now.getTime(),
             ],
           },
@@ -932,8 +939,9 @@ export function createDurableIngestionRepository(
       if (
         failures >= MAX_EXECUTION_FAILURES &&
         run.stage !== "full_reindex_move_pending" &&
-        // Abandoning would cancel intents whose searches already advanced
-        // their checkpoints, losing those alerts.
+        // A run the previous release left matching alerts: abandoning it
+        // would cancel intents whose searches already advanced their
+        // checkpoints, losing those alerts.
         run.stage !== "match_alerts"
       ) {
         await this.abandon(runId, true);

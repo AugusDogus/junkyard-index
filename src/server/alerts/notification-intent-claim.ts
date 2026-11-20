@@ -3,6 +3,7 @@ import { and, asc, eq, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import {
   ingestionRun,
+  searchAlertCheck,
   searchNotificationDelivery,
   searchNotificationIntent,
   user,
@@ -30,11 +31,21 @@ function claimableNotificationIntent(params: { now: Date; leaseMs: number }) {
   );
 }
 
-const releasedRun = sql`exists (
-  select 1 from ${ingestionRun}
-  where ${ingestionRun.id} = ${searchNotificationIntent.runId}
-    and ${ingestionRun.status} = 'success'
-    and ${ingestionRun.stage} = 'released'
+// An intent waits for its owner to finish, so each recipient's one digest a
+// day covers every match: a daily alert check that is no longer running, or,
+// for intents from before daily checks, a released ingestion run.
+const ownerFinished = sql`(
+  exists (
+    select 1 from ${searchAlertCheck}
+    where ${searchAlertCheck.id} = ${searchNotificationIntent.alertCheckId}
+      and ${searchAlertCheck.status} <> 'running'
+  )
+  or exists (
+    select 1 from ${ingestionRun}
+    where ${ingestionRun.id} = ${searchNotificationIntent.runId}
+      and ${ingestionRun.status} = 'success'
+      and ${ingestionRun.stage} = 'released'
+  )
 )`;
 
 function claimValues(params: ClaimNotificationIntentGroupParams) {
@@ -51,7 +62,7 @@ function deliverableNotificationIntent(params: { now: Date; leaseMs: number }) {
   const stale = params.now.getTime() - params.leaseMs;
   return and(
     claimableNotificationIntent(params),
-    releasedRun,
+    ownerFinished,
     sql`(
         ${searchNotificationIntent.status} in ('retry', 'sending')
         or not exists (

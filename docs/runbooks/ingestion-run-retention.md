@@ -58,10 +58,13 @@ including all registered sources. The six foreign-key children all cascade:
   `yard-checkpoint`, durable run steps and administrative run routes operate on
   active claims. Retain them, unprocessed `vehicle_change_v2` rows and pending,
   retrying, sending or claimed notification intents.
-- `durable-search-alerts`, `alert-search-checkpoint`, `notification-intent-claim`
-  and settled-ingestion delivery read run ownership and publication state.
-  Completed delivery history is independent of run history; unfinished intents
-  retain their owner. Archival changes and delivered/cancelled intents cascade.
+- `search-alert-check` reads commit claims, rebuild flags and publication
+  state to bound its window. `notification-intent-claim` delivers intents
+  owned by a released run (from before daily alert checks) or a finished
+  `search_alert_check`. Completed delivery history is independent of run
+  history; unfinished intents retain their owner. Archival changes and
+  delivered/cancelled intents cascade. Daily check rows (one a day) are not
+  pruned here.
 - Workflow post-pass housekeeping is the only pruning entry point. Operational
   scripts use these ingestion functions rather than introducing separate run
   references. Migration, reconciliation, scheduler,

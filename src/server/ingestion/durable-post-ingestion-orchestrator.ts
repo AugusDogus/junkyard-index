@@ -39,33 +39,23 @@ export async function drainDurableCleanup(
   }
 }
 
+/** Projection releases the run; saved-search alerts run once a day apart. */
 export async function runDurablePublicationLifecycle<
   Projector extends DurablePhaseBatchResult,
-  AlertMatching extends DurablePhaseBatchResult,
 >(params: {
   runId: string;
   project(runId: string): Promise<Projector>;
-  matchAlerts(runId: string): Promise<AlertMatching>;
   reportHealth(runId: string): Promise<void>;
 }) {
   // Workflow steps must not capture params and its sibling callbacks as `this`.
-  const { project, matchAlerts, reportHealth } = params;
+  const { project, reportHealth } = params;
   const projector = await project(params.runId);
   if (projector.status === "stopped") {
     return { status: "stopped" as const, phase: "projection" as const };
   }
 
-  const alertMatching = await matchAlerts(params.runId);
-  if (alertMatching.status === "stopped") {
-    return { status: "stopped" as const, phase: "alert_matching" as const };
-  }
-
   await reportHealth(params.runId);
-  return {
-    status: "completed" as const,
-    projector,
-    alertMatching,
-  };
+  return { status: "completed" as const, projector };
 }
 
 export async function runDurablePostReleaseLifecycle<

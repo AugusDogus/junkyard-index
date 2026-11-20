@@ -9,6 +9,10 @@ export const IngestionTokens = {
   run(runId: string): string {
     return `vehicle-ingestion:${runId}`;
   },
+  /** One live saved-search alert check per ingestion day. */
+  searchAlertCheck(day: string): string {
+    return `search-alert-check:${day}`;
+  },
   /** Wakes a run waiting for the shared commit. */
   commitTurn(runId: string): string {
     return `vehicle-ingestion-commit-turn:${runId}`;

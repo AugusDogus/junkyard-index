@@ -15,44 +15,50 @@ position would change ownership, so that alternative was rejected.
 
 A ready run waits for higher-priority **ready or committing** runs. It does not
 wait for a run still fetching. One run still holds the shared commit through
-reconciliation, search publication, and alert matching. A lower-priority source
+reconciliation and search publication, then releases. A lower-priority source
 can publish while Pontiac or URG fetches. If a native feed later lists the same
 VIN, reconciliation transfers ownership and preserves `firstSeenAt`.
 
-Earlier publications release without matching saved searches or advancing their
-alert windows. The final run matches the settled daily index once every registered
-source has published, hit a deterministic validation rejection, or exhausted its
-three transient attempts, with no other active ingestion run. A transient retry
-keeps this gate closed. Runs from an expired ingestion day cannot begin matching;
-matching already checkpointed under the shared commit remains resumable. Local
-unscheduled runs match only when no other ingestion run is active.
+Source runs never match saved searches. One daily alert check
+([`search-alert-check.ts`](../../src/server/alerts/search-alert-check.ts)) matches
+each alert-enabled saved search once against the vehicles first seen since its
+last check. It starts when the day's pass ends (every registered source has
+published, hit a deterministic validation rejection, or exhausted its three
+transient attempts). From 18:00 UTC an hourly cron (at :40) starts it anyway, so a stuck
+or abandoned source cannot hold back everyone's alerts.
 
-This deliberately delays alerts, while inventory itself can become searchable
-earlier. Source-filtered alerts see the final native owner rather than a temporary
-marketplace listing. Grace-period inventory with a nonzero `missingRunCount` is
+The check fixes a bound when it starts: the second before any commit still in
+progress or abandoned and awaiting a rebuild, and at least a minute in the past.
+Vehicles first seen through the bound are searchable; later ones wait for the
+next day's check, whose window starts at the bound. A claim stamped inside the
+window waits, and a commit that publishes inside the window while a batch reads
+Algolia makes the batch retry.
+
+When the pass ends, inventory itself can be searchable earlier than alerts.
+Source-filtered alerts see the final native owner rather than a temporary
+marketplace listing, unless the deadline check runs while the native source is
+still stuck. Grace-period inventory with a nonzero `missingRunCount` is
 excluded from alert counts and previews during the paginated scan, preventing a vehicle already observed missing during the
 pass from entering the digest. The scan uses existing record metadata, so it also
 works with deployed numeric-filter settings. A failed crawl cannot prove a removal, so its prior
-inventory remains governed by existing missing/delete rules. This does not add
-an independent end-of-day alert job; a pass that never settles leaves alert
-windows intact for a subsequent settled pass.
+inventory remains governed by existing missing/delete rules.
 
 Evidence and policy: [`reconciliation-policy.ts`](../../src/server/ingestion/reconciliation-policy.ts),
 `keptByHigherPriorityOwner`, the guarded commit claim, and
-[`settled-ingestion-alerts.ts`](../../src/server/alerts/settled-ingestion-alerts.ts).
+[`search-alert-check.ts`](../../src/server/alerts/search-alert-check.ts).
 Tests cover a lower publication during a native fetch, ready-source precedence,
 source-filtered final ownership with preserved first-seen time, missing inventory,
-transient retries, deterministic rejection, exhaustion, and expired days.
+and the alert check's bound, windows, and fences.
 The first-deploy regression starts all 90 registered sources together: AutoRecycler,
 Harry's and Budget each claim the commit five minutes later while URG and every
 other higher-priority source remain in `sources`. Restoring the old claim condition
-makes all three cases return `busy`. The settled-alert gate remains closed.
+makes all three cases return `busy`.
 
 ### First URG census and monitoring windows
 
 Ready-only publication removes URG's fetch from other sources' publication and
 heartbeat critical paths. The publication lifecycle reports each released source's
-health even when its alert matching was deferred. URG's own cold census now has
+health. URG's own cold census now has
 bounded progress heartbeats while it completes its much larger first graph.
 
 The [URG runbook](urgiis-ingestion.md#offline-request-and-runtime-estimate)
@@ -94,9 +100,9 @@ so repeatedly restarting a failing crawl cannot hide that failure. The existing
 pings and resolves reports as before. A later full census within an incremental
 run retains its existing one-day failure bound.
 
-A census crossing the ingestion-day boundary also cannot start alert matching for
-its expired day. Earlier sources still publish and report health; their saved-search
-windows remain intact until a subsequent current-day pass settles.
+A census crossing the ingestion-day boundary does not delay alerts: that day's
+check ran at its pass end or deadline, and the census's vehicles are matched by
+the next check after they publish.
 
 ## Shared backend pacing
 

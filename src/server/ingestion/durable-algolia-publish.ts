@@ -48,6 +48,23 @@ export function withIndexGeneration(
   };
 }
 
+/**
+ * Ends a run once its inventory is searchable: it leaves the active slot and
+ * frees the shared commit. Saved-search alerts are checked once a day on
+ * their own, so a run's release never waits on them.
+ */
+export function releasedRunValues(publishedAt: Date) {
+  return {
+    status: "success",
+    stage: "released",
+    activeSlot: null,
+    searchPublishedAt: publishedAt,
+    releasedAt: publishedAt,
+    completedAt: publishedAt,
+    lastProgressAt: publishedAt,
+  } as const;
+}
+
 export type FullReindexPublishResult =
   | { status: "stopped" }
   | { status: "complete"; searchPublishedAt: Date };
@@ -188,11 +205,9 @@ export async function publishFullReindexForRun(params: {
   const publishRun = params.database
     .update(ingestionRun)
     .set({
-      stage: "match_alerts",
+      ...releasedRunValues(publishedAt),
       fullReindexRequired: false,
       fullReindexMoveTaskId: null,
-      searchPublishedAt: publishedAt,
-      lastProgressAt: publishedAt,
     })
     .where(
       and(
@@ -231,25 +246,27 @@ export async function publishFullReindexForRun(params: {
         sql`exists (
           select 1 from ingestion_run as publishing_run
           where publishing_run.id = ${params.runId}
-            and publishing_run.status = 'running'
-            and publishing_run.active_slot = 1
-            and publishing_run.stage = 'match_alerts'
+            and publishing_run.status = 'success'
+            and publishing_run.stage = 'released'
             and publishing_run.full_reindex_required = 0
+            and publishing_run.search_published_at = ${publishedAt.getTime()}
         )`,
       ),
     );
   // The commit claim prevents other runs from reconciling while this
   // generation is built, so every currently unprocessed row is covered.
+  // Releasing frees the claim, so both cleanups key on this publication's
+  // release in the same transaction.
   const clearPublishedChanges = params.database.delete(vehicleChange).where(
     and(
       isNull(vehicleChange.processedAt),
       sql`exists (
           select 1 from ingestion_run as publishing_run
           where publishing_run.id = ${params.runId}
-            and publishing_run.status = 'running'
-            and publishing_run.active_slot = 1
-            and publishing_run.stage = 'match_alerts'
+            and publishing_run.status = 'success'
+            and publishing_run.stage = 'released'
             and publishing_run.full_reindex_required = 0
+            and publishing_run.search_published_at = ${publishedAt.getTime()}
         )`,
     ),
   );

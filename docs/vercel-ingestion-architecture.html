@@ -170,10 +170,13 @@
   -&gt; bounded missing reconciliation
   -&gt; mark inventory published/degraded
   -&gt; bounded ordered Algolia projection
-  -&gt; mark search published
-  -&gt; bounded alert matching and durable intent creation
-  -&gt; release ingestion singleton
-  -&gt; non-blocking notification delivery and cleanup</code></pre>
+  -&gt; mark search published and release ingestion singleton
+  -&gt; cleanup
+
+daily saved-search alert check (pass end, or hourly from 18:00 UTC)
+  -&gt; bound the window before unsearchable commits
+  -&gt; batched alert matching and durable intent creation
+  -&gt; notification delivery</code></pre>
       </section>
 
       <section>

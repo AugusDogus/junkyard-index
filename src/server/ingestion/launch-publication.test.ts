@@ -6,7 +6,6 @@ import {
   compileAlertFilters,
   scanAlertMatchPages,
 } from "~/lib/algolia-alert-search";
-import { canMatchSettledIngestionAlerts } from "~/server/alerts/settled-ingestion-alerts";
 import {
   createTestClient,
   makeVehicle,
@@ -41,7 +40,7 @@ test("an early marketplace VIN alerts only under its final native owner, and sam
       missingRunCount: 1,
     });
     for (const [id, source, stage] of [
-      ["market", "autorecycler", "match_alerts"],
+      ["market", "autorecycler", "project_changes"],
       ["native", "pontiac", "sources"],
     ] as const) {
       await database.insert(ingestionRun).values({
@@ -65,9 +64,6 @@ test("an early marketplace VIN alerts only under its final native owner, and sam
         startedAt: now,
       });
     }
-    expect(await canMatchSettledIngestionAlerts(database, "market", now)).toBe(
-      false,
-    );
     await client.execute(
       "update ingestion_run set stage = 'released', status = 'success', active_slot = null where id = 'market'",
     );
@@ -94,13 +90,6 @@ test("an early marketplace VIN alerts only under its final native owner, and sam
         })
       ).status,
     ).toBe("complete");
-    await client.execute({
-      sql: "update ingestion_run set stage = 'match_alerts', search_published_at = ? where id = 'native'",
-      args: [now.getTime()],
-    });
-    expect(await canMatchSettledIngestionAlerts(database, "native", now)).toBe(
-      true,
-    );
     const rows = await database.select().from(vehicle);
     expect(rows.find((row) => row.vin === "DUPLICATE")).toMatchObject({
       source: "pontiac",

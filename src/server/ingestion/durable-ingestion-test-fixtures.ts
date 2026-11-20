@@ -69,6 +69,11 @@ ${readFileSync(new URL("../../../drizzle/0008_vehicle_observations.sql", import.
   );
   create unique index ingestion_run_active_source_idx on ingestion_run(source, active_slot);
   create table saved_search (id text primary key, last_checked_at integer);
+  create table search_alert_check (
+    id text primary key, day text not null unique, status text not null,
+    checked_through integer not null, search_cursor text, started_at integer not null,
+    last_progress_at integer not null, completed_at integer
+  );
   create table ingestion_source_run (
     id text primary key, run_id text not null, source text not null,
     status text not null, start_cursor text, next_cursor text,

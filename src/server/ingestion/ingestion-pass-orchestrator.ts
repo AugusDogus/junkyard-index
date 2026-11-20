@@ -32,14 +32,15 @@ export interface IngestionPassOperations {
   sleepUntil: (time: number) => Promise<void>;
   /** Waits before resuming a failed run, which stays active. */
   pauseAfterFailure: () => Promise<void>;
+  /** Starts the day's saved-search alert check, which then delivers. */
   deliverNotifications: () => Promise<void>;
 }
 
 /**
  * Drives one ingestion day: starts every due source as its own workflow,
  * waits for their reports, sleeps until a failed source's retry is due, and
- * delivers the day's notifications once every source published or used its
- * attempts. A watchdog timeout or a failed run re-plans, which resumes any run
+ * starts the day's saved-search alerts once every source published or used
+ * its attempts. A watchdog timeout or a failed run re-plans, which resumes any run
  * whose workflow died.
  */
 export async function runIngestionPass(
@@ -76,8 +77,8 @@ export async function runIngestionPass(
       }
     }
   }
-  // Delivery sends only undelivered intents, so a repeat is harmless and
-  // covers a pass that died between its last run and delivery.
+  // A finished alert check only retries undelivered intents, so a repeat is
+  // harmless and covers a pass that died between its last run and alerts.
   await deliverNotifications();
   return startedRuns ? "completed" : "already-complete";
 }
