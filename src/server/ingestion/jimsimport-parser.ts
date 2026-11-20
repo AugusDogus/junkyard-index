@@ -260,13 +260,6 @@ export function parseJimsimportOwner(raw: string) {
     throw new Error("Jim's Import physical owner or Sebring address changed");
   return jimsimportHash(JIMSIMPORT_YARD);
 }
-export const jimsimportRequiredPage = (page: JimsimportPage) => ({
-  ...page,
-  records: page.records.map(({ image, ...required }) => {
-    void image;
-    return required;
-  }),
-});
 export const jimsimportDirectoryMembership = (
   controls: readonly JimsimportControl[],
 ) => controls.map(({ path, label }) => ({ path, label }));

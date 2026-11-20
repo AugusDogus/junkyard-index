@@ -5,16 +5,17 @@ import {
   readJimsimportPage,
 } from "./jimsimport-client";
 import { streamJimsimportInventory } from "./jimsimport-connector";
-import { JimsimportCursor } from "./jimsimport-cursor";
 import {
-  jimsimportHash,
-  parseJimsimportModel,
-  type JimsimportPage,
-} from "./jimsimport-parser";
+  JimsimportCursor,
+  jimsimportCensus,
+  jimsimportCensusPlan,
+} from "./jimsimport-cursor";
+import { jimsimportHash, parseJimsimportModel } from "./jimsimport-parser";
 import { runWithQueuedHost } from "./provider-host-test-support";
 import {
   jimsimportFixture,
   jimsimportOpeningFixture,
+  nativeModelPage,
 } from "./jimsimport-test-fixtures";
 import {
   jimsimportModels,
@@ -38,6 +39,9 @@ function closingState() {
     scope: initial.scope,
     requests: 369,
     bytes: 50 * 1024 * 1024,
+    // A cold census on a fixed run day: every model page was read.
+    day: 20_000,
+    previous: null,
     ownerHash: jimsimportHash(JIMSIMPORT_YARD),
     makes,
     menus,
@@ -158,7 +162,7 @@ describe("Jim's Import complete census guards", () => {
     ).rejects.toThrow("checksum");
     expect(calls).toHaveLength(3);
   });
-  test("directory badge changes are diagnostic, required model membership drift blocks", async () => {
+  test("directory badge changes are diagnostic, closing make membership drift blocks", async () => {
     const state = closingState();
     const result = await Effect.runPromise(
       streamJimsimportInventory({
@@ -178,21 +182,22 @@ describe("Jim's Import complete census guards", () => {
         onBatch: () => Effect.die("Early emission"),
       }),
     );
-    expect(result.cursor.phase).toBe("closing-models");
-    if (result.cursor.phase !== "closing-models")
-      throw new Error("Wrong closing phase");
+    expect(result.cursor.phase).toBe("owner-closing");
     let calls = 0;
     await expect(
       Effect.runPromise(
         streamJimsimportInventory({
           previousUniqueInventory: null,
-          startCursor: result.cursor,
+          startCursor: JimsimportCursor.checkpoint({
+            ...state,
+            phase: "closing-makes",
+          }),
           readPage: () => {
             calls++;
             return Effect.succeed(
-              jimsimportFixture("acura").body.replaceAll(
-                '/used-parts/ACURA/CL"',
-                '/used-parts/ACURA/NEW"',
+              jimsimportFixture("catalog").body.replaceAll(
+                '/used-parts/ACURA"',
+                '/used-parts/ACURA_NEW"',
               ),
             );
           },
@@ -202,55 +207,47 @@ describe("Jim's Import complete census guards", () => {
     ).rejects.toThrow("membership");
     expect(calls).toBe(1);
   });
-  test("closing VIN drift aborts before callbacks and the next native request", async () => {
+  test("carried model pages must equal their accepted census evidence", () => {
     const state = closingState();
-    const result = await Effect.runPromise(
-      streamJimsimportInventory({
-        previousUniqueInventory: null,
-        maxPages: 1,
-        startCursor: JimsimportCursor.checkpoint({
-          ...state,
-          phase: "closing",
-          closing: [],
-        }),
-        readPage: () => Effect.succeed(jimsimportFixture("cl").body),
-        onBatch: () => Effect.die("Early emission"),
-      }),
+    const census = jimsimportCensus(state);
+    const next = { ...state, day: state.day + 1, previous: census };
+    const decisions = jimsimportCensusPlan(next);
+    const carried = decisions.findIndex((d) => d.kind === "carry");
+    const read = decisions.findIndex((d) => d.kind === "read");
+    expect(carried).toBeGreaterThanOrEqual(0);
+    expect(read).toBeGreaterThanOrEqual(0);
+    expect(() =>
+      JimsimportCursor.checkpoint({ ...next, phase: "closing-makes" }),
+    ).not.toThrow();
+    // A carried page whose donor VIN drifted is not the census evidence.
+    const tampered = state.opening.map((page, i) =>
+      i === carried
+        ? {
+            ...page,
+            records: page.records.map((r, j) =>
+              j === 0 ? { ...r, vin: "WBA7E2C59GG504712" } : r,
+            ),
+          }
+        : page,
     );
-    let calls = 0,
-      emitted = 0;
-    await expect(
-      Effect.runPromise(
-        streamJimsimportInventory({
-          previousUniqueInventory: null,
-          startCursor: result.cursor,
-          readPage: () => {
-            calls++;
-            return Effect.succeed(
-              jimsimportFixture("ilx").body.replace(
-                "19UDE2F72LA002870",
-                "WBA7E2C59GG504712",
-              ),
-            );
-          },
-          onBatch: () =>
-            Effect.sync(() => {
-              emitted++;
-            }),
-        }),
-      ),
-    ).rejects.toThrow("closing required");
-    expect(calls).toBe(1);
-    expect(emitted).toBe(0);
+    expect(() =>
+      JimsimportCursor.checkpoint({
+        ...next,
+        phase: "closing-makes",
+        opening: tampered,
+      }),
+    ).toThrow("carried model page differs");
+    // A paused opening must stop at a model that is due for a read.
+    expect(() =>
+      JimsimportCursor.checkpoint({
+        ...next,
+        phase: "opening",
+        opening: state.opening.slice(0, carried),
+      }),
+    ).toThrow("not due for a read");
   });
-  test("owner closure emits once, with changed optional metadata nulled", async () => {
+  test("owner closure emits once and publishes the model census", async () => {
     const state = closingState();
-    const closing = state.opening.map((p) => ({
-      ...p,
-      records: p.records.map((r) =>
-        r.id === "21F104" ? { ...r, image: null } : r,
-      ),
-    }));
     const emitted: JimsimportVehicle[][] = [];
     let yards = 0;
     const result = await Effect.runPromise(
@@ -258,8 +255,9 @@ describe("Jim's Import complete census guards", () => {
         previousUniqueInventory: null,
         startCursor: JimsimportCursor.checkpoint({
           ...state,
+          // Opening reads plus the closing make directory re-read.
+          requests: state.requests + 1,
           phase: "owner-closing",
-          closing,
         }),
         readPage: () => Effect.succeed(jimsimportFixture("owner").body),
         onBatch: (batch) =>
@@ -279,9 +277,12 @@ describe("Jim's Import complete census guards", () => {
     expect(emitted).toHaveLength(1);
     expect(yards).toBe(1);
     expect(result.accounting.recordsRejected).toBe(367);
+    if (result.cursor.phase !== "complete") throw new Error("Not complete");
+    expect(result.cursor.census?.day).toBe(state.day);
+    expect(result.cursor.census?.models).toHaveLength(334);
     expect(
-      emitted[0]?.find((v) => v.stockNumber === "21F104")?.imageUrl,
-    ).toBeNull();
+      result.cursor.census?.models.every((m) => m.readDay === state.day),
+    ).toBe(true);
     const again = await Effect.runPromise(
       streamJimsimportInventory({
         previousUniqueInventory: null,
@@ -298,7 +299,7 @@ describe("Jim's Import complete census guards", () => {
       JimsimportCursor.checkpoint({
         ...state,
         phase: "owner-closing",
-        closing: state.opening.slice(1),
+        opening: state.opening.slice(1),
       }),
     ).toThrow("frontier");
     let emitted = 0;
@@ -308,8 +309,8 @@ describe("Jim's Import complete census guards", () => {
           previousUniqueInventory: null,
           startCursor: JimsimportCursor.checkpoint({
             ...state,
+            requests: state.requests + 1,
             phase: "owner-closing",
-            closing: state.opening,
           }),
           readPage: () =>
             Effect.succeed(
@@ -435,45 +436,7 @@ describe("Jim's Import complete census guards", () => {
   });
 });
 
-/** Renders a saved opening page as native model HTML, from the CL capture. */
-function nativeModelPage(page: JimsimportPage) {
-  const body = jimsimportFixture("cl").body;
-  const start = body.indexOf('<div class="aps-la-card-wrapper">');
-  let end = body.indexOf("See Inventory</a>");
-  for (let closed = 0; closed < 3; closed++)
-    end = body.indexOf("</div>", end) + "</div>".length;
-  const card = body.slice(start, end);
-  const literal = (value: string) => () => value;
-  const cards = page.records.map((record) => {
-    const [link, parts] = record.destinations;
-    if (!link || !parts || record.destinations.length !== 2 || !record.image)
-      throw new Error("Fixture renderer covers two links and one image only");
-    return card
-      .replace('id="2F572"', literal(`id="${record.id}"`))
-      .replace(
-        /https:\/\/jimsimport\.com\/used-parts\/ACURA\/CL\/2F572\/1999/,
-        literal(link),
-      )
-      .replace(
-        /https:\/\/jimsimport\.com\/used-parts\/ACURA\/CL\/2F572\/1999/,
-        literal(parts),
-      )
-      .replaceAll("ACURA CL", literal(record.title))
-      .replace("VIN: -", literal("VIN: " + (record.vin ?? "")))
-      .replace(
-        /(Year<\/span>\s*)1999/,
-        (_, label: string) => label + record.year,
-      )
-      .replace(
-        '<div class="aps-la-stat-value">2F572</div>',
-        literal(`<div class="aps-la-stat-value">${record.stock}</div>`),
-      )
-      .replace(/src="[^"]*"/, literal(`src="${record.image}"`));
-  });
-  return body.slice(0, start) + cards.join("") + body.slice(end);
-}
-
-test("Jim's Import closing tail and owner re-read complete when every GET waits two minutes for a shared host turn", async () => {
+test("Jim's Import opening tail and closing re-reads complete when every GET waits two minutes for a shared host turn", async () => {
   // Production URG queue on 2026-11-19: about 20 sources shared one lease, so
   // each request, including the terminal owner re-read, waited about two
   // minutes for its turn.
@@ -482,6 +445,7 @@ test("Jim's Import closing tail and owner re-read complete when every GET waits 
   const remaining = 4;
   const native = new Map<string, string>([
     [JIMSIMPORT_OWNER, jimsimportFixture("owner").body],
+    [JIMSIMPORT_CATALOG, jimsimportFixture("catalog").body],
   ]);
   state.opening.slice(-remaining).forEach((page, offset) => {
     const context = models[state.opening.length - remaining + offset];
@@ -496,8 +460,9 @@ test("Jim's Import closing tail and owner re-read complete when every GET waits 
   const emitted: JimsimportVehicle[][] = [];
   let cursor: unknown = JimsimportCursor.checkpoint({
     ...state,
-    phase: "closing",
-    closing: state.opening.slice(0, -remaining),
+    requests: state.requests - remaining,
+    phase: "opening",
+    opening: state.opening.slice(0, -remaining),
   });
   const pages: number[] = [];
   const original = globalThis.fetch;
@@ -547,9 +512,11 @@ test("Jim's Import closing tail and owner re-read complete when every GET waits 
   } finally {
     globalThis.fetch = original;
   }
-  expect(pages.reduce((sum, value) => sum + value, 0)).toBe(remaining + 1);
+  // The closing re-reads only the make directory and the owner page.
+  expect(pages.reduce((sum, value) => sum + value, 0)).toBe(remaining + 2);
   expect(pages.every((value) => value > 0)).toBe(true);
-  expect(calls).toHaveLength(remaining + 1);
+  expect(calls).toHaveLength(remaining + 2);
+  expect(calls.at(-2)).toBe(JIMSIMPORT_CATALOG);
   expect(calls.at(-1)).toBe(JIMSIMPORT_OWNER);
   expect(emitted).toHaveLength(1);
 }, 120_000);
