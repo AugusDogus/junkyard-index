@@ -29,6 +29,7 @@
     "workflow:web": "workflow web"
   },
   "dependencies": {
+    "@algolia/requester-browser-xhr": "5.49.0",
     "@discordjs/rest": "^2.6.0",
     "@hyperbrowser/sdk": "^0.83.3",
     "@libsql/client": "^0.17.0",

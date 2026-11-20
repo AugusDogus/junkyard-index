@@ -10,6 +10,7 @@ import {
   hasAdvancedSearchSyntax,
   parseAdvancedSearchQuery,
 } from "~/lib/advanced-search-query";
+import { SEARCH_CONFIG } from "~/lib/constants";
 import { cn } from "~/lib/utils";
 import {
   executeSearchCommit,
@@ -18,8 +19,6 @@ import {
   type PendingSearchCommit,
 } from "~/lib/search-commit";
 import { VinPattern } from "~/lib/vin-pattern";
-
-const DEBOUNCE_MS = 300;
 
 interface VehicleSearchInputProps {
   vinPattern: string;
@@ -243,7 +242,7 @@ export function VehicleSearchInput({
           if (debounceRef.current) clearTimeout(debounceRef.current);
           debounceRef.current = setTimeout(
             () => void commitSearchValue(value),
-            DEBOUNCE_MS,
+            SEARCH_CONFIG.DEBOUNCE_DELAY,
           );
         }}
         onKeyDown={(event) => {
@@ -264,8 +263,8 @@ export function VehicleSearchInput({
         )}
       />
       <p id="search-hint" className="sr-only">
-        Results update as you type. Press Command K or Control K to focus this
-        field.
+        Results update when you pause typing or press Enter. Press Command K or
+        Control K to focus this field.
       </p>
       {displayedFeedback && (
         <p

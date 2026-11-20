@@ -16,6 +16,7 @@ export const AnalyticsEvents = {
   SEARCH_COMPLETED: "search_completed",
   SEARCH_EMPTY: "search_empty",
   SEARCH_FAILED: "search_failed",
+  SEARCH_QUERIES_METERED: "search_queries_metered",
   SEARCH_SUGGESTION_CLICKED: "search_suggestion_clicked",
   RESULT_CAP_REACHED: "result_cap_reached",
   RESULT_CAP_SIGNUP_CLICKED: "result_cap_signup_clicked",

@@ -6,6 +6,7 @@ import {
   type CompiledExpression,
   combineSearchFilters,
 } from "~/lib/compile-search-expression";
+import { createXhrRequester } from "@algolia/requester-browser-xhr";
 import { liteClient as algoliasearch } from "algoliasearch/lite";
 import type {
   LegacySearchMethodProps,
@@ -15,6 +16,7 @@ import type {
 } from "algoliasearch";
 import { env } from "~/env";
 import { withDistanceSort } from "~/lib/algolia-distance-sort";
+import { searchQueryMeter } from "~/lib/search-query-meter";
 import {
   buildAdvancedSearchFilters,
   parseAdvancedSearchQuery,
@@ -31,6 +33,11 @@ const baseSearchClient = withFullServiceCount(
       algoliasearch(
         env.NEXT_PUBLIC_ALGOLIA_APP_ID,
         env.NEXT_PUBLIC_ALGOLIA_SEARCH_API_KEY,
+        // Meter browser calls for analytics. Server renders keep the
+        // default requester; their searches are not a page view's.
+        typeof window === "undefined"
+          ? undefined
+          : { requester: searchQueryMeter.requester(createXhrRequester()) },
       ),
     ),
   ),
