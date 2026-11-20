@@ -23,10 +23,12 @@ import { z } from "zod";
  * against today's published counts (a per-source floor that also holds on cold
  * runs) and against the last accepted card counts of models whose published
  * count is unchanged (a fixed replay floor, independent of badge accuracy).
- * Routine sweep reads at age six stay under that floor. When the last accepted
- * run is six or more days old (an outage), the recovery run reads every page
- * again and is judged like a cold run instead of failing against a frozen
- * census every day.
+ * Every reference counts while the last accepted run is under six days old, so
+ * a rejection holds on later runs and a missed run cannot age a broken slice
+ * out of the check. When the last accepted run is six or more days old (an
+ * outage, or a real drop that stayed rejected that long), the run reads every
+ * page again and is judged like a cold run instead of failing against a
+ * frozen census every day.
  * Pages that break a sixth at a time, emptied or cut to one card each, fail the
  * run on the first broken day.
  *
@@ -360,11 +362,10 @@ export const ModelCensus = {
    * - against today's published counts, at the connector's `minimum`, which
    *   must allow for that source's healthy badge accuracy and holds on cold runs;
    * - against the last accepted card counts of models whose published count is
-   *   unchanged and whose evidence is at most six days old, at
-   *   MODEL_CENSUS_REPLAY_MINIMUM for every source. Routine sweep reads at age
-   *   six are included. When the last accepted run is six or more days old
-   *   (an outage) this check steps aside and the recovery run is judged like
-   *   a cold run.
+   *   unchanged, at MODEL_CENSUS_REPLAY_MINIMUM for every source, while the
+   *   last accepted run is under six days old. Once it is six or more days old
+   *   (an outage, or a real drop rejected that long) this check steps aside
+   *   and the run is judged like a cold run.
    * Carried pages keep floors and drift guards satisfied while pages break a
    * sixth at a time; these checks fail the first such run. Returns null or an
    * error message naming the largest shortfalls.
@@ -377,10 +378,13 @@ export const ModelCensus = {
     label: (index: number) => string,
   ): string | null {
     const { controls, pages, previous, cards, day: today } = run;
-    // Routine sweep reads happen at age exactly six (reason stale), so the
-    // replay floor keeps references up to that age. Only when the last
-    // accepted run is itself six or more days old (an outage) is every page
-    // read again and the run judged like a cold run, on the badge floor.
+    // Every reference stays in while the last accepted run is under six days
+    // old: routine sweep reads happen at age six, and after a rejected or
+    // missed run the broken slice ages past six while `previous` stays put.
+    // Dropping old references there would let a broken page through the day
+    // after its rejection. Only when the last accepted run is itself six or
+    // more days old (an outage, or a real drop rejected that long) is the run
+    // judged like a cold run, on the badge floor alone.
     const replaying =
       today !== null &&
       previous !== null &&
@@ -422,10 +426,7 @@ export const ModelCensus = {
       check(
         controls.map((control) => {
           const before = evidence.get(control.key);
-          return before &&
-            replaying &&
-            before.count === control.count &&
-            today - before.readDay <= MODEL_CENSUS_SWEEP_DAYS
+          return before && replaying && before.count === control.count
             ? cards(before.page)
             : null;
         }),
