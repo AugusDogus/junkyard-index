@@ -1780,3 +1780,215 @@ test("source-scoped missing scans preserve observations of another source's VIN 
     client.close();
   }
 });
+
+describe("skipped search publication", () => {
+  async function stagedRun(params: {
+    client: ReturnType<typeof createClient>;
+    store: IngestionSnapshotStore;
+    id: string;
+    source: "pyp" | "row52";
+    vins: readonly string[];
+    commitStartedAt: Date | null;
+  }) {
+    const startedAt = new Date("2026-11-20T07:00:00.000Z");
+    await drizzle(params.client)
+      .insert(ingestionRun)
+      .values({
+        id: params.id,
+        source: params.source,
+        status: "running",
+        stage: "reconcile_upsert",
+        activeSlot: 1,
+        commitStartedAt: params.commitStartedAt,
+        acceptedSources: JSON.stringify([params.source]),
+        startedAt,
+        lastProgressAt: startedAt,
+      });
+    await drizzle(params.client)
+      .insert(ingestionSourceRun)
+      .values({
+        id: `${params.id}:${params.source}`,
+        runId: params.id,
+        source: params.source,
+        status: "success",
+        acceptanceStatus: "accepted",
+        uniqueVehicles: params.vins.length,
+        startedAt,
+      });
+    await stageSnapshots({
+      client: params.client,
+      store: params.store,
+      runId: params.id,
+      vehicles: params.vins.map((vin) => ({
+        ...snapshot(params.source, "Blue"),
+        vin,
+        locationCode: `${params.source}-yard`,
+      })),
+    });
+  }
+
+  test("releases the run at its final batch, keeps its change rows, and leaves a rebuild for the first inline run", async () => {
+    const client = createClient({ url: ":memory:" });
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      await client.execute(
+        "create table saved_search (id text primary key, last_checked_at integer)",
+      );
+      const database = drizzle(client);
+      const store = IngestionSnapshotStore.memory();
+      const commitStartedAt = new Date("2026-11-20T08:00:00.000Z");
+      await stagedRun({
+        client,
+        store,
+        id: "skipped",
+        source: "pyp",
+        vins: ["VIN-A", "VIN-B"],
+        commitStartedAt,
+      });
+      // Staged while the skipped run held the commit.
+      await stagedRun({
+        client,
+        store,
+        id: "next",
+        source: "row52",
+        vins: ["VIN-C"],
+        commitStartedAt: null,
+      });
+
+      const reconcile = (
+        runId: string,
+        searchPublication: "inline" | "skipped",
+      ) =>
+        reconcileDurableIngestionRun({
+          runId,
+          database,
+          batchClient: client,
+          snapshotStore: store,
+          searchPublication,
+        });
+      const skipped = await reconcile("skipped", "skipped");
+      expect(skipped).toMatchObject({ status: "complete", search: "skipped" });
+      const run = async (id: string) =>
+        (
+          await client.execute({
+            sql: `select status, stage, active_slot, full_reindex_required,
+                    publication_sequence, inventory_outcome,
+                    inventory_published_at is not null as inventory_published,
+                    search_published_at, published_vehicle_count,
+                    published_yard_count, released_at is not null as released,
+                    completed_at is not null as completed
+                  from ingestion_run where id = ?`,
+            args: [id],
+          })
+        ).rows[0];
+      expect({ ...(await run("skipped")) }).toEqual({
+        status: "success",
+        stage: "released",
+        active_slot: null,
+        full_reindex_required: 1,
+        publication_sequence: 1,
+        inventory_outcome: "published",
+        inventory_published: 1,
+        search_published_at: null,
+        published_vehicle_count: 2,
+        published_yard_count: 1,
+        released: 1,
+        completed: 1,
+      });
+      const changes = async () =>
+        (
+          await client.execute(
+            "select run_id, vin, processed_at from vehicle_change_v2 order by id",
+          )
+        ).rows.map((row) => [row.run_id, row.vin, row.processed_at]);
+      expect(await changes()).toEqual([
+        ["skipped", "VIN-A", null],
+        ["skipped", "VIN-B", null],
+      ]);
+      // A retried step finds the run released and reports the same outcome.
+      expect(await reconcile("skipped", "inline")).toMatchObject({
+        status: "complete",
+        search: "skipped",
+      });
+
+      // The switch turns off. The waiting run's claim inherits the rebuild,
+      // so its final batch sends it to rebuild search from Turso instead of
+      // projecting only its own changes.
+      const repository = createDurableIngestionRepository(
+        database,
+        client,
+        store,
+      );
+      expect(
+        await repository.claimCommit(
+          "next",
+          new Date("2026-11-20T09:00:00.000Z"),
+        ),
+      ).toBe("claimed");
+      expect(await reconcile("next", "inline")).toMatchObject({
+        status: "complete",
+        search: "pending",
+      });
+      expect(await run("next")).toMatchObject({
+        status: "running",
+        stage: "full_reindex_prepare",
+        active_slot: 1,
+        full_reindex_required: 1,
+        publication_sequence: 2,
+      });
+      expect(await changes()).toEqual([
+        ["skipped", "VIN-A", null],
+        ["skipped", "VIN-B", null],
+        ["next", "VIN-C", null],
+      ]);
+    } finally {
+      client.close();
+    }
+  });
+
+  test("a skipped run without changes owes no rebuild unless it inherited one", async () => {
+    const client = createClient({ url: ":memory:" });
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const database = drizzle(client);
+      const store = IngestionSnapshotStore.memory();
+      for (const [id, inherited] of [
+        ["clean", 0],
+        ["inherited", 1],
+      ] as const) {
+        await stagedRun({
+          client,
+          store,
+          id,
+          source: id === "clean" ? "pyp" : "row52",
+          vins: [],
+          commitStartedAt: new Date("2026-11-20T08:00:00.000Z"),
+        });
+        await client.execute({
+          sql: "update ingestion_run set full_reindex_required = ? where id = ?",
+          args: [inherited, id],
+        });
+        expect(
+          await reconcileDurableIngestionRun({
+            runId: id,
+            database,
+            batchClient: client,
+            snapshotStore: store,
+            searchPublication: "skipped",
+          }),
+        ).toMatchObject({ status: "complete", search: "skipped" });
+      }
+      const rows = await client.execute(
+        "select id, stage, full_reindex_required from ingestion_run order by id",
+      );
+      expect(
+        rows.rows.map((row) => [row.id, row.stage, row.full_reindex_required]),
+      ).toEqual([
+        ["clean", "released", 0],
+        ["inherited", "released", 1],
+      ]);
+    } finally {
+      client.close();
+    }
+  });
+});

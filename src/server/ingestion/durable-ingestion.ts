@@ -36,6 +36,7 @@ import {
   type InventoryCacheSource,
 } from "./inventory-cache-refresh";
 import { IngestionSourceFlags } from "./ingestion-source-flags";
+import { SearchPublicationFlag } from "./search-publication-flag";
 import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import { BetterStackProviders } from "./better-stack-providers";
 import { reportUrgiisCensusProgress } from "./urgiis-progress";
@@ -217,6 +218,7 @@ export async function reconcileDurableIngestion(
     database: db,
     batchClient: dbClient,
     snapshotStore,
+    searchPublication: await SearchPublicationFlag.mode(),
   });
   return result;
 }
@@ -294,6 +296,10 @@ export function cleanupStaleDurableIngestionSnapshots(): Promise<void> {
 
 export async function cleanupStaleDurableAlgoliaRebuilds(): Promise<void> {
   await pruneIngestionRuns({ database: db });
+  // Frozen search makes no Algolia request, so a blocked Algolia cannot fail
+  // the pass's homepage refresh. Skipped runs create no temp indices; the
+  // sweep resumes once the switch is off.
+  if ((await SearchPublicationFlag.mode()) === "skipped") return;
   await cleanupStaleRebuildIndices({
     database: db,
     algolia: getAlgoliaAdminClient(),

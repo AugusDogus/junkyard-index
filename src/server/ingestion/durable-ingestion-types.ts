@@ -87,6 +87,14 @@ export interface FetchedDurableSourceChunk<
   failureKind?: "validation";
 }
 
+/**
+ * What a reconciled run still owes search. `pending`: the run holds the
+ * commit until it projects its changes (or rebuilds) and matches alerts.
+ * `skipped`: the run already released at its final reconciliation batch with
+ * search publication switched off; its changes wait for a later rebuild.
+ */
+export type DurableSearchPublication = "pending" | "skipped";
+
 export type DurableReconciliationBatchResult =
   | { status: "stopped" }
   | {
@@ -94,7 +102,11 @@ export type DurableReconciliationBatchResult =
       phase: "upsert" | "missing";
       cursor: string | null;
     }
-  | { status: "complete"; result: DurableIngestionResult };
+  | {
+      status: "complete";
+      result: DurableIngestionResult;
+      search: DurableSearchPublication;
+    };
 
 export interface DurableIngestionResult {
   runId: string;

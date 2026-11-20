@@ -17,6 +17,8 @@ const TEST_SCHEMA = `
     full_reindex_move_task_id integer,
     started_at integer not null,
     last_progress_at integer not null,
+    commit_started_at integer,
+    released_at integer,
     search_published_at integer
   );
 
@@ -292,6 +294,68 @@ describe("durable Algolia full-index publication", () => {
           },
         ]),
       );
+    } finally {
+      client.close();
+    }
+  });
+
+  test("settles repairs owed by runs released before its claim and by unclaimed runs, whenever they started", async () => {
+    const client = createClient({ url: ":memory:" });
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const at = (time: string) => Date.parse(`2026-08-22T${time}:00.000Z`);
+      // run-1 waited from 07:00 while later runs released with search
+      // publication skipped, then claimed at 09:00 and rebuilt.
+      await client.executeMultiple(`
+        insert into ingestion_run (
+          id, source, status, stage, active_slot, full_reindex_required,
+          started_at, last_progress_at, commit_started_at, released_at
+        ) values
+          ('run-1', 'pyp', 'running', 'full_reindex_publish', 1, 1,
+            ${at("07:00")}, ${at("07:00")}, ${at("09:00")}, null),
+          ('skipped', 'row52', 'success', 'released', null, 1,
+            ${at("07:30")}, ${at("08:00")}, ${at("07:50")}, ${at("08:00")}),
+          ('unclaimed', 'u-pull', 'running', 'reconcile_upsert', 1, 1,
+            ${at("08:10")}, ${at("08:10")}, null, null),
+          ('released-after-claim', 'aero', 'abandoned', 'reconcile_missing',
+            null, 1, ${at("07:40")}, ${at("09:30")}, ${at("07:45")},
+            ${at("09:30")});
+        insert into vehicle_change_v2 (processed_at) values (null), (null);
+      `);
+
+      const result = await publishFullReindexForRun({
+        runId: "run-1",
+        runStartedAt: new Date(at("07:00")),
+        database: drizzle(client),
+        indexName: "vehicles",
+        algolia: {
+          deleteIndex: async () => ({ taskID: 123 }),
+          getSettings: async () => ({
+            userData: { [INDEX_GENERATION_KEY]: "run-1" },
+          }),
+          operationIndex: async () => ({ taskID: 1 }),
+          waitForTask: async () => undefined,
+        },
+      });
+
+      expect(result.status).toBe("complete");
+      const rows = await client.execute(
+        "select id, full_reindex_required from ingestion_run order by id",
+      );
+      expect(
+        rows.rows.map((row) => [row.id, row.full_reindex_required]),
+      ).toEqual([
+        // A release after the claim is not covered, so it still owes one.
+        ["released-after-claim", 1],
+        ["run-1", 0],
+        ["skipped", 0],
+        ["unclaimed", 0],
+      ]);
+      // The generation covers the skipped runs' unprocessed changes.
+      const changes = await client.execute(
+        "select count(*) as count from vehicle_change_v2",
+      );
+      expect(changes.rows[0]?.count).toBe(0);
     } finally {
       client.close();
     }
