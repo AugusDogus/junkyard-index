@@ -5,6 +5,7 @@ import {
   JimsimportPageSchema,
   jimsimportControlPath,
   jimsimportHash,
+  type JimsimportControl,
   type JimsimportPage,
   type JimsimportMenu,
 } from "./jimsimport-parser";
@@ -15,6 +16,7 @@ import {
 } from "./jimsimport-transform";
 import {
   JIMSIMPORT_CATALOG,
+  JIMSIMPORT_ORIGIN,
   JIMSIMPORT_YARD,
 } from "./jimsimport-yard-metadata";
 import {
@@ -69,6 +71,14 @@ const schema = z.discriminatedUnion("phase", [
   z.object({ ...graph, phase: z.literal("models") }).strict(),
   z.object({ ...opening, phase: z.literal("opening") }).strict(),
   z.object({ ...opening, phase: z.literal("closing-makes") }).strict(),
+  z
+    .object({
+      ...opening,
+      phase: z.literal("closing-models"),
+      /** Closing model controls already confirmed, in control order. */
+      closed: z.number().int().nonnegative(),
+    })
+    .strict(),
   z.object({ ...opening, phase: z.literal("owner-closing") }).strict(),
   z
     .object({
@@ -111,6 +121,39 @@ export function jimsimportCensusPlan(state: {
     state.previous,
     state.day,
   );
+}
+
+export interface JimsimportClosingModel {
+  url: string;
+  make: JimsimportControl;
+  model: JimsimportControl;
+  index: number;
+}
+
+/** Model pages read this run whose cards differ from their badge, re-read
+ * after the make directory so a short page is confirmed before it can be
+ * carried. Carried pages were confirmed on the run that read them; other
+ * per-model changes surface as count changes in the next run's opening
+ * menus. Derived only from cursor contents of a complete opening. */
+export function jimsimportClosingModels(state: {
+  menus: readonly JimsimportMenu[];
+  opening: readonly JimsimportPage[];
+  previous: JimsimportCensus | null;
+  day: number | null;
+}): JimsimportClosingModel[] {
+  const models = jimsimportModels(state.menus);
+  const decisions = jimsimportCensusPlan(state);
+  return state.opening.flatMap((page, index) => {
+    const entry = models[index];
+    if (!entry)
+      throw new Error(
+        "Jim's Import closing model is outside the published graph",
+      );
+    return decisions[index]?.kind === "read" &&
+      page.records.length !== entry.model.count
+      ? [{ url: JIMSIMPORT_ORIGIN + entry.model.path, ...entry, index }]
+      : [];
+  });
 }
 
 /** Terminal census for a fully closed run. */
@@ -203,6 +246,7 @@ function checkpoint(state: JimsimportState): JimsimportCursor {
       throw new Error("Jim's Import model graph exceeds 1024 leaves");
   }
   let readPages = 0;
+  let closingPages = 0;
   if ("opening" in parsed) {
     prefix(parsed.menus, parsed.opening, parsed.phase !== "opening");
     // Carried pages are exactly the previous census evidence; only read
@@ -224,13 +268,23 @@ function checkpoint(state: JimsimportState): JimsimportCursor {
       decisions[parsed.opening.length]?.kind !== "read"
     )
       throw new Error("Jim's Import next model page is not due for a read");
+    if (parsed.phase === "closing-models" || parsed.phase === "owner-closing") {
+      const controls = jimsimportClosingModels(parsed).length;
+      if (parsed.phase === "closing-models" && parsed.closed >= controls)
+        throw new Error(
+          "Jim's Import closing model checkpoint is past its re-read controls",
+        );
+      closingPages =
+        parsed.phase === "owner-closing" ? controls : parsed.closed;
+    }
     if (parsed.phase !== "opening")
       validateJimsimportSnapshot(
         jimsimportSnapshot(parsed.menus, parsed.opening),
       );
   }
   // Native GETs the evidence proves: owner, make directory, each make menu,
-  // each read model page and each closing re-read. Carried pages cost none.
+  // each read model page and each closing re-read (make directory, then
+  // confirmed models). Carried pages cost none.
   const proven =
     parsed.phase === "owner"
       ? 0
@@ -239,7 +293,9 @@ function checkpoint(state: JimsimportState): JimsimportCursor {
         : 2 +
           parsed.menus.length +
           readPages +
-          (parsed.phase === "owner-closing" ? 1 : 0);
+          (parsed.phase === "closing-models" || parsed.phase === "owner-closing"
+            ? 1 + closingPages
+            : 0);
   if (parsed.requests < proven)
     throw new Error(
       `Jim's Import request accounting is inconsistent: ${parsed.requests} GETs recorded for ${proven} native reads in evidence`,

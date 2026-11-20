@@ -23,11 +23,12 @@ const vin = (model: number, n: number) =>
 const donors = (model: number, n = 200) =>
   Array.from({ length: n }, (_, i) => vin(model, i + 1));
 
-/** Twelve ACURA models with 200 donors each (above the 2,229 floor). Rows and
- * labels can be edited between runs. */
+/** Twelve ACURA models with 200 donors each (above the 2,229 floor). Rows,
+ * labels and badge overrides can be edited between runs. */
 function yard() {
   const rows = new Map(Array.from({ length: 12 }, (_, i) => [i, donors(i)]));
   const labels = new Map<number, string>();
+  const badges = new Map<number, number>();
   const label = (i: number) => labels.get(i) ?? "M" + i;
   const urls: string[] = [];
   const directory = (
@@ -74,7 +75,7 @@ function yard() {
                   [...rows].map(([i, list]) => ({
                     path: `${MAKE}/M${i}/`,
                     label: label(i),
-                    count: list.length,
+                    count: badges.get(i) ?? list.length,
                   })),
                 )
               : model
@@ -88,7 +89,7 @@ function yard() {
     },
     { preconnect: originalFetch.preconnect },
   );
-  return { rows, labels, urls };
+  return { rows, labels, badges, urls };
 }
 
 /** One full run on `day`, seeded by the previous terminal cursor. */
@@ -389,4 +390,63 @@ test("Northwest starts a warned cold census when carried evidence no longer hold
   expect(swapped.models).toHaveLength(12);
   expect(swapped.warnings[0]).toBe(warning);
   expect(swapped.vins).toEqual(allVins(native));
+}, 120_000);
+
+test("Northwest confirms a model read with fewer cards than its badge at closing", async () => {
+  const native = yard();
+  // Model 3's badge promises one more donor than its page lists.
+  native.badges.set(3, 201);
+  const cold = await census(native, 600, null);
+  // Model 3 is read once in the model phase and once more at closing.
+  expect(cold.models).toEqual([...Array.from({ length: 12 }, (_, i) => i), 3]);
+  expect(cold.requests).toBe(18);
+  expect(cold.vins).toEqual(allVins(native));
+
+  // A carried short page was confirmed on the run that read it.
+  const day = [601, 602, 603, 604, 605].find(
+    (candidate) => !swept(native, candidate).includes(3),
+  );
+  if (day === undefined) throw new Error("fixture needs a day without M3");
+  const carried = await census(native, day, cold.terminal);
+  expect(carried.models).toEqual(swept(native, day));
+  expect(carried.vins).toEqual(allVins(native));
+
+  // A short page that does not repeat at closing is never accepted.
+  const modelUrl = NORTHWEST_ORIGIN + MAKE + "/M3/";
+  const nativeFetch = globalThis.fetch;
+  let modelReads = 0;
+  globalThis.fetch = Object.assign(
+    (input: string | URL | Request, init?: RequestInit) => {
+      if (input === modelUrl && modelReads++ === 1)
+        native.rows.set(3, donors(3, 199));
+      return nativeFetch(input, init);
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  let cursor: NorthwestCursor = NorthwestCursor.initial;
+  let callbacks = 0;
+  const run = async () => {
+    for (;;) {
+      const result = await Effect.runPromise(
+        streamNorthwestInventoryWithRequestGate(
+          {
+            startCursor: cursor,
+            previousCursor: null,
+            now: () => 600 * MODEL_CENSUS_DAY_MS,
+            maxPages: 8,
+            onBatch: () => Effect.sync(() => void callbacks++),
+            onYards: () => Effect.sync(() => void callbacks++),
+          },
+          gate,
+        ),
+      );
+      if (result.status === "complete") return result;
+      cursor = result.cursor;
+    }
+  };
+  await expect(run()).rejects.toThrow("Closing Northwest model list M3");
+  expect(modelReads).toBe(2);
+  expect(callbacks).toBe(0);
+  // The failed run keeps its last validated checkpoint at the closing re-read.
+  expect(cursor.phase).toBe("closing");
 }, 120_000);

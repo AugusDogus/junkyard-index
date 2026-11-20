@@ -70,8 +70,9 @@ describe("OEM resumable native traversal", () => {
       }),
     );
     expect(resumed.status).toBe("complete");
-    // Opening arrivals, makes, one menu and one model; closing makes.
-    expect(resumed.cursor.requests).toBe(5);
+    // Opening arrivals, makes, one menu and one model; closing makes and the
+    // F150 page, whose three cards differ from its 86 badge.
+    expect(resumed.cursor.requests).toBe(6);
     expect(resumed.accounting).toEqual({
       recordsProcessed: 4,
       recordsRejected: 0,
@@ -126,6 +127,51 @@ describe("OEM resumable native traversal", () => {
     );
     expect(exit._tag).toBe("Failure");
     expect(requests).toBe(5);
+    expect(batches).toBe(0);
+  });
+  test("closing confirms a model read with fewer cards than its badge", async () => {
+    // The F150 badge counts 86 donors; its model page lists three cards.
+    const urls: string[] = [];
+    const opts = options(() => undefined);
+    const result = await Effect.runPromise(
+      streamOemInventory({
+        ...opts,
+        maxPages: 8,
+        readPage: (url) => {
+          urls.push(url);
+          return opts.readPage(url);
+        },
+      }),
+    );
+    expect(result.status).toBe("complete");
+    expect(urls).toEqual([
+      OEM_ARRIVALS,
+      OEM_MAKES,
+      oemFord.url,
+      oemF150.url,
+      OEM_MAKES,
+      oemF150.url,
+    ]);
+    expect(result.cursor.requests).toBe(6);
+
+    // A short page that does not repeat at closing is never accepted.
+    let batches = 0,
+      reads = 0;
+    await expect(
+      Effect.runPromise(
+        streamOemInventory({
+          ...options(() => {
+            batches++;
+          }),
+          maxPages: 8,
+          readPage: (url) =>
+            url === oemF150.url && reads++ === 1
+              ? Effect.succeed(oemDonorFixture)
+              : opts.readPage(url),
+        }),
+      ),
+    ).rejects.toThrow("Closing OEM model FORD F150 PICKUP cards changed");
+    expect(reads).toBe(2);
     expect(batches).toBe(0);
   });
   test("model page foreign supplier evidence cannot be hidden by unchanged VINs", async () => {

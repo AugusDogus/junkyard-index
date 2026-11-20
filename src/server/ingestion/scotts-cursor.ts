@@ -3,6 +3,7 @@ import {
   scottsHash,
   ScottsControlSchema,
   ScottsPageSchema,
+  type ScottsControl,
   type ScottsPage,
 } from "./scotts-parser";
 import { scottsModels, type ScottsMake } from "./scotts-snapshot";
@@ -70,14 +71,47 @@ const progress = z
 export type ScottsProgress = z.infer<typeof progress>;
 export type ScottsClosingControl =
   | { kind: "root"; url: typeof SCOTTS_ROOT }
-  | { kind: "directory"; url: typeof SCOTTS_MAKES };
+  | { kind: "directory"; url: typeof SCOTTS_MAKES }
+  | {
+      kind: "model";
+      url: string;
+      make: ScottsMake;
+      model: ScottsControl;
+      index: number;
+    };
 
-/** Closing re-reads ownership and the make directory only. Per-model changes
- * during the run surface as badge changes in the next run's opening menus. */
-export function scottsClosingControls(): ScottsClosingControl[] {
+/** Closing re-reads ownership, the make directory and every model read this
+ * run whose cards differ from its badge, so a short page is confirmed before it
+ * can be carried. Carried pages were confirmed on the run that read them; other
+ * per-model changes surface as badge changes in the next run's opening menus. */
+export function scottsClosingControls(
+  state: Pick<ScottsProgress, "makes" | "pages" | "previous" | "day">,
+): ScottsClosingControl[] {
+  const models = scottsModels(state.makes);
+  const decisions =
+    state.day === null || state.pages.length !== models.length
+      ? []
+      : scottsCensusPlan(state);
+  const mismatched = decisions.flatMap((decision, index) => {
+    const value = models[index];
+    return decision.kind === "read" &&
+      value &&
+      state.pages[index]?.records.length !== value.model.count
+      ? [
+          {
+            kind: "model" as const,
+            url: SCOTTS_ORIGIN + value.model.path,
+            make: value.make,
+            model: value.model,
+            index,
+          },
+        ]
+      : [];
+  });
   return [
     { kind: "root", url: SCOTTS_ROOT },
     { kind: "directory", url: SCOTTS_MAKES },
+    ...mismatched,
   ];
 }
 
@@ -182,7 +216,7 @@ export const ScottsCursorSchema = z
         (stage === 3 && state.pages.length >= models.length) ||
         (stage === 4 && state.pages.length !== models.length) ||
         (stage < 4 && state.closing !== 0) ||
-        (stage === 4 && state.closing > scottsClosingControls().length)
+        (stage === 4 && state.closing > scottsClosingControls(state).length)
       )
         throw new Error(
           "Scotts model or closing checkpoint prefix is inconsistent",

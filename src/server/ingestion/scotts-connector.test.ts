@@ -229,3 +229,69 @@ test("Scotts completes a full crawl when every request waits two minutes for a s
   expect(count).toBe(800);
   expect(requested).toHaveLength(6);
 }, 120_000);
+
+/** Drops the first donor card from a fixture model page. */
+const dropFirstCard = (body: string) =>
+  body.replace(/<div class="aps-la-card-wrapper">[\s\S]*?<\/div><\/div>/, "");
+
+test("Scotts confirms a model read with fewer cards than its badge at closing", async () => {
+  const { pages, requested } = fixture();
+  const modelUrl = SCOTTS_ORIGIN + "/used-parts/ACURA/CL";
+  const page = pages.get(modelUrl);
+  if (!page) throw new Error("Model fixture missing");
+  // The badge promises 800 donors; the page lists 799.
+  pages.set(modelUrl, dropFirstCard(page));
+  let cursor: Cursor = ScottsCursor.initial;
+  let count = 0;
+  while (cursor.phase !== "complete") {
+    const result = await Effect.runPromise(
+      streamScottsInventoryWithRequestGate(
+        {
+          startCursor: cursor,
+          maxPages: 6,
+          onBatch: (batch) =>
+            Effect.sync(() => {
+              count += batch.length;
+            }),
+        },
+        gate,
+      ),
+    );
+    cursor = ScottsCursor.parse(ScottsCursor.serialize(result.cursor));
+  }
+  expect(count).toBe(799);
+  // Opening root, makes, menu and model; closing root, makes and the model.
+  expect(requested).toHaveLength(7);
+  expect(requested.filter((url) => url === modelUrl)).toHaveLength(2);
+});
+
+test("Scotts fails without callbacks when a short model page changes at closing", async () => {
+  const { pages, requested } = fixture();
+  const modelUrl = SCOTTS_ORIGIN + "/used-parts/ACURA/CL";
+  const page = pages.get(modelUrl);
+  if (!page) throw new Error("Model fixture missing");
+  const short = dropFirstCard(page);
+  pages.set(modelUrl, short);
+  const opening = await Effect.runPromise(
+    streamScottsInventoryWithRequestGate(
+      { maxPages: 4, onBatch: () => Effect.die("must not emit") },
+      gate,
+    ),
+  );
+  expect(opening.cursor.phase).toBe("closing");
+  // A short page that does not repeat at closing is never accepted.
+  pages.set(modelUrl, dropFirstCard(short));
+  await expect(
+    Effect.runPromise(
+      streamScottsInventoryWithRequestGate(
+        {
+          startCursor: opening.cursor,
+          onBatch: () => Effect.die("must not emit"),
+          onYards: () => Effect.die("must not emit"),
+        },
+        gate,
+      ),
+    ),
+  ).rejects.toThrow("Closing Scotts model cards for ACURA CL changed");
+  expect(requested).toHaveLength(7);
+});

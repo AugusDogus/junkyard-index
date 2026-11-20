@@ -15,7 +15,12 @@ import {
   OEM_MAX_TOTAL_BYTES,
   type OemState,
 } from "./oem-cursor";
-import { oemControlUrl, parseOemDirectory, parseOemDonors } from "./oem-parser";
+import {
+  oemControlUrl,
+  parseOemDirectory,
+  parseOemDonors,
+  type OemPage,
+} from "./oem-parser";
 import { OemSnapshot } from "./oem-snapshot";
 import {
   OemLocationSchema,
@@ -46,12 +51,25 @@ const attempt = <A>(operation: string, run: () => A) =>
     try: run,
     catch: (cause) => new OemProviderError({ operation, cause }),
   });
-const same = (expected: unknown, actual: unknown) => {
+const same = (expected: unknown, actual: unknown, subject: string) => {
   if (oemHash(expected) !== oemHash(actual))
     throw new Error(
-      "Closing OEM make directory changed; restart a complete capture after reviewing drift",
+      "Closing OEM " +
+        subject +
+        " changed; restart a complete capture after reviewing drift",
     );
 };
+/** Card identity of a model page: which donors it lists, in order. Optional
+ * photos and metadata may refresh between reads without changing a card. */
+const cards = (page: OemPage | undefined) =>
+  page?.records.map((r) => ({
+    ordinal: r.ordinal,
+    cardId: r.cardId,
+    destinations: r.destinations,
+    fields: r.fields.filter((f) =>
+      ["year", "make/model", "vin", "stock"].includes(f.label),
+    ),
+  }));
 export function oemNextUrl(
   state: Exclude<OemState, { phase: "complete" }>,
 ): string {
@@ -64,7 +82,7 @@ export function oemNextUrl(
     const entry = oemModels(state.menus)[state.pages.length];
     if (entry) return oemControlUrl(entry.model, 3);
   } else {
-    const entry = oemClosingControls()[state.closing];
+    const entry = oemClosingControls(state)[state.closing];
     if (entry) return entry.url;
   }
   throw new Error("OEM checkpoint has no next published native control");
@@ -128,9 +146,26 @@ export function oemAdvance(input: OemCursor, raw: string): OemCursor {
         ? { ...state, phase: "closing", pages, closing: 0 }
         : { ...state, pages };
   } else {
-    const control = oemClosingControls()[state.closing];
+    const control = oemClosingControls(state)[state.closing];
     if (!control) throw new Error("OEM native closing context is missing");
-    same(state.makes, parseOemDirectory(raw, { kind: "makes" }));
+    if (control.kind === "makes")
+      same(
+        state.makes,
+        parseOemDirectory(raw, { kind: "makes" }),
+        "make directory",
+      );
+    else
+      same(
+        cards(state.pages[control.index]),
+        cards(
+          parseOemDonors(raw, {
+            kind: "model",
+            make: control.make,
+            model: control.model,
+          }),
+        ),
+        "model " + control.model.label + " cards",
+      );
     next = { ...state, closing: state.closing + 1 };
   }
   return OemCursor.checkpoint({
@@ -188,7 +223,7 @@ export function streamOemInventory<E, R>(options: OemOptions<E, R>) {
       const state = cursor.state;
       if (
         state.phase === "closing" &&
-        state.closing === oemClosingControls().length
+        state.closing === oemClosingControls(state).length
       ) {
         const snapshot = yield* attempt("complete-source quality", () => {
           const result = OemSnapshot.create(

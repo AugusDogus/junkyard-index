@@ -89,7 +89,7 @@ function nextUrl(state: NorthwestProgress): string {
       return NORTHWEST_ORIGIN + entry.model.path;
     }
     case "closing": {
-      const entry = northwestClosingControls()[state.closing];
+      const entry = northwestClosingControls(state)[state.closing];
       if (!entry)
         throw new Error("Northwest closing native control is missing");
       return entry.url;
@@ -146,7 +146,7 @@ function advance(state: NorthwestProgress, raw: string): NorthwestProgress {
       break;
     }
     case "closing": {
-      const entry = northwestClosingControls()[state.closing];
+      const entry = northwestClosingControls(state)[state.closing];
       if (!entry) throw new Error("Northwest closing context is missing");
       switch (entry.kind) {
         case "root":
@@ -157,6 +157,13 @@ function advance(state: NorthwestProgress, raw: string): NorthwestProgress {
             state.makes.map(({ models: _models, ...make }) => make),
             parseNorthwestDirectory(raw, "makes"),
             "make graph",
+          );
+          break;
+        case "model":
+          same(
+            state.pages[entry.index]?.hash,
+            parseNorthwestModel(raw, entry.make, entry.model).hash,
+            "model list " + entry.model.label,
           );
           break;
       }
@@ -229,7 +236,7 @@ export function streamNorthwestInventoryWithRequestGate<E, R>(
       summary.pagesProcessed++;
       if (
         advanced.phase === "closing" &&
-        advanced.closing === northwestClosingControls().length
+        advanced.closing === northwestClosingControls(advanced).length
       ) {
         const snapshot = yield* attempt("complete native graph", () => {
           const value = northwestSnapshot(advanced.makes, advanced.pages);

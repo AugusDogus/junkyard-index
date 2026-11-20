@@ -61,10 +61,12 @@ then enumerates every literal make and model. It never constructs donor routes
 from YMM, fetches hidden inventory links, individual details or images, submits
 lookups, follows redirects or retries a failed request.
 
-Closing checks repeat official ownership, both make roots, every make directory,
-the first and last model, model lists with count discrepancies, and any literal
-model missing a native arrival VIN. The final root refresh contributes its native
-arrival observations. Changed graph/list fingerprints fail before emission.
+Closing checks repeat official ownership, the root-configured make directory and
+every model list read this run whose card count differs from its badge, so a
+short page that does not repeat is never carried forward. Carried model lists
+were confirmed on the run that read them; other per-model changes surface as
+badge changes in the next run's opening menus. Changed graph/list fingerprints
+fail before emission.
 The saved qualification has nine byte-stable live closing bodies: `/parts/`,
 KIA and Pontiac make directories, and the Rio, Tahoe, Mercedes C-Class,
 Mercedes GLC-Class, Yukon and Enclave model lists. Its final root has one rolling

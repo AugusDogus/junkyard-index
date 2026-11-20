@@ -366,7 +366,8 @@ test("OEM departing arrivals trigger one read even while the page still lags", a
   // X leaves arrivals before reaching its page: one read, then no re-reads.
   native.setArrivals([donor(0, 1)]);
   const departed = await census(native, 601, cold.wire);
-  expect(departed.models).toEqual(sorted([...sweep(601), m]));
+  // M still shows 40 cards under its 41 badge, so closing confirms its page.
+  expect(departed.models).toEqual([...sorted([...sweep(601), m]), m]);
   expect(departed.warnings.at(-1)).toBe(
     summary([
       ["sweep", sweep(601)],

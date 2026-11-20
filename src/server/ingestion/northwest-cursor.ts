@@ -3,6 +3,7 @@ import {
   northwestHash,
   NorthwestControlSchema,
   NorthwestPageSchema,
+  type NorthwestControl,
   type NorthwestPage,
 } from "./northwest-parser";
 import { NorthwestRecordSchema } from "./northwest-record";
@@ -79,15 +80,46 @@ const progress = z
 export type NorthwestProgress = z.infer<typeof progress>;
 export type NorthwestClosingControl =
   | { kind: "root"; url: typeof NORTHWEST_ROOT }
-  | { kind: "directory"; url: typeof NORTHWEST_MAKES };
+  | { kind: "directory"; url: typeof NORTHWEST_MAKES }
+  | {
+      kind: "model";
+      url: string;
+      make: NorthwestMake;
+      model: NorthwestControl;
+      index: number;
+    };
 
-/** Closing re-reads ownership and the make directory only. Make menu and model
- * changes during the run surface as model badge changes in the next run's
- * opening menus, which are all read. */
-export function northwestClosingControls(): NorthwestClosingControl[] {
+/** Closing re-reads ownership, the make directory and every model read this
+ * run whose cards differ from its badge, so a short page is confirmed before it
+ * can be carried. Carried pages were confirmed on the run that read them; make
+ * menu and other model changes during the run surface as model badge changes
+ * in the next run's opening menus, which are all read. */
+export function northwestClosingControls(
+  state: Pick<NorthwestProgress, "makes" | "pages" | "previous" | "day">,
+): NorthwestClosingControl[] {
+  const models = northwestModels(state.makes);
+  const decisions = northwestCensusPlan(state);
   return [
     { kind: "root", url: NORTHWEST_ROOT },
     { kind: "directory", url: NORTHWEST_MAKES },
+    ...state.pages.flatMap((page, index) => {
+      const entry = models[index];
+      if (!entry)
+        throw new Error(
+          "Northwest closing model is outside the published graph",
+        );
+      return decisions[index]?.kind === "read" &&
+        page.records.length !== entry.model.count
+        ? [
+            {
+              kind: "model",
+              url: NORTHWEST_ORIGIN + entry.model.path,
+              ...entry,
+              index,
+            } satisfies NorthwestClosingControl,
+          ]
+        : [];
+    }),
   ];
 }
 
@@ -212,8 +244,7 @@ export const NorthwestCursorSchema = z
         (stage < 3 && state.pages.length !== 0) ||
         (stage === 3 && state.pages.length >= models.length) ||
         (stage === 4 && state.pages.length !== models.length) ||
-        (stage < 4 && state.closing !== 0) ||
-        (stage === 4 && state.closing > northwestClosingControls().length)
+        (stage < 4 && state.closing !== 0)
       )
         throw new Error(
           "Northwest model or closing checkpoint prefix is inconsistent",
@@ -242,6 +273,13 @@ export const NorthwestCursorSchema = z
         });
         if (stage === 3 && decisions[state.pages.length]?.kind !== "read")
           throw new Error("Northwest next model page is not due for a read");
+        if (
+          stage === 4 &&
+          state.closing > northwestClosingControls(state).length
+        )
+          throw new Error(
+            "Northwest model or closing checkpoint prefix is inconsistent",
+          );
       }
       if (
         state.requests !==

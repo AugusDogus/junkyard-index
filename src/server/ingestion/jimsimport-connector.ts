@@ -9,6 +9,7 @@ import {
   JimsimportCursor,
   jimsimportCensus,
   jimsimportCensusPlan,
+  jimsimportClosingModels,
   type JimsimportCensus,
 } from "./jimsimport-cursor";
 import {
@@ -73,6 +74,16 @@ function stateOf<T extends { checksum: string }>(
   void checksum;
   return state;
 }
+/** Required donor fingerprint of a model page. Optional images may change to
+ * null between reads without changing it. */
+const requiredDonors = (page: JimsimportPage) =>
+  jimsimportHash({
+    ...page,
+    records: page.records.map(({ image, ...required }) => {
+      void image;
+      return required;
+    }),
+  });
 /** Appends carried pages up to the next due read. A complete model list is
  * validated as a whole snapshot (read and carried pages) before closing. */
 function openingPhase(
@@ -162,6 +173,10 @@ export function streamJimsimportInventory<E, R>(
         current.phase === "models"
           ? current.makes[current.menus.length]
           : undefined;
+      const closingModel =
+        current.phase === "closing-models"
+          ? jimsimportClosingModels(current)[current.closed]
+          : undefined;
       const url =
         current.phase === "owner" || current.phase === "owner-closing"
           ? JIMSIMPORT_OWNER
@@ -171,7 +186,9 @@ export function streamJimsimportInventory<E, R>(
               ? JIMSIMPORT_ORIGIN + make.path
               : context
                 ? JIMSIMPORT_ORIGIN + context.model.path
-                : null;
+                : closingModel
+                  ? closingModel.url
+                  : null;
       if (!url)
         return yield* Effect.fail(
           new JimsimportProviderError(
@@ -260,9 +277,8 @@ export function streamJimsimportInventory<E, R>(
           });
           break;
         case "closing-makes":
-          // Closing re-reads ownership and the make directory only. Per-model
-          // changes during the run surface as count changes in the next run's
-          // opening menus.
+          // Closing re-reads the make directory, then each model read this
+          // run whose cards differ from its badge, then ownership.
           cursor = yield* attempt("closing make membership", () => {
             if (
               jimsimportHash(
@@ -272,11 +288,45 @@ export function streamJimsimportInventory<E, R>(
               throw new Error(
                 "Native make membership, labels, order or multiplicity changed",
               );
-            return JimsimportCursor.checkpoint({
-              ...stateOf(current),
-              ...counters,
-              phase: "owner-closing",
-            });
+            return jimsimportClosingModels(current).length
+              ? JimsimportCursor.checkpoint({
+                  ...stateOf(current),
+                  ...counters,
+                  phase: "closing-models",
+                  closed: 0,
+                })
+              : JimsimportCursor.checkpoint({
+                  ...stateOf(current),
+                  ...counters,
+                  phase: "owner-closing",
+                });
+          });
+          break;
+        case "closing-models":
+          cursor = yield* attempt("closing model donors", () => {
+            if (!closingModel) throw new Error("Missing closing model control");
+            const opened = current.opening[closingModel.index];
+            const closing = parseJimsimportModel(
+              raw,
+              closingModel.make,
+              closingModel.model,
+            );
+            if (!opened || requiredDonors(opened) !== requiredDonors(closing))
+              throw new Error(
+                `Native required donors on ${closingModel.model.path} changed during closing (opening ${opened?.records.length ?? "missing"} cards, closing ${closing.records.length}, badge ${closingModel.model.count}); its short opening page was not confirmed`,
+              );
+            const { closed, ...state } = stateOf(current);
+            return closed + 1 === jimsimportClosingModels(current).length
+              ? JimsimportCursor.checkpoint({
+                  ...state,
+                  ...counters,
+                  phase: "owner-closing",
+                })
+              : JimsimportCursor.checkpoint({
+                  ...state,
+                  ...counters,
+                  closed: closed + 1,
+                });
           });
           break;
         case "owner-closing": {
