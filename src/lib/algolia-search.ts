@@ -16,7 +16,7 @@ import type {
 } from "algoliasearch";
 import { env } from "~/env";
 import { withDistanceSort } from "~/lib/algolia-distance-sort";
-import { searchQueryMeter } from "~/lib/search-query-meter";
+import { SearchQueryMeter, searchQueryMeter } from "~/lib/search-query-meter";
 import {
   buildAdvancedSearchFilters,
   parseAdvancedSearchQuery,
@@ -37,7 +37,10 @@ const baseSearchClient = withFullServiceCount(
         // default requester; their searches are not a page view's.
         typeof window === "undefined"
           ? undefined
-          : { requester: searchQueryMeter.requester(createXhrRequester()) },
+          : SearchQueryMeter.clientOptions(
+              searchQueryMeter,
+              createXhrRequester(),
+            ),
       ),
     ),
   ),

@@ -135,6 +135,27 @@ test("typing at a steady pace searches once, after the pause", async () => {
   }
 }, 15_000);
 
+test("Enter searches at once instead of waiting for the typing pause", async () => {
+  const page = await createPage(browser);
+  try {
+    await openFixture(page);
+    const initialRequests = await requests(page);
+    await page.getByRole("searchbox").fill("toyota venza");
+    await page.getByRole("searchbox").press("Enter");
+    // Well inside the 800 ms pause the debounce would wait for.
+    await page.waitForFunction(
+      () => new URL(location.href).searchParams.get("q") === "toyota venza",
+      undefined,
+      { timeout: 400 },
+    );
+    // The cancelled debounce must not search again after the pause.
+    await page.waitForTimeout(1000);
+    expect(await requests(page)).toBe(initialRequests + 1);
+  } finally {
+    await closePage(page);
+  }
+}, 15_000);
+
 for (const search of [
   "?q=toyota&yards[]=RTP+Pick-A-Part+-+Hebron%2C+KY&yards[]=RTP+Pick-A-Part+-+Lexington%2C+KY",
   "?q=toyota&yards=RTP+Pick-A-Part+-+Hebron%2C+KY,RTP+Pick-A-Part+-+Lexington%2C+KY",

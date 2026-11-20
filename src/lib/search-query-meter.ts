@@ -62,7 +62,44 @@ function create(currentPath: () => string) {
 
 export type SearchQueryMeter = ReturnType<typeof create>;
 
-export const SearchQueryMeter = { create } as const;
+/**
+ * The lite client options that meter a browser client. Its default response
+ * cache sits above the requester, so cached answers are not counted.
+ */
+function clientOptions(meter: SearchQueryMeter, base: Requester) {
+  return { requester: meter.requester(base) };
+}
+
+/**
+ * Sends each page view's usage as one event: when the page hides (closing,
+ * reloading, leaving the site), when the tab goes to the background, and when
+ * the returned function runs on a client navigation. Nothing is sent for a
+ * page that made no Algolia calls.
+ */
+function reportPageViews(input: {
+  meter: SearchQueryMeter;
+  capture: (usage: SearchQueryUsage) => void;
+  window: Pick<EventTarget, "addEventListener">;
+  document: Pick<EventTarget, "addEventListener"> & {
+    readonly visibilityState: DocumentVisibilityState;
+  };
+}): () => void {
+  const report = () => {
+    const usage = input.meter.take();
+    if (usage) input.capture(usage);
+  };
+  input.window.addEventListener("pagehide", report);
+  input.document.addEventListener("visibilitychange", () => {
+    if (input.document.visibilityState === "hidden") report();
+  });
+  return report;
+}
+
+export const SearchQueryMeter = {
+  create,
+  clientOptions,
+  reportPageViews,
+} as const;
 
 /** This browser's meter; `instrumentation-client.ts` reports it. */
 export const searchQueryMeter = SearchQueryMeter.create(() =>
