@@ -169,6 +169,13 @@
       "when": 1795276800000,
       "tag": "0023_ingestion_commit_queue",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1795363200000,
+      "tag": "0024_consumer_checkpoint",
+      "breakpoints": true
     }
   ]
 }
