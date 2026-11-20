@@ -247,7 +247,9 @@ async function runSourceIngestion(runId: string) {
             await sleep(LOCK_RETRY_DELAY);
             continue;
           }
-          return runProjectionWithFailureRecording({
+          // Await inside the scope: a bare return disposes the hook, and
+          // releases the writer lock, before projection finishes.
+          return await runProjectionWithFailureRecording({
             runId,
             runBatch: () => runAlgoliaProjectorStep(runId),
             markFailed: markRunFailed,
