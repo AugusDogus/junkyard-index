@@ -429,3 +429,86 @@ test("upgrades production through 0016 with ordered arrival, ingestion, departur
     await rm(folder, { recursive: true, force: true });
   }
 });
+
+test("0022 keeps existing run-owned intents and requires exactly one intent owner", async () => {
+  const client = createClient({ url: ":memory:" });
+  const folder = await mkdtemp(join(tmpdir(), "junkyard-migrations-"));
+  try {
+    const journal = z
+      .object({ entries: z.array(z.object({ tag: z.string() }).passthrough()) })
+      .passthrough()
+      .parse(
+        JSON.parse(
+          await readFile(join(MIGRATIONS_FOLDER, "meta/_journal.json"), "utf8"),
+        ),
+      );
+    const before = journal.entries.findIndex(
+      (entry) => entry.tag === "0022_daily_search_alert_check",
+    );
+    expect(before).toBeGreaterThan(0);
+    await cp(MIGRATIONS_FOLDER, folder, { recursive: true });
+    await writeFile(
+      join(folder, "meta/_journal.json"),
+      JSON.stringify({ ...journal, entries: journal.entries.slice(0, before) }),
+    );
+    await client.executeMultiple(LEGACY_SCHEMA);
+    await migrate(drizzle(client), { migrationsFolder: folder });
+    await client.executeMultiple(`
+      insert into user (id, name, email) values ('user-1', 'User', 'user@example.com');
+      insert into saved_search (id) values ('search-1');
+      insert into ingestion_run (id, source, status, stage, started_at, last_progress_at)
+        values ('run-1', 'pyp', 'success', 'released', 0, 0);
+      insert into search_notification_intent (
+        id, run_id, publication_sequence, saved_search_id, user_id, channel,
+        search_match_version, channel_config_version, payload, status,
+        attempts, delivery_group_id, claim_token, created_at
+      ) values (
+        'intent-1', 'run-1', 4, 'search-1', 'user-1', 'email', 2, 3, '{"a":1}',
+        'retry', 1, 'email:digest:x', null, 123
+      );
+    `);
+
+    await migrate(drizzle(client), { migrationsFolder: MIGRATIONS_FOLDER });
+
+    expect(
+      (await client.execute("select * from search_notification_intent")).rows,
+    ).toEqual([
+      expect.objectContaining({
+        id: "intent-1",
+        run_id: "run-1",
+        alert_check_id: null,
+        publication_sequence: 4,
+        status: "retry",
+        attempts: 1,
+        delivery_group_id: "email:digest:x",
+        payload: '{"a":1}',
+        created_at: 123,
+      }),
+    ]);
+    expect((await client.execute("pragma foreign_key_check")).rows).toEqual([]);
+    const insertIntent = (
+      id: string,
+      runId: string | null,
+      checkId: string | null,
+    ) =>
+      client.execute({
+        sql: `insert into search_notification_intent (
+          id, run_id, alert_check_id, publication_sequence, saved_search_id,
+          user_id, channel, search_match_version, channel_config_version,
+          payload
+        ) values (?, ?, ?, 5, 'search-1', 'user-1', 'discord', 1, 1, '{}')`,
+        args: [id, runId, checkId],
+      });
+    await client.execute(
+      "insert into search_alert_check (id, day, status, checked_through, started_at, last_progress_at) values ('check-1', '2026-11-20', 'running', 0, 0, 0)",
+    );
+    await expect(insertIntent("ownerless", null, null)).rejects.toThrow();
+    await expect(insertIntent("both", "run-1", "check-1")).rejects.toThrow();
+    await expect(
+      insertIntent("checked", null, "check-1"),
+    ).resolves.toBeDefined();
+  } finally {
+    client.close();
+    await rm(folder, { recursive: true, force: true });
+  }
+});

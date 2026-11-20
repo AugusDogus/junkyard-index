@@ -9,9 +9,13 @@ import {
 } from "./algolia-projector-helpers";
 import {
   publishFullReindexForRun,
-  releasedRunValues,
   withIndexGeneration,
 } from "./durable-algolia-publish";
+import {
+  releasedProjection,
+  releaseLegacyAlertMatchingRun,
+  releaseProjectedRun,
+} from "./projection-release";
 import {
   rebuildIndexName,
   discardFailedRebuild,
@@ -202,38 +206,6 @@ async function resumeFailedFullReindexPublish(
   };
 }
 
-/**
- * A run the previous release left matching alerts is already searchable.
- * Release it without matching: searches it checked advanced their windows
- * with their intents in one transaction, and the daily alert check covers
- * the rest from their unchanged windows.
- */
-async function releaseLegacyAlertMatchingRun(
-  runId: string,
-  searchPublishedAt: Date | null,
-): Promise<DurableAlgoliaProjectionBatchResult> {
-  const releasedAt = new Date();
-  const released = await database
-    .update(ingestionRun)
-    .set({
-      ...releasedRunValues(releasedAt),
-      searchPublishedAt: searchPublishedAt ?? releasedAt,
-    })
-    .where(
-      and(
-        eq(ingestionRun.id, runId),
-        eq(ingestionRun.status, "running"),
-        eq(ingestionRun.activeSlot, 1),
-        eq(ingestionRun.stage, "match_alerts"),
-      ),
-    );
-  if (released.rowsAffected === 0) return { status: "stopped" };
-  return {
-    status: "complete",
-    searchPublishedAt: searchPublishedAt ?? releasedAt,
-  };
-}
-
 async function projectChangeBatch(
   runId: string,
   cursor: number,
@@ -250,21 +222,12 @@ async function projectChangeBatch(
     .orderBy(asc(vehicleChange.id))
     .limit(DURABLE_PROJECTOR_BATCH_SIZE);
   if (changes.length === 0) {
-    const publishedAt = new Date();
-    const published = await database
-      .update(ingestionRun)
-      .set(releasedRunValues(publishedAt))
-      .where(
-        and(
-          eq(ingestionRun.id, runId),
-          eq(ingestionRun.status, "running"),
-          eq(ingestionRun.activeSlot, 1),
-          eq(ingestionRun.stage, "project_changes"),
-          eq(ingestionRun.projectorCursor, cursor),
-        ),
-      );
-    if (published.rowsAffected === 0) return { status: "stopped" };
-    return { status: "complete", searchPublishedAt: publishedAt };
+    return releaseProjectedRun({
+      database,
+      runId,
+      projectorCursor: cursor,
+      now: new Date(),
+    });
   }
 
   const { deleteVins, upsertVins } = partitionVehicleChanges(changes);
@@ -337,13 +300,8 @@ async function projectDurableAlgoliaBatch(
     .where(eq(ingestionRun.id, runId))
     .limit(1);
   if (!run) throw new Error(`Ingestion run ${runId} does not exist.`);
-  // Publication releases the run, so a retried final batch finds it here.
-  if (run.status === "success" && run.stage === "released") {
-    return {
-      status: "complete",
-      searchPublishedAt: run.searchPublishedAt ?? new Date(),
-    };
-  }
+  const released = releasedProjection(run);
+  if (released) return released;
   if (run.status !== "running" || run.activeSlot !== 1) {
     return { status: "stopped" };
   }
@@ -364,7 +322,12 @@ async function projectDurableAlgoliaBatch(
         options?.configureIndex === true && run.projectorCursor === 0,
       );
     case "match_alerts":
-      return releaseLegacyAlertMatchingRun(runId, run.searchPublishedAt);
+      return releaseLegacyAlertMatchingRun({
+        database,
+        runId,
+        searchPublishedAt: run.searchPublishedAt,
+        now: new Date(),
+      });
     default:
       throw new Error(
         `Ingestion run ${runId} cannot project Algolia from stage ${run.stage}.`,

@@ -1,7 +1,11 @@
 import { createHook, getWorkflowMetadata, sleep } from "workflow";
 import { start } from "workflow/api";
 import { hasDeliverableNotificationIntents } from "~/server/alerts/durable-alert-delivery-runtime";
-import { startDailySearchAlerts } from "~/server/alerts/daily-search-alert-trigger";
+import {
+  runSearchAlertCheck,
+  startDailySearchAlerts,
+} from "~/server/alerts/daily-search-alert-trigger";
+import { isDailySearchAlertCheckPending } from "~/server/alerts/search-alert-check-runtime";
 import {
   claimCommitTurn,
   runIngestionPass,
@@ -71,13 +75,16 @@ async function startIngestionRunWorkflowsStep(
 }
 startIngestionRunWorkflowsStep.maxRetries = 2;
 
-/** The pass's end starts the day's saved-search alert check. */
+/** The pass's end starts the day's saved-search alerts. */
 async function startDailySearchAlertsStep(day: string) {
   "use step";
 
   await startDailySearchAlerts(day, {
-    check: (checkDay) => start(searchAlertCheckWorkflow, [checkDay]),
-    delivery: () => start(vehicleNotificationDeliveryWorkflow),
+    now: new Date(),
+    isCheckPending: isDailySearchAlertCheckPending,
+    hasDeliverableIntents: hasDeliverableNotificationIntents,
+    startCheck: (checkDay) => start(searchAlertCheckWorkflow, [checkDay]),
+    startDelivery: () => start(vehicleNotificationDeliveryWorkflow),
   });
 }
 startDailySearchAlertsStep.maxRetries = 2;
@@ -316,28 +323,12 @@ export async function searchAlertCheckWorkflow(day: string) {
   if (activeCheck) {
     return { status: "deduplicated" as const, activeRunId: activeCheck.runId };
   }
-  let searchesProcessed = 0;
-  let intentsCreated = 0;
-  while (true) {
-    const batch = await runSearchAlertCheckBatchStep(day);
-    if (batch.status === "waiting") {
-      await sleep(ALERT_CHECK_RETRY_DELAY);
-      continue;
-    }
-    if (batch.status === "not_started" || batch.status === "stopped") {
-      return { status: batch.status, day };
-    }
-    searchesProcessed += batch.searchesProcessed;
-    intentsCreated += batch.intentsCreated;
-    if (batch.status === "complete") break;
-  }
-  await startNotificationDeliveryStep();
-  return {
-    status: "completed" as const,
-    day,
-    searchesProcessed,
-    intentsCreated,
-  };
+  const result = await runSearchAlertCheck({
+    runBatch: () => runSearchAlertCheckBatchStep(day),
+    waitForRetry: () => sleep(ALERT_CHECK_RETRY_DELAY),
+    startDelivery: startNotificationDeliveryStep,
+  });
+  return { ...result, day };
 }
 
 export async function vehicleNotificationDeliveryWorkflow() {

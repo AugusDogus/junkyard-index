@@ -6,6 +6,7 @@ import type {
 } from "~/lib/alert-match-search";
 import type { AlertMatchStats } from "~/lib/algolia-alert-search";
 import { createTestClient } from "~/server/ingestion/durable-ingestion-test-fixtures";
+import { releaseLegacyAlertMatchingRun } from "~/server/ingestion/projection-release";
 import {
   runSearchAlertCheckBatch,
   type SearchAlertCheckContext,
@@ -19,7 +20,8 @@ const SCHEMA = `
     stage text not null, active_slot integer, commit_started_at integer,
     full_reindex_required integer not null default 0,
     publication_sequence integer, started_at integer not null,
-    search_published_at integer
+    search_published_at integer, released_at integer, completed_at integer,
+    last_progress_at integer not null default 0
   );
   create table vehicle (vin text primary key, first_seen_at integer not null);
   create table saved_search (
@@ -351,9 +353,15 @@ describe("daily search alert check", () => {
       expect(calls).toHaveLength(0);
       expect(await searchWindows(client)).toEqual([["search-a", lastChecked]]);
 
-      await client.execute(
-        "update ingestion_run set status = 'success', stage = 'released', active_slot = null",
-      );
+      // The new release's projector releases the run without matching.
+      expect(
+        await releaseLegacyAlertMatchingRun({
+          database: context.database,
+          runId: "legacy",
+          searchPublishedAt: null,
+          now: new Date(NOW.getTime() + 5 * MINUTE),
+        }),
+      ).toMatchObject({ status: "complete" });
       expect(
         await runSearchAlertCheckBatch(
           context,
@@ -365,6 +373,53 @@ describe("daily search alert check", () => {
       expect(calls[0]?.bound.checkedThrough).toEqual(
         new Date("2026-11-20T16:59:59.999Z"),
       );
+    } finally {
+      cleanup();
+    }
+  });
+
+  test("keeps windows when a run from the previous release starts matching while the batch reads Algolia", async () => {
+    const lastChecked = Date.parse("2026-11-19T18:00:00Z");
+    let entered = false;
+    const { client, cleanup, calls, counts, context } = await setup({
+      async onMatch() {
+        if (entered) return;
+        entered = true;
+        // An old-deployment run finished projecting and entered matching.
+        await client.execute({
+          sql: `insert into ingestion_run (
+            id, source, status, stage, active_slot, commit_started_at,
+            full_reindex_required, publication_sequence, started_at
+          ) values ('legacy', 'pyp', 'running', 'match_alerts', 1, ?, 0, 5, ?)`,
+          args: [NOW.getTime(), NOW.getTime()],
+        });
+      },
+    });
+    try {
+      await insertSearch(client, "search-a", lastChecked);
+      counts.set("search-a", 1);
+
+      expect(await runSearchAlertCheckBatch(context, DAY, NOW)).toMatchObject({
+        status: "waiting",
+      });
+      expect(await searchWindows(client)).toEqual([["search-a", lastChecked]]);
+      expect(
+        (
+          await client.execute(
+            "select count(*) as n from search_notification_intent",
+          )
+        ).rows[0]?.n,
+      ).toBe(0);
+
+      // Still matching: the next batch waits before reading Algolia.
+      expect(
+        await runSearchAlertCheckBatch(
+          context,
+          DAY,
+          new Date(NOW.getTime() + 10 * MINUTE),
+        ),
+      ).toMatchObject({ status: "waiting" });
+      expect(calls).toHaveLength(1);
     } finally {
       cleanup();
     }
