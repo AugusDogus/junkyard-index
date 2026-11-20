@@ -9,6 +9,7 @@ import { vinplusCensus } from "./vinplus-test-fixtures";
 import { runWithQueuedHost } from "./provider-host-test-support";
 import { IngestionSourceFlags } from "./ingestion-source-flags";
 import {
+  isDurableSourceCursorTerminal,
   parseDurableSourceCursor,
   serializeDurableSourceCursor,
   DURABLE_SOURCE_DEFINITIONS,
@@ -118,6 +119,12 @@ test("complete frozen census replays through transport, chunking and durable che
     }
   }
   expect(warnings).toHaveLength(1);
+  expect(
+    isDurableSourceCursorTerminal(
+      "vinplus",
+      serializeDurableSourceCursor(cursor),
+    ),
+  ).toBe(true);
   expect(warnings.join(" ")).toContain(
     "195 Used Auto Parts: 6 unreachable advertised vehicles / 1581",
   );

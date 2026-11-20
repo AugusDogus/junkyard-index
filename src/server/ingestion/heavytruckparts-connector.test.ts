@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { isDurableSourceCursorTerminal } from "./durable-source";
 import { readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { Effect } from "effect";
@@ -462,6 +463,12 @@ describe("HeavyTruckParts marketplace", () => {
     expect(requests).toBe(cursor.requests);
     expect(vehicles.length).toBeGreaterThan(700);
     expect(yards).toHaveLength(HTP_SUPPLIERS.length);
+    expect(
+      isDurableSourceCursorTerminal(
+        "heavytruckparts",
+        serializeDurableSourceCursor(cursor),
+      ),
+    ).toBe(true);
     const terminal = await Effect.runPromise(
       streamHeavytruckpartsInventory({
         startCursor: cursor,

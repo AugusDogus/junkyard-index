@@ -1,4 +1,8 @@
 import { expect, spyOn, test } from "bun:test";
+import {
+  isDurableSourceCursorTerminal,
+  serializeDurableSourceCursor,
+} from "./durable-source";
 import { readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { Effect } from "effect";
@@ -117,6 +121,12 @@ test("complete offline census reconciles 64 native items, 59 SD donors, five rej
   expect(saved.emitted).toBe(59);
   expect(saved.yards).toBe(1);
   expect(result.cursor.requests).toBe(16);
+  expect(
+    isDurableSourceCursorTerminal(
+      "cstruck",
+      serializeDurableSourceCursor(result.cursor),
+    ),
+  ).toBe(true);
   expect(result.count).toBe(59);
   expect(result.accounting).toEqual({
     recordsProcessed: 64,

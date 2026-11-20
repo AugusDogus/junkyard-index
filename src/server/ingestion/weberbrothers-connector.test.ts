@@ -1,4 +1,8 @@
 import { afterEach, expect, spyOn, test } from "bun:test";
+import {
+  isDurableSourceCursorTerminal,
+  serializeDurableSourceCursor,
+} from "./durable-source";
 import { Effect } from "effect";
 import type { ProviderRequestGate } from "~/server/ingestion/provider-http-client";
 import { WeberbrothersCursor } from "./weberbrothers-cursor";
@@ -86,6 +90,12 @@ test("resumes each phase without repeating opening or emitting partial inventory
   );
   expect(complete.status).toBe("complete");
   expect(complete.count).toBe(1);
+  expect(
+    isDurableSourceCursorTerminal(
+      "weberbrothers",
+      serializeDurableSourceCursor(complete.cursor),
+    ),
+  ).toBe(true);
   expect(complete.accounting).toEqual({
     recordsProcessed: 1,
     recordsExcluded: 0,

@@ -1,4 +1,8 @@
 import { expect, test } from "bun:test";
+import {
+  isDurableSourceCursorTerminal,
+  serializeDurableSourceCursor,
+} from "./durable-source";
 import { Effect } from "effect";
 import { streamRmmdtpInventory } from "./rmmdtp-connector";
 import { RMMDTP_CONTRACT } from "./rmmdtp-configuration";
@@ -54,6 +58,12 @@ test("RMMDTP survives serialized chunks and emits only after the entire closing 
   }
   expect(reads).toBe(10);
   expect(yards).toBe(1);
+  expect(
+    isDurableSourceCursorTerminal(
+      "rmmdtp",
+      serializeDurableSourceCursor(cursor),
+    ),
+  ).toBe(true);
   expect(vehicles).toHaveLength(103);
   const complete = await Effect.runPromise(
     streamRmmdtpInventory({

@@ -1,4 +1,8 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import {
+  isDurableSourceCursorTerminal,
+  serializeDurableSourceCursor,
+} from "./durable-source";
 import { Effect, Exit } from "effect";
 import { streamSpeedysInventoryWithRequestGate } from "./speedys-connector";
 import { SpeedysCursor } from "./speedys-cursor";
@@ -119,6 +123,12 @@ describe("Speedys saved-response stream", () => {
       expect(emitted).toBe(index < 7 ? 0 : 1);
     }
     expect(cursor.phase).toBe("complete");
+    expect(
+      isDurableSourceCursorTerminal(
+        "speedys",
+        serializeDurableSourceCursor(cursor),
+      ),
+    ).toBe(true);
   });
   test.each([
     [

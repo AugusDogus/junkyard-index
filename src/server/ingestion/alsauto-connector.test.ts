@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { isDurableSourceCursorTerminal } from "./durable-source";
 import { Effect } from "effect";
 import { alsautoSnapshot, type AlsautoVehicle } from "./alsauto-snapshot";
 import { inspectAlsautoEvidence } from "./alsauto-protocol";
@@ -188,6 +189,12 @@ test("durable chunks publish once, only after all 62 actual controls, and do not
       serializeDurableSourceCursor(result.cursor),
     ).phase,
   ).toBe("complete");
+  expect(
+    isDurableSourceCursorTerminal(
+      "alsauto",
+      serializeDurableSourceCursor(result.cursor),
+    ),
+  ).toBe(true);
   const replay = await Effect.runPromise(
     streamAlsautoInventory({
       now: new Date("2026-11-17T12:00:00Z"),

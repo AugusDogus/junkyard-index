@@ -1,4 +1,8 @@
 import { afterEach, describe, expect, spyOn, test } from "bun:test";
+import {
+  isDurableSourceCursorTerminal,
+  serializeDurableSourceCursor,
+} from "./durable-source";
 import { Effect } from "effect";
 import { streamHagermanInventoryWithRequestGate } from "./hagerman-connector";
 import { HagermanCursor, HagermanCursorSchema } from "./hagerman-cursor";
@@ -89,6 +93,12 @@ describe("Hagerman resumable collector using actual saved responses only", () =>
     expect(result.status).toBe("complete");
     expect(result.cursor.phase).toBe("complete");
     expect(result.pagesProcessed).toBe(9);
+    expect(
+      isDurableSourceCursorTerminal(
+        "hagerman",
+        serializeDurableSourceCursor(result.cursor),
+      ),
+    ).toBe(true);
     expect(result.accounting).toEqual({
       recordsProcessed: 5,
       recordsExcluded: 0,

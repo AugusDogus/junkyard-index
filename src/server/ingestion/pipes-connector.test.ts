@@ -1,4 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
+import { isDurableSourceCursorTerminal } from "./durable-source";
 import { Effect, Either } from "effect";
 import { connectorChunkMetrics } from "./connector-chunk";
 import { streamPipesInventoryWithRequestGate } from "./pipes-connector";
@@ -155,6 +156,12 @@ for (const budget of [1, 3, 8])
       }
       expect(cursor.phase).toBe("complete");
       expect(requests()).toBe(13);
+      expect(
+        isDurableSourceCursorTerminal(
+          "pipes",
+          serializeDurableSourceCursor(cursor),
+        ),
+      ).toBe(true);
       expect(callbacks).toBe(1);
       expect(yards).toBe(1);
       expect(emitted).toHaveLength(1);

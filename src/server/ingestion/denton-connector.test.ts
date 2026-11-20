@@ -1,4 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
+import { isDurableSourceCursorTerminal } from "./durable-source";
 import { Effect, Either } from "effect";
 import {
   streamDentonInventory,
@@ -75,6 +76,7 @@ test("Denton serializes every chunk, counts redirects, stages only terminal data
     recordsExcluded: 0,
   });
   expect(result.final.cursor.requests).toBe(22);
+  expect(isDurableSourceCursorTerminal("denton", result.wire)).toBe(true);
   expect(graph.calls).toHaveLength(22);
   expect(result.chunks).toBe(8);
   expect(result.batches).toBe(1);

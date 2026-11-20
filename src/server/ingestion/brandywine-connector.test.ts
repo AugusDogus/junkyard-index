@@ -1,4 +1,8 @@
 import { afterEach, expect, test } from "bun:test";
+import {
+  isDurableSourceCursorTerminal,
+  serializeDurableSourceCursor,
+} from "./durable-source";
 import { Effect, Fiber, TestClock, TestContext } from "effect";
 import {
   streamBrandywineInventoryWithRequestGate,
@@ -192,6 +196,12 @@ test("a durable terminal cursor round-trips the complete graph and canonical sna
   const parsed = BrandywineCursor.parse(BrandywineCursor.serialize(cursor));
   const result = inspectBrandywineCursor(parsed);
   expect(parsed.phase).toBe("complete");
+  expect(
+    isDurableSourceCursorTerminal(
+      "brandywine",
+      serializeDurableSourceCursor(cursor),
+    ),
+  ).toBe(true);
   expect(result.vehicles).toHaveLength(1807);
   expect(result.accounting).toEqual({
     recordsProcessed: 2027,
