@@ -1,12 +1,12 @@
 import { expect, test } from "bun:test";
 import robots from "./robots";
+import { searchPageMetadata } from "./search/search-metadata";
 import sitemap from "./sitemap";
 
-test("crawlers may fetch /search but not its parameterized searches", () => {
+test("crawlers may fetch parameterized /search to see its noindex", () => {
   const rules = [robots().rules].flat();
   const disallowed = rules.flatMap((rule) => [rule.disallow ?? []].flat());
-  expect(disallowed).toContain("/search?");
-  expect(disallowed).not.toContain("/search");
+  expect(disallowed.some((path) => path.startsWith("/search"))).toBe(false);
 });
 
 test("the sitemap lists landing pages but not /search", () => {
@@ -14,3 +14,22 @@ test("the sitemap lists landing pages but not /search", () => {
   expect(paths).not.toContain("/search");
   expect(paths).toEqual(expect.arrayContaining(["/junkyards", "/cars"]));
 });
+
+test("bare /search stays indexable", () => {
+  const metadata = searchPageMetadata({});
+  expect(metadata.robots).toBeUndefined();
+  expect(metadata.alternates?.canonical).toBe("/search");
+});
+
+test.each([
+  { q: "Toyota Venza" },
+  { "makes[]": ["Toyota"] },
+  { utm_source: "x" },
+])(
+  "parameterized /search %p is noindex, follow, with the canonical /search",
+  (params) => {
+    const metadata = searchPageMetadata(params);
+    expect(metadata.robots).toEqual({ index: false, follow: true });
+    expect(metadata.alternates?.canonical).toBe("/search");
+  },
+);
