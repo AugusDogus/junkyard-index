@@ -258,9 +258,10 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   bigd: { initialCursor: BigdCursor.initial, maxPagesPerChunk: 4 },
   pullsavewa: { initialCursor: PullsavewaCursor.initial, maxPagesPerChunk: 1 },
   littleton: { initialCursor: LittletonCursor.initial, maxPagesPerChunk: 16 },
+  // Eight pages cover today's 195-row census in one browser session.
   michigantruck: {
     initialCursor: MichigantruckCursor.initial,
-    maxPagesPerChunk: 1,
+    maxPagesPerChunk: 8,
   },
   joliet: { initialCursor: JolietCursor.initial, maxPagesPerChunk: 16 },
   alln1: { initialCursor: Alln1Cursor.initial, maxPagesPerChunk: 3 },

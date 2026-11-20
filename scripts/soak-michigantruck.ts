@@ -1,4 +1,5 @@
 import { MichigantruckCursor } from "../src/server/ingestion/michigantruck-cursor";
+import { MICHIGANTRUCK_MAX_PAGES } from "../src/server/ingestion/michigantruck-parser";
 import type { MichigantruckStreamResult } from "../src/server/ingestion/michigantruck-connector";
 
 /** Count/discard callback only. This driver has no database or Blob access. */
@@ -7,11 +8,15 @@ export async function soakMichigantruckInventory(
     cursor: MichigantruckCursor,
     maxPages: number,
   ) => Promise<MichigantruckStreamResult>,
-  maxPages = 8,
+  maxPages = MICHIGANTRUCK_MAX_PAGES,
 ): Promise<MichigantruckStreamResult> {
-  if (!Number.isSafeInteger(maxPages) || maxPages < 1 || maxPages > 8)
+  if (
+    !Number.isSafeInteger(maxPages) ||
+    maxPages < 1 ||
+    maxPages > MICHIGANTRUCK_MAX_PAGES
+  )
     throw new Error(
-      "Michigan Truck soak requires a 1-8 new catalog page budget",
+      `Michigan Truck soak requires a 1-${MICHIGANTRUCK_MAX_PAGES} new catalog page budget`,
     );
   const summary: MichigantruckStreamResult = {
     source: "michigantruck",

@@ -24,7 +24,7 @@ Required rejects must remain at most 10% and duplicate vehicles at most 25% of n
 
 ## Cursor and budgets
 
-`maxPages` is a budget of one through eight newly consumed catalog pages. Prefix validation and terminal controls do not increase `pagesProcessed`, which counts only new pages. A chunk is separately bounded to 32 gated HTTP requests, three minutes, and complete UTF-8 HTML responses of at most 4 MiB. The native catalog cap is eight pages and 200 rows. Larger scope requires inspection and an explicit code change.
+`maxPages` is a budget of one through sixteen newly consumed catalog pages; production uses eight, so the 195-row Nov 2026 catalog (eight pages) is one chunk and one browser session. Prefix validation and terminal controls do not increase `pagesProcessed`, which counts only new pages. A chunk is separately bounded to 35 gated HTTP requests (contact, every page, the terminal reread of every page, detail and selector), three minutes, and complete UTF-8 HTML responses of at most 4 MiB. The 16-page, 400-row catalog cap is our own census bound: the site pages on with `page_number` and ignores `per_page`, so a larger catalog is paged, not truncated. Larger scope requires inspection and an explicit code change.
 
 The strict cursor retains declared scope, actual continuation URL, page payload hashes, native IDs, normalized identities and cumulative accepted/rejected/excluded/duplicate counters. Every resume rereads and rebuilds the entire retained prefix before new callbacks. A forged counter, identity, hash, URL, photo or ordering fails validation. Callback or transport failure returns no advanced checkpoint. Earlier successful batches remain partial, and completion is never returned after a failure. A complete cursor makes no requests.
 
