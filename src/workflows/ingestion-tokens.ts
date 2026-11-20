@@ -1,3 +1,5 @@
+import type { DownstreamConsumer } from "~/server/ingestion/consumer-flags";
+
 // Hook tokens shared by the ingestion pass, its source run workflows, and the
 // steps that signal them.
 export const IngestionTokens = {
@@ -12,6 +14,10 @@ export const IngestionTokens = {
   /** One live saved-search alert check per ingestion day. */
   searchAlertCheck(day: string): string {
     return `search-alert-check:${day}`;
+  },
+  /** One live workflow per downstream consumer. */
+  consumer(consumer: DownstreamConsumer): string {
+    return `downstream-consumer:${consumer}`;
   },
   /** Wakes a run waiting for the shared commit. */
   commitTurn(runId: string): string {

@@ -1,14 +1,7 @@
 import type { DurableWorkflowCursor } from "~/server/ingestion/durable-workflow-cursor";
-import { FatalError, RetryableError, getStepMetadata } from "workflow";
-import { revalidateTag } from "next/cache";
+import { FatalError, getStepMetadata } from "workflow";
+import { formatError, throwRetryableStepError } from "./step-errors";
 import { resumeHook } from "workflow/api";
-import { INVENTORY_CACHE_TAG } from "~/lib/inventory-cache";
-import { db } from "~/lib/db";
-import {
-  announceInventoryPaths,
-  warmChangedInventory,
-} from "~/server/indexnow";
-import { InventorySnapshot } from "~/server/inventory-snapshot";
 import * as Sentry from "@sentry/nextjs";
 import { deliverDurableAlertIntentsBatch } from "~/server/alerts/durable-alert-delivery-runtime";
 import { runDailySearchAlertCheckBatch } from "~/server/alerts/search-alert-check-runtime";
@@ -23,7 +16,6 @@ import {
   claimDurableIngestionCommit,
   listDurableIngestionCommitWaiters,
   prepareIngestionPass,
-  refreshInventoryCaches,
   initializeDurableIngestion,
   markDurableSourceFailed,
   persistDurableIngestionFailure,
@@ -44,33 +36,12 @@ import {
   type SearchIndexMigrationState,
 } from "~/server/ingestion/search-index-migration";
 import type { IngestionRunReport } from "~/server/ingestion/ingestion-pass-orchestrator";
-import type { InventoryCacheRefresh } from "~/server/ingestion/inventory-cache-refresh";
 import { IngestionTokens } from "./ingestion-tokens";
 import {
   recordDurableRunFailure,
   recordDurableSourceRejections,
   recordUrgiisBlockedTenant,
 } from "./vehicle-observability";
-
-function formatError(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-  try {
-    return JSON.stringify(error);
-  } catch {
-    return String(error);
-  }
-}
-
-function throwRetryableStepError(operation: string, error: unknown): never {
-  console.error(`[Workflow] ${operation} failed`, error);
-  const { attempt } = getStepMetadata();
-  const baseDelayMs = Math.min(30_000, 1_000 * 2 ** Math.max(0, attempt - 1));
-  const retryAfter = Math.round(baseDelayMs * (0.5 + Math.random()));
-  throw new RetryableError(`${operation} failed: ${formatError(error)}`, {
-    retryAfter,
-  });
-}
 
 export async function initializeDurableIngestionStep(runId: string) {
   "use step";
@@ -120,87 +91,6 @@ export async function reportIngestionRunStep(
     );
   }
 }
-
-/**
- * Shows newly published inventory on the homepage and inventory pages: stores
- * the inventory snapshot those pages read, then revalidates them. The pass
- * that runs the day's sources calls this, and it does so only once per new
- * publication.
- * Returns the publication it refreshed the pages for, or null when they were
- * already current or could not be refreshed.
- */
-export async function refreshHomepageStep(): Promise<number | null> {
-  "use step";
-
-  let refresh: InventoryCacheRefresh;
-  try {
-    refresh = await refreshInventoryCaches({
-      source: {
-        projectedThrough: () => InventorySnapshot.projectedThrough(db),
-        project: () => InventorySnapshot.project(db, new Date()),
-      },
-      revalidate: () => revalidateTag(INVENTORY_CACHE_TAG, "max"),
-    });
-  } catch (error) {
-    throwRetryableStepError("Refresh the inventory caches", error);
-  }
-  if (refresh.status === "failed") {
-    // Not retried here: storing the snapshot reads every vehicle, so a
-    // failure that repeats should cost one attempt per pass, not three. The
-    // checkpoint stays behind, so the next pass that runs sources retries.
-    console.error(
-      refresh.stage === "project"
-        ? `[Workflow] Could not store the inventory snapshot for publication ${refresh.publicationSequence}; the homepage and inventory pages keep the previous inventory until the next pass that runs sources retries; vehicle data is unaffected: ${formatError(refresh.error)}`
-        : `[Workflow] Could not revalidate the "${INVENTORY_CACHE_TAG}" cache tag for publication ${refresh.publicationSequence}; the snapshot is stored, and the homepage and inventory pages keep the previous inventory until the next pass that runs sources retries the revalidation: ${formatError(refresh.error)}`,
-    );
-    return null;
-  }
-  return refresh.status === "refreshed" ? refresh.publicationSequence : null;
-}
-refreshHomepageStep.maxRetries = 2;
-
-/** Requests each changed page so it regenerates, and returns the pages. */
-export async function warmInventoryAnnouncementStep(
-  publicationSequence: number,
-): Promise<string[]> {
-  "use step";
-
-  const { paths, warmed, failed } =
-    await warmChangedInventory(publicationSequence);
-  console.info("[Workflow] Requested changed inventory pages", {
-    publicationSequence,
-    pages: paths.length,
-    warmed,
-    failed,
-  });
-  return paths;
-}
-warmInventoryAnnouncementStep.maxRetries = 1;
-
-/**
- * Tells IndexNow engines which pages changed. Not retried, so a submission is
- * never sent twice; a failure leaves the announcement checkpoint behind, and
- * the next publication's announcement includes these pages.
- */
-export async function announceInventoryStep(
-  publicationSequence: number,
-  paths: string[],
-) {
-  "use step";
-
-  const announcement = await announceInventoryPaths(publicationSequence, paths);
-  if (announcement.status === "failed") {
-    console.error(
-      `[Workflow] IndexNow rejected ${announcement.urls} changed inventory URLs for publication ${publicationSequence} with HTTP ${announcement.httpStatus}; the next publication's announcement retries them, and the sitemaps still list them: ${announcement.detail}`,
-    );
-  } else {
-    console.info("[Workflow] Announced changed inventory", {
-      publicationSequence,
-      ...announcement,
-    });
-  }
-}
-announceInventoryStep.maxRetries = 0;
 
 /** Wakes runs waiting for the shared commit after it is released. */
 export async function signalCommitWaitersStep() {

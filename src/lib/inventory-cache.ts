@@ -1,9 +1,10 @@
 import { unstable_cache } from "next/cache";
 
 /**
- * Published inventory changes once a day. Everything cached from it carries
- * this tag, and the daily ingestion pass invalidates it once every source has
- * published (`refreshHomepageStep`).
+ * Published inventory changes a few times a day. Everything cached from it
+ * carries this tag, and the inventory-downstream consumer invalidates it
+ * after a new publication, at most every 3 hours
+ * (`refreshInventoryCachesStep`).
  */
 export const INVENTORY_CACHE_TAG = "daily-inventory";
 

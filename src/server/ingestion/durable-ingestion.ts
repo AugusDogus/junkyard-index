@@ -13,7 +13,6 @@ import {
   createDurableIngestionRepository,
   type CommitLeaseStatus,
 } from "./durable-ingestion-repository";
-import type { IngestionSourceFreshness } from "./durable-health";
 import { parseAcceptedSources } from "./durable-run-state";
 import type {
   DurableIngestionResult,
@@ -34,10 +33,6 @@ import { validateDurableSourceRuns } from "./durable-source-validation";
 import { fetchDurableSourceChunk } from "./durable-source-fetch";
 import { IngestionDay } from "./ingestion-day";
 import type { IngestionPassPlan } from "./ingestion-pass-orchestrator";
-import {
-  InventoryCacheRefresh,
-  type InventoryCacheSource,
-} from "./inventory-cache-refresh";
 import { IngestionSourceFlags } from "./ingestion-source-flags";
 import { SearchPublicationFlag } from "./search-publication-flag";
 import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
@@ -104,17 +99,6 @@ export async function prepareIngestionPass(
   return wakeup.status === "active"
     ? { status: "active", runIds: wakeup.runs.map((run) => run.runId) }
     : wakeup;
-}
-
-/**
- * Stores what inventory caches read and revalidates them, if a newer
- * publication exists than they show.
- */
-export function refreshInventoryCaches(params: {
-  source: InventoryCacheSource;
-  revalidate: () => void;
-}): Promise<InventoryCacheRefresh> {
-  return InventoryCacheRefresh.run({ database: db, ...params });
 }
 
 export function listDurableIngestionCommitWaiters(): Promise<string[]> {
@@ -319,13 +303,6 @@ export async function reportDurableProviderStatus(runId: string) {
     source: run.source,
     state: published ? "published" : "retrying",
   });
-}
-
-/** Each source's latest attempt and accepted publication in the last 3 days. */
-export function getDurableSourceFreshness(
-  now: Date,
-): Promise<IngestionSourceFreshness[]> {
-  return repository.getSourceFreshness(now);
 }
 
 export function cleanupDurableIngestionStateBatch(runId: string) {
