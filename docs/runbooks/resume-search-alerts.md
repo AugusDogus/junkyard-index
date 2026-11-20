@@ -37,21 +37,32 @@ the backlog.
    - **Why a plain listing is not enough.** `workflow inspect runs --json`
      prints one page (20 runs, newest first) and ignores `--all`. A pass fans
      out dozens of `vehicleIngestionWorkflow` runs, so older pass runs land on
-     later pages. The Vercel backend also lists only the last 24 hours unless
-     `--since` is given.
-   - **What the loop does.** It queries each alert-related workflow by name,
-     looks back two weeks, and follows `cursor` until `hasMore` is false. It
-     prints each live run's ID, workflow, status, deployment and start time.
+     later pages.
+   - **The plan's history window.** Without Observability Plus, the Vercel
+     backend only lists about the last two days of runs. `--since 1d` works
+     (the API widens it to its two-day window); `--since 2d` or more fails with
+     "outside your current plan window". A run started before that window
+     cannot be listed here: check `ingestion_run` for active runs
+     (`active_slot = 1`) started more than two days ago, and treat any such run
+     as possibly pinned to an old deployment.
+   - **Names.** `-n` needs the fully qualified workflow ID, for example
+     `workflow//./src/workflows/vehicle-ingestion//vehicleIngestionPassWorkflow`.
+     The bare function name matches nothing.
+   - **What the loop does.** It queries each alert-related workflow by name and
+     follows `cursor` until `hasMore` is false. It prints each live run's ID,
+     workflow, status, deployment and start time. The CLI prints a banner
+     before the JSON, so the loop keeps only the JSON.
 
    ```sh
-   for name in vehicleIngestionPassWorkflow searchAlertCheckWorkflow \
+   for fn in vehicleIngestionPassWorkflow searchAlertCheckWorkflow \
      vehicleNotificationDeliveryWorkflow; do
+     name="workflow//./src/workflows/vehicle-ingestion//$fn"
      for status in running pending; do
        cursor=""
        while :; do
          page=$(npx workflow inspect runs --backend vercel --env production \
-           -n "$name" --status "$status" --since 14d --limit 100 --json \
-           ${cursor:+--cursor "$cursor"})
+           -n "$name" --status "$status" --since 1d --limit 100 --json \
+           ${cursor:+--cursor "$cursor"} 2>/dev/null | sed -n '/^{/,$p')
          echo "$page" | jq -r '.data[] |
            [.runId, .workflowName, .status, .deploymentId, .createdAt] | @tsv'
          [ "$(echo "$page" | jq -r .hasMore)" = true ] || break
