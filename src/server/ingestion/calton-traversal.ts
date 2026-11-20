@@ -7,7 +7,8 @@ import {
   type CaltonContract,
   type CaltonResult,
 } from "./calton-contract";
-import { CaltonCursor, caltonModels } from "./calton-cursor";
+import { CaltonCursor, caltonCensusPlan, caltonModels } from "./calton-cursor";
+import { ModelCensus } from "./model-census";
 import { CALTON_MAX_BODY_BYTES } from "./calton-client";
 import { parseCaltonDirectory, parseCaltonPage } from "./calton-parser";
 
@@ -75,7 +76,13 @@ export function caltonAdvance(
         sourceUrl: next.value,
       });
       if (!result.ok) throw new Error(result.error.message);
-      state = { ...base, phase: "directory", arrivals: result.value };
+      state = {
+        ...base,
+        day: cursor.day,
+        previous: cursor.previous,
+        phase: "directory",
+        arrivals: result.value,
+      };
     } else if (cursor.phase === "directory") {
       const result = parseCaltonDirectory(raw, {
         kind: "makes",
@@ -102,16 +109,21 @@ export function caltonAdvance(
         ...cursor.menus,
         { make, directory: { ...result.value, bytes } },
       ];
-      state =
-        menus.length === cursor.makes.controls.length
-          ? {
-              ...cursor,
-              ...base,
-              menus,
-              pages: [],
-              phase: caltonModels(menus).length ? "models" : "ready",
-            }
-          : { ...cursor, ...base, menus };
+      if (menus.length === cursor.makes.controls.length) {
+        // Carried models before the first due read cost no request.
+        const pages = ModelCensus.carriedRun(
+          caltonCensusPlan({ ...cursor, menus }),
+          0,
+        );
+        state = {
+          ...cursor,
+          ...base,
+          menus,
+          pages,
+          phase:
+            pages.length === caltonModels(menus).length ? "ready" : "models",
+        };
+      } else state = { ...cursor, ...base, menus };
     } else if (cursor.phase === "models") {
       const context = caltonModels(cursor.menus)[cursor.pages.length];
       if (!context) throw new Error("Published model control is missing");
@@ -121,7 +133,14 @@ export function caltonAdvance(
         ...context,
       });
       if (!result.ok) throw new Error(result.error.message);
-      const pages = [...cursor.pages, result.value];
+      const pages = [
+        ...cursor.pages,
+        result.value,
+        ...ModelCensus.carriedRun(
+          caltonCensusPlan(cursor),
+          cursor.pages.length + 1,
+        ),
+      ];
       state = {
         ...cursor,
         ...base,
