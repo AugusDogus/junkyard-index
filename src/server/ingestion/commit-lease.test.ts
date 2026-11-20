@@ -252,6 +252,48 @@ describe("commit lease", () => {
     );
   });
 
+  test("never expires the commit holder, however long ago it was staged", async () => {
+    await stagedRun({ id: "holder", source: LOW, readyAt: T0 - 30 * HOUR });
+    await stagedRun({ id: "fresh", source: HIGH, readyAt: T0 - HOUR });
+    expect(await repository.claimCommit("holder", at(-29 * HOUR))).toBe(
+      "claimed",
+    );
+
+    // Both the holder's ready_at and its last progress are past the TTL.
+    expect(await repository.claimCommit("fresh", at(0))).toBe("busy");
+    expect(await repository.getRun("holder")).toMatchObject({
+      status: "running",
+      activeSlot: 1,
+      commitStartedAt: at(-29 * HOUR),
+    });
+    expect(
+      (await repository.getSourceRuns("holder")).map(
+        (row) => row.acceptanceStatus,
+      ),
+    ).toEqual(["accepted"]);
+    expect(await holders()).toEqual(["holder"]);
+  });
+
+  test("never expires a run still fetching its sources", async () => {
+    // A crawl whose last checkpoint was more than 24 hours ago is governed
+    // by the fetch deferral limits, not the staged-snapshot TTL.
+    await client.execute({
+      sql: `insert into ingestion_run (
+        id, source, status, stage, active_slot, started_at, last_progress_at
+      ) values ('crawling', ?, 'running', 'sources', 1, ?, ?)`,
+      args: [HIGH, T0 - 30 * HOUR, T0 - 25 * HOUR],
+    });
+    await stagedRun({ id: "fresh", source: LOW, readyAt: T0 - HOUR });
+
+    expect(await repository.claimCommit("fresh", at(0))).toBe("claimed");
+    expect(await repository.getRun("crawling")).toMatchObject({
+      status: "running",
+      stage: "sources",
+      activeSlot: 1,
+      releasedAt: null,
+    });
+  });
+
   test("keeps one holder across pinned priority claims and FIFO claims", async () => {
     // A waiter validated by a pinned deployment: no ready_at, and its busy
     // claims record no progress.
