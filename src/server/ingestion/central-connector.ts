@@ -9,9 +9,12 @@ import {
   CentralCursor,
   CentralCursorSchema,
   CENTRAL_MAX_REQUESTS,
+  centralCensus,
+  centralCensusPlan,
   centralClosingControls,
   type CentralProgress,
 } from "./central-cursor";
+import { ModelCensus } from "./model-census";
 import {
   centralHash,
   parseCentralDirectory,
@@ -37,6 +40,10 @@ import { sharedProviderHostTurn } from "./shared-provider-host";
 
 interface CentralOptions<E, R> {
   startCursor?: CentralCursor;
+  /** Terminal cursor of the last accepted, published run; read only when the
+   * start cursor has not begun a census yet. */
+  previousCursor?: unknown;
+  now?: () => number;
   maxPages?: number;
   onBatch: (vehicles: CentralCanonicalVehicle[]) => Effect.Effect<void, E, R>;
   onYards?: (yards: CentralYard[]) => Effect.Effect<void, E, R>;
@@ -82,7 +89,7 @@ function nextUrl(state: CentralProgress): string {
       return CENTRAL_ORIGIN + entry.model.path;
     }
     case "closing": {
-      const entry = centralClosingControls(state)[state.closing];
+      const entry = centralClosingControls()[state.closing];
       if (!entry) throw new Error("Central closing native control is missing");
       return entry.url;
     }
@@ -111,8 +118,14 @@ function advance(state: CentralProgress, raw: string): CentralProgress {
           ? { ...value, models: parseCentralDirectory(raw, "models", make) }
           : value,
       );
-      if (next.makes.every((value) => value.models !== null))
-        next.phase = "models";
+      if (next.makes.every((value) => value.models !== null)) {
+        // Carried models before the first due read cost no request.
+        next.pages = ModelCensus.carriedRun(centralCensusPlan(next), 0);
+        next.phase =
+          next.pages.length === centralModels(next.makes).length
+            ? "closing"
+            : "models";
+      }
       break;
     }
     case "models": {
@@ -121,13 +134,17 @@ function advance(state: CentralProgress, raw: string): CentralProgress {
       next.pages = [
         ...state.pages,
         parseCentralModel(raw, entry.make, entry.model),
+        ...ModelCensus.carriedRun(
+          centralCensusPlan(state),
+          state.pages.length + 1,
+        ),
       ];
       if (next.pages.length === centralModels(state.makes).length)
         next.phase = "closing";
       break;
     }
     case "closing": {
-      const entry = centralClosingControls(state)[state.closing];
+      const entry = centralClosingControls()[state.closing];
       if (!entry) throw new Error("Central closing context is missing");
       switch (entry.kind) {
         case "root":
@@ -138,20 +155,6 @@ function advance(state: CentralProgress, raw: string): CentralProgress {
             state.makes.map(({ models: _models, ...make }) => make),
             parseCentralDirectory(raw, "makes"),
             "make graph",
-          );
-          break;
-        case "make":
-          same(
-            entry.make.models,
-            parseCentralDirectory(raw, "models", entry.make),
-            "model graph",
-          );
-          break;
-        case "model":
-          same(
-            state.pages[entry.index]?.hash,
-            parseCentralModel(raw, entry.make, entry.model).hash,
-            "model cards",
           );
           break;
       }
@@ -193,6 +196,14 @@ export function streamCentralInventoryWithRequestGate<E, R>(
     };
     if (cursor.phase === "complete")
       return { ...summary, status: "complete" as const };
+    const now = options.now ?? Date.now;
+    const pending = cursor;
+    const begun = yield* attempt("begin census", () =>
+      CentralCursor.begin(pending, now(), options.previousCursor),
+    );
+    cursor = begun.cursor;
+    summary.cursor = cursor;
+    if (begun.warning) summary.warnings.push(begun.warning);
     while (summary.pagesProcessed < budget && cursor.phase !== "complete") {
       const current: CentralProgress = cursor;
       if (current.requests >= CENTRAL_MAX_REQUESTS)
@@ -214,7 +225,7 @@ export function streamCentralInventoryWithRequestGate<E, R>(
       summary.pagesProcessed++;
       if (
         advanced.phase === "closing" &&
-        advanced.closing === centralClosingControls(advanced).length
+        advanced.closing === centralClosingControls().length
       ) {
         const snapshot = yield* attempt("complete native graph", () => {
           const value = centralSnapshot(advanced.makes, advanced.pages);
@@ -224,14 +235,19 @@ export function streamCentralInventoryWithRequestGate<E, R>(
         summary.accounting = { ...snapshot.accounting };
         summary.count = snapshot.vehicles.length;
         summary.observedVins = [...snapshot.observedVins];
+        const census = yield* attempt("close model census", () =>
+          centralCensus(advanced),
+        );
         summary.warnings = [
+          ...summary.warnings,
           "Central quarantines all required VIN/YMM/destination conflicts and preserves rejected valid VIN presence. Badge deltas are snapshot observations; optional metadata is nullable.",
+          "Central " + ModelCensus.summary(centralCensusPlan(advanced)),
         ];
         if (options.onYards) yield* options.onYards([{ ...CENTRAL_YARD }]);
         yield* options.onBatch(
           snapshot.vehicles.map((vehicle) => ({ ...vehicle })),
         );
-        cursor = { source: "central", version: 1, phase: "complete" };
+        cursor = { source: "central", version: 1, phase: "complete", census };
       } else cursor = advanced;
     }
     return {

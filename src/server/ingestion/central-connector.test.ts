@@ -113,7 +113,8 @@ test("Central serializes every paused prefix and emits the complete source only 
   }
   expect(vehicles).toHaveLength(5000);
   expect(yards).toBe(1);
-  expect(requested).toHaveLength(13);
+  // Opening root, makes, one menu and five models; closing root and makes.
+  expect(requested).toHaveLength(10);
   const count = requested.length;
   await Effect.runPromise(
     streamCentralInventoryWithRequestGate(
@@ -163,7 +164,7 @@ test("Central rejects corrupt or oversized checkpoints before transport", async 
   const { requested } = fixture();
   expect(() =>
     CentralCursor.parse(" ".repeat(CENTRAL_MAX_CURSOR_BYTES + 1)),
-  ).toThrow("2 MiB");
+  ).toThrow("4 MiB");
   const corrupt = { ...CentralCursor.initial, checksum: "0".repeat(64) };
   await expect(
     Effect.runPromise(
@@ -202,9 +203,9 @@ test("Central keeps advancing when every request waits minutes for a shared host
     expect(chunk.elapsedMs).toBeLessThanOrEqual(6 * 60_000);
     expect(chunk.turns.every((turn) => turn.releasedAt !== null)).toBe(true);
   }
-  expect(pages).toEqual([2, 2, 2, 2, 2, 2, 1]);
+  expect(pages).toEqual([2, 2, 2, 2, 2]);
   expect(count).toBe(5000);
-  expect(requested).toHaveLength(13);
+  expect(requested).toHaveLength(10);
 }, 120_000);
 
 test("a Central chunk started five minutes into its function returns before the function ends", async () => {
