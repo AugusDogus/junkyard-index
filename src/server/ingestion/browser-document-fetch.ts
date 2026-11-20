@@ -1,6 +1,6 @@
 import { Hyperbrowser } from "@hyperbrowser/sdk";
 import { chromium, type Page } from "playwright-core";
-import { Deferred, Effect, Fiber, Option, type Scope } from "effect";
+import { Clock, Deferred, Effect, Fiber, Option, type Scope } from "effect";
 import { Config } from "./context";
 import type { DocumentFetch } from "./document-fetch";
 import {
@@ -389,15 +389,23 @@ function openBrowserPage(
   );
 }
 
+/** When the browser chunk's window closes (epoch milliseconds, from the
+ * Effect clock). A source that reads until then must leave itself time to
+ * return its checkpoint. */
+export type BrowserChunkWindow = { endsAt: number };
+
 /** Holds the browser lease and one session on `origin` for `use`. The origin
  * navigation is sent through `gate`, the same request gate (pacing and host
  * lease) the source's document requests use. Navigation and `use` share
  * BROWSER_CHUNK_WINDOW_MS, so setup plus the window stays inside the session
- * hold. */
+ * hold; `use` learns when that window closes. */
 export function withBrowserDocumentFetch<A, E, R>(
   origin: string,
   gate: BrowserNavigationGate,
-  use: (fetchDocument: DocumentFetch) => Effect.Effect<A, E, R>,
+  use: (
+    fetchDocument: DocumentFetch,
+    window: BrowserChunkWindow,
+  ) => Effect.Effect<A, E, R>,
   cookies: readonly BrowserCookie[] = [],
 ): Effect.Effect<A, E | Error | HyperbrowserCapacityError, R | Config> {
   return Effect.flatMap(Config, (config) =>
@@ -406,9 +414,17 @@ export function withBrowserDocumentFetch<A, E, R>(
         Effect.flatMap(
           openBrowserPage(config.hyperbrowserApiKey, origin, cookies),
           (page) =>
-            navigateBrowserPage(page, origin, gate).pipe(
-              Effect.zipRight(
-                Effect.suspend(() => use(pageDocumentFetch(page, origin))),
+            Clock.currentTimeMillis.pipe(
+              Effect.flatMap((opened) =>
+                navigateBrowserPage(page, origin, gate).pipe(
+                  Effect.zipRight(
+                    Effect.suspend(() =>
+                      use(pageDocumentFetch(page, origin), {
+                        endsAt: opened + BROWSER_CHUNK_WINDOW_MS,
+                      }),
+                    ),
+                  ),
+                ),
               ),
               Effect.timeoutFail({
                 duration: BROWSER_CHUNK_WINDOW_MS,

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { Effect } from "effect";
+import { Effect, TestClock, TestContext } from "effect";
 import { UrgiisEntrySchema, urgiisFingerprint } from "./urgiis-traversal";
 import { UrgiisCursor, URGIIS_MAX_CURSOR_BYTES } from "./urgiis-cursor";
 import { streamUrgiisInventory, urgiisChunkTenant } from "./urgiis-connector";
@@ -1107,22 +1107,94 @@ test("URG leaves a browser tenant's pages for a chunk that opened its browser se
   );
   expect(withoutSession.status).toBe("paused");
   expect(withoutSession.pagesProcessed).toBe(0);
+});
 
+const browserChunk = (
+  windowEndsAt: number,
+  readPage: (url: string, index: number) => Effect.Effect<string>,
+  startCursor?: unknown,
+) => {
   const read: string[] = [];
-  const withSession = await Effect.runPromise(
+  let batches = 0;
+  return Effect.runPromise(
     streamUrgiisInventory({
       tenants: [tenant],
-      maxPages: 1,
-      browserTenants: { codes: new Set([tenant.code]), session: tenant.code },
+      startCursor,
+      maxPages: 3,
+      browserTenants: {
+        codes: new Set([tenant.code]),
+        session: { code: tenant.code, windowEndsAt },
+      },
       readPage: (url) => {
         read.push(url);
-        return Effect.succeed(responses[0] ?? "");
+        return readPage(url, read.length - 1);
       },
-      onBatch: () => Effect.void,
-    }),
+      onBatch: () =>
+        Effect.sync(() => {
+          batches++;
+        }),
+    }).pipe(Effect.provide(TestContext.TestContext)),
+  ).then((result) => ({ result, read, batches }));
+};
+const answer = (index: number) => Effect.succeed(responses[index] ?? "");
+
+test("URG reads a browser tenant's whole census in one session instead of three pages per chunk", async () => {
+  const { result, read, batches } = await browserChunk(
+    8 * 60_000,
+    (_url, index) => answer(index),
   );
-  expect(read).toEqual([tenant.origin + "/"]);
-  expect(withSession.pagesProcessed).toBe(1);
+  // Owner, makes, arrivals, menu, model, then the closing owner, makes and
+  // menu: the plain-HTTP chunk budget of three would need three sessions.
+  expect(read).toHaveLength(8);
+  expect(result.pagesProcessed).toBe(8);
+  expect(batches).toBe(1);
+  expect(result.count).toBe(1);
+});
+
+test("URG starts no browser page in the session window's last minute", async () => {
+  // Each page takes 20 seconds; the window closes at 160 seconds, so pages
+  // start at 0, 20, 40, 60 and 80 seconds but not at 100.
+  const { result, read } = await browserChunk(160_000, (_url, index) =>
+    TestClock.adjust("20 seconds").pipe(Effect.zipRight(answer(index))),
+  );
+  expect(read).toHaveLength(5);
+  expect(result.status).toBe("paused");
+  expect(result.pagesProcessed).toBe(5);
+  const resumed = await browserChunk(
+    8 * 60_000,
+    (_url, index) => answer(index + 5),
+    result.cursor,
+  );
+  expect(resumed.read).toHaveLength(3);
+  expect(resumed.batches).toBe(1);
+});
+
+test("URG abandons a later browser page still loading as the window closes and keeps its checkpoint", async () => {
+  const { result, read } = await browserChunk(160_000, (_url, index) =>
+    index < 2
+      ? TestClock.adjust("20 seconds").pipe(Effect.zipRight(answer(index)))
+      : TestClock.adjust("3 minutes").pipe(Effect.zipRight(Effect.never)),
+  );
+  expect(read).toHaveLength(3);
+  expect(result.status).toBe("paused");
+  expect(result.pagesProcessed).toBe(2);
+  expect(result.warnings.join(" ")).toContain("abandoned unrecorded");
+  // The next chunk starts with the abandoned page.
+  const resumed = await browserChunk(
+    8 * 60_000,
+    (_url, index) => answer(index + 2),
+    result.cursor,
+  );
+  expect(resumed.read[0]).toBe(read[2]);
+  expect(resumed.batches).toBe(1);
+});
+
+test("URG always reads a browser chunk's first page, even late in its window", async () => {
+  const { result, read } = await browserChunk(10_000, (_url, index) =>
+    TestClock.adjust("20 seconds").pipe(Effect.zipRight(answer(index))),
+  );
+  expect(read).toHaveLength(1);
+  expect(result.pagesProcessed).toBe(1);
 });
 
 test("URG names the tenant a chunk starts on so production opens its browser session", () => {
@@ -1131,10 +1203,8 @@ test("URG names the tenant a chunk starts on so production opens its browser ses
     tenant.code,
   );
   expect(
-    urgiisChunkTenant(UrgiisCursor.initial([tenant, second]), [
-      tenant,
-      second,
-    ])?.code,
+    urgiisChunkTenant(UrgiisCursor.initial([tenant, second]), [tenant, second])
+      ?.code,
   ).toBe(tenant.code);
   expect(urgiisChunkTenant(UrgiisCursor.initial([]), [])).toBeNull();
   expect(urgiisChunkTenant({ checksum: "tampered" }, [tenant])).toBeNull();

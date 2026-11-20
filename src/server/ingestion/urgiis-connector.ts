@@ -18,7 +18,7 @@ import {
 } from "./urgiis-census";
 import { UrgiisTenant } from "./urgiis-tenant";
 import { urgiisDetailSeller } from "./urgiis-detail";
-import { Effect } from "effect";
+import { Clock, Effect, Option } from "effect";
 import type { Yard } from "~/lib/yard";
 import type { CanonicalVehicle } from "./types";
 import type { ConnectorChunkAccounting } from "./connector-chunk";
@@ -60,12 +60,30 @@ export interface UrgiisOptions<E, R> extends UrgiisCensusHistory {
     url: string,
     tenant: UrgiisTenant,
   ) => Effect.Effect<string, UrgiisError>;
-  /** Tenants read through a per-chunk browser session. Only `session` has one
-   * in this chunk; the others start in a fresh chunk. */
-  browserTenants?: { codes: ReadonlySet<string>; session: string | null };
+  /** Tenants read through a per-chunk browser session. Only `session`'s
+   * tenant has one in this chunk; the others start in a fresh chunk. */
+  browserTenants?: {
+    codes: ReadonlySet<string>;
+    session: UrgiisBrowserSession | null;
+  };
   onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
   onYards?: (yards: Yard[]) => Effect.Effect<void, E, R>;
 }
+/** The browser session a chunk holds: its tenant, and when the session's
+ * window closes (epoch milliseconds, Effect clock). */
+export interface UrgiisBrowserSession {
+  code: string;
+  windowEndsAt: number;
+}
+/** A chunk with a browser session reads that tenant's pages until the window
+ * is nearly over instead of stopping at the page budget, so the session's
+ * setup and origin navigation serve many pages. Every page still passes the
+ * URG host lease and pacing. No page starts in the window's last minute, and
+ * a later page still running 15 seconds before it closes is abandoned and
+ * read first by the next chunk, so the window never fails the chunk's
+ * progress. */
+const URGIIS_BROWSER_START_RESERVE_MS = 60_000;
+const URGIIS_BROWSER_CHECKPOINT_MS = 15_000;
 export interface UrgiisStreamResult {
   source: "urgiis";
   status: "paused" | "complete" | "failed";
@@ -399,10 +417,17 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
         unsealed = true;
         continue;
       }
-      if (result.pagesProcessed >= budget) break;
+      const session =
+        options.browserTenants?.session?.code === tenant.code
+          ? options.browserTenants.session
+          : null;
+      if (options.browserTenants?.codes.has(tenant.code) && !session) break;
+      const started = yield* Clock.currentTimeMillis;
       if (
-        options.browserTenants?.codes.has(tenant.code) &&
-        options.browserTenants.session !== tenant.code
+        session
+          ? result.pagesProcessed > 0 &&
+            started >= session.windowEndsAt - URGIIS_BROWSER_START_RESERVE_MS
+          : result.pagesProcessed >= budget
       )
         break;
       // One 90-second model (with its retries) fits the chunk deadline. Do not
@@ -413,9 +438,27 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
         result.pagesProcessed > 0
       )
         break;
-      const response = yield* options
-        .readPage(task.url, tenant)
-        .pipe(Effect.either);
+      const read = options.readPage(task.url, tenant).pipe(Effect.either);
+      // The chunk's first page keeps the whole window: abandoning it would
+      // return an unchanged checkpoint.
+      const finished =
+        session && result.pagesProcessed > 0
+          ? yield* read.pipe(
+              Effect.timeoutOption(
+                Math.max(
+                  0,
+                  session.windowEndsAt - URGIIS_BROWSER_CHECKPOINT_MS - started,
+                ),
+              ),
+            )
+          : Option.some(yield* read);
+      if (Option.isNone(finished)) {
+        result.warnings.push(
+          `${tenant.code}: ${task.url} was still loading when the browser session's window closed; it was abandoned unrecorded and the next chunk reads it first.`,
+        );
+        break;
+      }
+      const response = finished.value;
       if (response._tag === "Left") {
         const failedAt = now;
         const alreadyDeferred = cursor.entries.some(
@@ -741,12 +784,12 @@ export function streamUrgiisInventoryFromProvider<E, R>(
     return yield* withBrowserDocumentFetch(
       start.origin,
       urgiisRequestGate(start.origin, start),
-      (fetchDocument) =>
+      (fetchDocument, window) =>
         streamUrgiisInventory({
           ...options,
           browserTenants: {
             codes: URGIIS_BROWSER_TENANTS,
-            session: start.code,
+            session: { code: start.code, windowEndsAt: window.endsAt },
           },
           readPage: (url, tenant) =>
             readUrgiisPage(
