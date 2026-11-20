@@ -3,9 +3,14 @@ import {
   scottsHash,
   ScottsControlSchema,
   ScottsPageSchema,
-  type ScottsControl,
+  type ScottsPage,
 } from "./scotts-parser";
 import { scottsModels, type ScottsMake } from "./scotts-snapshot";
+import {
+  ModelCensus,
+  type ModelCensusControl,
+  type ModelCensusDecision,
+} from "./model-census";
 import {
   SCOTTS_ROOT,
   SCOTTS_MAKES,
@@ -14,6 +19,8 @@ import {
   scottsBrowsePath,
 } from "./scotts-yard-metadata";
 
+// Holds this run's pages plus the previous census: about 0.2 MiB each for the
+// 1,064-card Nov 15 graph, so roughly 0.5 MiB in all, well inside 2 MiB.
 export const SCOTTS_MAX_CURSOR_BYTES = 2 * 1024 * 1024;
 export const SCOTTS_MAX_REQUESTS = 600;
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
@@ -21,8 +28,21 @@ const scope = scottsHash({
   version: 1,
   yard: SCOTTS_YARD,
   contract:
-    "CC68,XX00/literal-premium-model-graph/required-card-id/all-required-destination-conflicts-quarantined-v1",
+    "CC68,XX00/literal-premium-model-graph/required-card-id/all-required-destination-conflicts-quarantined/incremental-model-census-v1",
 });
+/** Every model page held by an accepted run, carried forward by the next one.
+ * Carried cards must still match their own fingerprint. */
+export const ScottsCensusSchema = ModelCensus.schema(
+  ScottsPageSchema,
+  1024,
+).superRefine((census, context) => {
+  if (census.models.some(({ page }) => page.hash !== scottsHash(page.records)))
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Scotts census card fingerprint changed",
+    });
+});
+export type ScottsCensus = z.infer<typeof ScottsCensusSchema>;
 const progress = z
   .object({
     source: z.literal("scotts"),
@@ -41,56 +61,60 @@ const progress = z
     pages: z.array(ScottsPageSchema).max(1024),
     closing: z.number().int().min(0).max(1100),
     requests: z.number().int().min(0).max(SCOTTS_MAX_REQUESTS),
+    /** UTC run day fixed before the first request; null only in the initial cursor. */
+    day: z.number().int().nonnegative().safe().nullable(),
+    /** Compatible census from the last accepted run, or null for a cold census. */
+    previous: ScottsCensusSchema.nullable(),
   })
   .strict();
 export type ScottsProgress = z.infer<typeof progress>;
 export type ScottsClosingControl =
   | { kind: "root"; url: typeof SCOTTS_ROOT }
-  | { kind: "directory"; url: typeof SCOTTS_MAKES }
-  | { kind: "make"; url: string; make: ScottsMake }
-  | {
-      kind: "model";
-      url: string;
-      make: ScottsMake;
-      model: ScottsControl;
-      index: number;
-    };
+  | { kind: "directory"; url: typeof SCOTTS_MAKES };
 
-export function scottsClosingControls(
-  state: Pick<ScottsProgress, "makes" | "pages">,
-): ScottsClosingControl[] {
-  const models = scottsModels(state.makes);
-  const selected = new Set<number>(models.length ? [0, models.length - 1] : []);
-  state.pages.forEach((page, index) => {
-    if (page.records.length !== models[index]?.model.count) selected.add(index);
-  });
+/** Closing re-reads ownership and the make directory only. Per-model changes
+ * during the run surface as badge changes in the next run's opening menus. */
+export function scottsClosingControls(): ScottsClosingControl[] {
   return [
     { kind: "root", url: SCOTTS_ROOT },
     { kind: "directory", url: SCOTTS_MAKES },
-    ...state.makes.map(
-      (make) =>
-        ({
-          kind: "make",
-          url: SCOTTS_ORIGIN + make.path,
-          make,
-        }) satisfies ScottsClosingControl,
-    ),
-    ...[...selected]
-      .sort((a, b) => a - b)
-      .map((index) => {
-        const entry = models[index];
-        if (!entry)
-          throw new Error(
-            "Scotts closing model is outside the published graph",
-          );
-        return {
-          kind: "model",
-          url: SCOTTS_ORIGIN + entry.model.path,
-          ...entry,
-          index,
-        } satisfies ScottsClosingControl;
-      }),
   ];
+}
+
+// The model parser and snapshot bind make path and label plus model path and
+// label, so carried cards are reused only under that exact published context.
+function scottsCensusControls(
+  makes: readonly ScottsMake[],
+): ModelCensusControl[] {
+  return scottsModels(makes).map(({ make, model }) => ({
+    key: JSON.stringify([make.path, make.label, model.path, model.label]),
+    count: model.count,
+  }));
+}
+
+/** Read or carry each published model. Scotts publishes no usable arrivals
+ * feed (the route times out), so no model is triggered. */
+export function scottsCensusPlan(
+  state: Pick<ScottsProgress, "makes" | "previous" | "day">,
+): ModelCensusDecision<ScottsPage>[] {
+  if (state.day === null) throw new Error("Scotts census plan needs a run day");
+  return ModelCensus.plan(
+    scottsCensusControls(state.makes),
+    state.previous,
+    state.day,
+  );
+}
+
+/** Terminal census for a fully closed run. */
+export function scottsCensus(state: ScottsProgress): ScottsCensus {
+  if (state.day === null) throw new Error("Scotts census has no run day");
+  return ModelCensus.accept(
+    scope,
+    state.day,
+    scottsCensusControls(state.makes),
+    state.pages,
+    scottsCensusPlan(state),
+  );
 }
 
 function checksum(state: Omit<ScottsProgress, "checksum"> | ScottsProgress) {
@@ -104,6 +128,8 @@ function checksum(state: Omit<ScottsProgress, "checksum"> | ScottsProgress) {
     pages: state.pages,
     closing: state.closing,
     requests: state.requests,
+    day: state.day,
+    previous: state.previous,
   });
 }
 
@@ -114,6 +140,8 @@ export const ScottsCursorSchema = z
         source: z.literal("scotts"),
         version: z.literal(1),
         phase: z.literal("complete"),
+        // Pre-incremental terminal cursors stay readable but seed a cold census.
+        census: ScottsCensusSchema.optional(),
       })
       .strict(),
     progress,
@@ -154,17 +182,40 @@ export const ScottsCursorSchema = z
         (stage === 3 && state.pages.length >= models.length) ||
         (stage === 4 && state.pages.length !== models.length) ||
         (stage < 4 && state.closing !== 0) ||
-        (stage === 4 && state.closing > scottsClosingControls(state).length)
+        (stage === 4 && state.closing > scottsClosingControls().length)
       )
         throw new Error(
           "Scotts model or closing checkpoint prefix is inconsistent",
         );
       if (
+        state.day === null
+          ? state.requests !== 0 || state.previous !== null
+          : state.previous !== null &&
+            (state.previous.contract !== scope ||
+              state.previous.day > state.day)
+      )
+        throw new Error("Scotts run day or previous census is inconsistent");
+      // Carried pages are exactly the previous census evidence and cost no GET.
+      let readPages = 0;
+      if (stage >= 3) {
+        const decisions = scottsCensusPlan(state);
+        state.pages.forEach((page, index) => {
+          const decision = decisions[index];
+          if (decision?.kind === "read") readPages++;
+          else if (decision?.evidence.page.hash !== page.hash)
+            throw new Error(
+              "Scotts carried model page differs from its census",
+            );
+        });
+        if (stage === 3 && decisions[state.pages.length]?.kind !== "read")
+          throw new Error("Scotts next model page is not due for a read");
+      }
+      if (
         state.requests !==
         (state.root === null ? 0 : 1) +
           (state.makes.length ? 1 : 0) +
           completed +
-          state.pages.length +
+          readPages +
           state.closing
       )
         throw new Error("Scotts checkpoint request accounting is inconsistent");
@@ -215,7 +266,21 @@ const initial: Omit<ScottsProgress, "checksum"> = {
   pages: [],
   closing: 0,
   requests: 0,
+  day: null,
+  previous: null,
 };
+function checkpoint(
+  state: Omit<ScottsProgress, "checksum"> | ScottsProgress,
+): ScottsProgress {
+  const canonical = progress.parse({ ...state, checksum: "0".repeat(64) });
+  const parsed = ScottsCursorSchema.parse({
+    ...canonical,
+    checksum: checksum(canonical),
+  });
+  if (parsed.phase === "complete")
+    throw new Error("Expected a resumable Scotts checkpoint");
+  return parsed;
+}
 export const ScottsCursor = {
   initial: { ...initial, checksum: checksum(initial) },
   parse(value: string): ScottsCursor {
@@ -234,16 +299,34 @@ export const ScottsCursor = {
       );
     return value;
   },
-  checkpoint(
-    state: Omit<ScottsProgress, "checksum"> | ScottsProgress,
-  ): ScottsProgress {
-    const canonical = progress.parse({ ...state, checksum: "0".repeat(64) });
-    const parsed = ScottsCursorSchema.parse({
-      ...canonical,
-      checksum: checksum(canonical),
-    });
-    if (parsed.phase === "complete")
-      throw new Error("Expected a resumable Scotts checkpoint");
-    return parsed;
+  /** Fixes the run day and adopts the last accepted census before the first
+   * request. Anything unusable starts a cold census with a warning. */
+  begin(
+    cursor: ScottsProgress,
+    now: number,
+    previousCursor: unknown,
+  ): { cursor: ScottsProgress; warning: string | null } {
+    if (cursor.day !== null) return { cursor, warning: null };
+    const day = ModelCensus.day(now);
+    const parsed = ScottsCursorSchema.safeParse(previousCursor ?? undefined);
+    const previous =
+      parsed.success && parsed.data.phase === "complete"
+        ? ModelCensus.previous(parsed.data.census, scope, day)
+        : {
+            kind: "cold" as const,
+            warning:
+              previousCursor === null || previousCursor === undefined
+                ? null
+                : "Previous Scotts checkpoint is not a readable terminal census; reading every model page.",
+          };
+    return {
+      cursor: checkpoint({
+        ...cursor,
+        day,
+        previous: previous.kind === "incremental" ? previous.census : null,
+      }),
+      warning: previous.kind === "cold" ? previous.warning : null,
+    };
   },
+  checkpoint,
 } as const;
