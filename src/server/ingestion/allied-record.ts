@@ -1,5 +1,6 @@
 import { assessIisRecord } from "./iis-record";
 import { alliedOwnedUrl } from "./allied-html";
+import { IisModelRoute } from "./iis-model-route";
 import type { IisRecord, IisContext, IisControl } from "./iis-record";
 export {
   IisControlSchema as AlliedControlSchema,
@@ -19,11 +20,15 @@ export const AlliedRecord = {
     context: IisContext,
     published: readonly { make: IisControl; model: IisControl }[] = [],
   ) {
+    // Donor links spell a published "_-and_" model segment as "_and__".
+    const donor = IisModelRoute.donorControl;
     return assessIisRecord(
       record,
-      context,
+      context.kind === "model"
+        ? { ...context, model: donor(context.model) }
+        : context,
       { ownedUrl: alliedOwnedUrl, pathStyle: "parts", requireInquiry: true },
-      published,
+      published.map(({ make, model }) => ({ make, model: donor(model) })),
     );
   },
 } as const;

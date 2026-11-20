@@ -1,6 +1,7 @@
 import type { AlliedContract } from "./allied-contract";
 import { AlliedCursor } from "./allied-cursor";
 import { ALLIED_ARRIVALS, ALLIED_MAKES, ALLIED_ORIGIN } from "./allied-html";
+import { IisModelRoute } from "./iis-model-route";
 import {
   parseAlliedArrivals,
   parseAlliedDirectory,
@@ -36,7 +37,11 @@ export function alliedNextUrl(
     case "models": {
       const model = alliedModels(cursor.menus)[cursor.pages.length];
       return model
-        ? { ok: true, value: ALLIED_ORIGIN + model.model.path }
+        ? {
+            ok: true,
+            value:
+              ALLIED_ORIGIN + IisModelRoute.of(model.model.path).requestPath,
+          }
         : {
             ok: false,
             error: AlliedResult.error(

@@ -8,6 +8,7 @@ import {
   ALLIED_ORIGIN,
   alliedBrowsePath,
 } from "./allied-html";
+import { ALLIED_LITERAL_PARENTHESIS_ROUTES } from "./allied-configuration";
 import { AlliedResult } from "./allied-result";
 
 export const ALLIED_REQUEST_TIMEOUT_MS = 45_000;
@@ -21,9 +22,11 @@ export const alliedRequestGate: ProviderRequestGate = (request) =>
   );
 
 async function document(url: string, signal: AbortSignal): Promise<string> {
-  // Keep published controls literal in state, but encode parentheses on the
-  // wire. This spelling with browser headers returned 200 after a literal 403.
-  const wireUrl = url.replaceAll("(", "%28").replaceAll(")", "%29");
+  // Published controls stay literal in state. Parentheses are encoded on the
+  // wire except on routes probed to list donors only when sent literally.
+  const wireUrl = ALLIED_LITERAL_PARENTHESIS_ROUTES.has(new URL(url).pathname)
+    ? url
+    : url.replaceAll("(", "%28").replaceAll(")", "%29");
   const response = await fetch(wireUrl, {
     method: "GET",
     redirect: "manual",

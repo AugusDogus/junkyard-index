@@ -40,6 +40,24 @@ test("Allied adapter owns one GET with manual redirects, HTML acceptance and a r
   expect(calls[0]?.options?.redirect).toBe("manual");
   expect(calls[0]?.options?.signal?.aborted).toBe(true);
 });
+test("Allied adapter dispatches raw-ampersand model routes unchanged", async () => {
+  const calls: string[] = [];
+  stub(async (requestUrl) => {
+    calls.push(requestUrl);
+    return new Response("complete", {
+      headers: { "content-type": "text/html" },
+    });
+  });
+  const routes = [
+    ALLIED_ORIGIN + "/parts/CHRYSLER/TOWN_&_COUNTRY/",
+    ALLIED_ORIGIN + "/parts/LINCOLN/LINCOLN_&_TOWN_CAR/",
+  ];
+  for (const route of routes)
+    expect(await Effect.runPromise(readAlliedPage(route, direct))).toBe(
+      "complete",
+    );
+  expect(calls).toEqual(routes);
+});
 test("Allied adapter rejects unowned destinations before dispatch", async () => {
   let calls = 0;
   stub(async () => {
@@ -181,7 +199,7 @@ test("Allied shared request gate serializes callers and preserves the two-second
   expect((starts[1] ?? 0) - (starts[0] ?? 0)).toBe(2000);
 });
 
-test("Allied escapes parentheses in published browse paths without changing the native route", async () => {
+test("Allied sends parentheses literally only on routes probed to need it", async () => {
   const calls: string[] = [];
   stub(async (target) => {
     calls.push(target);
@@ -189,11 +207,21 @@ test("Allied escapes parentheses in published browse paths without changing the 
       headers: { "content-type": "text/html" },
     });
   });
-  const native = ALLIED_ORIGIN + "/parts/CHRYSLER/NEW_YORKER_(FWD)/";
-  expect(await Effect.runPromise(readAlliedPage(native, direct))).toBe(
-    "complete",
-  );
+  // Nov 20: literal ISUZU_PUP_(PICKUP) listed its card while %28/%29 returned
+  // an explicit empty; literal NEW_YORKER_(FWD) was refused with HTTP 403.
+  // BLAZER.JIMMY_(FULL_SIZE) listed donors encoded and was never probed
+  // literally, so it keeps the encoded spelling.
+  for (const path of [
+    "/parts/ISUZU/ISUZU_PUP_(PICKUP)/",
+    "/parts/CHRYSLER/NEW_YORKER_(FWD)/",
+    "/parts/CHEVROLET/BLAZER.JIMMY_(FULL_SIZE)/",
+  ])
+    expect(
+      await Effect.runPromise(readAlliedPage(ALLIED_ORIGIN + path, direct)),
+    ).toBe("complete");
   expect(calls).toEqual([
+    ALLIED_ORIGIN + "/parts/ISUZU/ISUZU_PUP_(PICKUP)/",
     ALLIED_ORIGIN + "/parts/CHRYSLER/NEW_YORKER_%28FWD%29/",
+    ALLIED_ORIGIN + "/parts/CHEVROLET/BLAZER.JIMMY_%28FULL_SIZE%29/",
   ]);
 });
