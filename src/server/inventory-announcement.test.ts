@@ -18,6 +18,13 @@ async function database() {
     );
     create table ingestion_projector_checkpoint (
       name text primary key,
+      kind text default 'publication' not null,
+      job_cursor text,
+      job_day text,
+      blocked_until integer,
+      failure_count integer default 0 not null,
+      last_error_tag text,
+      last_success_at integer,
       last_processed_change_id integer default 0 not null,
       updated_at integer not null
     );

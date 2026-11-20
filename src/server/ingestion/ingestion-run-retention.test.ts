@@ -29,7 +29,7 @@ async function setup() {
   clients.push(client);
   await client.executeMultiple(TEST_SCHEMA);
   await client.executeMultiple(`
-    create table ingestion_projector_checkpoint (name text primary key, last_processed_change_id integer not null default 0, updated_at integer not null);
+    create table ingestion_projector_checkpoint (name text primary key, kind text not null default 'publication', last_processed_change_id integer not null default 0, job_cursor text, job_day text, blocked_until integer, failure_count integer not null default 0, last_error_tag text, last_success_at integer, updated_at integer not null);
     drop table search_notification_intent;
     create table search_notification_intent (id text primary key, run_id text not null references ingestion_run(id) on delete cascade, status text not null, claim_token text);
     drop table vehicle_change_v2;

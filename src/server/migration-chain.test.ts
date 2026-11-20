@@ -515,3 +515,81 @@ test("0022 keeps existing run-owned intents and requires exactly one intent owne
     await rm(folder, { recursive: true, force: true });
   }
 });
+
+test("0024 generalizes consumer checkpoints, keeps live rows and drops dead ones", async () => {
+  const client = createClient({ url: ":memory:" });
+  const folder = await mkdtemp(join(tmpdir(), "junkyard-migrations-"));
+  try {
+    const journal = z
+      .object({ entries: z.array(z.object({ tag: z.string() }).passthrough()) })
+      .passthrough()
+      .parse(
+        JSON.parse(
+          await readFile(join(MIGRATIONS_FOLDER, "meta/_journal.json"), "utf8"),
+        ),
+      );
+    const before = journal.entries.findIndex(
+      (entry) => entry.tag === "0024_consumer_checkpoint",
+    );
+    expect(before).toBeGreaterThan(0);
+    await cp(MIGRATIONS_FOLDER, folder, { recursive: true });
+    await writeFile(
+      join(folder, "meta/_journal.json"),
+      JSON.stringify({ ...journal, entries: journal.entries.slice(0, before) }),
+    );
+    await client.executeMultiple(LEGACY_SCHEMA);
+    await migrate(drizzle(client), { migrationsFolder: folder });
+    // Production created the table with drizzle-kit push, outside migrations.
+    await client.executeMultiple(`
+      create table ingestion_projector_checkpoint (
+        name text primary key not null,
+        last_processed_change_id integer default 0 not null,
+        updated_at integer default (cast(unixepoch('subsecond') * 1000 as integer)) not null
+      );
+      insert into ingestion_projector_checkpoint (name, last_processed_change_id, updated_at) values
+        ('vehicle_algolia', 3164343, 100),
+        ('inventory-snapshot:v1', 826, 200),
+        ('inventory-snapshot:v2', 826, 300),
+        ('inventory-snapshot:v3', 826, 400),
+        ('indexnow-announcement', 900, 500);
+    `);
+
+    await migrate(drizzle(client), { migrationsFolder: MIGRATIONS_FOLDER });
+
+    expect(
+      (
+        await client.execute(
+          "select name, kind, last_processed_change_id, job_cursor, job_day, blocked_until, failure_count, last_error_tag, last_success_at, updated_at from ingestion_projector_checkpoint order by name",
+        )
+      ).rows,
+    ).toEqual([
+      expect.objectContaining({
+        name: "indexnow-announcement",
+        kind: "publication",
+        last_processed_change_id: 900,
+        job_cursor: null,
+        job_day: null,
+        blocked_until: null,
+        failure_count: 0,
+        last_error_tag: null,
+        last_success_at: 500,
+        updated_at: 500,
+      }),
+      expect.objectContaining({
+        name: "inventory-snapshot:v3",
+        kind: "publication",
+        last_processed_change_id: 826,
+        job_cursor: null,
+        job_day: null,
+        blocked_until: null,
+        failure_count: 0,
+        last_error_tag: null,
+        last_success_at: 400,
+        updated_at: 400,
+      }),
+    ]);
+  } finally {
+    client.close();
+    await rm(folder, { recursive: true, force: true });
+  }
+});

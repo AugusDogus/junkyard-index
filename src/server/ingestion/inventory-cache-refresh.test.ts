@@ -11,6 +11,13 @@ beforeEach(async () => {
     create table ingestion_run (id text primary key, publication_sequence integer);
     create table ingestion_projector_checkpoint (
       name text primary key not null,
+      kind text default 'publication' not null,
+      job_cursor text,
+      job_day text,
+      blocked_until integer,
+      failure_count integer default 0 not null,
+      last_error_tag text,
+      last_success_at integer,
       last_processed_change_id integer default 0 not null,
       updated_at integer default (cast(unixepoch('subsecond') * 1000 as integer)) not null
     );

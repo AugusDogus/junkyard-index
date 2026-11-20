@@ -729,13 +729,27 @@ export const searchNotificationDelivery = sqliteTable(
   (table) => [primaryKey({ columns: [table.userId, table.channel] })],
 );
 
+/**
+ * One row per downstream consumer (and per part of one). `kind` says what
+ * `last_processed_change_id` counts: a publication_sequence, a
+ * vehicle_change_v2 id, or nothing for a daily job keyed on `job_day`. The
+ * remaining columns hold a consumer's resumable cursor, circuit breaker and
+ * health; see ConsumerCheckpoint.
+ */
 export const ingestionProjectorCheckpoint = sqliteTable(
   "ingestion_projector_checkpoint",
   {
     name: text("name").primaryKey(),
+    kind: text("kind").default("publication").notNull(),
     lastProcessedChangeId: integer("last_processed_change_id")
       .default(0)
       .notNull(),
+    jobCursor: text("job_cursor"),
+    jobDay: text("job_day"),
+    blockedUntil: integer("blocked_until", { mode: "timestamp_ms" }),
+    failureCount: integer("failure_count").default(0).notNull(),
+    lastErrorTag: text("last_error_tag"),
+    lastSuccessAt: integer("last_success_at", { mode: "timestamp_ms" }),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
       .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
       .$onUpdate(() => new Date())
