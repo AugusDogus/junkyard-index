@@ -41,6 +41,7 @@ import {
 } from "~/components/search/SaveSearchDialog";
 import { SavedSearchesDropdown } from "~/components/search/SavedSearchesDropdown";
 import { SearchAccessShell } from "~/components/search/SearchAccessShell";
+import type { SearchServerRender } from "~/lib/search-server-render";
 import { SEARCH_FILTER_FACETS } from "~/components/search/search-filter-options";
 import { SearchStartPanel } from "~/components/search/SearchStartPanel";
 import { VehicleSearchInput } from "~/components/search/VehicleSearchInput";
@@ -106,6 +107,7 @@ function clampRouteYear(
 interface SearchPageContentProps {
   knownYardNames?: readonly string[];
   isLoggedIn: boolean;
+  serverSearch: SearchServerRender;
   initialIsMobile?: boolean;
   userLocation?: { lat: number; lng: number };
 }
@@ -1506,9 +1508,14 @@ export function SearchPageContent({
   initialIsMobile = false,
   userLocation,
   knownYardNames,
+  serverSearch,
 }: SearchPageContentProps) {
   return (
-    <SearchAccessShell isLoggedIn={isLoggedIn} knownYardNames={knownYardNames}>
+    <SearchAccessShell
+      isLoggedIn={isLoggedIn}
+      knownYardNames={knownYardNames}
+      serverSearch={serverSearch}
+    >
       {({
         planAccess,
         vinPatternIndexReady,

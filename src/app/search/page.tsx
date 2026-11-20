@@ -10,21 +10,32 @@ import { ScrollToTop } from "~/components/ScrollToTop";
 import { SearchPageSkeleton } from "~/components/search/SearchPageSkeleton";
 import { SearchPageContent } from "~/components/search/SearchPageContent";
 import { db } from "~/lib/db";
+import { SearchServerRender } from "~/lib/search-server-render";
 import { getHomepageYards } from "~/server/homepage-yards";
 import { auth } from "~/lib/auth";
 import { api, HydrateClient } from "~/trpc/server";
 
-export const metadata: Metadata = {
-  title: "Search Salvage Yard Inventory",
-  description:
-    "Search donor vehicles across salvage yard networks, compare results by yard and distance, and create saved searches for ongoing inventory tracking.",
-  alternates: {
-    canonical: "/search",
-  },
-};
-
 interface SearchPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export async function generateMetadata({
+  searchParams,
+}: SearchPageProps): Promise<Metadata> {
+  const params = await searchParams;
+  return {
+    title: "Search Salvage Yard Inventory",
+    description:
+      "Search donor vehicles across salvage yard networks, compare results by yard and distance, and create saved searches for ongoing inventory tracking.",
+    alternates: {
+      canonical: "/search",
+    },
+    // Each parameterized URL is one search, not a page of its own. Crawlers
+    // follow its links but index only the canonical /search.
+    ...(Object.keys(params).length > 0 && {
+      robots: { index: false, follow: true },
+    }),
+  };
 }
 
 export default async function SearchPage({ searchParams }: SearchPageProps) {
@@ -81,6 +92,10 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                 initialIsMobile={/Mobile|Android|iPhone|iPod/i.test(
                   reqHeaders.get("user-agent") ?? "",
                 )}
+                serverSearch={SearchServerRender.decide({
+                  userAgent: reqHeaders.get("user-agent"),
+                  params,
+                })}
                 userLocation={geo}
                 knownYardNames={knownYardNames}
               />
