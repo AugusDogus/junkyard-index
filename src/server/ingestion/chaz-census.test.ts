@@ -336,14 +336,26 @@ test("Chaz carries unread models, rotates the sweep and reads changes", async ()
 
 test("Chaz re-reads every model within six days, even across missed runs", async () => {
   const native = yard();
+  const twelve = ids(12);
   let previous = (await census(native, D, null)).terminal;
   const lastRead = new Map<number, number>();
   for (let i = 0; i < 12; i++) lastRead.set(i, D);
-  // Skip days D + 1 and D + 2 entirely, then run daily.
-  for (let day = D + 3; day <= D + 12; day++) {
+  // Skip days D + 1 and D + 2 entirely: the run after the gap reads every
+  // model again instead of carrying pages from the census three days old.
+  const resumed = await census(native, D + 3, previous);
+  expect(resumed.models).toEqual(twelve);
+  expect(resumed.warnings.at(-1)).toBe(
+    "Chaz Read 12 of 12 model pages (gap 12); carried 0.",
+  );
+  expect(resumed.vins).toEqual(allVins(native));
+  for (const model of resumed.models) lastRead.set(model, D + 3);
+  previous = resumed.terminal;
+  // Daily runs then resume incrementally: each reads only today's slice (a
+  // sweep, or at age six the stale models read in full on D + 3).
+  for (let day = D + 4; day <= D + 12; day++) {
     const run = await census(native, day, previous);
-    // Never a full census; the day after missed runs also reads stale models.
     expect(run.models.length).toBeLessThan(12);
+    expect(run.models).toEqual(sweep(day, twelve));
     for (const model of run.models) lastRead.set(model, day);
     for (const read of lastRead.values()) expect(day - read).toBeLessThan(6);
     expect(run.vins).toEqual(allVins(native));
@@ -456,14 +468,17 @@ test("Chaz fails a run whose swept model pages render empty while the menus keep
   // stay above the 354 floor, so before this check the run published.
   const native = yard();
   const twelve = ids(12);
-  const cold = await census(native, D, null);
   const day = [1, 2, 3, 4, 5]
     .map((offset) => D + offset)
     .find((d) => sweep(d, twelve).length === 2);
   if (day === undefined)
     throw new Error("fixture needs a day sweeping two models");
+  // Daily runs up to the broken day, so it reads only its sweep slice.
+  let previous = (await census(native, D, null)).terminal;
+  for (let d = D + 1; d < day; d++)
+    previous = (await census(native, d, previous)).terminal;
   for (const model of sweep(day, twelve)) native.outages.add(model);
-  expect(await failing(day, cold.terminal, "coverage floor")).toBe(0);
+  expect(await failing(day, previous, "coverage floor")).toBe(0);
 });
 
 /** The Nov 18 production graph with one fresh donor per badge count on each
@@ -597,7 +612,14 @@ test("Chaz fails a Nov 18 run whose lightest sweep slice lists one card per mode
   expect(cold.requests).toBe(282);
   expect(cold.vins).toHaveLength(1107);
 
-  // D is a multiple of six, so D + 5 sweeps slice 5 and nothing else is due.
+  // Healthy daily runs to D + 4. D is a multiple of six, so D + 5 sweeps
+  // slice 5 and nothing else is due.
+  let previous = cold.terminal;
+  for (let d = D + 1; d < D + 5; d++) {
+    const run = await census(native, d, previous);
+    expect(run.vins).toEqual(cold.vins);
+    previous = run.terminal;
+  }
   const day = D + 5;
   const swept = native.models.filter((m) => ModelCensus.slice(m.key) === 5);
   expect(swept).toHaveLength(30);
@@ -606,18 +628,18 @@ test("Chaz fails a Nov 18 run whose lightest sweep slice lists one card per mode
   expect(
     await failing(
       day,
-      cold.terminal,
-      "Chaz model pages list 1042 of 1107 cards that the last accepted census listed for models whose counts did not change, below the 97% coverage floor.",
+      previous,
+      "Chaz model pages list 1042 of 1107 cards that the last accepted census listed, less any drop in their counts, below the 97% coverage floor.",
     ),
   ).toBe(0);
   // Once the pages recover, a retry from the same accepted census publishes.
   native.cut.clear();
-  const retry = await census(native, day, cold.terminal);
+  const retry = await census(native, day, previous);
   expect(retry.vins).toEqual(cold.vins);
   expect(retry.warnings.at(-1)).toBe(
     "Chaz Read 30 of 240 model pages (sweep 30); carried 210.",
   );
-});
+}, 300_000);
 
 test("Chaz fails a steady-state run whose routine sweep slice, read at age six, lists one card per model", async () => {
   // After the first cycle every routine sweep read happens at age exactly six
@@ -639,7 +661,7 @@ test("Chaz fails a steady-state run whose routine sweep slice, read at age six, 
     await failing(
       day,
       previous,
-      "Chaz model pages list 1042 of 1107 cards that the last accepted census listed for models whose counts did not change, below the 97% coverage floor.",
+      "Chaz model pages list 1042 of 1107 cards that the last accepted census listed, less any drop in their counts, below the 97% coverage floor.",
     ),
   ).toBe(0);
   // Rejected runs accept nothing, so the previous census stays at D + 10 and
@@ -674,15 +696,15 @@ test("Chaz judges a run like a full read once the last accepted run is six days 
     if (ModelCensus.slice(model.key) === 5) native.cut.add(model.key);
   const recovered = await census(native, D + 16, previous);
   expect(recovered.warnings.at(-1)).toBe(
-    "Chaz Read 240 of 240 model pages (stale 240); carried 0.",
+    "Chaz Read 240 of 240 model pages (gap 240); carried 0.",
   );
   expect(recovered.vins).toHaveLength(1042);
 }, 300_000);
 
 test("Chaz rejects a broken due slice after a missed run", async () => {
-  // Accepted daily to D + 10, no run on D + 11, then D + 12 reads the slice
-  // due on D + 11 (now age seven) and its own. The D + 11 slice lists one card
-  // per page and must still be judged against its last accepted cards.
+  // Accepted daily to D + 10, no run on D + 11, then D + 12 reads every page
+  // after the gap. The D + 11 slice lists one card per page and must still be
+  // judged against its last accepted cards.
   const native = nov18Yard();
   let previous = (await census(native, D, null)).terminal;
   for (let day = D + 1; day <= D + 10; day++)
@@ -730,7 +752,6 @@ test("Chaz re-reads a surplus model page that loses a donor down to its badge, a
 
 test("Chaz checkpoints reject carried pages, accounting and census days that disagree with the plan", async () => {
   const native = yard();
-  const cold = await census(native, D, null);
   // Opening on the first day whose first swept model is not model 0: contact,
   // arrivals, makes, menu; the models before it carry and it is the next read.
   const firstSwept = (day: number) =>
@@ -741,10 +762,14 @@ test("Chaz checkpoints reject carried pages, accounting and census days that dis
   if (day === undefined)
     throw new Error("fixture needs a day whose first swept model is not M0");
   const firstRead = firstSwept(day);
+  // Daily runs up to that day, so it opens incrementally and carries pages.
+  let previous = (await census(native, D, null)).terminal;
+  for (let d = D + 1; d < day; d++)
+    previous = (await census(native, d, previous)).terminal;
   const opening = await Effect.runPromise(
     streamChazInventoryWithRequestGate(
       {
-        previousCursor: cold.terminal,
+        previousCursor: previous,
         now: () => day * MODEL_CENSUS_DAY_MS,
         maxPages: 4,
         onBatch: () => Effect.void,

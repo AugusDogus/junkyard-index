@@ -531,7 +531,7 @@ test("Scotts fails a sweep slice cut to one card per model even when badges stil
 
   const run = await failedRun(day, cold.terminal);
   expect(run.error).toContain(
-    `Scotts model pages list ${kept} of ${total} cards that the last accepted census listed for models whose counts did not change, below the 97% coverage floor. Nothing was published`,
+    `Scotts model pages list ${kept} of ${total} cards that the last accepted census listed, less any drop in their counts, below the 97% coverage floor. Nothing was published`,
   );
   expect(run.published).toBe(0);
   expect(run.yards).toBe(0);

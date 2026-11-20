@@ -525,7 +525,7 @@ test("Central fails a sweep slice cut to one card per model even when its badges
       }
     })(),
   ).rejects.toThrow(
-    "that the last accepted census listed for models whose counts did not change, below the 97% coverage floor",
+    "that the last accepted census listed, less any drop in their counts, below the 97% coverage floor",
   );
   expect(published).toBe(0);
   expect(yards).toBe(0);

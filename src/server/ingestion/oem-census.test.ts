@@ -396,25 +396,40 @@ test("OEM departing arrivals trigger one read even while the page still lags", a
 
 test("OEM re-reads every model within six days, even across missed runs", async () => {
   const native = yard();
-  let previous = (await census(native, 600, null)).wire;
+  const cold = await census(native, 600, null);
+  // Skip days 601 and 602 entirely: the gap makes day 603 read every model.
+  const gap = await census(native, 603, cold.wire);
+  expect(gap.models).toEqual(MODELS);
+  // Arrivals, makes, one menu, 12 models and the closing make directory.
+  expect(gap.requests).toBe(16);
+  expect(gap.vins).toEqual(allVins(native));
+  expect(gap.warnings.at(-1)).toBe(summary([["gap", MODELS]]));
+  let previous = gap.wire;
   const lastRead = new Map<number, number>();
-  for (const model of MODELS) lastRead.set(model, 600);
+  for (const model of MODELS) lastRead.set(model, 603);
   let aged = 0;
-  // Skip days 601 and 602 entirely, then run daily.
-  for (const day of [603, 604, 605, 606, 607, 608, 609, 610, 611, 612]) {
+  // Daily runs then resume incrementally.
+  for (const day of [604, 605, 606, 607, 608, 609, 610, 611, 612]) {
     // Today's slice plus every model whose evidence reached the age ceiling.
     const stale = MODELS.filter((m) => day - (lastRead.get(m) ?? day) >= 6);
-    const swept = sweep(day);
-    aged += stale.filter((m) => !swept.includes(m)).length;
+    const swept = sweep(day).filter((m) => !stale.includes(m));
+    aged += stale.filter((m) => !sweep(day).includes(m)).length;
     const run = await census(native, day, previous);
-    expect(run.models).toEqual(sorted([...new Set([...swept, ...stale])]));
+    expect(run.models).toEqual(sorted([...swept, ...stale]));
+    expect(run.warnings.at(-1)).toBe(
+      summary([
+        ["stale", stale],
+        ["sweep", swept],
+      ]),
+    );
     for (const model of run.models) lastRead.set(model, day);
     for (const read of lastRead.values()) expect(day - read).toBeLessThan(6);
     expect(run.vins).toEqual(allVins(native));
     previous = run.wire;
   }
-  // The skipped days left some day-600 evidence to the age ceiling.
-  expect(aged).toBeGreaterThan(0);
+  // The gap read refreshed every model on day 603, and the daily sweep
+  // reaches each again before its evidence ages to the ceiling.
+  expect(aged).toBe(0);
   // Eleven resumable runs revalidate every checkpoint.
 }, 30_000);
 
@@ -589,7 +604,7 @@ test("OEM fails an incremental run whose swept pages list one card each while ba
   await expect(
     attemptRun(native, day, cold.wire, cold.vins.length, published),
   ).rejects.toThrow(
-    "list 441 of 480 cards that the last accepted census listed for models whose counts did not change, below the 97% coverage floor",
+    "list 441 of 480 cards that the last accepted census listed, less any drop in their counts, below the 97% coverage floor",
   );
   expect(published.count).toBe(0);
 });
@@ -616,7 +631,7 @@ test("OEM fails a steady-state run whose routine sweep page, read at age six, li
   await expect(
     attemptRun(native, day, previous, allVins(native).length, published),
   ).rejects.toThrow(
-    "list 441 of 480 cards that the last accepted census listed for models whose counts did not change, below the 97% coverage floor",
+    "list 441 of 480 cards that the last accepted census listed, less any drop in their counts, below the 97% coverage floor",
   );
   expect(published.count).toBe(0);
 }, 120_000);
