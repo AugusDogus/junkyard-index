@@ -1,11 +1,12 @@
 import { and, desc, eq, isNotNull } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { ingestionRun, ingestionSourceRun } from "~/schema";
+import { parseDurableSourceCursor } from "./durable-cursor";
 import type { DurableIngestionSource } from "./durable-source";
 
 /** Terminal cursor of the newest accepted, search-published run for a source.
- * Failed, rejected and unpublished runs never seed a census. The raw value is
- * returned unparsed so the connector can fall back to a cold census. */
+ * Failed, rejected and unpublished runs never seed a census. A cursor the codec
+ * rejects is returned raw so the connector can warn and run a cold census. */
 export async function loadPublishedSourceCursor(
   database: LibSQLDatabase,
   source: DurableIngestionSource,
@@ -25,9 +26,16 @@ export async function loadPublishedSourceCursor(
     .orderBy(desc(ingestionRun.searchPublishedAt))
     .limit(1);
   if (!previous?.cursor) return null;
+  // Decode through the source's durable codec, which restores fields such as
+  // `source` that some codecs strip from the wire.
   try {
-    return JSON.parse(previous.cursor);
+    return parseDurableSourceCursor(source, previous.cursor);
   } catch {
-    return null;
+    // The connector reports an unreadable cursor and starts a cold census.
+    try {
+      return JSON.parse(previous.cursor);
+    } catch {
+      return previous.cursor;
+    }
   }
 }
