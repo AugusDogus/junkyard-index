@@ -33,6 +33,7 @@ import {
 import { DesktopFiltersBar } from "~/components/search/DesktopFiltersBar";
 import { InventoryFilterFeedback } from "~/components/search/InventoryFilterFeedback";
 import { useInventoryFilterOptions } from "~/hooks/use-inventory-filter-options";
+import { InventoryFilterOptions } from "~/lib/inventory-filter-options";
 import { buildSearchUrl } from "~/lib/search-utils";
 import { MobileFiltersDrawer } from "~/components/search/MobileFiltersDrawer";
 import {
@@ -445,33 +446,20 @@ function AlgoliaSearchInner({
   );
   const { nbHits, processingTimeMS } = useStats({}, { skipSuspense: true });
 
-  // Facets
-  const { items: makeItems, refine: refineMake } = useRefinementList(
-    {
-      ...SEARCH_FILTER_FACETS.makes,
-      sortBy: ["name:asc"],
-    },
+  // Refinements only. Filter options come from Turso, not from facet values.
+  const { refine: refineMake } = useRefinementList(SEARCH_FILTER_FACETS.makes, {
+    skipSuspense: true,
+  });
+  const { refine: refineColor } = useRefinementList(
+    SEARCH_FILTER_FACETS.colors,
     { skipSuspense: true },
   );
-  const { items: colorItems, refine: refineColor } = useRefinementList(
-    {
-      ...SEARCH_FILTER_FACETS.colors,
-      sortBy: ["name:asc"],
-    },
+  const { refine: refineState } = useRefinementList(
+    SEARCH_FILTER_FACETS.states,
     { skipSuspense: true },
   );
-  const { items: stateItems, refine: refineState } = useRefinementList(
-    {
-      ...SEARCH_FILTER_FACETS.states,
-      sortBy: ["name:asc"],
-    },
-    { skipSuspense: true },
-  );
-  const { items: locationItems, refine: refineLocation } = useRefinementList(
-    {
-      ...SEARCH_FILTER_FACETS.salvageYards,
-      sortBy: ["name:asc"],
-    },
+  const { refine: refineLocation } = useRefinementList(
+    SEARCH_FILTER_FACETS.salvageYards,
     { skipSuspense: true },
   );
   const { refine: refineSource } = useRefinementList(
@@ -668,15 +656,6 @@ function AlgoliaSearchInner({
     [hits, resolvedUserLocation],
   );
 
-  const filterOptions = useMemo(
-    () => ({
-      makes: makeItems.map((i) => i.value).sort(),
-      colors: colorItems.map((i) => i.value).sort(),
-      states: stateItems.map((i) => i.value).sort(),
-      salvageYards: locationItems.map((i) => i.value).sort(),
-    }),
-    [makeItems, colorItems, stateItems, locationItems],
-  );
   const inventoryFilterOptions = useInventoryFilterOptions(
     canUseAdvancedFilters,
   );
@@ -705,6 +684,24 @@ function AlgoliaSearchInner({
   const selectedSources = useMemo(
     () => sanitizeSearchSources(refinementList.source ?? []),
     [refinementList],
+  );
+  // Selected values stay listed so they can be cleared, even if they left
+  // inventory or the options have not loaded yet.
+  const filterOptions = useMemo(
+    () =>
+      InventoryFilterOptions.withSelected(inventoryFilterOptions.data, {
+        makes: selectedMakes,
+        colors: selectedColors,
+        states: selectedStates,
+        salvageYards: selectedLocations,
+      }),
+    [
+      inventoryFilterOptions.data,
+      selectedMakes,
+      selectedColors,
+      selectedStates,
+      selectedLocations,
+    ],
   );
 
   const parsedRouteYears = (yearRangeState.year ?? "")

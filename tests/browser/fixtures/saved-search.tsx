@@ -136,13 +136,6 @@ function Fixture() {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
-    if (!parameters.has("no-suggestions"))
-      client.setQueryData(["inventory-filter-options"], {
-        makes: ["Volvo", "Ford"],
-        colors: ["Red"],
-        states: ["Texas"],
-        salvageYards: ["Omaha"],
-      });
     return client;
   });
   const [client] = useState(() =>
@@ -212,6 +205,26 @@ function Fixture() {
                   );
                 }
                 setSubmission({ path: op.path, input: op.input });
+              }
+              if (op.path === "search.filterOptions") {
+                if (parameters.has("no-suggestions")) {
+                  observer.error(
+                    new TRPCClientError("Filter options are unavailable."),
+                  );
+                  return;
+                }
+                observer.next({
+                  result: {
+                    data: {
+                      makes: ["Volvo", "Ford"],
+                      colors: ["Red"],
+                      states: ["Texas"],
+                      salvageYards: ["Omaha"],
+                    },
+                  },
+                });
+                observer.complete();
+                return;
               }
               const data =
                 op.path === "savedSearches.list"

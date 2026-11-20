@@ -1,15 +1,10 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { InventoryFilterOptions } from "~/lib/inventory-filter-options";
+import { api } from "~/trpc/react";
 
+/** Every filter value in live inventory, from Turso; spends no search quota. */
 export function useInventoryFilterOptions(enabled: boolean) {
-  return useQuery({
-    queryKey: ["inventory-filter-options"],
-    queryFn: async () => {
-      const { getSearchClient } = await import("~/lib/algolia-search");
-      return InventoryFilterOptions.load(getSearchClient(false));
-    },
+  return api.search.filterOptions.useQuery(undefined, {
     enabled,
     staleTime: 5 * 60 * 1000,
   });
