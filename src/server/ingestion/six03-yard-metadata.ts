@@ -28,6 +28,24 @@ export const SIX03_CONFLICTING_ORGANIZATION = {
   lng: -71.0948,
 } as const;
 
+/** The WordPress REST collection behind the catalog. One page carries every
+ * donor's full Unit Data article; descending ids give a total order, so a
+ * donor added or removed between page reads repeats or skips an id. */
+export const SIX03_REST_PAGE_SIZE = 100;
+export const SIX03_MAX_REST_PAGES = 12;
+export function six03RestPageUrl(page: number): string {
+  if (!Number.isSafeInteger(page) || page < 1 || page > SIX03_MAX_REST_PAGES)
+    throw new Error(
+      `603 REST page ${page} is outside its 1-${SIX03_MAX_REST_PAGES} census`,
+    );
+  return `${SIX03_ORIGIN}/wp-json/wp/v2/parts-vehicles?per_page=${SIX03_REST_PAGE_SIZE}&page=${page}&orderby=id&order=desc&_fields=id,slug,link,title,content`;
+}
+export function six03RestPage(raw: string): number | null {
+  for (let page = 1; page <= SIX03_MAX_REST_PAGES; page++)
+    if (raw === six03RestPageUrl(page)) return page;
+  return null;
+}
+
 export function six03DonorPath(raw: string): string | null {
   const url = URL.parse(raw);
   return url &&

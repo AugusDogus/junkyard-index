@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { Effect, Fiber } from "effect";
-import { fetchSix03Page } from "./six03-client";
-import { SIX03_CATALOG } from "./six03-yard-metadata";
+import { fetchSix03Page, fetchSix03RestPage } from "./six03-client";
+import { SIX03_CATALOG, six03RestPageUrl } from "./six03-yard-metadata";
 
 const original = globalThis.fetch;
 afterEach(() => {
@@ -216,5 +216,77 @@ test("Six03 does not fetch images, invented listings, queries or foreign routes"
     await expect(Effect.runPromise(fetchSix03Page(url, gate))).rejects.toThrow(
       "outside the finite",
     );
+  expect(requests).toBe(0);
+});
+
+test("Six03 reads REST pages only as JSON with WordPress census headers", async () => {
+  const urls: string[] = [];
+  let reply = (): Response =>
+    new Response("[]", {
+      headers: {
+        "content-type": "application/json; charset=UTF-8",
+        "x-wp-total": "1033",
+        "x-wp-totalpages": "11",
+      },
+    });
+  globalThis.fetch = Object.assign(
+    async (input: string | URL | Request, init?: RequestInit) => {
+      urls.push(String(input));
+      expect(new Headers(init?.headers).get("Accept")).toBe("application/json");
+      return reply();
+    },
+    { preconnect: original.preconnect },
+  );
+  expect(await Effect.runPromise(fetchSix03RestPage(2, gate))).toEqual({
+    body: "[]",
+    total: 1033,
+    totalPages: 11,
+  });
+  expect(urls).toEqual([six03RestPageUrl(2)]);
+  for (const headers of [
+    {
+      "content-type": "text/html",
+      "x-wp-total": "1033",
+      "x-wp-totalpages": "11",
+    },
+    {
+      "content-type": "application/json",
+      "x-wp-total": "",
+      "x-wp-totalpages": "",
+    },
+    {
+      "content-type": "application/json",
+      "x-wp-total": "1,033",
+      "x-wp-totalpages": "11",
+    },
+  ]) {
+    reply = () => new Response("[]", { headers });
+    await expect(
+      Effect.runPromise(fetchSix03RestPage(1, gate)),
+    ).rejects.toThrow("prior inventory is preserved");
+  }
+});
+
+test("Six03 refuses donor pages, other REST queries and pages past the census bound without a request", async () => {
+  let requests = 0;
+  globalThis.fetch = Object.assign(
+    async () => {
+      requests++;
+      return new Response("unexpected");
+    },
+    { preconnect: original.preconnect },
+  );
+  for (const url of [
+    "https://603autosalvage.com/parts-vehicles/2020-honda-civic/",
+    six03RestPageUrl(1),
+    six03RestPageUrl(1).replace("per_page=100", "per_page=50"),
+  ])
+    await expect(Effect.runPromise(fetchSix03Page(url, gate))).rejects.toThrow(
+      "outside the finite",
+    );
+  for (const page of [0, 13, 1.5])
+    await expect(
+      Effect.runPromise(fetchSix03RestPage(page, gate)),
+    ).rejects.toThrow("outside its 1-12 census");
   expect(requests).toBe(0);
 });

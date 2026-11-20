@@ -1,28 +1,32 @@
 import { ingestionValidation } from "./ingestion-validation";
-import { Effect, RateLimiter } from "effect";
+import { Clock, Effect, RateLimiter } from "effect";
 import type { ConnectorChunkAccounting } from "./connector-chunk";
-import { fetchSix03Page, Six03ProviderError } from "./six03-client";
+import {
+  fetchSix03Page,
+  fetchSix03RestPage,
+  Six03ProviderError,
+} from "./six03-client";
 import {
   Six03Cursor,
   Six03CursorSchema,
+  SIX03_MAX_REQUESTS,
   type Six03Progress,
 } from "./six03-cursor";
 import {
   parseSix03Catalog,
   parseSix03Contact,
-  parseSix03Detail,
+  parseSix03RestPage,
   six03Hash,
+  six03RestPageCount,
+  type Six03Detail,
 } from "./six03-parser";
-import {
-  six03PendingPosts,
-  six03Snapshot,
-  validateSix03Snapshot,
-} from "./six03-snapshot";
+import { six03Snapshot, validateSix03Snapshot } from "./six03-snapshot";
 import type { Six03CanonicalVehicle } from "./six03-transform";
 import {
   SIX03_CATALOG,
   SIX03_CONTACT,
   SIX03_ORIGIN,
+  SIX03_REST_PAGE_SIZE,
   SIX03_YARD,
   type Six03Yard,
 } from "./six03-yard-metadata";
@@ -52,7 +56,7 @@ const parse = <A>(operation: string, run: () => A) =>
     try: run,
     catch: (cause) => new Six03ProviderError({ operation, cause }),
   });
-const nativeDetailProjection = (record: ReturnType<typeof parseSix03Detail>) =>
+const nativeDetailProjection = (record: Six03Detail) =>
   six03Hash([
     record.path,
     record.kind,
@@ -61,8 +65,16 @@ const nativeDetailProjection = (record: ReturnType<typeof parseSix03Detail>) =>
     record.image,
   ]);
 
-/** One page is one native GET. No rows, VIN presence, yard or accounting are
- * emitted until the complete graph and all closing controls pass quality guards. */
+/** The chunk's deadline, and the share of it a GET (gate wait plus its
+ * 20-second deadline) needs: no GET starts in the last 25 seconds, so a slow
+ * site pauses the census at a checkpoint instead of failing the chunk. */
+const SIX03_CHUNK_MS = 3 * 60_000;
+const SIX03_REQUEST_RESERVE_MS = 25_000;
+
+/** One page is one native GET: the contact and catalog pages, each page of
+ * the WordPress REST donor collection, then four closing reads. No rows, VIN
+ * presence, yard or accounting are emitted until the complete graph and all
+ * closing controls pass quality guards. */
 export function streamSix03InventoryWithRequestGate<E, R>(
   options: Six03Options<E, R>,
   gate: ProviderRequestGate,
@@ -72,17 +84,17 @@ export function streamSix03InventoryWithRequestGate<E, R>(
     const validated = Six03CursorSchema.safeParse(
       options.startCursor ?? Six03Cursor.initial,
     );
-    const budget = options.maxPages ?? 8;
+    const budget = options.maxPages ?? SIX03_MAX_REQUESTS;
     if (
       !validated.success ||
       !Number.isSafeInteger(budget) ||
       budget < 1 ||
-      budget > 8
+      budget > SIX03_MAX_REQUESTS
     )
       return yield* Effect.fail(
         new Six03ProviderError({
           operation: "checkpoint",
-          cause: "Use a validated 603 checkpoint and 1-8 native GET units",
+          cause: `Use a validated 603 checkpoint and 1-${SIX03_MAX_REQUESTS} native GET units`,
         }),
       );
     let cursor = validated.data;
@@ -95,7 +107,13 @@ export function streamSix03InventoryWithRequestGate<E, R>(
       recordsRejected: 0,
       duplicateVehicles: 0,
     };
-    while (cursor.phase !== "complete" && pagesProcessed < budget) {
+    const started = yield* Clock.currentTimeMillis;
+    while (
+      cursor.phase !== "complete" &&
+      pagesProcessed < budget &&
+      (yield* Clock.currentTimeMillis) - started <
+        SIX03_CHUNK_MS - SIX03_REQUEST_RESERVE_MS
+    ) {
       const state: Six03Progress = cursor;
       switch (state.phase) {
         case "contact": {
@@ -130,43 +148,39 @@ export function streamSix03InventoryWithRequestGate<E, R>(
             Six03Cursor.checkpoint({
               ...state,
               catalog,
-              phase: six03PendingPosts(catalog).length ? "details" : "closing",
+              phase: "donors",
               requests: state.requests + 1,
             }),
           );
           break;
         }
-        case "details": {
-          if (!state.catalog)
+        case "donors": {
+          const catalog = state.catalog;
+          if (!catalog)
             return yield* Effect.fail(
               new Six03ProviderError({
-                operation: "details",
+                operation: "donors",
                 cause: "Native catalog evidence is missing",
               }),
             );
-          const posts = six03PendingPosts(state.catalog);
-          const post = posts[state.details.length];
-          if (!post)
-            return yield* Effect.fail(
-              new Six03ProviderError({
-                operation: "details",
-                cause: "Native donor control is missing",
-              }),
-            );
-          const html = yield* fetchSix03Page(
-            SIX03_ORIGIN + post[0],
-            gate,
-            fetchDocument,
+          const page = state.pages.length + 1;
+          const response = yield* fetchSix03RestPage(page, gate, fetchDocument);
+          const read = yield* parse("REST donor page " + page, () =>
+            parseSix03RestPage(response.body, page, response, catalog),
           );
-          const record = yield* parse("native donor " + post[0], () =>
-            parseSix03Detail(html, post),
-          );
-          const details = [...state.details, record];
-          cursor = yield* parse("detail checkpoint", () =>
+          const pages = [...state.pages, read.ids];
+          // The checkpoint refuses a repeated or skipped donor across pages
+          // (descending ids, unique roster paths), so a roster that shifted
+          // between page reads stops here.
+          cursor = yield* parse("REST donor checkpoint", () =>
             Six03Cursor.checkpoint({
               ...state,
-              details,
-              phase: details.length === posts.length ? "closing" : "details",
+              pages,
+              details: [...state.details, ...read.details],
+              phase:
+                pages.length === six03RestPageCount(catalog.posts.length)
+                  ? "closing"
+                  : "donors",
               requests: state.requests + 1,
             }),
           );
@@ -226,36 +240,31 @@ export function streamSix03InventoryWithRequestGate<E, R>(
                 }),
               );
           } else {
-            const posts = six03PendingPosts(catalog);
-            const index = state.closing === 2 ? 0 : posts.length - 1;
-            const post = posts[index];
-            const expected = state.details[index];
-            if (post && expected) {
-              const html = yield* fetchSix03Page(
-                SIX03_ORIGIN + post[0],
-                gate,
-                fetchDocument,
-              );
-              const actual = yield* parse("closing native donor", () =>
-                parseSix03Detail(html, post),
-              );
-              if (
-                nativeDetailProjection(actual) !==
-                nativeDetailProjection(expected)
-              )
-                return yield* Effect.fail(
-                  new Six03ProviderError({
-                    operation: "closing donor",
-                    cause:
-                      "Native first/last donor observation changed; restart the census",
-                  }),
-                );
-            } else
+            const index = state.closing === 2 ? 0 : state.pages.length - 1;
+            const page = index + 1;
+            const response = yield* fetchSix03RestPage(
+              page,
+              gate,
+              fetchDocument,
+            );
+            const actual = yield* parse("closing REST donor page", () =>
+              parseSix03RestPage(response.body, page, response, catalog),
+            );
+            const offset = index * SIX03_REST_PAGE_SIZE;
+            const expected = state.details.slice(
+              offset,
+              offset + (state.pages[index]?.length ?? 0),
+            );
+            if (
+              JSON.stringify(actual.ids) !==
+                JSON.stringify(state.pages[index]) ||
+              JSON.stringify(actual.details.map(nativeDetailProjection)) !==
+                JSON.stringify(expected.map(nativeDetailProjection))
+            )
               return yield* Effect.fail(
                 new Six03ProviderError({
-                  operation: "closing donor",
-                  cause:
-                    "Finite graph has no first/last native detail controls",
+                  operation: "closing donors",
+                  cause: `Native first/last REST donor page ${page} changed; restart the census`,
                 }),
               );
           }
@@ -275,7 +284,7 @@ export function streamSix03InventoryWithRequestGate<E, R>(
             count = snapshot.vehicles.length;
             observedVins = snapshot.observedVins;
             accounting = snapshot.accounting;
-            cursor = { source: "six03", version: 1, phase: "complete" };
+            cursor = { source: "six03", version: 2, phase: "complete" };
           } else
             cursor = yield* parse("closing checkpoint", () =>
               Six03Cursor.checkpoint({
@@ -306,7 +315,7 @@ export function streamSix03InventoryWithRequestGate<E, R>(
     } satisfies Six03StreamResult;
   }).pipe(
     Effect.timeoutFail({
-      duration: "3 minutes",
+      duration: SIX03_CHUNK_MS,
       onTimeout: () =>
         new Six03ProviderError({
           operation: "chunk",

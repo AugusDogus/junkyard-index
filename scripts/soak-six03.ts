@@ -1,5 +1,8 @@
 import type { Six03StreamResult } from "../src/server/ingestion/six03-connector";
-import { Six03Cursor } from "../src/server/ingestion/six03-cursor";
+import {
+  Six03Cursor,
+  SIX03_MAX_REQUESTS,
+} from "../src/server/ingestion/six03-cursor";
 
 /** Count/discard only. The caller owns transport, staging and source admission. */
 export async function soakSix03Inventory(
@@ -7,19 +10,19 @@ export async function soakSix03Inventory(
     cursor: Six03Cursor,
     maxPages: number,
   ) => Promise<Six03StreamResult>,
-  maxPages = 1210,
-  chunkPages = 8,
+  maxPages = SIX03_MAX_REQUESTS,
+  chunkPages = SIX03_MAX_REQUESTS,
 ): Promise<Six03StreamResult> {
   if (
     !Number.isSafeInteger(maxPages) ||
     maxPages < 1 ||
-    maxPages > 1210 ||
+    maxPages > SIX03_MAX_REQUESTS ||
     !Number.isSafeInteger(chunkPages) ||
     chunkPages < 1 ||
-    chunkPages > 8
+    chunkPages > SIX03_MAX_REQUESTS
   )
     throw new Error(
-      "603 soak requires 1-1210 total native GET units and 1-8 units per chunk",
+      `603 soak requires 1-${SIX03_MAX_REQUESTS} total native GET units and per chunk`,
     );
   const summary: Six03StreamResult = {
     source: "six03",
