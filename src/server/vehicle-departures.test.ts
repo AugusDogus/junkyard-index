@@ -22,7 +22,8 @@ async function database() {
     create index vehicle_last_seen_at_idx on vehicle (last_seen_at);
     create table ingestion_run (
       id text primary key, started_at integer not null,
-      commit_started_at integer, last_progress_at integer not null
+      commit_started_at integer, last_progress_at integer not null,
+      source text not null default 'pyp'
     );
   `);
   await client.executeMultiple(
@@ -115,7 +116,7 @@ test("withdraws a departure when a resumed commit stamps the return hours earlie
     await captureVehicleDepartures(db, now);
     // The run claimed the commit 6 hours ago, stalled, and wrote just now.
     await client.execute({
-      sql: "insert into ingestion_run values ('run', ?, ?, ?)",
+      sql: "insert into ingestion_run (id, started_at, commit_started_at, last_progress_at) values ('run', ?, ?, ?)",
       args: [committedAt - HOUR, committedAt, now.getTime() - 10 * 60 * 1000],
     });
     await relist("STALLED", committedAt);
@@ -137,7 +138,7 @@ test("withdraws a departure stamped before its run claimed the commit", async ()
     await captureVehicleDepartures(db, now);
     // A local run stamped its start, then a scheduled pass claimed it late.
     await client.execute({
-      sql: "insert into ingestion_run values ('run', ?, ?, ?)",
+      sql: "insert into ingestion_run (id, started_at, commit_started_at, last_progress_at) values ('run', ?, ?, ?)",
       args: [
         startedAt,
         now.getTime() - 30 * 60 * 1000,
@@ -150,6 +151,37 @@ test("withdraws a departure stamped before its run claimed the commit", async ()
       withdrawn: 1,
     });
     expect(await departures()).toEqual([]);
+  } finally {
+    client.close();
+  }
+});
+
+test("a local run's start, but not a queued run's, widens the withdrawal window", async () => {
+  const { db, add, relist, departures, client } = await database();
+  try {
+    const startedAt = now.getTime() - 26 * HOUR;
+    await add("LOCAL", now.getTime() - 2 * DAY);
+    await add("QUEUED", now.getTime() - 2 * DAY);
+    await captureVehicleDepartures(db, now);
+    // Both runs started a day ago and recorded progress just now. Only the
+    // local run, which stamps its start, can have relisted a vehicle then;
+    // the queued run's progress is its claim attempts.
+    await client.execute({
+      sql: "insert into ingestion_run (id, started_at, last_progress_at, source) values ('queued', ?, ?, 'pyp'), ('local', ?, ?, 'all')",
+      args: [
+        startedAt,
+        now.getTime() - 60_000,
+        startedAt + HOUR,
+        now.getTime() - 60_000,
+      ],
+    });
+    await relist("LOCAL", startedAt + HOUR);
+    await relist("QUEUED", startedAt);
+    expect(await captureVehicleDepartures(db, now)).toEqual({
+      recorded: 0,
+      withdrawn: 1,
+    });
+    expect(await departures()).toEqual([["QUEUED", now.getTime() - 2 * DAY]]);
   } finally {
     client.close();
   }

@@ -13,11 +13,41 @@ VIN ownership priority is unchanged. A direct native feed still outranks its
 marketplace copy, including AutoRecycler. Restoring AutoRecycler's former ordinal
 position would change ownership, so that alternative was rejected.
 
-A ready run waits for higher-priority **ready or committing** runs. It does not
-wait for a run still fetching. One run still holds the shared commit through
-reconciliation and search publication, then releases. A lower-priority source
-can publish while Pontiac or URG fetches. If a native feed later lists the same
-VIN, reconciliation transfers ownership and preserves `firstSeenAt`.
+Ready runs claim the shared commit first-in, first-out by `ready_at`, the time
+validation staged them; source priority decides VIN ownership only. A ready run
+does not wait for a run still fetching. One run still holds the shared commit
+through reconciliation and search publication, then releases. A lower-priority
+source can publish while Pontiac or URG fetches. If a native feed later lists the
+same VIN, reconciliation transfers ownership and preserves `firstSeenAt`.
+
+### Commit lease
+
+[`commit-lease.ts`](../../src/server/ingestion/commit-lease.ts) holds the rules:
+
+- Every claim attempt records `last_progress_at`, and waiters retry at least
+  every 5 minutes. A waiter silent for 15 minutes is skipped, so a dead head of
+  the queue blocks nobody. It keeps its place if its workflow resumes.
+- A claim is stamped in a later whole second than every earlier holder, every
+  saved-search check time and every daily alert check's `checked_through`, so
+  its vehicles never fall inside a window already matched. It is never delayed
+  for spacing.
+- Every claim attempt releases waiters staged more than 24 hours ago. Their
+  accepted sources become `expired`, nothing is reconciled, the prior inventory
+  stays live, and each source re-crawls within its daily attempts.
+- `GET /api/admin/ingestion/lease` (cron secret) reports the holder and the
+  oldest waiter. The oldest waiter's `waitingMs` is the starvation signal.
+
+Workflows pinned to deployments from before the lease keep the source-priority
+claim. Both claims are one guarded UPDATE that requires no other active run with
+`commit_started_at` set, so exactly one run holds the commit across versions.
+A pinned waiter never records progress, so FIFO claims skip it 15 minutes after
+validation. Its own claim still waits for higher-priority ready runs, and it can
+take a free commit out of order. FIFO claim attempts expire its snapshot after
+24 hours, but it can publish a stale snapshot if it claims first. After the
+deploy, list the live `vehicleIngestionWorkflow` and `vehicleIngestionPassWorkflow`
+runs from earlier deployments and cancel them. Their runs stay active, and the
+next hourly pass on the current deployment restarts them; it starts a workflow
+only for a run whose attached workflow is not live.
 
 Source runs never match saved searches. One daily alert check
 ([`search-alert-check.ts`](../../src/server/alerts/search-alert-check.ts)) matches

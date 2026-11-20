@@ -49,10 +49,12 @@ export async function captureVehicleDepartures(
   // first-seen time, so its earlier departure stands.
   //
   // Ingestion stamps last_seen_at with its run's commit time (or its start,
-  // before it claims the commit), which is hours old when a stalled commit
-  // resumes. Each reconcile batch records the run's last_progress_at with its
-  // writes, so the window also reaches back to the start of every run that
-  // wrote recently; a run never stamps anything earlier than its start.
+  // for a local run that never claims the commit), which is hours old when a
+  // stalled commit resumes. Each reconcile batch records the run's
+  // last_progress_at with its writes, so the window also reaches back to the
+  // start of every run that wrote recently; a run never stamps anything
+  // earlier than its start. Runs queued for the commit also record progress
+  // on every claim attempt but have written nothing, so they do not count.
   const recently = now.getTime() - RECENTLY_SEEN_MS;
   const deleted = await database.run(sql`
     delete from vehicle_departure
@@ -62,6 +64,7 @@ export async function captureVehicleDepartures(
           select min(started_at)
           from ingestion_run
           where last_progress_at >= ${recently}
+            and (commit_started_at is not null or source = 'all')
         ), ${recently}))
       )
       and exists (
