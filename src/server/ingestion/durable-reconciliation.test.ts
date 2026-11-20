@@ -1831,9 +1831,16 @@ describe("skipped search publication", () => {
     const client = createClient({ url: ":memory:" });
     try {
       await client.executeMultiple(TEST_SCHEMA);
-      await client.execute(
-        "create table saved_search (id text primary key, last_checked_at integer)",
-      );
+      // claimCommit reads the newest alert check and its bound.
+      await client.executeMultiple(`
+        create table saved_search (id text primary key, last_checked_at integer);
+        create table search_alert_check (
+          id text primary key, day text not null unique, status text not null,
+          checked_through integer not null, search_cursor text,
+          started_at integer not null, last_progress_at integer not null,
+          completed_at integer
+        );
+      `);
       const database = drizzle(client);
       const store = IngestionSnapshotStore.memory();
       const commitStartedAt = new Date("2026-11-20T08:00:00.000Z");
