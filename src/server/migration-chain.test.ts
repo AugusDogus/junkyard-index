@@ -325,9 +325,10 @@ test("upgrades production through 0016 with ordered arrival, ingestion, departur
           await readFile(join(MIGRATIONS_FOLDER, "meta/_journal.json"), "utf8"),
         ),
       );
-    // Assert the actual metadata as well as exercising libSQL's timestamp gate.
+    // Pin the released metadata as well as exercising libSQL's timestamp gate.
+    // Later migrations are ordered by migration-journal.test.ts.
     expect(
-      journal.entries.slice(17).map((entry) => [entry.tag, entry.when]),
+      journal.entries.slice(17, 22).map((entry) => [entry.tag, entry.when]),
     ).toEqual([
       ["0017_observed_vehicle_arrival", 1794787200000],
       ["0018_ingestion_cost_indexes", 1794871322488],
@@ -335,14 +336,6 @@ test("upgrades production through 0016 with ordered arrival, ingestion, departur
       ["0020_inventory_snapshot", 1794992409438],
       ["0021_yard_publication", 1795046400000],
     ]);
-    for (let i = 1; i < journal.entries.length; i++) {
-      const current = journal.entries[i];
-      const previous = journal.entries[i - 1];
-      if (!current || !previous)
-        throw new Error("Expected consecutive migration entries");
-      expect(current.idx).toBe(previous.idx + 1);
-      expect(current.when).toBeGreaterThan(previous.when);
-    }
     const snapshot = z.object({ id: z.string(), prevId: z.string() });
     const prior = snapshot.parse(
       JSON.parse(

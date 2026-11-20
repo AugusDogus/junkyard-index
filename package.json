@@ -26,7 +26,6 @@
     "inventory:project": "bun scripts/project-inventory.ts",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "db:push": "drizzle-kit push",
     "workflow:inspect": "workflow inspect runs",
     "workflow:web": "workflow web"
   },
