@@ -29,7 +29,7 @@ const scope = aviationHash({
   version: 1,
   yard: AVIATION_YARD,
   authority:
-    "literal-model-graph/native-arrival-union/all-conflicts-quarantined/incremental-model-census-v2",
+    "literal-model-graph/native-arrival-union/all-conflicts-quarantined/incremental-model-census-v3",
 });
 /** Every model page read by an accepted run, carried forward by the next one. */
 // A page failing its fingerprint makes the terminal cursor unreadable, so the
@@ -88,8 +88,9 @@ export type AviationClosingControl =
     };
 
 /** Closing re-reads ownership, the live make directory and every model read
- * this run whose cards differ from its badge, so a short page is confirmed
- * before it can be carried. The WPO-cached `/parts/` copy and root are not
+ * this run whose cards differ from its badge or fall below its expected count
+ * (ModelCensus.closingReads), so a short page is confirmed before it can be
+ * carried. The WPO-cached `/parts/` copy and root are not
  * re-read: their equality proves only that the page cache did not rebuild.
  * Carried pages were confirmed on the run that read them; other per-model
  * changes surface as count changes in the next run's opening menus. */
@@ -101,22 +102,28 @@ export function aviationClosingControls(
     state.day === null || state.pages.length !== models.length
       ? []
       : aviationCensusPlan(state);
-  const mismatched = decisions.flatMap((decision, index) => {
-    const value = models[index];
-    return decision.kind === "read" &&
-      value &&
-      state.pages[index]?.records.length !== value.model.count
-      ? [
-          {
-            kind: "model" as const,
-            url: AVIATION_ORIGIN + value.model.path,
-            make: value.make,
-            model: value.model,
-            index,
-          },
-        ]
-      : [];
-  });
+  const mismatched = decisions.length
+    ? ModelCensus.closingReads({
+        controls: aviationCensusControls(state.makes),
+        pages: state.pages,
+        decisions,
+        previous: state.previous,
+        cards: aviationCards,
+      }).flatMap((index) => {
+        const value = models[index];
+        return value
+          ? [
+              {
+                kind: "model" as const,
+                url: AVIATION_ORIGIN + value.model.path,
+                make: value.make,
+                model: value.model,
+                index,
+              },
+            ]
+          : [];
+      })
+    : [];
   return [
     { kind: "contact", url: AVIATION_CONTACT },
     { kind: "directory", url: AVIATION_MAKES },
@@ -156,20 +163,25 @@ const aviationCards = (page: AviationPage) => page.records.length;
 /** Every Nov 12 model list held at least its published count (2,482 of 2,482
  * badge cards on 404 models; 32 lists exceed their badge by 42 cards), and Nov
  * 19 badge changes matched card changes. A sweep slice cut to one card per
- * model leaves 82.8% to 88.6% of the badges, so 95% fails the first such day. */
+ * model leaves 82.8% to 88.6% of the badges (82.7% to 88.8% of the 2,524
+ * replayed cards), so both floors fail the first such day. */
 export const AVIATION_MINIMUM_BADGE_COVERAGE = 0.95;
 
 /** Fails a run whose read and carried model cards fall short of today's model
- * counts, before anything is published. */
+ * counts or of the last accepted cards of unchanged models, before anything is
+ * published. */
 export function aviationCoverageError(
-  state: Pick<AviationProgress, "makes" | "pages">,
+  state: Pick<AviationProgress, "makes" | "pages" | "previous">,
 ): string | null {
   const models = aviationModels(state.makes);
   return ModelCensus.coverage(
     "Aviation",
-    aviationCensusControls(state.makes),
-    state.pages,
-    aviationCards,
+    {
+      controls: aviationCensusControls(state.makes),
+      pages: state.pages,
+      previous: state.previous,
+      cards: aviationCards,
+    },
     AVIATION_MINIMUM_BADGE_COVERAGE,
     (index) => {
       const value = models[index];
@@ -184,12 +196,15 @@ export function aviationCensus(state: AviationProgress): AviationCensus {
   return ModelCensus.accept(
     scope,
     state.day,
-    aviationCensusControls(state.makes),
-    state.pages,
-    aviationCensusPlan(state),
+    {
+      controls: aviationCensusControls(state.makes),
+      pages: state.pages,
+      decisions: aviationCensusPlan(state),
+      previous: state.previous,
+      cards: aviationCards,
+    },
     // Closing re-reads every mismatched page read this run and fails on a change.
     "confirmed",
-    aviationCards,
   );
 }
 

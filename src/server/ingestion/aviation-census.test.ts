@@ -22,6 +22,7 @@ import {
 } from "./aviation-test-fixtures";
 import {
   MODEL_CENSUS_DAY_MS,
+  MODEL_CENSUS_REPLAY_MINIMUM,
   MODEL_CENSUS_SWEEP_DAYS,
   ModelCensus,
 } from "./model-census";
@@ -474,4 +475,65 @@ test("Aviation surplus cards on some models never hide a shortfall on others", a
   const failed = await failedCensus(day, cold.terminal);
   expect(String(failed.error)).toContain("coverage floor");
   expect(failed.callbacks).toBe(0);
+});
+
+test("Aviation fails a run whose sweep slice is cut to one card per model even while the badge floor holds", async () => {
+  // Models outside today's slice list enough donors that one card per swept
+  // page still leaves at least 95% of today's badges; the menus keep counting
+  // every donor. Only the replay of last accepted cards catches it.
+  const native = yard();
+  const day = sweepDay(600);
+  const broken = sweep(day);
+  const outside = Math.ceil((95 * broken.length) / (12 - broken.length));
+  for (const model of every)
+    if (!broken.includes(model)) native.rows.set(model, donors(model, outside));
+  const cold = await census(native, 600, null);
+  expect(cold.vins).toEqual(allVins(native));
+  for (const model of broken) native.short.add(model);
+  const total = every.reduce(
+    (n, i) => n + (native.rows.get(i)?.length ?? 0),
+    0,
+  );
+  const listed = total - broken.length * 4;
+  expect(listed / total).toBeGreaterThanOrEqual(0.95);
+  expect(listed / total).toBeLessThan(MODEL_CENSUS_REPLAY_MINIMUM);
+  const failed = await failedCensus(day, cold.terminal);
+  expect(String(failed.error)).toContain("coverage floor");
+  expect(String(failed.error)).toContain(
+    "that the last accepted census listed for models whose counts did not change",
+  );
+  expect(String(failed.error)).toContain(`ACURA M${broken[0]} (4)`);
+  expect(failed.callbacks).toBe(0);
+});
+
+test("Aviation re-reads a surplus page that a sweep read cut to its badge", async () => {
+  // Model m's badge counts four donors while its healthy page lists five, as on
+  // 32 live models. A sweep read that loses one real donor lists exactly the
+  // badge, so the page must not be carried as healthy for the next six days.
+  const native = yard();
+  const day = sweepDay(600);
+  expect(day).toBeLessThan(600 + MODEL_CENSUS_SWEEP_DAYS);
+  const m = sweep(day)[0];
+  if (m === undefined) throw new Error("Expected a non-empty sweep");
+  native.badges.set(m, 4);
+  const cold = await census(native, 600, null);
+  expect(cold.vins).toEqual(allVins(native));
+  const healthy = native.rows.get(m) ?? [];
+  native.rows.set(m, healthy.slice(0, 4));
+  const dropped = await census(native, day, cold.terminal);
+  // The sweep read and closing's confirmation re-read of the cut page.
+  expect(dropped.models.filter((i) => i === m)).toHaveLength(2);
+  const terminal = AviationCursor.parse(JSON.stringify(dropped.terminal));
+  if (terminal.phase !== "complete" || !terminal.census)
+    throw new Error("Expected a terminal census");
+  const evidence = terminal.census.models.find((e) => e.key === key(m));
+  expect(evidence?.expected).toBe(5);
+  expect(evidence?.confirmed).toBe(false);
+  // The donor was transiently missing; the next run reads m outside its slice.
+  native.rows.set(m, healthy);
+  const next = await census(native, day + 1, dropped.terminal);
+  expect(sweep(day + 1)).not.toContain(m);
+  expect(next.models).toContain(m);
+  expect(next.warnings.at(-1)).toContain("short 1");
+  expect(next.vins).toEqual(allVins(native));
 });

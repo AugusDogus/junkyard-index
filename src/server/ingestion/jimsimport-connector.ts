@@ -103,7 +103,11 @@ function openingPhase(
   ];
   const complete = opening.length === jimsimportModels(state.menus).length;
   if (complete) {
-    const shortfall = jimsimportCoverageError({ menus: state.menus, opening });
+    const shortfall = jimsimportCoverageError({
+      menus: state.menus,
+      opening,
+      previous: state.previous,
+    });
     if (shortfall) throw new Error(shortfall);
     validateJimsimportSnapshot(
       jimsimportSnapshot(state.menus, opening),
@@ -283,7 +287,8 @@ export function streamJimsimportInventory<E, R>(
           break;
         case "closing-makes":
           // Closing re-reads the make directory, then each model read this
-          // run whose cards differ from its badge, then ownership.
+          // run whose cards differ from its badge or fall below its expected
+          // count, then ownership.
           cursor = yield* attempt("closing make membership", () => {
             if (
               jimsimportHash(

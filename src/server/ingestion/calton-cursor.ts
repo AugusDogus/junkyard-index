@@ -35,7 +35,7 @@ export const CALTON_MAX_CURSOR_BYTES = 64 * 1024 * 1024;
 /** Census contract for model pages carried between accepted runs. Bump it when
  * page parsing, page validation or the census key changes. */
 const CENSUS_AUTHORITY =
-  "calton/literal-model-graph/root-arrivals-union/incremental-model-census-v2";
+  "calton/literal-model-graph/root-arrivals-union/incremental-model-census-v3";
 const censusContract = (scope: string) => CENSUS_AUTHORITY + "/" + scope;
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
 const controls = z.array(CaltonControlSchema).min(1).max(1536);
@@ -191,7 +191,9 @@ const caltonCards = (page: CaltonCensusPage) => page.records.length;
  * model is the native-empty `CHEVROLET_PASS.` (badge 1, no rows), and 22
  * models list one row above their badge. A changed badge forces a read, so
  * carried pages add no lag. Emptying any one sweep slice of that capture
- * leaves 78.6% to 87.9%, below this floor on the first broken day. */
+ * leaves 78.6% to 87.9%. Cutting one to a single card per model leaves 79.4%
+ * to 88.8% of both the badges and the 12,879 accepted cards the shared replay
+ * floor checks, below both floors on the first broken day. */
 export const CALTON_MINIMUM_BADGE_COVERAGE = 0.95;
 const checksum = (cursor: CaltonCursor) =>
   caltonHash({ ...cursor, checksum: undefined });
@@ -462,13 +464,17 @@ export const CaltonCursor = {
         census: ModelCensus.accept(
           censusContract(cursor.scope),
           cursor.day,
-          censusControls(cursor.menus),
-          cursor.pages,
-          decisions,
-          // Calton has no closing pass: a short page read today is read again
-          // on the next run instead of being carried.
+          {
+            controls: censusControls(cursor.menus),
+            pages: cursor.pages,
+            decisions,
+            previous: cursor.previous,
+            cards: caltonCards,
+          },
+          // Calton has no closing pass: a page read today below its badge or
+          // its previous surplus card count is read again on the next run
+          // instead of being carried.
           "unconfirmed",
-          caltonCards,
         ),
         summary: ModelCensus.summary(decisions),
       };
@@ -485,9 +491,12 @@ export const CaltonCursor = {
       const published = caltonModels(cursor.menus);
       const shortfall = ModelCensus.coverage(
         "Calton",
-        censusControls(cursor.menus),
-        cursor.pages,
-        caltonCards,
+        {
+          controls: censusControls(cursor.menus),
+          pages: cursor.pages,
+          previous: cursor.previous,
+          cards: caltonCards,
+        },
         CALTON_MINIMUM_BADGE_COVERAGE,
         (index) => published[index]?.model.path ?? "?",
       );

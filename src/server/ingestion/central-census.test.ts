@@ -481,3 +481,110 @@ test("Central fails a run whose read and carried cards fall short of today's bad
   expect(published).toBe(0);
   expect(yards).toBe(0);
 });
+
+test("Central fails a sweep slice cut to one card per model even when its badges undercount", async () => {
+  // Today's swept models badge 10 cards but list 400 (surplus rows, as on 44
+  // saved models). Cutting each to one card keeps badge coverage above 95%,
+  // so only replay of the last accepted cards can stop this run.
+  const native = yard(400);
+  const day = nextSweepDay(native, 600);
+  const swept = sweep(native, day);
+  for (const model of swept) native.badges.set(model, 10);
+  const cold = await census(native, 600, null);
+  for (const model of swept) native.broken.add(model);
+  const badges = 400 * (12 - swept.length) + 10 * swept.length;
+  expect(badges - 9 * swept.length).toBeGreaterThanOrEqual(
+    Math.ceil(badges * 0.95),
+  );
+  expect(400 * (12 - swept.length) + swept.length).toBeGreaterThan(1_985);
+  let published = 0;
+  let yards = 0;
+  await expect(
+    (async () => {
+      let cursor: CentralCursor = CentralCursor.initial;
+      while (cursor.phase !== "complete") {
+        const result: CentralStreamResult = await Effect.runPromise(
+          streamCentralInventoryWithRequestGate(
+            {
+              startCursor: cursor,
+              previousCursor: cold.terminal,
+              now: () => day * MODEL_CENSUS_DAY_MS,
+              onYards: () =>
+                Effect.sync(() => {
+                  yards++;
+                }),
+              onBatch: (batch) =>
+                Effect.sync(() => {
+                  published += batch.length;
+                }),
+            },
+            gate,
+          ),
+        );
+        cursor = result.cursor;
+      }
+    })(),
+  ).rejects.toThrow(
+    "that the last accepted census listed for models whose counts did not change, below the 97% coverage floor",
+  );
+  expect(published).toBe(0);
+  expect(yards).toBe(0);
+});
+
+test("Central re-reads a surplus page that drops to its badge instead of carrying it", async () => {
+  // A swept model badges 160 donors but lists 170 (surplus rows).
+  const native = yard();
+  const day = nextSweepDay(native, 600);
+  const surplus = sweep(native, day)[0];
+  if (surplus === undefined) throw new Error("Expected a swept model");
+  native.badges.set(surplus, 160);
+  const cold = await census(native, 600, null);
+  const label = "M" + surplus;
+  const kept = donors(surplus, label).slice(0, 160);
+
+  // A transient drop to exactly its badge is re-read at closing and stops
+  // emission instead of passing as a healthy page for six days.
+  native.once.set(surplus, kept);
+  let published = 0;
+  await expect(
+    (async () => {
+      let cursor: CentralCursor = CentralCursor.initial;
+      while (cursor.phase !== "complete") {
+        const result: CentralStreamResult = await Effect.runPromise(
+          streamCentralInventoryWithRequestGate(
+            {
+              startCursor: cursor,
+              previousCursor: cold.terminal,
+              now: () => day * MODEL_CENSUS_DAY_MS,
+              onBatch: (batch) =>
+                Effect.sync(() => {
+                  published += batch.length;
+                }),
+            },
+            gate,
+          ),
+        );
+        cursor = result.cursor;
+      }
+    })(),
+  ).rejects.toThrow("model cards changed");
+  expect(published).toBe(0);
+
+  // A drop that repeats at closing publishes, but is never confirmed, so the
+  // next run reads the page again although its badge did not change.
+  native.rows.set(surplus, kept);
+  const dropped = await census(native, day, cold.terminal);
+  expect(dropped.models).toEqual([...sweep(native, day), surplus]);
+  expect(dropped.vins).toEqual(allVins(native));
+  const evidence = terminalCensus(dropped.terminal).models.find(
+    (m) => m.key === censusKey(surplus, label),
+  );
+  expect(evidence?.expected).toBe(170);
+  expect(evidence?.confirmed).toBe(false);
+  expect(evidence?.page.records).toHaveLength(160);
+  const next = await census(native, day + 1, dropped.terminal);
+  expect(next.models).toEqual(
+    inListOrder(native, sweep(native, day + 1), surplus),
+  );
+  expect(next.warnings.at(-1)).toContain("short 1");
+});

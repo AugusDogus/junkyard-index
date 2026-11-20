@@ -56,6 +56,9 @@ function yard() {
   // Models whose page renders the native empty result while the menu still
   // counts their donors.
   const broken = new Set<number>();
+  // Models whose page renders only its first card while the menu still counts
+  // every donor.
+  const cut = new Set<number>();
   const count = (i: number, list: Donor[]) => badges.get(i) ?? list.length;
   // Arrivals always list at least one card; this donor is already on M0.
   let arrivals: Donor[] = [donor(0, 1)];
@@ -85,9 +88,9 @@ function yard() {
           .join("")}</ul></div>`,
       );
     if (model) {
-      const list = broken.has(Number(model[1]))
-        ? []
-        : (rows.get(Number(model[1])) ?? []);
+      const index = Number(model[1]);
+      const all = broken.has(index) ? [] : (rows.get(index) ?? []);
+      const list = cut.has(index) ? all.slice(0, 1) : all;
       return oemFixtureDocument(
         list.length ? list.map(card).join("") : nativeEmpty,
       );
@@ -98,6 +101,7 @@ function yard() {
     rows,
     badges,
     broken,
+    cut,
     urls,
     readPage: (url: string) =>
       Effect.sync(() => {
@@ -534,4 +538,103 @@ test("OEM confirms an explicit empty model under a nonzero badge and carries it"
   expect(next.models).toEqual(sweep(601));
   expect(next.vins).toEqual(allVins(native));
   expect(next.warnings.at(-1)).toBe(summary([["sweep", sweep(601)]]));
+});
+
+/** Runs chunks seeded by `previousCursor` on `day` until the run completes or
+ * fails, counting every published vehicle. */
+async function attemptRun(
+  native: ReturnType<typeof yard>,
+  day: number,
+  previousCursor: unknown,
+  previousUniqueInventory: number,
+  published: { count: number },
+) {
+  let cursor: unknown = OemCursor.initial();
+  for (;;) {
+    const result = await Effect.runPromise(
+      streamOemInventory({
+        startCursor: cursor,
+        previousCursor,
+        now: () => day * MODEL_CENSUS_DAY_MS,
+        maxPages: 8,
+        location,
+        minimumUniqueInventory: 400,
+        previousUniqueInventory,
+        readPage: native.readPage,
+        onBatch: (batch) =>
+          Effect.sync(() => {
+            published.count += batch.length;
+          }),
+      }),
+    );
+    if (result.status === "complete") return;
+    cursor = result.cursor;
+  }
+}
+
+test("OEM fails an incremental run whose swept pages list one card each while badges hold", async () => {
+  // Badges overstate cards as they do natively (480 cards under 528 badges,
+  // 90.9%). A fault then renders today's one swept page with a single card
+  // while its menu badge holds: 441 of 528 badges (83.5%) still clears the 82%
+  // badge floor, so only the replay floor (441 of the last accepted 480 cards)
+  // catches it. The real November 15 census loses 9.7% to 18.2% of its cards
+  // per slice cut this way.
+  const native = yard();
+  for (const model of MODELS) native.badges.set(model, 44);
+  const cold = await census(native, 600, null);
+  expect(cold.vins).toEqual(allVins(native));
+  const day = dayAfterCold((d) => sweep(d).length === 1);
+  for (const model of sweep(day)) native.cut.add(model);
+  const published = { count: 0 };
+  await expect(
+    attemptRun(native, day, cold.wire, cold.vins.length, published),
+  ).rejects.toThrow(
+    "list 441 of 480 cards that the last accepted census listed for models whose counts did not change, below the 97% coverage floor",
+  );
+  expect(published.count).toBe(0);
+});
+
+test("OEM re-reads a surplus page that lost donors down to its unchanged badge", async () => {
+  // A model page lists 40 cards under a badge of 38 (placeholder or surplus
+  // rows). On its sweep day it loses two real donors and lists exactly 38, so
+  // its cards match its badge. Its expected count stays 40: closing re-reads
+  // it, its evidence is not confirmed, and the next run reads it again instead
+  // of carrying the shrunken page for up to six days.
+  const native = yard();
+  const day = dayAfterCold(
+    (d) =>
+      sweep(d).some((m) => m !== 0) &&
+      d + 1 < 600 + MODEL_CENSUS_SWEEP_DAYS &&
+      sweep(d + 1).length > 0,
+  );
+  const m = pickModel(
+    (model) => sweep(day).includes(model) && !sweep(day + 1).includes(model),
+  );
+  native.badges.set(m, 38);
+  const cold = await census(native, 600, null);
+  expect(cold.vins).toEqual(allVins(native));
+  native.rows.set(m, donors(m, 38));
+  const shrunk = await census(native, day, cold.wire);
+  expect(shrunk.models).toEqual([...sweep(day), m]);
+  if (
+    shrunk.terminal.state.phase !== "complete" ||
+    !shrunk.terminal.state.census
+  )
+    throw new Error("Expected a terminal census");
+  expect(shrunk.terminal.state.census.models[m]).toMatchObject({
+    count: 38,
+    readDay: day,
+    expected: 40,
+    confirmed: false,
+  });
+  // The re-read matches its badge and the 38 cards the previous run read, so
+  // closing does not repeat it.
+  const next = await census(native, day + 1, shrunk.wire);
+  expect(next.models).toEqual(sorted([...sweep(day + 1), m]));
+  expect(next.warnings.at(-1)).toBe(
+    summary([
+      ["sweep", sweep(day + 1)],
+      ["short", [m]],
+    ]),
+  );
 });

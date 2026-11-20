@@ -1,6 +1,9 @@
 import { afterEach, expect, test } from "bun:test";
 import { Effect } from "effect";
-import { streamNorthwestInventoryWithRequestGate } from "./northwest-connector";
+import {
+  streamNorthwestInventoryWithRequestGate,
+  type NorthwestStreamResult,
+} from "./northwest-connector";
 import { NorthwestCursor } from "./northwest-cursor";
 import { northwestHash } from "./northwest-parser";
 import {
@@ -69,7 +72,11 @@ function yard() {
             ? input.href
             : input.url;
       urls.push(url);
-      const total = [...rows.values()].reduce((n, l) => n + l.length, 0);
+      // The make menu agrees with its model menu, badge overrides included.
+      const total = [...rows].reduce(
+        (n, [i, list]) => n + (badges.get(i) ?? list.length),
+        0,
+      );
       const model = /\/parts\/ACURA\/M(\d+)\/$/.exec(url);
       const body =
         url === NORTHWEST_ROOT
@@ -525,4 +532,97 @@ test("Northwest fails a run whose read and carried cards fall short of today's m
   };
   await expect(run()).rejects.toThrow("coverage floor");
   expect(callbacks).toBe(0);
+}, 120_000);
+
+/** Runs every chunk of one census from a fresh cursor, counting publish
+ * callbacks, and returns the completed result or the run's failure. */
+async function guardedRun(
+  day: number,
+  previousCursor: unknown,
+  published: { callbacks: number },
+) {
+  let cursor: NorthwestCursor = NorthwestCursor.initial;
+  for (;;) {
+    const result: NorthwestStreamResult = await Effect.runPromise(
+      streamNorthwestInventoryWithRequestGate(
+        {
+          startCursor: cursor,
+          previousCursor,
+          now: () => day * MODEL_CENSUS_DAY_MS,
+          maxPages: 8,
+          onBatch: () => Effect.sync(() => void published.callbacks++),
+          onYards: () => Effect.sync(() => void published.callbacks++),
+        },
+        gate,
+      ),
+    );
+    if (result.status === "complete") return result;
+    cursor = result.cursor;
+  }
+}
+
+test("Northwest fails an incremental run whose sweep slice is cut to one card per model", async () => {
+  // Accurate badges already fail such a cut on the 95% badge floor and the 1%
+  // unrecovered rule. Pages that list more cards than their badge (surplus
+  // rows) hide it from both, so only the replay of last accepted cards sees it.
+  const native = yard();
+  const day = [601, 602, 603, 604, 605].find(
+    (candidate) => swept(native, candidate).length > 0,
+  );
+  if (day === undefined) throw new Error("fixture needs a non-empty slice");
+  const slice = swept(native, day);
+  for (const model of native.rows.keys()) {
+    native.rows.set(model, donors(model, 400));
+    if (slice.includes(model)) native.badges.set(model, 2);
+  }
+  const cold = await census(native, 600, null);
+  expect(cold.vins).toEqual(allVins(native));
+  // Today's slice lists one card per model while every menu keeps its counts.
+  for (const model of slice) native.rows.set(model, donors(model, 1));
+  const published = { callbacks: 0 };
+  await expect(guardedRun(day, cold.terminal, published)).rejects.toThrow(
+    "that the last accepted census listed for models whose counts did not change, below the 97% coverage floor",
+  );
+  expect(published.callbacks).toBe(0);
+}, 120_000);
+
+test("Northwest re-reads a surplus page that lost cards down to exactly its badge", async () => {
+  const native = yard();
+  // Model 3's healthy page lists ten surplus rows beyond its badge.
+  native.badges.set(3, 190);
+  const cold = await census(native, 600, null);
+  const day = [601, 602, 603, 604].find((candidate) =>
+    swept(native, candidate).includes(3),
+  );
+  if (day === undefined) throw new Error("fixture needs M3 swept by day 604");
+  // Real donors leave model 3 until its page lists exactly its badge.
+  native.rows.set(3, donors(3, 190));
+  const cut = await census(native, day, cold.terminal);
+  // Cards equal the badge but fall below the 200 the last census listed, so
+  // closing re-reads the page.
+  expect(cut.models).toEqual([...swept(native, day), 3]);
+  expect(cut.vins).toEqual(allVins(native));
+  const parsed = NorthwestCursor.parse(JSON.stringify(cut.terminal));
+  if (parsed.phase !== "complete" || !parsed.census)
+    throw new Error("Expected a terminal census");
+  expect(parsed.census.models[3]).toMatchObject({
+    key: censusKey(3),
+    count: 190,
+    readDay: day,
+    expected: 200,
+    confirmed: false,
+  });
+  // The page is never carried: the next run reads it again off its slice and,
+  // listing the same 190 cards against an expectation of 190, accepts it
+  // without another closing read.
+  const next = await census(native, day + 1, cut.terminal);
+  const reads = [...swept(native, day + 1), 3].sort((a, b) => a - b);
+  expect(next.models).toEqual(reads);
+  expect(next.vins).toEqual(allVins(native));
+  expect(next.warnings.at(-1)).toBe(
+    summary(
+      12,
+      reads.map((i) => (i === 3 ? "short" : "sweep")),
+    ),
+  );
 }, 120_000);

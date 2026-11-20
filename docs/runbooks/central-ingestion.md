@@ -63,17 +63,25 @@ responses attempt unread-body cancellation. A cleanup failure preserves both
 the original HTTP refusal and the cleanup error.
 
 Closing controls repeat ownership, the make directory and every model read this
-run whose card count differs from its badge, so a short page that does not
-repeat is never carried forward. A short page that repeats is stored as
-confirmed evidence and may be carried. Other per-model changes during a run
-surface as badge changes in the next run's opening menus.
+run whose card count differs from its badge or falls below its expected count
+(`ModelCensus.closingReads`), so a short page that does not repeat is never
+carried forward. A model's expected count is its badge, or its last accepted
+card count when that was higher and the badge is unchanged (44 saved models
+list surplus cards). A page below its badge that repeats is stored as confirmed
+evidence and may be carried. A surplus page that only fell toward its badge is
+never confirmed, so the next run reads it again. Other per-model changes during
+a run surface as badge changes in the next run's opening menus.
 
 Before the snapshot, the union of read and carried cards, each model capped at
 its own badge, must cover at least 95% of today's model badges, or nothing is
 published. The saved census covers 100% (6,463 of 6,463 badge cards; all 44
-mismatched models list surplus cards). One sweep slice of models listing a
-single card each drops coverage to 81.9% to 89.9%, while the 1,985 floor
-still passes, so this check fails the first broken day.
+mismatched models list surplus cards). The same union, capped at the last
+accepted card counts of models whose badge is unchanged, must also cover the
+shared 97% replay floor. One sweep slice of models listing a single card each
+drops badge coverage to 81.9% to 89.9% and replay coverage to 81.8% to 89.9%
+across the six slices (lightest: slice 5, 87 models and 745 cards, at 89.87%
+badge and 89.90% replay), while the 1,985 floor still passes, so both checks
+fail the first broken day.
 Changed closing fingerprints stop emission. These controls do not establish an
 atomic snapshot or stability of unrefetched pages. All old badge differences
 remain diagnostics; the actual classified cards supply the quality denominator.

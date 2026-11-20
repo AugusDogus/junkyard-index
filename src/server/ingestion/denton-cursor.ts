@@ -41,8 +41,10 @@ export const DENTON_MINIMUM_INVENTORY = 765;
  * cover this share of today's opening model badges. The qualification graph
  * covered 99.5% (2,366 of 2,377: TOWN & COUNTRY renders 0 of 8 and three pages
  * are one card short; no page exceeded its badge). Emptying any one of its six
- * sweep slices drops coverage to between 77% and 87%. Arrivals count on neither
- * side. */
+ * sweep slices drops coverage to between 77% and 87%; cutting one to a single
+ * card per model drops it to between 78.9% and 88.9% (and the 97% replay floor
+ * over its last accepted cards to between 79.3% and 89.4%). Arrivals count on
+ * neither side. */
 export const DENTON_MINIMUM_BADGE_COVERAGE = 0.95;
 export const DENTON_MAX_REQUESTS = 2048;
 export const DENTON_MAX_TOTAL_BYTES = 256 * 1024 * 1024;
@@ -52,7 +54,7 @@ export const DENTON_MAX_CURSOR_BYTES = 16 * 1024 * 1024;
 const prior = z.number().int().nonnegative().safe().nullable();
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
 const CONTRACT =
-  "literal-controls/slash-menus/owner-directory-closing/arrival-union/native-alias/incremental-model-census-v2";
+  "literal-controls/slash-menus/owner-directory-closing/arrival-union/native-alias/incremental-model-census-v3";
 /** Parser and traversal contract that carried model evidence depends on. It
  * excludes the prior inventory guard, which changes every accepted run. */
 const censusContract = dentonHash({ contract: CONTRACT, yard: DENTON_YARD });
@@ -192,9 +194,12 @@ export interface DentonClosingControl {
   task: DentonTask;
   index: number;
 }
+const modelEntries = (opening: readonly DentonEntry[]) =>
+  opening.filter((entry): entry is DentonModelEntry => entry.kind === "model");
 /** Closing re-reads ownership, the make directory and every model read this
- * run whose cards differ from its badge, so a short page is confirmed before it
- * can be carried. Carried pages were confirmed on the run that read them; other
+ * run whose cards differ from its badge or fall below its expected count
+ * (ModelCensus.closingReads), so a short page is confirmed before it can be
+ * carried. Carried pages were confirmed on the run that read them; other
  * per-model changes surface as badge changes in the next run's opening.
  * Re-derived from cursor contents. */
 export function dentonClosingControls(
@@ -203,22 +208,26 @@ export function dentonClosingControls(
   if (!dentonOpened(state.opening))
     throw new Error("Closing controls need the complete opening");
   const tasks = dentonTasks(state.opening);
-  const plan = dentonCensusPlan(state);
-  let model = 0;
-  return tasks.flatMap((task, index) => {
-    if (index < DENTON_CLOSING_TASKS) return [{ task, index }];
-    if (task.kind !== "model") return [];
-    const decision = plan[model++];
-    const entry = state.opening[index];
-    return decision?.kind === "read" &&
-      entry?.kind === "model" &&
-      dentonCards(entry) !== task.model.count
-      ? [{ task, index }]
-      : [];
+  const positions = tasks.flatMap((task, index) =>
+    task.kind === "model" ? [{ task, index }] : [],
+  );
+  const reads = ModelCensus.closingReads({
+    controls: censusControls(positions.map(({ task }) => task)),
+    pages: modelEntries(state.opening),
+    decisions: dentonCensusPlan(state),
+    previous: state.previous,
+    cards: dentonCards,
+  }).flatMap((model) => {
+    const position = positions[model];
+    return position ? [position] : [];
   });
+  return [
+    ...tasks
+      .slice(0, DENTON_CLOSING_TASKS)
+      .map((task, index) => ({ task, index })),
+    ...reads,
+  ];
 }
-const modelEntries = (opening: readonly DentonEntry[]) =>
-  opening.filter((entry): entry is DentonModelEntry => entry.kind === "model");
 
 /** Carried pages keep the floor and prior-count guards satisfied while model
  * pages break, so the union of read and carried model cards must reconcile
@@ -233,9 +242,12 @@ export function dentonBadgeCoverage(state: DentonProgress) {
       throw new Error("Model pages do not match the published model controls");
     const shortfall = ModelCensus.coverage(
       "Denton",
-      censusControls(models),
-      pages,
-      dentonCards,
+      {
+        controls: censusControls(models),
+        pages,
+        previous: state.previous,
+        cards: dentonCards,
+      },
       DENTON_MINIMUM_BADGE_COVERAGE,
       (index) => {
         const task = models[index];
@@ -504,13 +516,17 @@ export const DentonCursor = {
         ModelCensus.accept(
           censusContract,
           state.day,
-          censusControls(modelTasks(dentonTasks(state.opening))),
-          modelEntries(state.opening),
-          dentonCensusPlan(state),
+          {
+            controls: censusControls(modelTasks(dentonTasks(state.opening))),
+            pages: modelEntries(state.opening),
+            decisions: dentonCensusPlan(state),
+            previous: state.previous,
+            cards: dentonCards,
+          },
           // Closing re-reads every model read this run whose cards differ from
-          // its badge and fails the run on any change.
+          // its badge or fall below its expected count, and fails the run on
+          // any change.
           "confirmed",
-          dentonCards,
         ),
       );
     });
