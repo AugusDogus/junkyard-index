@@ -39,7 +39,6 @@ import {
 } from "./yard-inventory";
 
 const RECONCILIATION_BATCH_SIZE = 500;
-const MISSING_DELETE_AFTER_RUNS = 3;
 const MISSING_DELETE_AFTER_MS = 3 * 24 * 60 * 60 * 1000;
 const VEHICLE_VALUE_COLUMN_COUNT = 30;
 
@@ -574,7 +573,6 @@ async function runMissingBatch(
     ),
     runTimestamp: params.runTimestamp,
     acceptedSources: reconciled,
-    deleteAfterRuns: MISSING_DELETE_AFTER_RUNS,
     deleteAfterMs: MISSING_DELETE_AFTER_MS,
   });
 
