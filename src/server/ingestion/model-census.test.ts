@@ -172,6 +172,30 @@ describe("ModelCensus", () => {
     expect([...readsByKey.values()].every((n) => n === 1)).toBe(true);
   });
 
+  test("connector-shaped keys spread over every slice", () => {
+    // Real keys repeat the model label in its path, which must not pin the
+    // slice parity: each of the six days needs about a sixth of the models.
+    const keys = ["ACURA", "HONDA", "TOYOTA", "FORD"].flatMap((make) =>
+      Array.from({ length: 150 }, (_, i) =>
+        JSON.stringify([
+          `/parts/${make}`,
+          make,
+          `/parts/${make}/M${i}/`,
+          `M${i}`,
+        ]),
+      ),
+    );
+    const counts = Array.from({ length: MODEL_CENSUS_SWEEP_DAYS }, () => 0);
+    for (const key of keys) {
+      const day = ModelCensus.slice(key);
+      counts[day] = (counts[day] ?? 0) + 1;
+    }
+    for (const n of counts) {
+      expect(n).toBeGreaterThan(keys.length / 6 - 30);
+      expect(n).toBeLessThan(keys.length / 6 + 30);
+    }
+  });
+
   test("a second run on the same day carries what the first run read", () => {
     const models = controls(12);
     const first = run(models, run(models, null, 100).census, 101);
