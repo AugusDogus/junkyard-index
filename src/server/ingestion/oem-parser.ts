@@ -20,12 +20,20 @@ export const OemControlSchema = z
   })
   .strict();
 export type OemControl = z.infer<typeof OemControlSchema>;
+/** A model page binds its parent make by route and label only. The make badge
+ * is a directory diagnostic that moves whenever any sibling model changes, so
+ * it is not evidence about this page. */
+export const OemParentSchema = OemControlSchema.pick({
+  url: true,
+  label: true,
+});
+export type OemParent = z.infer<typeof OemParentSchema>;
 export type OemDirectoryContext =
   | { kind: "makes" }
   | { kind: "models"; make: OemControl };
 export type OemDonorContext =
   | { kind: "arrivals" }
-  | { kind: "model"; make: OemControl; model: OemControl };
+  | { kind: "model"; make: OemParent; model: OemControl };
 export interface OemRecord {
   sourceUrl: string;
   context: OemDonorContext;
@@ -45,7 +53,7 @@ const donorContextSchema = z.discriminatedUnion("kind", [
   z
     .object({
       kind: z.literal("model"),
-      make: OemControlSchema,
+      make: OemParentSchema,
       model: OemControlSchema,
     })
     .strict(),
@@ -85,8 +93,8 @@ const markers = (html: string, name: string) =>
   [...html.matchAll(/<[a-z][\w-]*\b[^>]*>/gi)].filter(([tag]) =>
     oemClass(tag, name),
   ).length;
-export function oemControlUrl(control: OemControl, depth: 2 | 3): string {
-  OemControlSchema.parse(control);
+export function oemControlUrl(control: OemParent, depth: 2 | 3): string {
+  OemParentSchema.strip().parse(control);
   const url = oemOwnedUrl(control.url);
   const path = url?.pathname.replace(/\/$/, "");
   if (
@@ -164,6 +172,14 @@ export function parseOemDonors(raw: string, context: OemDonorContext): OemPage {
     )
   )
     throw new Error("OEM donor page disagrees with its published make parent");
+  const bound: OemDonorContext =
+    context.kind === "arrivals"
+      ? { kind: "arrivals" }
+      : {
+          kind: "model",
+          make: { url: context.make.url, label: context.make.label },
+          model: OemControlSchema.parse(context.model),
+        };
   const html = oemDocument(raw, sourceUrl);
   oemAssertNoContinuation(html);
   const cards = oemElements(html, "div", (tag) => oemClass(tag, "card-price"));
@@ -229,7 +245,7 @@ export function parseOemDonors(raw: string, context: OemDonorContext): OemPage {
     );
     return {
       sourceUrl,
-      context,
+      context: bound,
       ordinal,
       cardId: oemAttribute(card.tag, "id"),
       fields,

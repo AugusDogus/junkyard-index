@@ -70,7 +70,8 @@ describe("OEM resumable native traversal", () => {
       }),
     );
     expect(resumed.status).toBe("complete");
-    expect(resumed.cursor.requests).toBe(8);
+    // Opening arrivals, makes, one menu and one model; closing makes.
+    expect(resumed.cursor.requests).toBe(5);
     expect(resumed.accounting).toEqual({
       recordsProcessed: 4,
       recordsRejected: 0,
@@ -103,7 +104,7 @@ describe("OEM resumable native traversal", () => {
     expect(exit._tag).toBe("Failure");
     expect(requests).toBe(0);
   });
-  test("closing identity or stock join drift blocks the complete callback", async () => {
+  test("closing make directory drift blocks the complete callback", async () => {
     let requests = 0,
       batches = 0;
     const exit = await Effect.runPromiseExit(
@@ -118,7 +119,7 @@ describe("OEM resumable native traversal", () => {
             const raw = responses.get(url);
             if (!raw) throw new Error("Unexpected fixture URL");
             return requests === 5
-              ? raw.replace("<b>Stock:</b> 10563", "<b>Stock:</b> changed")
+              ? raw.replace(">483</span>", ">484</span>")
               : raw;
           }),
       }),
@@ -127,7 +128,7 @@ describe("OEM resumable native traversal", () => {
     expect(requests).toBe(5);
     expect(batches).toBe(0);
   });
-  test("closing foreign supplier evidence cannot be hidden by unchanged VINs", async () => {
+  test("model page foreign supplier evidence cannot be hidden by unchanged VINs", async () => {
     let requests = 0,
       batches = 0;
     const exit = await Effect.runPromiseExit(
@@ -141,7 +142,7 @@ describe("OEM resumable native traversal", () => {
             requests++;
             const raw = responses.get(url);
             if (!raw) throw new Error("Unexpected fixture URL");
-            return requests === 5
+            return url === oemF150.url
               ? raw.replaceAll("/oh40/images/", "/mi07/images/")
               : raw;
           }),
@@ -150,7 +151,7 @@ describe("OEM resumable native traversal", () => {
     expect(exit._tag).toBe("Failure");
     expect(batches).toBe(0);
   });
-  test("closing optional photo changes become null without rejecting valid identities", async () => {
+  test("arrival and model photo disagreement becomes null without rejecting valid identities", async () => {
     let requests = 0;
     const images: (string | null)[] = [];
     const opts = options(() => undefined);
@@ -163,7 +164,7 @@ describe("OEM resumable native traversal", () => {
             requests++;
             const raw = responses.get(url);
             if (!raw) throw new Error("Unexpected fixture URL");
-            return requests >= 5
+            return url === oemF150.url
               ? raw.replaceAll("10563_0.jpg", "10563_1.jpg")
               : raw;
           }),
