@@ -81,12 +81,17 @@ async function open(query: string, width = 1440, height = 900) {
         requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
       ),
   );
-  // Finish the independent inventory-facet prefetch before measuring scroll requests.
+  // Signed-in pages repeat their first-page search after hydration. Let it
+  // land before tests measure the requests their own actions send.
   if (!query.includes("fixtureGuest=1")) {
-    await page.waitForFunction(() => {
-      const raw = document.documentElement.dataset.searchQueryLog ?? "[]";
-      return raw.includes('"maxValuesPerFacet":1000');
-    });
+    while (
+      !(await requestLog(page)).some(
+        ({ params }) =>
+          (params.hitsPerPage ?? 0) > 0 && (params.page ?? 0) === 0,
+      )
+    ) {
+      await page.waitForTimeout(50);
+    }
     await page.evaluate(
       () =>
         new Promise<void>((resolve) =>
@@ -196,6 +201,26 @@ test("a blocked search backend says yard pages still work, without vendor text",
         .getAttribute("href"),
     ).toBe("/junkyards");
     expect(await page.getByText("Application is blocked").count()).toBe(0);
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
+
+test("filter options come from Turso without an Algolia facet query", async () => {
+  const { page } = await open("q=toyota");
+  try {
+    await page.getByRole("heading", { name: "2011 Toyota Venza" }).waitFor();
+    await page.getByRole("button", { name: /^Filters/ }).click();
+    await page.getByRole("button", { name: /^Make/ }).click();
+    await page.getByRole("checkbox", { name: "Saab", exact: true }).waitFor();
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: /^Salvage yard/ }).click();
+    await page
+      .getByRole("checkbox", { name: "Turso-only yard", exact: true })
+      .waitFor();
+    expect(
+      (await requestLog(page)).filter(({ params }) => params.hitsPerPage === 0),
+    ).toEqual([]);
   } finally {
     await closePage(page);
   }

@@ -1,11 +1,13 @@
 import type { InventoryFilterOptions } from "~/lib/inventory-filter-options";
 
+// Refinement attributes. Their option lists come from Turso
+// (`api.search.filterOptions`), so no facet value limit truncates them.
 export const SEARCH_FILTER_FACETS = {
-  makes: { attribute: "make", limit: 100 },
-  colors: { attribute: "color", limit: 50 },
-  states: { attribute: "state", limit: 60 },
-  salvageYards: { attribute: "locationName", limit: 500 },
-  sources: { attribute: "source", limit: 10 },
+  makes: { attribute: "make" },
+  colors: { attribute: "color" },
+  states: { attribute: "state" },
+  salvageYards: { attribute: "locationName" },
+  sources: { attribute: "source" },
 } as const;
 
 export type SearchFilterOptions = InventoryFilterOptions;
