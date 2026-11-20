@@ -22,6 +22,11 @@ import {
   aplusFixtureRecord,
   aplusFixtureRoot,
 } from "./aplus-test-fixtures";
+import {
+  isDurableSourceCursorTerminal,
+  parseDurableSourceCursor,
+  serializeDurableSourceCursor,
+} from "./durable-source";
 import { runWithQueuedHost } from "./provider-host-test-support";
 
 const originalFetch = globalThis.fetch;
@@ -136,6 +141,33 @@ test("Aplus resumes serialized chunks and quarantines required conflicts before 
       (url) => !url.includes("/images/") && !/\/ST\d+\//.test(url),
     ),
   ).toBe(true);
+});
+
+test("Aplus cold crawl ends on a terminal census cursor and its first checkpoint is not terminal", async () => {
+  transport();
+  let cursor: AplusCursor = AplusCursor.initial;
+  let midWire: string | null = null;
+  for (let chunk = 0; chunk < 10 && cursor.phase !== "complete"; chunk++) {
+    const result = await Effect.runPromise(
+      streamAplusInventoryWithRequestGate(
+        { startCursor: cursor, maxPages: 2, onBatch: () => Effect.void },
+        gate,
+      ),
+    );
+    const wire: string = serializeDurableSourceCursor(result.cursor);
+    midWire ??= wire;
+    cursor = parseDurableSourceCursor("aplus", wire);
+  }
+  expect(cursor.phase).toBe("complete");
+  const wire = serializeDurableSourceCursor(cursor);
+  const parsed = parseDurableSourceCursor("aplus", wire);
+  expect(serializeDurableSourceCursor(parsed)).toBe(wire);
+  if (parsed.phase !== "complete") throw new Error("Expected terminal cursor");
+  expect(parsed.census?.models.length ?? 0).toBeGreaterThan(0);
+  expect(isDurableSourceCursorTerminal("aplus", wire)).toBe(true);
+  expect(midWire).not.toBeNull();
+  expect(midWire).not.toBe(wire);
+  expect(isDurableSourceCursorTerminal("aplus", midWire)).toBe(false);
 });
 
 test("Aplus keeps a chunk alive when one model page misses its deadline once", async () => {

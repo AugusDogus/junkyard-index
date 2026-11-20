@@ -13,6 +13,11 @@ import {
 } from "./central-connector";
 import type { CentralCanonicalVehicle } from "./central-transform";
 import {
+  isDurableSourceCursorTerminal,
+  parseDurableSourceCursor,
+  serializeDurableSourceCursor,
+} from "./durable-source";
+import {
   centralFixtureDirectory,
   centralFixtureMake,
   centralFixtureModel,
@@ -126,6 +131,33 @@ test("Central serializes every paused prefix and emits the complete source only 
     ),
   );
   expect(requested).toHaveLength(count);
+});
+test("Central's real terminal cursor is durable terminal evidence and its mid-crawl cursor is not", async () => {
+  fixture();
+  let cursor: Cursor = CentralCursor.initial;
+  let midWire: string | null = null;
+  while (cursor.phase !== "complete") {
+    const result: CentralStreamResult = await Effect.runPromise(
+      streamCentralInventoryWithRequestGate(
+        { startCursor: cursor, maxPages: 2, onBatch: () => Effect.void },
+        gate,
+      ),
+    );
+    const wire: string = serializeDurableSourceCursor<"central">(result.cursor);
+    midWire ??= wire;
+    cursor = parseDurableSourceCursor("central", wire);
+  }
+  const wire = serializeDurableSourceCursor<"central">(cursor);
+  const parsed = parseDurableSourceCursor("central", wire);
+  expect(serializeDurableSourceCursor<"central">(parsed)).toBe(wire);
+  if (parsed.phase !== "complete") throw new Error("Expected complete cursor");
+  expect(parsed.census?.models.length ?? 0).toBeGreaterThan(0);
+  expect(isDurableSourceCursorTerminal("central", wire)).toBe(true);
+  if (midWire === null) throw new Error("Crawl produced no chunk cursor");
+  expect(parseDurableSourceCursor("central", midWire).phase).not.toBe(
+    "complete",
+  );
+  expect(isDurableSourceCursorTerminal("central", midWire)).toBe(false);
 });
 test("Central closing changes and callback failures never return a completed checkpoint", async () => {
   const { pages, requested } = fixture();

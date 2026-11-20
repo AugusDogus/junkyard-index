@@ -1,6 +1,11 @@
 import { describe, expect, test, spyOn } from "bun:test";
 import { Effect, Either } from "effect";
 import {
+  isDurableSourceCursorTerminal,
+  parseDurableSourceCursor,
+  serializeDurableSourceCursor,
+} from "./durable-source";
+import {
   JimsimportProviderError,
   readJimsimportPage,
 } from "./jimsimport-client";
@@ -16,6 +21,7 @@ import { runWithQueuedHost } from "./provider-host-test-support";
 import {
   jimsimportFixture,
   jimsimportOpeningFixture,
+  nativeModelMenu,
   nativeModelPage,
 } from "./jimsimport-test-fixtures";
 import {
@@ -385,6 +391,57 @@ describe("Jim's Import complete census guards", () => {
     );
     expect(again.pagesProcessed).toBe(0);
   });
+  test("a cold crawl's terminal cursor round-trips with its census, its mid-crawl cursor is not terminal", async () => {
+    const { menus, pages } = jimsimportOpeningFixture();
+    const models = new Map(pages.map((page) => [page.modelPath, page]));
+    const readPage = (url: string) => {
+      if (url === JIMSIMPORT_OWNER)
+        return Effect.succeed(jimsimportFixture("owner").body);
+      if (url === JIMSIMPORT_CATALOG)
+        return Effect.succeed(jimsimportFixture("catalog").body);
+      const menu = menus.find((m) => JIMSIMPORT_ORIGIN + m.make.path === url);
+      if (menu) return Effect.succeed(nativeModelMenu(menu));
+      const page = models.get(url.slice(JIMSIMPORT_ORIGIN.length));
+      if (!page)
+        return Effect.fail(new JimsimportProviderError("test route", url));
+      return Effect.succeed(
+        page.records.length
+          ? nativeModelPage(page)
+          : jimsimportFixture("empty").body,
+      );
+    };
+    let wire: string | undefined;
+    let midWire: string | undefined;
+    let complete = false;
+    for (let chunk = 0; chunk < 200 && !complete; chunk++) {
+      const result = await Effect.runPromise(
+        streamJimsimportInventory({
+          previousUniqueInventory: null,
+          startCursor:
+            wire === undefined
+              ? undefined
+              : parseDurableSourceCursor("jimsimport", wire),
+          readPage,
+          onBatch: () => Effect.void,
+        }),
+      );
+      wire = serializeDurableSourceCursor(result.cursor);
+      midWire ??= wire;
+      complete = result.status === "complete";
+    }
+    if (wire === undefined || midWire === undefined)
+      throw new Error("The crawl returned no cursor");
+    expect(complete).toBe(true);
+    const terminal = parseDurableSourceCursor("jimsimport", wire);
+    expect(serializeDurableSourceCursor(terminal)).toBe(wire);
+    if (terminal.phase !== "complete") throw new Error("Not complete");
+    expect(terminal.census?.models.length ?? 0).toBeGreaterThan(0);
+    expect(isDurableSourceCursorTerminal("jimsimport", wire)).toBe(true);
+    expect(parseDurableSourceCursor("jimsimport", midWire).phase).not.toBe(
+      "complete",
+    );
+    expect(isDurableSourceCursorTerminal("jimsimport", midWire)).toBe(false);
+  }, 60_000);
   test("owner changes and incomplete closing checkpoints emit nothing", async () => {
     const state = closingState();
     expect(() =>

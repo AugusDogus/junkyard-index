@@ -23,6 +23,11 @@ import {
   chazFixtureRecord,
   chazFixtureRoot,
 } from "./chaz-test-fixtures";
+import {
+  isDurableSourceCursorTerminal,
+  parseDurableSourceCursor,
+  serializeDurableSourceCursor,
+} from "./durable-source";
 import { runWithQueuedHost } from "./provider-host-test-support";
 
 const originalFetch = globalThis.fetch;
@@ -274,3 +279,30 @@ test("Chaz completes a full crawl when every request waits two minutes for a sha
   expect(count).toBe(901);
   expect(urls).toHaveLength(7);
 }, 120_000);
+
+test("Chaz terminal evidence is a complete cursor carrying the model census, and a mid-crawl cursor is not terminal", async () => {
+  transport();
+  let cursor: ChazCursor = ChazCursor.initial;
+  let midWire: string | null = null;
+  while (cursor.phase !== "complete") {
+    const result = await Effect.runPromise(
+      streamChazInventoryWithRequestGate(
+        { startCursor: cursor, maxPages: 2, onBatch: () => Effect.void },
+        gate,
+      ),
+    );
+    cursor = ChazCursor.parse(ChazCursor.serialize(result.cursor));
+    if (midWire === null && result.status === "paused")
+      midWire = serializeDurableSourceCursor(cursor);
+  }
+  const wire = serializeDurableSourceCursor(cursor);
+  const parsed = parseDurableSourceCursor("chaz", wire);
+  expect(serializeDurableSourceCursor(parsed)).toBe(wire);
+  if (parsed.phase !== "complete")
+    throw new Error("Expected a complete Chaz cursor");
+  expect(parsed.census?.models.length ?? 0).toBeGreaterThan(0);
+  expect(isDurableSourceCursorTerminal("chaz", wire)).toBe(true);
+  if (midWire === null) throw new Error("Expected a paused Chaz chunk");
+  expect(parseDurableSourceCursor("chaz", midWire).phase).not.toBe("complete");
+  expect(isDurableSourceCursorTerminal("chaz", midWire)).toBe(false);
+});

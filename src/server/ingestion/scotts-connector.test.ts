@@ -1,6 +1,11 @@
 import { afterEach, expect, test } from "bun:test";
 import { Effect, Either } from "effect";
 import {
+  isDurableSourceCursorTerminal,
+  parseDurableSourceCursor,
+  serializeDurableSourceCursor,
+} from "./durable-source";
+import {
   ScottsCursor,
   SCOTTS_MAX_CURSOR_BYTES,
   type ScottsCursor as Cursor,
@@ -112,6 +117,33 @@ test("Scotts resumes serialized prefixes and emits once after all closing contro
     ),
   );
   expect(requested).toHaveLength(6);
+});
+
+test("Scotts terminal census cursor is durable terminal evidence and a mid-crawl cursor is not", async () => {
+  fixture();
+  let cursor: Cursor = ScottsCursor.initial;
+  let midWire: string | null = null;
+  while (cursor.phase !== "complete") {
+    const result = await Effect.runPromise(
+      streamScottsInventoryWithRequestGate(
+        { startCursor: cursor, maxPages: 2, onBatch: () => Effect.void },
+        gate,
+      ),
+    );
+    midWire ??= serializeDurableSourceCursor(result.cursor);
+    cursor = ScottsCursor.parse(ScottsCursor.serialize(result.cursor));
+  }
+  const wire = serializeDurableSourceCursor(cursor);
+  const parsed = parseDurableSourceCursor("scotts", wire);
+  expect(serializeDurableSourceCursor(parsed)).toBe(wire);
+  if (parsed.phase !== "complete") throw new Error("Crawl did not complete");
+  expect(parsed.census?.models.length ?? 0).toBeGreaterThan(0);
+  expect(isDurableSourceCursorTerminal("scotts", wire)).toBe(true);
+  if (midWire === null) throw new Error("Crawl produced no chunk");
+  expect(parseDurableSourceCursor("scotts", midWire).phase).not.toBe(
+    "complete",
+  );
+  expect(isDurableSourceCursorTerminal("scotts", midWire)).toBe(false);
 });
 
 test("Scotts closing changes and staging failure preserve an unfinished checkpoint", async () => {
