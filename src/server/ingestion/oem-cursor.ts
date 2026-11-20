@@ -23,7 +23,7 @@ export const oemHash = (value: unknown) =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
 /** Parser, traversal and closing contract for carried model evidence. */
 const OEM_CENSUS_CONTRACT =
-  "oem/OH40/literal-model-graph/arrival-union/make-directory-closing/incremental-model-census-v2-departure-trigger";
+  "oem/OH40/literal-model-graph/arrival-union/make-directory-closing/incremental-model-census-v3-confirmed-short-pages";
 /** Every model page of an accepted run, carried forward by the next one. */
 export const OemCensusSchema = ModelCensus.schema(OemPageSchema, 1024);
 export type OemCensus = z.infer<typeof OemCensusSchema>;
@@ -162,7 +162,10 @@ export function oemCensusPlan(
   const departed = state.previousArrivals.filter((d) => !current.has(d));
   const triggers = new Set<string>();
   if (!departed.length)
-    return ModelCensus.plan(controls, state.previous, state.day, triggers);
+    return ModelCensus.plan(controls, state.previous, state.day, {
+      cards: oemCards,
+      triggers,
+    });
   // Directory parsing stores each model control under its resolved owned URL.
   const parents = new Map(
     oemModels(state.menus).map(({ model }, index) => [
@@ -184,7 +187,37 @@ export function oemCensusPlan(
     )
       triggers.add(key);
   }
-  return ModelCensus.plan(controls, state.previous, state.day, triggers);
+  return ModelCensus.plan(controls, state.previous, state.day, {
+    cards: oemCards,
+    triggers,
+  });
+}
+/** Cards a model page lists, as closing compares them with its badge. */
+const oemCards = (page: OemPage) => page.records.length;
+/** Model badges overstate cards because model pages lag arrivals and some
+ * models render an explicit empty under a nonzero badge. The November 15
+ * census listed 2,167 cards under 2,428 badges (89.25%, each model capped at
+ * its badge). Emptying any one of its six sweep slices drops that to 70.5% to
+ * 79.0%, so 82% leaves about 7 points for extra lag and still fails the first
+ * run whose swept pages break. */
+export const OEM_MINIMUM_BADGE_COVERAGE = 0.82;
+/** Fails a run whose read and carried model cards fall short of today's model
+ * badges, before anything is published. */
+export function oemCoverageError(
+  state: Pick<OemCensusState, "menus" | "pages">,
+): string | null {
+  const models = oemModels(state.menus);
+  return ModelCensus.coverage(
+    "OEM",
+    oemCensusControls(state.menus),
+    state.pages,
+    oemCards,
+    OEM_MINIMUM_BADGE_COVERAGE,
+    (index) => {
+      const entry = models[index];
+      return entry ? entry.make.label + " / " + entry.model.label : "?";
+    },
+  );
 }
 /** Terminal census for a fully closed run. */
 export function oemCensus(state: OemCensusState): OemCensus {
@@ -194,6 +227,9 @@ export function oemCensus(state: OemCensusState): OemCensus {
     oemCensusControls(state.menus),
     state.pages,
     oemCensusPlan(state),
+    // Closing re-reads every short page read this run and fails on a change.
+    "confirmed",
+    oemCards,
   );
 }
 const cursor = z

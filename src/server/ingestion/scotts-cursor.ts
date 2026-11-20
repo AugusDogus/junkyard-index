@@ -29,7 +29,7 @@ const scope = scottsHash({
   version: 1,
   yard: SCOTTS_YARD,
   contract:
-    "CC68,XX00/literal-premium-model-graph/required-card-id/all-required-destination-conflicts-quarantined/incremental-model-census-v1",
+    "CC68,XX00/literal-premium-model-graph/required-card-id/all-required-destination-conflicts-quarantined/incremental-model-census-v2",
 });
 /** Every model page held by an accepted run, carried forward by the next one.
  * Carried cards must still match their own fingerprint. */
@@ -136,6 +136,35 @@ export function scottsCensusPlan(
     scottsCensusControls(state.makes),
     state.previous,
     state.day,
+    { cards: scottsCards },
+  );
+}
+
+/** Cards a model page lists, as closing compares them with the badge. NOF
+ * placeholder cards are listed but never counted by badges. */
+const scottsCards = (page: ScottsPage) => page.records.length;
+/** Every model badge was covered by its cards in the Nov 15 census (1,058 of
+ * 1,058 on 221 models; the six NOF placeholders only add cards), and the four
+ * pages re-read on Nov 19 matched their new badges exactly, so the 5% margin
+ * (about 53 cards) far exceeds the observed 0.8 card changes a day. The
+ * smallest real sweep slice holds 9.8% of badges: breaking it leaves at most
+ * 90.2% covered, or 93.5% if each of its pages still lists one card. */
+export const SCOTTS_MINIMUM_BADGE_COVERAGE = 0.95;
+
+/** Fails a run whose read and carried model cards fall short of today's model
+ * badges, before anything is published. */
+export function scottsCoverageError(state: ScottsProgress): string | null {
+  const models = scottsModels(state.makes);
+  return ModelCensus.coverage(
+    "Scotts",
+    scottsCensusControls(state.makes),
+    state.pages,
+    scottsCards,
+    SCOTTS_MINIMUM_BADGE_COVERAGE,
+    (index) => {
+      const value = models[index];
+      return value ? value.make.label + " " + value.model.label : "?";
+    },
   );
 }
 
@@ -148,6 +177,10 @@ export function scottsCensus(state: ScottsProgress): ScottsCensus {
     scottsCensusControls(state.makes),
     state.pages,
     scottsCensusPlan(state),
+    // Closing re-reads every page read this run whose cards differ from its
+    // badge and fails on any change.
+    "confirmed",
+    scottsCards,
   );
 }
 

@@ -30,7 +30,7 @@ const scope = jimsimportHash({
   catalog: JIMSIMPORT_CATALOG,
   yard: JIMSIMPORT_YARD,
   floor: 1_216,
-  census: "incremental-model-census-v1",
+  census: "incremental-model-census-v2",
 });
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
 /** Every model page of an accepted run, carried forward by the next one. */
@@ -120,6 +120,34 @@ export function jimsimportCensusPlan(state: {
     censusControls(state.menus),
     state.previous,
     state.day,
+    {
+      cards: jimsimportCards,
+    },
+  );
+}
+
+/** Cards a model page lists, as closing compares them with the badge. */
+const jimsimportCards = (page: JimsimportPage) => page.records.length;
+/** Badges are diagnostic, not exact card counts: on the saved Nov 15 census
+ * 23 of 334 models disagree, but cards capped at each badge cover 3,980 of
+ * 3,981 (99.97%). An empty sweep slice leaves at most 86.7% (3,453 of 3,981
+ * on the lightest slice), so it fails on its first day. */
+export const JIMSIMPORT_MINIMUM_BADGE_COVERAGE = 0.95;
+
+/** Fails a complete opening whose read and carried model cards fall short of
+ * today's model badges, before any snapshot or callback. */
+export function jimsimportCoverageError(state: {
+  menus: readonly JimsimportMenu[];
+  opening: readonly JimsimportPage[];
+}): string | null {
+  const models = jimsimportModels(state.menus);
+  return ModelCensus.coverage(
+    "Jim's Import",
+    censusControls(state.menus),
+    state.opening,
+    jimsimportCards,
+    JIMSIMPORT_MINIMUM_BADGE_COVERAGE,
+    (index) => models[index]?.model.path ?? "?",
   );
 }
 
@@ -170,6 +198,10 @@ export function jimsimportCensus(state: {
     censusControls(state.menus),
     state.opening,
     jimsimportCensusPlan(state),
+    // Closing re-reads every model read this run whose cards differ from its
+    // badge and fails on any required-donor change.
+    "confirmed",
+    jimsimportCards,
   );
 }
 

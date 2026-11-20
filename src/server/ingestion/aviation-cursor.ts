@@ -29,7 +29,7 @@ const scope = aviationHash({
   version: 1,
   yard: AVIATION_YARD,
   authority:
-    "literal-model-graph/native-arrival-union/all-conflicts-quarantined/incremental-model-census-v1",
+    "literal-model-graph/native-arrival-union/all-conflicts-quarantined/incremental-model-census-v2",
 });
 /** Every model page read by an accepted run, carried forward by the next one. */
 // A page failing its fingerprint makes the terminal cursor unreadable, so the
@@ -147,6 +147,34 @@ export function aviationCensusPlan(
     aviationCensusControls(state.makes),
     state.previous,
     state.day,
+    { cards: aviationCards },
+  );
+}
+
+/** Cards a model page lists; closing compares the same count with the badge. */
+const aviationCards = (page: AviationPage) => page.records.length;
+/** Every Nov 12 model list held at least its published count (2,482 of 2,482
+ * badge cards on 404 models; 32 lists exceed their badge by 42 cards), and Nov
+ * 19 badge changes matched card changes. A sweep slice cut to one card per
+ * model leaves 82.8% to 88.6% of the badges, so 95% fails the first such day. */
+export const AVIATION_MINIMUM_BADGE_COVERAGE = 0.95;
+
+/** Fails a run whose read and carried model cards fall short of today's model
+ * counts, before anything is published. */
+export function aviationCoverageError(
+  state: Pick<AviationProgress, "makes" | "pages">,
+): string | null {
+  const models = aviationModels(state.makes);
+  return ModelCensus.coverage(
+    "Aviation",
+    aviationCensusControls(state.makes),
+    state.pages,
+    aviationCards,
+    AVIATION_MINIMUM_BADGE_COVERAGE,
+    (index) => {
+      const value = models[index];
+      return value ? value.make.label + " " + value.model.label : "?";
+    },
   );
 }
 
@@ -159,6 +187,9 @@ export function aviationCensus(state: AviationProgress): AviationCensus {
     aviationCensusControls(state.makes),
     state.pages,
     aviationCensusPlan(state),
+    // Closing re-reads every mismatched page read this run and fails on a change.
+    "confirmed",
+    aviationCards,
   );
 }
 

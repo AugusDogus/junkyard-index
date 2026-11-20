@@ -8,6 +8,7 @@ import {
   oemCensus,
   oemCensusPlan,
   oemClosingControls,
+  oemCoverageError,
   oemHash,
   oemModels,
   OEM_MAX_BODY_BYTES,
@@ -226,6 +227,8 @@ export function streamOemInventory<E, R>(options: OemOptions<E, R>) {
         state.closing === oemClosingControls(state).length
       ) {
         const snapshot = yield* attempt("complete-source quality", () => {
+          const shortfall = oemCoverageError(state);
+          if (shortfall) throw new Error(shortfall);
           const result = OemSnapshot.create(
             [state.arrivals, ...state.pages],
             state.makes.map((m) => m.label),

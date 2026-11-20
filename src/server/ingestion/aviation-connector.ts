@@ -12,6 +12,7 @@ import {
   aviationCensus,
   aviationCensusPlan,
   aviationClosingControls,
+  aviationCoverageError,
   type AviationProgress,
 } from "./aviation-cursor";
 import { ModelCensus } from "./model-census";
@@ -260,6 +261,8 @@ export function streamAviationInventoryWithRequestGate<E, R>(
         advanced.closing === aviationClosingControls(advanced).length
       ) {
         const snapshot = yield* attempt("complete native union", () => {
+          const shortfall = aviationCoverageError(advanced);
+          if (shortfall) throw new Error(shortfall);
           const snapshot = aviationSnapshot(
             advanced.makes,
             advanced.pages,

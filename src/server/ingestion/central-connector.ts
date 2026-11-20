@@ -12,6 +12,7 @@ import {
   centralCensus,
   centralCensusPlan,
   centralClosingControls,
+  centralCoverageError,
   type CentralProgress,
 } from "./central-cursor";
 import { ModelCensus } from "./model-census";
@@ -235,6 +236,8 @@ export function streamCentralInventoryWithRequestGate<E, R>(
         advanced.closing === centralClosingControls(advanced).length
       ) {
         const snapshot = yield* attempt("complete native graph", () => {
+          const shortfall = centralCoverageError(advanced);
+          if (shortfall) throw new Error(shortfall);
           const value = centralSnapshot(advanced.makes, advanced.pages);
           validateCentralSnapshot(value);
           return value;

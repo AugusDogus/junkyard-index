@@ -37,9 +37,12 @@ import {
 } from "./model-census";
 
 export const DENTON_MINIMUM_INVENTORY = 765;
-/** Read plus carried model cards must cover this share of today's opening
- * model badges. Qualification cards covered 99.5% (2,366 of 2,377, including
- * the unreachable TOWN & COUNTRY page). Arrivals count on neither side. */
+/** Read plus carried model cards, each model capped at its own badge, must
+ * cover this share of today's opening model badges. The qualification graph
+ * covered 99.5% (2,366 of 2,377: TOWN & COUNTRY renders 0 of 8 and three pages
+ * are one card short; no page exceeded its badge). Emptying any one of its six
+ * sweep slices drops coverage to between 77% and 87%. Arrivals count on neither
+ * side. */
 export const DENTON_MINIMUM_BADGE_COVERAGE = 0.95;
 export const DENTON_MAX_REQUESTS = 2048;
 export const DENTON_MAX_TOTAL_BYTES = 256 * 1024 * 1024;
@@ -49,7 +52,7 @@ export const DENTON_MAX_CURSOR_BYTES = 16 * 1024 * 1024;
 const prior = z.number().int().nonnegative().safe().nullable();
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
 const CONTRACT =
-  "literal-controls/slash-menus/owner-directory-closing/arrival-union/native-alias/incremental-model-census-v1";
+  "literal-controls/slash-menus/owner-directory-closing/arrival-union/native-alias/incremental-model-census-v2";
 /** Parser and traversal contract that carried model evidence depends on. It
  * excludes the prior inventory guard, which changes every accepted run. */
 const censusContract = dentonHash({ contract: CONTRACT, yard: DENTON_YARD });
@@ -133,6 +136,8 @@ const censusControls = (models: readonly ModelTask[]): ModelCensusControl[] =>
     key: JSON.stringify([make.url, make.label, model.url, model.label]),
     count: model.count,
   }));
+/** Cards a model page lists, compared with its badge by the census and closing. */
+const dentonCards = (entry: DentonModelEntry) => entry.page.records.length;
 const donorDestinations = (destinations: readonly (string | null)[]) =>
   destinations.flatMap((literal) => {
     const url = literal === null ? null : dentonOwnedUrl(literal);
@@ -177,7 +182,10 @@ export function dentonCensusPlan(
       )
         triggers.add(key);
     }
-  return ModelCensus.plan(controls, state.previous, state.day, triggers);
+  return ModelCensus.plan(controls, state.previous, state.day, {
+    cards: dentonCards,
+    triggers,
+  });
 }
 /** A closing re-read and the opening entry it must repeat. */
 export interface DentonClosingControl {
@@ -204,7 +212,7 @@ export function dentonClosingControls(
     const entry = state.opening[index];
     return decision?.kind === "read" &&
       entry?.kind === "model" &&
-      entry.page.records.length !== task.model.count
+      dentonCards(entry) !== task.model.count
       ? [{ task, index }]
       : [];
   });
@@ -223,21 +231,18 @@ export function dentonBadgeCoverage(state: DentonProgress) {
     const pages = modelEntries(state.opening);
     if (pages.length !== models.length)
       throw new Error("Model pages do not match the published model controls");
-    const badges = models.reduce((n, task) => n + task.model.count, 0);
-    const cards = pages.reduce((n, entry) => n + entry.page.records.length, 0);
-    if (cards >= Math.ceil(badges * DENTON_MINIMUM_BADGE_COVERAGE)) return;
-    const short = models
-      .map((task, index) => ({
-        model: `${task.make.label} ${task.model.label}`,
-        missing: task.model.count - (pages[index]?.page.records.length ?? 0),
-      }))
-      .filter(({ missing }) => missing > 0)
-      .sort((a, b) => b.missing - a.missing)
-      .slice(0, 5)
-      .map(({ model, missing }) => `${model} (${missing})`);
-    throw new Error(
-      `Read and carried model pages hold ${cards} cards for ${badges} opening model badges, below the ${DENTON_MINIMUM_BADGE_COVERAGE * 100}% coverage floor. Nothing was staged and the last accepted census stays in place. Largest shortfalls: ${short.join(", ")}; check whether those native model pages render their cards.`,
+    const shortfall = ModelCensus.coverage(
+      "Denton",
+      censusControls(models),
+      pages,
+      dentonCards,
+      DENTON_MINIMUM_BADGE_COVERAGE,
+      (index) => {
+        const task = models[index];
+        return task ? `${task.make.label} ${task.model.label}` : "?";
+      },
     );
+    if (shortfall) throw new Error(shortfall);
   });
 }
 
@@ -502,6 +507,10 @@ export const DentonCursor = {
           censusControls(modelTasks(dentonTasks(state.opening))),
           modelEntries(state.opening),
           dentonCensusPlan(state),
+          // Closing re-reads every model read this run whose cards differ from
+          // its badge and fails the run on any change.
+          "confirmed",
+          dentonCards,
         ),
       );
     });

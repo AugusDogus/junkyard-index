@@ -1,6 +1,9 @@
 import { afterEach, expect, test } from "bun:test";
 import { Effect } from "effect";
-import { streamScottsInventoryWithRequestGate } from "./scotts-connector";
+import {
+  streamScottsInventoryWithRequestGate,
+  type ScottsStreamResult,
+} from "./scotts-connector";
 import { ScottsCursor, ScottsCursorSchema } from "./scotts-cursor";
 import {
   SCOTTS_MAKES,
@@ -31,11 +34,13 @@ const card = (model: number, n: number) =>
 const donors = (n = 30) => Array.from({ length: n }, (_, i) => i + 1);
 
 /** Twelve ACURA models with 30 donors each (above the 325 floor); `rows` holds
- * each model's donor numbers and `badges` overrides a model's published count.
- * Both can be edited between runs. */
+ * each model's donor numbers, `badges` overrides a model's published count and
+ * a `broken` model's page lists only its first donor while the menus still
+ * count them all. All can be edited between runs. */
 function yard() {
   const rows = new Map(Array.from({ length: 12 }, (_, i) => [i, donors()]));
   const badges = new Map<number, number>();
+  const broken = new Set<number>();
   const urls: string[] = [];
   globalThis.fetch = Object.assign(
     async (input: string | URL | Request) => {
@@ -49,7 +54,8 @@ function yard() {
       const total = [...rows.values()].reduce((n, l) => n + l.length, 0);
       const model = /\/used-parts\/ACURA\/M(\d+)$/.exec(url);
       const index = Number(model?.[1]);
-      const list = rows.get(index);
+      const listed = rows.get(index);
+      const list = broken.has(index) ? listed?.slice(0, 1) : listed;
       const body =
         url === SCOTTS_ROOT
           ? document("")
@@ -78,7 +84,7 @@ function yard() {
     },
     { preconnect: originalFetch.preconnect },
   );
-  return { rows, badges, urls };
+  return { rows, badges, broken, urls };
 }
 
 /** One full run on `day`, seeded by the previous terminal cursor. */
@@ -368,4 +374,83 @@ test("Scotts rejects checkpoints whose carried pages or request accounting were 
     "previous census is inconsistent",
   );
   expect(native.urls).toHaveLength(cold.requests + 3);
+});
+
+test("Scotts stores closing-confirmed short pages as confirmed and carries surplus pages as full", async () => {
+  const native = yard();
+  // Model 3's badge promises one more donor than its page lists; model 5 lists
+  // one card more than its badge, as NOF placeholder cards do on Scotts.
+  native.badges.set(3, 31);
+  native.badges.set(5, 29);
+  const cold = await census(native, 600, null);
+  // Closing re-reads both mismatched pages read this run.
+  expect(cold.models).toEqual([
+    ...Array.from({ length: 12 }, (_, i) => i),
+    3,
+    5,
+  ]);
+  const parsed = ScottsCursorSchema.parse(cold.terminal);
+  if (parsed.phase !== "complete" || !parsed.census)
+    throw new Error("Expected a terminal census");
+  expect(parsed.census.models.map((m) => m.confirmed)).toEqual(
+    Array.from({ length: 12 }, (_, i) => i === 3),
+  );
+
+  // Neither page is read again as short on a day whose slice skips both.
+  const day = sweepDays(native, 600).find(
+    (candidate) =>
+      !sweep(native, candidate).includes(3) &&
+      !sweep(native, candidate).includes(5),
+  );
+  if (day === undefined)
+    throw new Error("Fixture needs a sweep day without M3 and M5");
+  const carried = await census(native, day, cold.terminal);
+  expect(carried.models).toEqual(sweep(native, day));
+  expect(carried.vins).toEqual(allVins(native));
+  expect(carried.warnings.at(-1)).not.toContain("short");
+});
+
+test("Scotts fails a run whose read and carried cards fall short of today's model badges", async () => {
+  // A site fault cuts model pages to one card while the menus keep counting
+  // every donor. Carried pages hide it from the 325 floor, because only today's
+  // sweep slice breaks, so the badge coverage check must catch it.
+  const native = yard();
+  for (const model of native.rows.keys()) native.rows.set(model, donors(60));
+  const cold = await census(native, 600, null);
+  const day = sweepDays(native, 600)[0];
+  if (day === undefined) throw new Error("Fixture needs a non-empty slice");
+  const slice = sweep(native, day);
+  for (const model of slice) native.broken.add(model);
+  // The accepted donors left would still clear the 325 floor.
+  expect(12 * 60 - slice.length * 59).toBeGreaterThanOrEqual(325);
+  let published = 0;
+  let yards = 0;
+  await expect(
+    (async () => {
+      let cursor: ScottsCursor = ScottsCursor.initial;
+      while (cursor.phase !== "complete") {
+        const result: ScottsStreamResult = await Effect.runPromise(
+          streamScottsInventoryWithRequestGate(
+            {
+              startCursor: cursor,
+              previousCursor: cold.terminal,
+              now: () => day * MODEL_CENSUS_DAY_MS,
+              onBatch: (batch) =>
+                Effect.sync(() => {
+                  published += batch.length;
+                }),
+              onYards: (list) =>
+                Effect.sync(() => {
+                  yards += list.length;
+                }),
+            },
+            gate,
+          ),
+        );
+        cursor = result.cursor;
+      }
+    })(),
+  ).rejects.toThrow("coverage floor");
+  expect(published).toBe(0);
+  expect(yards).toBe(0);
 });

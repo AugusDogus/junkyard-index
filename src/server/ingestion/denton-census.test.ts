@@ -55,7 +55,8 @@ const donors = (model: number, n = 70): Donor[] =>
 const empty = "No Results Found. Try Browsing Our Parts Or Search Again";
 
 /** Twelve models with 70 donors each (above the 765 floor); `rows` and the
- * arrivals list can be edited between runs. */
+ * arrivals list can be edited between runs. `staged` holds every VIN any run
+ * handed to `onBatch`. */
 function yard() {
   const owner = dentonTestGraph({ accepted: 1 }).pages;
   const rows = new Map(models.map((i) => [i, donors(i)]));
@@ -63,7 +64,11 @@ function yard() {
   /** Models whose page renders the native empty result while the menu badge
    * still counts their rows (the TOWN & COUNTRY pattern). */
   const unreachable = new Set<number>();
+  /** Extra cards a model page lists beyond its menu badge (a menu served
+   * from a stale page cache while the model page is fresh). */
+  const surplus = new Map<number, number>();
   const calls: string[] = [];
+  const staged: string[] = [];
   const body = (url: string) => {
     if (url === DENTON_ABOUT || url === DENTON_CONTACT) return owner.get(url);
     if (url === DENTON_MAKES) {
@@ -87,11 +92,16 @@ function yard() {
       );
     const model = /\/ACURA\/M(\d+)\/$/.exec(url)?.[1];
     const list = model === undefined ? undefined : rows.get(Number(model));
+    const extra = Array.from(
+      { length: surplus.get(Number(model)) ?? 0 },
+      (_, i): Donor => [Number(model), 500 + i],
+    );
     return (
       list &&
       dentonTestInventory(
-        (unreachable.has(Number(model)) ? "" : list.map(card).join("")) ||
-          empty,
+        (unreachable.has(Number(model))
+          ? ""
+          : [...list, ...extra].map(card).join("")) || empty,
       )
     );
   };
@@ -108,6 +118,8 @@ function yard() {
     calls,
     read,
     unreachable,
+    surplus,
+    staged,
     setArrivals: (next: Donor[]) => {
       arrivals = next;
     },
@@ -146,6 +158,7 @@ async function census(
         onBatch: (batch) =>
           Effect.sync(() => {
             vins.push(...batch.map((v) => v.vin));
+            native.staged.push(...batch.map((v) => v.vin));
           }),
       }),
     );
@@ -308,14 +321,44 @@ test("Denton rejects a run whose read and carried model cards fall short of toda
   expect(sweep(605).length).toBeLessThan(4);
   for (const model of models) native.unreachable.add(model);
   const before = native.calls.length;
+  const staged = native.staged.length;
   await expect(
     census(native, 605, small.terminal, small.vins.length),
-  ).rejects.toThrow("opening model badges");
+  ).rejects.toThrow("below the 95% coverage floor");
+  expect(native.staged).toHaveLength(staged);
   // Only the sweep slice was read, then confirmed at closing (each empty page
   // differs from its badge), before the union was rejected.
   expect(
     native.calls.slice(before).filter((url) => /\/M\d+\/$/.test(url)),
   ).toEqual([...sweep(605), ...sweep(605)].map(modelUrl));
+}, 30_000);
+
+test("Denton caps each model's cards at its badge, so a surplus page cannot hide an empty sweep slice", async () => {
+  // 1,800 badges keep the broken run above the 765 floor.
+  const native = yard();
+  for (const model of native.rows.keys())
+    native.rows.set(model, donors(model, 150));
+  const broken = sweep(605);
+  expect(broken.length).toBeGreaterThan(0);
+  expect(broken.length).toBeLessThan(4);
+  // Every other model lists enough cards beyond its badge to make up the
+  // whole broken slice: a plain card sum would still match the badges.
+  const others = models.filter((model) => !broken.includes(model));
+  const extra = Math.ceil((150 * broken.length) / others.length);
+  for (const model of others) native.surplus.set(model, extra);
+  const cold = await census(native, 600, null);
+  // Surplus pages differ from their badges, so closing confirmed each one.
+  expect(cold.models).toEqual([...models, ...others]);
+  // Day 605: the sweep slice renders empty while its badges hold; the surplus
+  // pages are carried (read five days ago, outside today's slice).
+  for (const model of broken) native.unreachable.add(model);
+  const staged = native.staged.length;
+  await expect(
+    census(native, 605, cold.terminal, cold.vins.length),
+  ).rejects.toThrow(
+    `Denton model pages list ${1800 - 150 * broken.length} of 1800 cards`,
+  );
+  expect(native.staged).toHaveLength(staged);
 }, 30_000);
 
 test("Denton treats an unreadable or incompatible previous cursor as a warned cold census", async () => {

@@ -12,6 +12,7 @@ import {
   scottsCensus,
   scottsCensusPlan,
   scottsClosingControls,
+  scottsCoverageError,
   type ScottsProgress,
 } from "./scotts-cursor";
 import { ModelCensus } from "./model-census";
@@ -235,6 +236,8 @@ export function streamScottsInventoryWithRequestGate<E, R>(
         advanced.closing === scottsClosingControls(advanced).length
       ) {
         const snapshot = yield* attempt("complete native graph", () => {
+          const shortfall = scottsCoverageError(advanced);
+          if (shortfall) throw new Error(shortfall);
           const value = scottsSnapshot(advanced.makes, advanced.pages);
           validateScottsSnapshot(value);
           return value;

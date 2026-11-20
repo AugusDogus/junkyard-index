@@ -29,6 +29,9 @@ function yard() {
   const rows = new Map(Array.from({ length: 12 }, (_, i) => [i, donors(i)]));
   const labels = new Map<number, string>();
   const badges = new Map<number, number>();
+  // Models whose page renders the native empty result while the menus still
+  // count their donors.
+  const broken = new Set<number>();
   const label = (i: number) => labels.get(i) ?? "M" + i;
   const urls: string[] = [];
   const directory = (
@@ -46,7 +49,10 @@ function yard() {
     const leaf = label(i);
     return envelope(
       `<h1>Used ACURA ${leaf} Parts</h1>` +
-        (rows.get(i) ?? [])
+        (broken.has(i)
+          ? "<h3>No Results Found. Try Browsing Our Parts Or Search Again</h3>"
+          : "") +
+        (broken.has(i) ? [] : (rows.get(i) ?? []))
           .map((v, n) => {
             const stock = `ST${i}-${n}`;
             return `<div class="card card-price"><div class="car-details"><b>Stock:</b> ${stock}<br><b>Year:</b> 2010<br><b>Make/Model:</b> ACURA ${leaf}<br><b>Vin:</b> ${v}<br></div><a href="${NORTHWEST_ORIGIN}/parts/ACURA/M${i}/${stock}/2010">See Parts</a></div>`;
@@ -89,7 +95,7 @@ function yard() {
     },
     { preconnect: originalFetch.preconnect },
   );
-  return { rows, labels, badges, urls };
+  return { rows, labels, badges, broken, urls };
 }
 
 /** One full run on `day`, seeded by the previous terminal cursor. */
@@ -449,4 +455,74 @@ test("Northwest confirms a model read with fewer cards than its badge at closing
   expect(callbacks).toBe(0);
   // The failed run keeps its last validated checkpoint at the closing re-read.
   expect(cursor.phase).toBe("closing");
+}, 120_000);
+
+test("Northwest marks only closing-confirmed short pages and re-reads unconfirmed ones", async () => {
+  const native = yard();
+  native.badges.set(3, 201);
+  const cold = await census(native, 600, null);
+  const parsed = NorthwestCursor.parse(JSON.stringify(cold.terminal));
+  if (parsed.phase !== "complete" || !parsed.census)
+    throw new Error("Expected a terminal census");
+  // Closing re-read model 3, so its short page is confirmed; full pages are not short.
+  expect(parsed.census.models.map((m) => m.confirmed)).toEqual(
+    Array.from({ length: 12 }, (_, i) => i === 3),
+  );
+  // Evidence that lost its confirmation is never carried: model 3 is read off
+  // its sweep slice and confirmed again at closing.
+  const day = [601, 602, 603, 604, 605].find(
+    (candidate) => !swept(native, candidate).includes(3),
+  );
+  if (day === undefined) throw new Error("fixture needs a day without M3");
+  const unconfirmed = await census(native, day, {
+    ...parsed,
+    census: {
+      ...parsed.census,
+      models: parsed.census.models.map((m) => ({ ...m, confirmed: false })),
+    },
+  });
+  const reads = [...swept(native, day), 3].sort((a, b) => a - b);
+  expect(unconfirmed.models).toEqual([...reads, 3]);
+  expect(unconfirmed.vins).toEqual(allVins(native));
+  expect(unconfirmed.warnings.at(-1)).toBe(
+    summary(
+      12,
+      reads.map((i) => (i === 3 ? "short" : "sweep")),
+    ),
+  );
+}, 120_000);
+
+test("Northwest fails a run whose read and carried cards fall short of today's model badges", async () => {
+  // A site fault renders empty model pages while the menus look normal. Only
+  // today's sweep slice is read, so carried pages still hold the other cards.
+  const native = yard();
+  const cold = await census(native, 600, null);
+  const day = [601, 602, 603, 604, 605].find(
+    (candidate) => swept(native, candidate).length > 0,
+  );
+  if (day === undefined) throw new Error("fixture needs a non-empty slice");
+  for (const model of swept(native, day)) native.broken.add(model);
+  let cursor: NorthwestCursor = NorthwestCursor.initial;
+  let callbacks = 0;
+  const run = async () => {
+    for (;;) {
+      const result = await Effect.runPromise(
+        streamNorthwestInventoryWithRequestGate(
+          {
+            startCursor: cursor,
+            previousCursor: cold.terminal,
+            now: () => day * MODEL_CENSUS_DAY_MS,
+            maxPages: 8,
+            onBatch: () => Effect.sync(() => void callbacks++),
+            onYards: () => Effect.sync(() => void callbacks++),
+          },
+          gate,
+        ),
+      );
+      if (result.status === "complete") return result;
+      cursor = result.cursor;
+    }
+  };
+  await expect(run()).rejects.toThrow("coverage floor");
+  expect(callbacks).toBe(0);
 }, 120_000);

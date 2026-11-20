@@ -25,7 +25,14 @@ const otherDonors =
     .replaceAll("2024", "2023")
     .replaceAll("1FTMF1KP0RKE76038", "1FTFW1ED4PFA49879")
     .replace("23000", "78000");
-const model = oemFixtureDocument(oemDonorExcerpt + otherDonors);
+// Synthetic F150 donors so the page lists 83 of its 86 badged donors: still
+// short, so closing confirms it, but above the badge coverage floor.
+const paddingDonors = Array.from({ length: 80 }, (_, i) =>
+  oemDonorExcerpt
+    .replaceAll("10563", String(20000 + i))
+    .replaceAll("1FTMF1KP0RKE76038", "1FTMF1KP0RK" + String(900000 + i)),
+).join("");
+const model = oemFixtureDocument(oemDonorExcerpt + otherDonors + paddingDonors);
 const location = {
   code: "oem-bluffton",
   name: "OEM Auto Recyclers",
@@ -71,15 +78,15 @@ describe("OEM resumable native traversal", () => {
     );
     expect(resumed.status).toBe("complete");
     // Opening arrivals, makes, one menu and one model; closing makes and the
-    // F150 page, whose three cards differ from its 86 badge.
+    // F150 page, whose 83 cards differ from its 86 badge.
     expect(resumed.cursor.requests).toBe(6);
     expect(resumed.accounting).toEqual({
-      recordsProcessed: 4,
+      recordsProcessed: 84,
       recordsRejected: 0,
       recordsExcluded: 0,
       duplicateVehicles: 1,
     });
-    expect(resumed.count).toBe(3);
+    expect(resumed.count).toBe(83);
     expect(batches).toHaveLength(1);
     const terminal = await Effect.runPromise(
       streamOemInventory({ ...opts, startCursor: resumed.cursor }),
@@ -130,7 +137,7 @@ describe("OEM resumable native traversal", () => {
     expect(batches).toBe(0);
   });
   test("closing confirms a model read with fewer cards than its badge", async () => {
-    // The F150 badge counts 86 donors; its model page lists three cards.
+    // The F150 badge counts 86 donors; its model page lists 83 cards.
     const urls: string[] = [];
     const opts = options(() => undefined);
     const result = await Effect.runPromise(

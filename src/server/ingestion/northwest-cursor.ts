@@ -29,7 +29,7 @@ const scope = northwestHash({
   version: 1,
   yard: NORTHWEST_YARD,
   contract:
-    "AK01/legacy-model-graph/all-identity-conflicts-quarantined/one-percent-unrecovered/incremental-model-census-v1",
+    "AK01/legacy-model-graph/all-identity-conflicts-quarantined/one-percent-unrecovered/incremental-model-census-v2",
 });
 // Census pages are written from parsed pages, so every defaulted record field
 // is present; requiring them keeps the census page type equal to NorthwestPage.
@@ -163,6 +163,32 @@ export function northwestCensusPlan(
     northwestCensusControls(state.makes),
     state.previous,
     state.day,
+    { cards: northwestCards },
+  );
+}
+
+/** Cards the closing compares with the model badge. */
+const northwestCards = (page: NorthwestPage) => page.records.length;
+/** The saved 334-model census lists 6,934 of 6,960 model-badge cards (99.63%).
+ * Emptying any one sweep slice of it leaves 76.0% to 88.9%. */
+export const NORTHWEST_MINIMUM_BADGE_COVERAGE = 0.95;
+
+/** Fails a run whose read and carried model cards fall short of today's model
+ * badges, before anything is published. */
+export function northwestCoverageError(
+  state: Pick<NorthwestProgress, "makes" | "pages">,
+): string | null {
+  const models = northwestModels(state.makes);
+  return ModelCensus.coverage(
+    "Northwest",
+    northwestCensusControls(state.makes),
+    state.pages,
+    northwestCards,
+    NORTHWEST_MINIMUM_BADGE_COVERAGE,
+    (index) => {
+      const entry = models[index];
+      return entry ? entry.make.label + " / " + entry.model.label : "?";
+    },
   );
 }
 
@@ -175,6 +201,10 @@ export function northwestCensus(state: NorthwestProgress): NorthwestCensus {
     northwestCensusControls(state.makes),
     state.pages,
     northwestCensusPlan(state),
+    // Closing re-reads every page read this run whose cards differ from its
+    // badge and fails the run on any change.
+    "confirmed",
+    northwestCards,
   );
 }
 

@@ -42,13 +42,20 @@ const card = ({ model, stock, vin }: Donor) =>
 const badge = (href: string, label: string, count: number) =>
   `<li><a href="${href}">${label} <span class="badge badge-light">${count}</span></a></li>`;
 
+const nativeEmpty =
+  '<div class="alert alert-warning m-3 text-center" role="alert"><h3>No Results Found. Try Browsing Our Parts Or Search Again</h3></div>';
+
 /** One make with twelve models of 40 donors each; `rows`, `badges` and the
  * arrivals can change between runs. A model badge defaults to its card count;
  * `badges` overrides it, since native badges also count donors that are not
- * on the model page yet. */
+ * on the model page yet. A model without rows renders the native explicit
+ * empty result. */
 function yard() {
   const rows = new Map(Array.from({ length: 12 }, (_, i) => [i, donors(i)]));
   const badges = new Map<number, number>();
+  // Models whose page renders the native empty result while the menu still
+  // counts their donors.
+  const broken = new Set<number>();
   const count = (i: number, list: Donor[]) => badges.get(i) ?? list.length;
   // Arrivals always list at least one card; this donor is already on M0.
   let arrivals: Donor[] = [donor(0, 1)];
@@ -77,15 +84,20 @@ function yard() {
           )
           .join("")}</ul></div>`,
       );
-    if (model)
+    if (model) {
+      const list = broken.has(Number(model[1]))
+        ? []
+        : (rows.get(Number(model[1])) ?? []);
       return oemFixtureDocument(
-        (rows.get(Number(model[1])) ?? []).map(card).join(""),
+        list.length ? list.map(card).join("") : nativeEmpty,
       );
+    }
     throw new Error("Unexpected request " + url);
   };
   return {
     rows,
     badges,
+    broken,
     urls,
     readPage: (url: string) =>
       Effect.sync(() => {
@@ -456,4 +468,70 @@ test("OEM rejects a checkpoint whose carried page differs from its census", asyn
   expect(() => OemCursor.checkpoint({ ...paused.cursor, requests: 4 })).toThrow(
     "accounting does not reconcile",
   );
+});
+
+test("OEM fails a run whose read and carried cards fall short of today's model badges", async () => {
+  // Badges overstate cards as they do natively (about 89% covered). A site
+  // fault then renders today's swept pages as explicit empties while the
+  // menus keep their badges. Carried pages keep the inventory floor
+  // satisfied, so only the badge coverage check catches the first broken day.
+  const native = yard();
+  for (const model of MODELS) native.badges.set(model, 45);
+  const cold = await census(native, 600, null);
+  expect(cold.vins).toEqual(allVins(native));
+  const day = dayAfterCold((d) => sweep(d).length > 0);
+  for (const model of sweep(day)) native.broken.add(model);
+  let published = 0;
+  await expect(
+    (async () => {
+      let cursor: unknown = OemCursor.initial();
+      for (;;) {
+        const result = await Effect.runPromise(
+          streamOemInventory({
+            startCursor: cursor,
+            previousCursor: cold.wire,
+            now: () => day * MODEL_CENSUS_DAY_MS,
+            maxPages: 8,
+            location,
+            minimumUniqueInventory: 400,
+            previousUniqueInventory: cold.vins.length,
+            readPage: native.readPage,
+            onBatch: (batch) =>
+              Effect.sync(() => {
+                published += batch.length;
+              }),
+          }),
+        );
+        if (result.status === "complete") return;
+        cursor = result.cursor;
+      }
+    })(),
+  ).rejects.toThrow("coverage floor");
+  expect(published).toBe(0);
+});
+
+test("OEM confirms an explicit empty model under a nonzero badge and carries it", async () => {
+  // Native explicit empties under nonzero badges are accepted (23 such models
+  // on November 15). Closing re-reads the empty page, so its evidence is
+  // confirmed and the next run carries it instead of reading it as short.
+  const native = yard();
+  const empty = pickModel((m) => !sweep(601).includes(m));
+  native.rows.set(empty, []);
+  native.badges.set(empty, 3);
+  const cold = await census(native, 600, null);
+  expect(cold.models).toEqual([...MODELS, empty]);
+  expect(cold.vins).toEqual(allVins(native));
+  if (cold.terminal.state.phase !== "complete" || !cold.terminal.state.census)
+    throw new Error("Expected a terminal census");
+  const evidence = cold.terminal.state.census.models;
+  expect(evidence[empty]).toMatchObject({
+    count: 3,
+    confirmed: true,
+    page: { nativeEmpty: true, records: [] },
+  });
+  expect(evidence.filter((m) => m.confirmed)).toHaveLength(1);
+  const next = await census(native, 601, cold.wire);
+  expect(next.models).toEqual(sweep(601));
+  expect(next.vins).toEqual(allVins(native));
+  expect(next.warnings.at(-1)).toBe(summary([["sweep", sweep(601)]]));
 });

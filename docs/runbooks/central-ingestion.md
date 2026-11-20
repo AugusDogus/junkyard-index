@@ -64,8 +64,16 @@ the original HTTP refusal and the cleanup error.
 
 Closing controls repeat ownership, the make directory and every model read this
 run whose card count differs from its badge, so a short page that does not
-repeat is never carried forward. Other per-model changes during a run surface
-as badge changes in the next run's opening menus.
+repeat is never carried forward. A short page that repeats is stored as
+confirmed evidence and may be carried. Other per-model changes during a run
+surface as badge changes in the next run's opening menus.
+
+Before the snapshot, the union of read and carried cards, each model capped at
+its own badge, must cover at least 95% of today's model badges, or nothing is
+published. The saved census covers 100% (6,463 of 6,463 badge cards; all 44
+mismatched models list surplus cards). One sweep slice of models listing a
+single card each drops coverage to 81.9% to 89.9%, while the 1,985 floor
+still passes, so this check fails the first broken day.
 Changed closing fingerprints stop emission. These controls do not establish an
 atomic snapshot or stability of unrefetched pages. All old badge differences
 remain diagnostics; the actual classified cards supply the quality denominator.

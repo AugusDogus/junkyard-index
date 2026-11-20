@@ -4,7 +4,7 @@ import {
   streamCentralInventoryWithRequestGate,
   type CentralStreamResult,
 } from "./central-connector";
-import { CentralCursor } from "./central-cursor";
+import { CentralCursor, type CentralCensus } from "./central-cursor";
 import {
   centralHash,
   type CentralControl,
@@ -39,16 +39,18 @@ const donors = (model: number, label: string, n = 170): CentralRecord[] =>
     centralFixtureRecord(model * 1000 + i + 1, label),
   );
 
-/** Twelve models with 170 donors each (above the 1,985 floor); rows, labels
- * and badges can be edited between runs, and `once` serves a model page a
- * single time in place of its rows. */
-function yard() {
+/** Twelve models with `size` donors each (170 by default, above the 1,985
+ * floor); rows, labels and badges can be edited between runs, `once` serves a
+ * model page a single time in place of its rows, and every page of a `broken`
+ * model lists only its first card while the menus still count its rows. */
+function yard(size = 170) {
   const labels = new Map(Array.from({ length: 12 }, (_, i) => [i, "M" + i]));
   const rows = new Map(
-    Array.from({ length: 12 }, (_, i) => [i, donors(i, "M" + i)]),
+    Array.from({ length: 12 }, (_, i) => [i, donors(i, "M" + i, size)]),
   );
   const badges = new Map<number, number>();
   const once = new Map<number, CentralRecord[]>();
+  const broken = new Set<number>();
   const urls: string[] = [];
   const model = (i: number): CentralControl => ({
     path: path(i),
@@ -80,7 +82,11 @@ function yard() {
               ? centralFixtureDirectory([...rows.keys()].map(model), "models")
               : index
                 ? centralFixtureModelPage(
-                    served ?? rows.get(Number(index[1])) ?? [],
+                    served ??
+                      (broken.has(Number(index[1]))
+                        ? rows.get(Number(index[1]))?.slice(0, 1)
+                        : rows.get(Number(index[1]))) ??
+                      [],
                     centralFixtureMake,
                     model(Number(index[1])),
                   )
@@ -93,7 +99,7 @@ function yard() {
     },
     { preconnect: originalFetch.preconnect },
   );
-  return { rows, labels, badges, once, urls };
+  return { rows, labels, badges, once, broken, urls };
 }
 
 /** One full run on `day`, seeded by the previous terminal cursor. */
@@ -392,4 +398,86 @@ test("Central confirms read models whose cards differ from their badge before ca
   await expect(census(native, shortDay, carried.terminal)).rejects.toThrow(
     "model cards changed",
   );
+});
+
+/** The census a terminal cursor stores for the next run. */
+function terminalCensus(terminal: unknown): CentralCensus {
+  const cursor = CentralCursor.parse(JSON.stringify(terminal));
+  if (cursor.phase !== "complete" || !cursor.census)
+    throw new Error("Expected a terminal census");
+  return cursor.census;
+}
+
+test("Central carries a short page closing confirmed without reading it again", async () => {
+  const native = yard();
+  const cold = await census(native, 600, null);
+  const readDay = nextSweepDay(native, 600);
+  const carriedDay = nextSweepDay(native, readDay);
+  // A swept model lists 150 of its 170 badged donors on every read.
+  const short = sweep(native, readDay).find(
+    (i) => !sweep(native, carriedDay).includes(i),
+  );
+  if (short === undefined)
+    throw new Error("Expected a model swept on the read day only");
+  native.badges.set(short, 170);
+  native.rows.set(short, donors(short, "M" + short, 150));
+  const read = await census(native, readDay, cold.terminal);
+  // The sweep slice, then the closing re-read of the short page.
+  expect(read.models).toEqual([...sweep(native, readDay), short]);
+  const evidence = terminalCensus(read.terminal).models;
+  expect(evidence.map((m) => m.confirmed)).toEqual(
+    [...native.rows.keys()].map((i) => i === short),
+  );
+  // Confirmed in-run, so the next run carries it instead of a "short" read.
+  const carried = await census(native, carriedDay, read.terminal);
+  expect(carried.models).toEqual(sweep(native, carriedDay));
+  expect(carried.warnings.at(-1)).not.toContain("short");
+  expect(
+    terminalCensus(carried.terminal).models.find(
+      (m) => m.key === censusKey(short, "M" + short),
+    )?.confirmed,
+  ).toBe(true);
+});
+
+test("Central fails a run whose read and carried cards fall short of today's badges", async () => {
+  // A site fault leaves every model page with one card while the menus keep
+  // their badges. A full daily read would trip the floor; with carried pages
+  // only today's sweep slice breaks, so badge coverage must catch it.
+  const native = yard(400);
+  const cold = await census(native, 600, null);
+  const day = nextSweepDay(native, 600);
+  const swept = sweep(native, day);
+  for (const model of swept) native.broken.add(model);
+  // The floor alone still passes: only coverage can stop this run.
+  expect(400 * (12 - swept.length) + swept.length).toBeGreaterThan(1_985);
+  let published = 0;
+  let yards = 0;
+  await expect(
+    (async () => {
+      let cursor: CentralCursor = CentralCursor.initial;
+      while (cursor.phase !== "complete") {
+        const result: CentralStreamResult = await Effect.runPromise(
+          streamCentralInventoryWithRequestGate(
+            {
+              startCursor: cursor,
+              previousCursor: cold.terminal,
+              now: () => day * MODEL_CENSUS_DAY_MS,
+              onYards: () =>
+                Effect.sync(() => {
+                  yards++;
+                }),
+              onBatch: (batch) =>
+                Effect.sync(() => {
+                  published += batch.length;
+                }),
+            },
+            gate,
+          ),
+        );
+        cursor = result.cursor;
+      }
+    })(),
+  ).rejects.toThrow("coverage floor");
+  expect(published).toBe(0);
+  expect(yards).toBe(0);
 });
