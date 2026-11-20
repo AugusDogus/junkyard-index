@@ -195,6 +195,7 @@ describe("reconciliation policy", () => {
     const changes = planChangedVehicleUpserts({
       inventory: new Map(cars.map((car) => [car.vin, car])),
       existingRows: [],
+      recentDepartures: [],
       runTimestamp,
       acceptedSources: new Set(["pyp", "row52"]),
       publishedYards: new Map([["pyp", new Set(["100"])]]),
@@ -219,6 +220,7 @@ describe("reconciliation policy", () => {
         ["VIN123", canonicalVehicle("VIN123", { lng: -97.51810604352379 })],
       ]),
       existingRows: [existingVehicle("VIN123", { lng: -97.5181060435238 })],
+      recentDepartures: [],
       runTimestamp: new Date("2026-03-05T00:00:00.000Z"),
       acceptedSources: new Set(["pyp"]),
     });
@@ -237,6 +239,7 @@ describe("reconciliation policy", () => {
           missingRunCount: 2,
         }),
       ],
+      recentDepartures: [],
       runTimestamp,
       acceptedSources: new Set(["pyp"]),
     });
@@ -254,6 +257,7 @@ describe("reconciliation policy", () => {
           ["VIN123", canonicalVehicle("VIN123", { source: "autorecycler" })],
         ]),
         existingRows: [owner],
+        recentDepartures: [],
         runTimestamp,
         acceptedSources: new Set(["autorecycler"]),
       });
@@ -275,6 +279,7 @@ describe("reconciliation policy", () => {
         publishedYards: new Map(),
         inventory: new Map([["VIN123", canonicalVehicle("VIN123")]]),
         existingRows: [existingVehicle("VIN123", { source: "autorecycler" })],
+        recentDepartures: [],
         runTimestamp,
         acceptedSources: new Set(["pyp"]),
       }).map((entry) => entry.vehicle.source),
@@ -301,6 +306,7 @@ describe("reconciliation policy", () => {
           publishedYards: new Map(),
           inventory: new Map([[native.vin, native]]),
           existingRows: [owner],
+          recentDepartures: [],
           runTimestamp,
           acceptedSources: new Set([source]),
         }),
@@ -318,6 +324,7 @@ describe("reconciliation policy", () => {
             ["VIN123", canonicalVehicle("VIN123", { source: "autorecycler" })],
           ]),
           existingRows: [existingVehicle("VIN123", { source })],
+          recentDepartures: [],
           runTimestamp,
           acceptedSources: new Set(["autorecycler"]),
         }),

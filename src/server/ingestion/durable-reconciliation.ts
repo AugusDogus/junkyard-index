@@ -1,5 +1,5 @@
 import type { Client, InStatement, InValue } from "@libsql/client";
-import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import {
   mapIngestionSources,
@@ -9,6 +9,7 @@ import {
   ingestionRun,
   ingestionSourceRun,
   vehicle,
+  vehicleDeparture,
   yardArrivalBaseline,
   yardInventory,
 } from "~/schema";
@@ -28,6 +29,7 @@ import {
   type MissingVehicleTransition,
   planChangedVehicleUpserts,
   planMissingVehicleTransitions,
+  RELIST_WINDOW_MS,
 } from "./reconciliation-policy";
 import {
   loadRunSnapshotInventory,
@@ -472,9 +474,34 @@ async function runUpsertBatch(
     locations.add(yard.locationCode);
     publishedYards.set(yard.source, locations);
   }
+  // Only VINs without a row can be relists of a deleted listing.
+  const existingVins = new Set(existingRows.map((row) => row.vin));
+  const unlistedVins = vins.filter((vin) => !existingVins.has(vin));
+  const recentDepartures =
+    unlistedVins.length === 0
+      ? []
+      : await params.database
+          .select({
+            vin: vehicleDeparture.vin,
+            source: vehicleDeparture.source,
+            locationCode: vehicleDeparture.locationCode,
+            firstSeenAt: vehicleDeparture.firstSeenAt,
+            departedAt: vehicleDeparture.departedAt,
+          })
+          .from(vehicleDeparture)
+          .where(
+            and(
+              inArray(vehicleDeparture.vin, unlistedVins),
+              gte(
+                vehicleDeparture.departedAt,
+                new Date(params.runTimestamp.getTime() - RELIST_WINDOW_MS),
+              ),
+            ),
+          );
   const changed = planChangedVehicleUpserts({
     inventory: finalInventory,
     existingRows,
+    recentDepartures,
     runTimestamp: params.runTimestamp,
     acceptedSources: reconciled,
     publishedYards,
@@ -506,6 +533,20 @@ async function runUpsertBatch(
     })),
   });
   if (upserts) statements.push(upserts);
+  const wasMissing = new Set(
+    existingRows
+      .filter((row) => row.missingSinceAt !== null)
+      .map((row) => row.vin),
+  );
+  const withdrawals = departureWithdrawalStatement({
+    runId: params.runId,
+    stage: "reconcile_upsert",
+    cursor: params.cursor,
+    vins: changed
+      .map(({ vehicle: next }) => next.vin)
+      .filter((vin) => !existingVins.has(vin) || wasMissing.has(vin)),
+  });
+  if (withdrawals) statements.push(withdrawals);
   // A VIN taken over by a higher-priority source leaves its previous source's
   // yard. That source is not reconciled in this run, so refresh it here.
   const existingSource = new Map(
@@ -565,6 +606,76 @@ async function runUpsertBatch(
 }
 
 type ScopedTransition = MissingVehicleTransition & { source: string };
+
+/**
+ * Withdraws the departures of listings that are back: the VIN's row has the
+ * departed listing's first sighting and is no longer missing. A relist keeps
+ * that first sighting; a VIN listed anew gets a new one, so its departure
+ * stands. Runs after the batch's upsert or restore.
+ */
+function departureWithdrawalStatement(params: {
+  runId: string;
+  stage: "reconcile_upsert" | "reconcile_missing";
+  cursor: string | null;
+  vins: readonly string[];
+}): InStatement | null {
+  if (params.vins.length === 0) return null;
+  return {
+    sql: `
+      delete from vehicle_departure
+      where vin in (${params.vins.map(() => "?").join(", ")})
+        and exists (
+          select 1 from vehicle
+          where vehicle.vin = vehicle_departure.vin
+            and vehicle.first_seen_at = vehicle_departure.first_seen_at
+            and vehicle.missing_since_at is null
+        )
+        and ${guardSql(params.stage)}
+    `,
+    args: [...params.vins, params.runId, params.cursor],
+  };
+}
+
+/**
+ * Records a departure for each vehicle the batch deletes, from the row being
+ * deleted. A departure the hourly capture already recorded is kept.
+ */
+function departureInsertStatement(params: {
+  runId: string;
+  cursor: string | null;
+  transitions: ScopedTransition[];
+  now: number;
+}): InStatement | null {
+  const deleted = params.transitions.filter(
+    (transition) => transition.changeType === "delete",
+  );
+  if (deleted.length === 0) return null;
+  const filter = readVehicleFilter(deleted);
+  return {
+    sql: `
+      insert into vehicle_departure (
+        vin, source, location_code, year, make, model, available_date,
+        first_seen_at, departed_at, recorded_at
+      )
+      select vin, source, location_code, year, make, model, available_date,
+        first_seen_at, case vin ${deleted.map(() => "when ? then ?").join(" ")} end, ?
+      from vehicle
+      where ${filter.sql}
+        and ${guardSql("reconcile_missing")}
+      on conflict do nothing
+    `,
+    args: [
+      ...deleted.flatMap((transition) => [
+        transition.vin,
+        transition.missingSinceAt,
+      ]),
+      params.now,
+      ...filter.args,
+      params.runId,
+      params.cursor,
+    ],
+  };
+}
 
 function missingUpdateStatement(params: {
   runId: string;
@@ -765,12 +876,26 @@ async function runMissingBatch(
     .filter((row) => !reconciled.has(row.source))
     .map((row) => row.source);
   statements.push(...yardInventoryRefreshStatements(restoredOwners, now));
+  const withdrawals = departureWithdrawalStatement({
+    runId: params.runId,
+    stage: "reconcile_missing",
+    cursor: params.cursor,
+    vins: restoredRows.map((row) => row.vin),
+  });
+  if (withdrawals) statements.push(withdrawals);
   const missingUpdate = missingUpdateStatement({
     runId: params.runId,
     cursor: params.cursor,
     transitions,
   });
   if (missingUpdate) statements.push(missingUpdate);
+  const departures = departureInsertStatement({
+    runId: params.runId,
+    cursor: params.cursor,
+    transitions,
+    now,
+  });
+  if (departures) statements.push(departures);
   const deletes = deleteStatement({
     runId: params.runId,
     cursor: params.cursor,

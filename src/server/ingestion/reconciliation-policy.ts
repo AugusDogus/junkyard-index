@@ -183,9 +183,48 @@ function keptByHigherPriorityOwner(
   );
 }
 
+/** A VIN listed again within this long of its departure is a relist. */
+export const RELIST_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+
+/** A recorded departure of a VIN the run lists but has no vehicle row for. */
+export interface RecentDeparture {
+  vin: string;
+  source: string;
+  locationCode: string;
+  firstSeenAt: Date;
+  departedAt: Date;
+}
+
+/**
+ * The latest departure of the same VIN from the same yard within the relist
+ * window: the listing came back, so it is not a new arrival.
+ */
+function relistedDeparture(
+  next: CanonicalVehicle,
+  departures: readonly RecentDeparture[],
+  runTimestamp: Date,
+): RecentDeparture | null {
+  const windowStart = runTimestamp.getTime() - RELIST_WINDOW_MS;
+  let latest: RecentDeparture | null = null;
+  for (const departure of departures) {
+    if (
+      departure.vin === next.vin &&
+      departure.source === next.source &&
+      departure.locationCode === next.locationCode &&
+      departure.departedAt.getTime() >= windowStart &&
+      (latest === null ||
+        departure.departedAt.getTime() > latest.departedAt.getTime())
+    )
+      latest = departure;
+  }
+  return latest;
+}
+
 export function planChangedVehicleUpserts(params: {
   inventory: ReadonlyMap<string, CanonicalVehicle>;
   existingRows: readonly ExistingVehicle[];
+  /** Departures of listed VINs that have no vehicle row. */
+  recentDepartures: readonly RecentDeparture[];
   runTimestamp: Date;
   acceptedSources: ReadonlySet<string>;
   publishedYards: ReadonlyMap<string, ReadonlySet<string>>;
@@ -203,16 +242,37 @@ export function planChangedVehicleUpserts(params: {
     if (keptByHigherPriorityOwner(existing, next, params.acceptedSources))
       continue;
     if (!vehicleNeedsUpsert(existing, next)) continue;
-    changed.push({
-      vehicle: next,
-      firstSeenAt: existing?.firstSeenAt ?? params.runTimestamp,
-      observedArrivalAt: existing
-        ? existing.observedArrivalAt
-        : ArrivalDate.from(next.availableDate, null).kind === "unknown" &&
-            params.publishedYards.get(next.source)?.has(next.locationCode)
-          ? params.runTimestamp
-          : null,
-    });
+    if (existing) {
+      changed.push({
+        vehicle: next,
+        firstSeenAt: existing.firstSeenAt,
+        observedArrivalAt: existing.observedArrivalAt,
+      });
+      continue;
+    }
+    const relisted = relistedDeparture(
+      next,
+      params.recentDepartures,
+      params.runTimestamp,
+    );
+    changed.push(
+      relisted
+        ? // A relist keeps its listing's first sighting and is no arrival.
+          {
+            vehicle: next,
+            firstSeenAt: relisted.firstSeenAt,
+            observedArrivalAt: null,
+          }
+        : {
+            vehicle: next,
+            firstSeenAt: params.runTimestamp,
+            observedArrivalAt:
+              ArrivalDate.from(next.availableDate, null).kind === "unknown" &&
+              params.publishedYards.get(next.source)?.has(next.locationCode)
+                ? params.runTimestamp
+                : null,
+          },
+    );
   }
   return changed;
 }

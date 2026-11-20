@@ -54,6 +54,7 @@ test("updates a previously unpositioned vehicle from the bulk fixture through se
         missingRunCount: 0,
       },
     ],
+    recentDepartures: [],
     runTimestamp: now,
     acceptedSources: new Set(["pyp"]),
     publishedYards: new Map(),
