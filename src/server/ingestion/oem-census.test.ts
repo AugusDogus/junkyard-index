@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { Effect } from "effect";
+import { serializeDurableSourceCursor } from "./durable-cursor";
 import { MODEL_CENSUS_DAY_MS } from "./model-census";
 import { streamOemInventory } from "./oem-connector";
 import { OemCursor } from "./oem-cursor";
@@ -36,15 +37,19 @@ const card = ({ model, stock, vin }: Donor) =>
 const badge = (href: string, label: string, count: number) =>
   `<li><a href="${href}">${label} <span class="badge badge-light">${count}</span></a></li>`;
 
-/** One make with twelve models of 40 donors each; `rows` and the arrivals can
- * change between runs. */
+/** One make with twelve models of 40 donors each; `rows`, `badges` and the
+ * arrivals can change between runs. A model badge defaults to its card count;
+ * `badges` overrides it, since native badges also count donors that are not
+ * on the model page yet. */
 function yard() {
   const rows = new Map(Array.from({ length: 12 }, (_, i) => [i, donors(i)]));
+  const badges = new Map<number, number>();
+  const count = (i: number, list: Donor[]) => badges.get(i) ?? list.length;
   // Arrivals always list at least one card; this donor is already on M0.
   let arrivals: Donor[] = [donor(0, 1)];
   const urls: string[] = [];
   const page = (url: string) => {
-    const total = [...rows.values()].reduce((n, list) => n + list.length, 0);
+    const total = [...rows].reduce((n, [i, list]) => n + count(i, list), 0);
     const model = /\/parts\/FORD\/M(\d+)\/$/.exec(url);
     if (url === OEM_ARRIVALS)
       return oemFixtureDocument(
@@ -62,7 +67,7 @@ function yard() {
             badge(
               "//oemautorecyclers.com" + modelPath(i),
               "M" + i,
-              list.length,
+              count(i, list),
             ),
           )
           .join("")}</ul></div>`,
@@ -75,6 +80,7 @@ function yard() {
   };
   return {
     rows,
+    badges,
     urls,
     readPage: (url: string) =>
       Effect.sync(() => {
@@ -86,6 +92,11 @@ function yard() {
     },
   };
 }
+
+/** A terminal cursor as loadPublishedSourceCursor returns it: the durable
+ * wire format (which omits `source`), JSON-parsed. */
+const stored = (cursor: OemCursor): unknown =>
+  JSON.parse(serializeDurableSourceCursor(cursor));
 
 /** One full run on `day`, seeded by the previous terminal cursor. */
 async function census(
@@ -126,7 +137,7 @@ async function census(
     .map(Number);
   return {
     terminal,
-    wire: JSON.parse(JSON.stringify(terminal)) as unknown,
+    wire: stored(terminal),
     requests: native.urls.length - before,
     models,
     vins: vins.sort(),
@@ -170,11 +181,19 @@ test("OEM unreadable or incompatible previous checkpoints start a warned cold ce
   const foreign = OemCursor.checkpoint({
     ...cold.terminal,
     state: {
-      phase: "complete",
+      ...cold.terminal.state,
       census: { ...cold.terminal.state.census, contract: "oem/older" },
     },
   });
-  const contract = await census(native, 601, foreign);
+  // A census without the arrival destinations it was accepted with is invalid.
+  const accepted = cold.terminal.state.census;
+  expect(() =>
+    OemCursor.checkpoint({
+      ...cold.terminal,
+      state: { phase: "complete", census: accepted },
+    }),
+  ).toThrow("stored together");
+  const contract = await census(native, 601, stored(foreign));
   expect(contract.models).toHaveLength(12);
   expect(contract.warnings[0]).toContain(
     "another parser or traversal contract",
@@ -187,7 +206,7 @@ test("OEM unreadable or incompatible previous checkpoints start a warned cold ce
     ...cold.terminal,
     state: { phase: "complete" },
   });
-  const silent = await census(native, 601, legacy);
+  const silent = await census(native, 601, stored(legacy));
   expect(silent.models).toHaveLength(12);
   expect(silent.warnings).toEqual([
     "OEM Read 12 of 12 model pages (cold 12); carried 0.",
@@ -223,8 +242,52 @@ test("OEM arrivals publish lagging donors without triggering model reads", async
   const arrival = donor(9, 41);
   native.setArrivals([arrival]);
   const run = await census(native, 601, cold.wire);
+  // M0 is not read either: its departed arrival is on its carried page.
   expect(run.models).toEqual([1, 7]);
   expect(run.vins).toEqual(allVins(native, [arrival]));
+});
+
+test("OEM reads a model once when a departing arrival is missing from its carried page", async () => {
+  const native = yard();
+  // Day 600: the M10 badge already counts arrival X, but its page lags.
+  const x = donor(10, 41);
+  native.badges.set(10, 41);
+  native.setArrivals([x]);
+  const cold = await census(native, 600, null);
+  expect(cold.vins).toEqual(allVins(native, [x]));
+  // Day 601: the page lists X with the badge unchanged, so M10 carries the
+  // day-600 page without X; the arrivals page still publishes X.
+  native.rows.set(10, donors(10, 41));
+  const lagging = await census(native, 601, cold.wire);
+  expect(lagging.models).toEqual([1, 7]);
+  expect(lagging.vins).toEqual(allVins(native));
+  // Day 602: X leaves the arrivals page. Its own destination binds M10 and
+  // the carried page lacks it, so M10 is read and X stays published.
+  native.setArrivals([donor(0, 1)]);
+  const departed = await census(native, 602, lagging.wire);
+  expect(departed.models).toEqual([2, 8, 10]);
+  expect(departed.vins).toEqual(allVins(native));
+  expect(departed.warnings.at(-1)).toBe(
+    "OEM Read 3 of 12 model pages (sweep 2, trigger 1); carried 9.",
+  );
+  // Day 603: the trigger fired once; M10 now carries its page with X.
+  const after = await census(native, 603, departed.wire);
+  expect(after.models).toEqual([3, 9]);
+  expect(after.vins).toEqual(allVins(native));
+});
+
+test("OEM departing arrivals trigger one read even while the page still lags", async () => {
+  const native = yard();
+  const x = donor(10, 41);
+  native.badges.set(10, 41);
+  native.setArrivals([x]);
+  const cold = await census(native, 600, null);
+  // X leaves arrivals before reaching its page: one read, then no re-reads.
+  native.setArrivals([donor(0, 1)]);
+  const departed = await census(native, 601, cold.wire);
+  expect(departed.models).toEqual([1, 7, 10]);
+  const after = await census(native, 602, departed.wire);
+  expect(after.models).toEqual([2, 8]);
 });
 
 test("OEM re-reads every model within six days, even across missed runs", async () => {
@@ -243,7 +306,8 @@ test("OEM re-reads every model within six days, even across missed runs", async 
     expect(run.models).toHaveLength(day === 606 ? 6 : 2);
     previous = run.wire;
   }
-});
+  // Eleven resumable runs revalidate every checkpoint.
+}, 30_000);
 
 test("OEM rejects a checkpoint whose carried page differs from its census", async () => {
   const native = yard();
