@@ -81,10 +81,35 @@ export const GRANDPAJOHNS_TENANT: Alln1Tenant<"grandpajohns"> = {
     "you are able to offset the cost of making a repair to your auto by pulling your needed parts in our yard using your tools.",
 };
 
-/** Only native unfiltered inventory continuations, never additional selectors. */
+/**
+ * Both tenants sit behind a Cloudways Varnish cache that served inventory
+ * pages up to 40 hours old, each page from a different snapshot. A unique
+ * `cb` query parameter misses that cache, and the plugin reflects it into the
+ * search form and every pagination link. Requests carry a fresh nonce here;
+ * cursors, page hashes and continuations stay canonical without it.
+ */
+export function alln1CacheBustUrl(raw: string, nonce: string): string {
+  const url = new URL(raw);
+  // The verified live requests put cb after k and view, before pagenum or
+  // search.
+  const trailing = new Set(["pagenum", "search"]);
+  const entries = [...url.searchParams];
+  url.search = new URLSearchParams([
+    ...entries.filter(([key]) => !trailing.has(key)),
+    ["cb", nonce],
+    ...entries.filter(([key]) => trailing.has(key)),
+  ]).toString();
+  return url.href;
+}
+
+/**
+ * Only native unfiltered inventory continuations, never additional selectors.
+ * With `nonce`, the continuation must carry exactly that reflected `cb` value.
+ */
 export function alln1PageNumber(
   raw: string,
   tenant: Alln1Tenant = ALLN1_TENANT,
+  nonce: string | null = null,
 ): number | null {
   const url = URL.parse(raw);
   if (
@@ -97,21 +122,79 @@ export function alln1PageNumber(
   )
     return null;
   const entries = [...url.searchParams];
+  const keys =
+    nonce === null ? ["k", "view", "pagenum"] : ["k", "view", "cb", "pagenum"];
   if (
-    entries.some(([key]) => !["k", "view", "pagenum"].includes(key)) ||
-    ["k", "view", "pagenum"].some(
+    entries.some(([key]) => !keys.includes(key)) ||
+    keys.some(
       (key) =>
         url.searchParams.getAll(key).length !==
         (key === "pagenum" && !url.searchParams.has(key) ? 0 : 1),
     ) ||
     url.searchParams.get("k") !== "1" ||
-    url.searchParams.get("view") !== "table"
+    url.searchParams.get("view") !== "table" ||
+    (nonce !== null && url.searchParams.get("cb") !== nonce)
   )
     return null;
   const rawPage = url.searchParams.get("pagenum") ?? "1";
   return /^[1-9]\d*$/.test(rawPage) && Number(rawPage) <= ALLN1_MAX_PAGES
     ? Number(rawPage)
     : null;
+}
+/**
+ * The native search for one Set Date, which lists every donor set on that
+ * date on one page while fewer than 500 match. It recovers donors a Set Date
+ * tie hid from the paginated census.
+ */
+export function alln1SearchUrl(
+  date: string,
+  tenant: Alln1Tenant = ALLN1_TENANT,
+): string {
+  return tenant.inventoryUrl + "&search=" + date;
+}
+/**
+ * The ISO date searched by `raw`, or null unless it is exactly the tenant's
+ * native table with `k=1`, `view=table`, one ISO calendar date as `search`
+ * and, with `nonce`, exactly that `cb` value.
+ */
+export function alln1SearchDate(
+  raw: string,
+  tenant: Alln1Tenant = ALLN1_TENANT,
+  nonce: string | null = null,
+): string | null {
+  const url = URL.parse(raw);
+  if (
+    !url ||
+    url.origin !== tenant.origin ||
+    url.pathname !== "/inventory/ANY/ANY/" ||
+    url.username ||
+    url.password ||
+    url.hash
+  )
+    return null;
+  const keys =
+    nonce === null ? ["k", "view", "search"] : ["k", "view", "cb", "search"];
+  const entries = [...url.searchParams];
+  const search = url.searchParams.get("search") ?? "";
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(search)
+    ? new Date(search + "T00:00:00.000Z")
+    : null;
+  return entries.length === keys.length &&
+    keys.every((key) => url.searchParams.getAll(key).length === 1) &&
+    url.searchParams.get("k") === "1" &&
+    url.searchParams.get("view") === "table" &&
+    (nonce === null || url.searchParams.get("cb") === nonce) &&
+    date !== null &&
+    Number.isFinite(date.getTime()) &&
+    date.toISOString().slice(0, 10) === search
+    ? search
+    : null;
+}
+/** The canonical continuation of a page link verified with its nonce. */
+export function alln1WithoutCacheBust(raw: string): string {
+  const url = new URL(raw);
+  url.searchParams.delete("cb");
+  return url.href;
 }
 export function alln1DetailsUrl(
   vin: string,

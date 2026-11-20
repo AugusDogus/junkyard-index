@@ -7,6 +7,7 @@ import { streamGrandpajohnsInventoryWithRequestGate } from "./alln1-connector";
 import { Alln1CursorSchema, GrandpajohnsCursor } from "./alln1-cursor";
 import { parseAlln1Page } from "./alln1-parser";
 import { GRANDPAJOHNS_TENANT } from "./alln1-yard-metadata";
+import { alln1TestReflect, alln1TestRequest } from "./alln1-test-fixtures";
 import { transformUpullRecord } from "./alln1-transform";
 import {
   parseDurableSourceCursor,
@@ -46,13 +47,20 @@ function mock(
   // Resume anchors reuse opening captures. Terminal controls are separate live reads.
   const sequence = budget === 1 ? [0, 1, 0, 1, 2, 3, 4] : [0, 1, 2, 3, 4];
   let reads = 0;
+  const nonces = new Set<string>();
   globalThis.fetch = Object.assign(
     async (input: RequestInfo | URL) => {
+      // Saved responses are canonical; each request adds its own nonce, which
+      // the native plugin reflects into inventory forms and page links.
+      const { url, nonce } = alln1TestRequest(String(input));
       const index = sequence[reads++];
       const saved = index === undefined ? undefined : archive.responses[index];
-      if (!saved || saved.url !== String(input))
+      if (!saved || saved.url !== url || (nonce !== null && nonces.has(nonce)))
         throw new Error("Unsaved U-Pull request " + String(input));
-      return new Response(rewrite(saved.html, index ?? -1), {
+      if (nonce !== null) nonces.add(nonce);
+      const html =
+        nonce === null ? saved.html : alln1TestReflect(saved.html, nonce);
+      return new Response(rewrite(html, index ?? -1), {
         headers: { "content-type": "text/html" },
       });
     },

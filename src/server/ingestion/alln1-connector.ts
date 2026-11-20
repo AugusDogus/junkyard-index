@@ -4,22 +4,18 @@ import {
   Alln1ProviderError,
   fetchAlln1Owner,
   fetchAlln1Page,
+  fetchAlln1Search,
 } from "./alln1-client";
 import {
-  createAlln1Cursor,
-  type UpullCursor,
-  type Alln1Seen,
-} from "./alln1-cursor";
-import {
-  alln1Hash,
-  alln1Stock,
-  type Alln1Page,
-  type Alln1Record,
-} from "./alln1-parser";
-import {
-  transformUpullRecord,
-  type Alln1CanonicalVehicle,
-} from "./alln1-transform";
+  ALLN1_EMPTY_CENSUS,
+  admitAlln1Page,
+  alln1PendingTies,
+  completeAlln1Census,
+  type Alln1Census,
+} from "./alln1-census";
+import { createAlln1Cursor, type UpullCursor } from "./alln1-cursor";
+import { alln1Hash, type Alln1Page } from "./alln1-parser";
+import type { Alln1CanonicalVehicle } from "./alln1-transform";
 import {
   ALLN1_TENANT,
   GRANDPAJOHNS_TENANT,
@@ -29,9 +25,11 @@ import {
 } from "./alln1-yard-metadata";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import type { ProviderRequestGate } from "./provider-http-client";
-import { ProviderChunkClock } from "./provider-chunk-clock";
+import {
+  PROVIDER_CHUNK_WALL_LIMIT,
+  ProviderChunkClock,
+} from "./provider-chunk-clock";
 import { sharedProviderHostTurn } from "./shared-provider-host";
-import { SourceValidationPolicy } from "./source-validation";
 
 interface Alln1Options<E, R, S extends Alln1Source> {
   startCursor?: UpullCursor<S>;
@@ -49,52 +47,14 @@ const validated = <A>(operation: string, run: () => A) =>
     try: run,
     catch: (cause) => new Alln1ProviderError({ operation, cause }),
   });
-function processPage<S extends Alln1Source>(
-  records: readonly Alln1Record[],
-  page: number,
-  seen: Alln1Seen[],
-  tenant: Alln1Tenant<S>,
-) {
-  const vins = new Set(seen.flatMap((entry) => (entry.vin ? [entry.vin] : [])));
-  const stocks = new Set(
-    seen.flatMap((entry) => (entry.stock ? [entry.stock] : [])),
-  );
-  const hashes = new Set(seen.map((entry) => entry.hash));
-  const vehicles: Alln1CanonicalVehicle<S>[] = [];
-  const observedVins: string[] = [];
-  let rejected = 0;
-  for (const record of records) {
-    const result = transformUpullRecord(record, tenant);
-    const vin = result.status === "available" ? result.vehicle.vin : result.vin;
-    const stock = alln1Stock(record.stock);
-    const hash = alln1Hash(record);
-    if (
-      (vin && vins.has(vin)) ||
-      (stock && stocks.has(stock)) ||
-      hashes.has(hash)
-    )
-      throw new Error(
-        "Native pages repeat a donor VIN/serial, stock or complete source record",
-      );
-    if (vin) vins.add(vin);
-    if (stock) stocks.add(stock);
-    hashes.add(hash);
-    const common = { hash, stock, firstPage: page };
-    if (result.status === "available") {
-      seen.push({ ...common, status: "available", vin: result.vehicle.vin });
-      vehicles.push(result.vehicle);
-    } else {
-      rejected++;
-      if (vin) observedVins.push(vin);
-      seen.push(
-        result.status === "quarantined"
-          ? { ...common, status: "quarantined", position: result.position, vin }
-          : { ...common, status: "incomplete", vin },
-      );
-    }
-  }
-  return { vehicles, observedVins, rejected };
-}
+/**
+ * Set Date searches one finishing turn may hold. Its T searches and two
+ * closing reads must end by the 340-second turn horizon even when every read
+ * takes the 60-second read limit plus the 3.5-second URG gap and 1.6-second
+ * gate: 5 reads x 65.1 s = 325.5 s. All-N-1 (three pages) has at most two
+ * ties and Grandpa John's (two pages) one.
+ */
+export const ALLN1_MAX_TIE_SEARCHES = 3;
 function streamUpullInventoryWithRequestGate<S extends Alln1Source, E, R>(
   options: Alln1Options<E, R, S>,
   gate: ProviderRequestGate,
@@ -133,136 +93,194 @@ function streamUpullInventoryWithRequestGate<S extends Alln1Source, E, R>(
     };
     if (initial.phase === "complete") return empty;
     const resumeUrl = initial.phase === "pages" ? initial.nextUrl : null;
+    let census: Alln1Census =
+      initial.phase === "start"
+        ? ALLN1_EMPTY_CENSUS
+        : { seen: initial.seen, setDates: initial.setDates };
     const closingRead = Effect.all([
       fetchAlln1Owner(gate, tenant),
       fetchAlln1Page(tenant.inventoryUrl, gate, tenant),
     ]);
-    // One shared host turn reads the owner and first-page anchor, the page
-    // this chunk resumes at, and the closing reads when that page is the last,
-    // so a chunk needs one turn to advance. Nothing here touches chunk state.
-    const opening = yield* Effect.gen(function* () {
-      const owner = yield* fetchAlln1Owner(gate, tenant);
-      const anchor = yield* fetchAlln1Page(tenant.inventoryUrl, gate, tenant);
-      const scopeHash = alln1Hash({ owner, scope: anchor.scopeHash });
-      if (
-        initial.phase === "pages" &&
-        (initial.scopeHash !== scopeHash ||
-          initial.anchorHash !== anchor.hash ||
-          initial.lastPage !== anchor.lastPage)
-      )
-        return yield* new Alln1ProviderError({
-          operation: "resume scope",
-          cause:
-            "Native owner, first-page inventory anchor or pagination changed during the crawl",
-        });
-      const page =
-        resumeUrl === null
-          ? anchor
-          : yield* fetchAlln1Page(resumeUrl, gate, tenant);
-      const closing = page.nextUrl === null ? yield* closingRead : null;
-      return { owner, anchor, scopeHash, page, closing };
-    }).pipe(
-      sharedProviderHostTurn(
-        tenant.origin,
-        initial.phase === "pages" && initial.nextPage === initial.lastPage
-          ? 5
-          : 3,
-      ),
-    );
-    const { owner, anchor, scopeHash } = opening;
-    const seen: Alln1Seen[] =
-      initial.phase === "pages" ? [...initial.seen] : [];
-    const receipts: { hash: string; count: number }[] =
-      initial.phase === "pages" ? [...initial.receipts] : [];
-    let nextPage = initial.phase === "pages" ? initial.nextPage : 1;
+    // The Set Date searches for every pending tie, then the closing owner and
+    // first-page reads, as one shared host turn of T + 2 reads. It is never
+    // combined with a catalog page. With T capped at ALLN1_MAX_TIE_SEARCHES it
+    // fits the turn horizon even when every read takes the full read limit;
+    // more ties fail closed before any search is sent.
+    const finishing = (before: Alln1Census) => {
+      const ties = alln1PendingTies(before);
+      if (ties.length > ALLN1_MAX_TIE_SEARCHES)
+        return Effect.fail(
+          new Alln1ProviderError({
+            operation: "Set Date tie searches",
+            cause:
+              ties.length +
+              " page boundaries split Set Date ties (" +
+              ties.map((tie) => tie.date).join(", ") +
+              "), but one finishing turn fits at most " +
+              ALLN1_MAX_TIE_SEARCHES +
+              " searches at the 60-second read limit, so this census cannot prove its hidden donors. Nothing was accepted. Splitting tie searches across turns is required before this yard's census can complete",
+          }),
+        );
+      return Effect.all([
+        Effect.forEach(ties, (tie) => fetchAlln1Search(tie.date, gate, tenant)),
+        closingRead,
+      ]).pipe(sharedProviderHostTurn(tenant.origin, ties.length + 2));
+    };
+    type Finished = Effect.Effect.Success<ReturnType<typeof finishing>>;
+    // A closing checkpoint already admitted every page: its closing reads
+    // are also its resume scope check, so it reads no opening controls.
+    const opening =
+      initial.phase === "closing"
+        ? null
+        : yield* Effect.gen(function* () {
+            const owner = yield* fetchAlln1Owner(gate, tenant);
+            const anchor = yield* fetchAlln1Page(
+              tenant.inventoryUrl,
+              gate,
+              tenant,
+            );
+            const scopeHash = alln1Hash({ owner, scope: anchor.scopeHash });
+            if (
+              initial.phase === "pages" &&
+              (initial.scopeHash !== scopeHash ||
+                initial.anchorHash !== anchor.hash ||
+                initial.lastPage !== anchor.lastPage)
+            )
+              return yield* new Alln1ProviderError({
+                operation: "resume scope",
+                cause:
+                  "Native owner, first-page inventory anchor or pagination changed during the crawl",
+              });
+            const page =
+              resumeUrl === null
+                ? anchor
+                : yield* fetchAlln1Page(resumeUrl, gate, tenant);
+            return { owner, anchor, scopeHash, page };
+          }).pipe(
+            // One shared host turn reads the owner, the first-page anchor and
+            // the page this chunk resumes at, so a chunk needs one turn to
+            // advance. Nothing here touches chunk state.
+            sharedProviderHostTurn(tenant.origin, resumeUrl === null ? 2 : 3),
+          );
+    const binding =
+      opening === null
+        ? initial.phase === "closing"
+          ? {
+              scopeHash: initial.scopeHash,
+              anchorHash: initial.anchorHash,
+              lastPage: initial.lastPage,
+            }
+          : null
+        : {
+            scopeHash: opening.scopeHash,
+            anchorHash: opening.anchor.hash,
+            lastPage: opening.anchor.lastPage,
+          };
+    if (binding === null)
+      return yield* new Alln1ProviderError({
+        operation: "checkpoint",
+        cause: "Only a closing checkpoint may skip the opening controls",
+      });
+    const receipts = initial.phase === "start" ? [] : [...initial.receipts];
+    let nextPage =
+      initial.phase === "pages"
+        ? initial.nextPage
+        : initial.phase === "closing"
+          ? initial.lastPage + 1
+          : 1;
     let nextUrl: string | null =
-      initial.phase === "pages" ? initial.nextUrl : tenant.inventoryUrl;
+      initial.phase === "pages"
+        ? initial.nextUrl
+        : initial.phase === "closing"
+          ? null
+          : tenant.inventoryUrl;
     const vehicles: Alln1CanonicalVehicle<S>[] = [];
     const observedVins: string[] = [];
     let pagesProcessed = 0,
       processed = 0,
-      rejected = 0;
-    type PageRead = { page: Alln1Page; closing: typeof opening.closing };
-    let pending: PageRead | null = {
-      page: opening.page,
-      closing: opening.closing,
-    };
-    let closing: typeof opening.closing = null;
+      rejected = 0,
+      repeated = 0;
+    let pending: Alln1Page | null = opening?.page ?? null;
     while (nextUrl && pagesProcessed < maxPages) {
       if (pending === null) {
-        const url: string = nextUrl;
-        // The last page shares its turn with the closing reads, because the
-        // cursor cannot hold a crawl whose closing reads are still pending.
-        const read: Option.Option<PageRead> = yield* Effect.gen(function* () {
-          const page: Alln1Page = yield* fetchAlln1Page(url, gate, tenant);
-          return {
-            page,
-            closing: page.nextUrl === null ? yield* closingRead : null,
-          };
-        }).pipe(
-          sharedProviderHostTurn(
-            tenant.origin,
-            nextPage === anchor.lastPage ? 3 : 1,
-          ),
+        const read: Option.Option<Alln1Page> = yield* fetchAlln1Page(
+          nextUrl,
+          gate,
+          tenant,
+        ).pipe(
+          sharedProviderHostTurn(tenant.origin),
           ProviderChunkClock.unlessDeferred(pagesProcessed > 0),
         );
         if (Option.isNone(read)) break;
         pending = read.value;
       }
-      const page: Alln1Page = pending.page;
-      closing = pending.closing;
+      const page: Alln1Page = pending;
       pending = null;
       if (
+        opening === null ||
         page.page !== nextPage ||
-        page.lastPage !== anchor.lastPage ||
-        page.scopeHash !== anchor.scopeHash
+        page.lastPage !== opening.anchor.lastPage ||
+        page.scopeHash !== opening.anchor.scopeHash
       )
         return yield* new Alln1ProviderError({
           operation: "native page scope",
           cause:
             "Requested page or native pagination directory changed during the crawl",
         });
-      const result = yield* validated("cumulative donor identities", () =>
-        processPage(page.records, nextPage, seen, tenant),
+      const admitted = yield* validated("cumulative donor identities", () =>
+        admitAlln1Page(census, page.records, nextPage, tenant),
       );
-      vehicles.push(...result.vehicles);
-      observedVins.push(...result.observedVins);
-      rejected += result.rejected;
+      census = admitted.census;
+      vehicles.push(...admitted.vehicles);
+      observedVins.push(...admitted.observedVins);
+      rejected += admitted.rejected;
       processed += page.records.length;
+      repeated += admitted.repeats;
       pagesProcessed++;
-      receipts.push({ hash: page.hash, count: page.records.length });
+      receipts.push({
+        hash: page.hash,
+        count: page.records.length,
+        repeats: admitted.repeats,
+      });
       nextPage++;
       nextUrl = page.nextUrl;
     }
-    const terminal = nextUrl === null;
-    if (terminal) {
-      yield* validated("complete yard coverage and quality", () => {
-        const totalRejected = seen.filter(
-          (entry) => entry.status !== "available",
-        ).length;
-        if (
-          receipts.length !== anchor.lastPage ||
-          totalRejected === seen.length ||
-          totalRejected / seen.length >
-            SourceValidationPolicy.maximumRejectionRatio
-        )
-          throw new Error(
-            totalRejected +
-              " rejected or quarantined of " +
-              seen.length +
-              " donors exceeds the unchanged 10% rejection limit or lacks complete valid yard coverage",
-          );
-      });
-      if (closing === null)
-        return yield* new Alln1ProviderError({
-          operation: "terminal anchor",
-          cause: "The last native page was read without its closing reads",
-        });
-      const [closingOwner, closingAnchor] = closing;
+    // Every page is admitted: search the pending ties and reread the closing
+    // controls. An advanced chunk whose finishing turn is deferred returns a
+    // closing checkpoint; a closing checkpoint's chunk defers as a whole.
+    const finished: Option.Option<Finished> =
+      nextUrl === null
+        ? yield* finishing(census).pipe(
+            ProviderChunkClock.unlessDeferred(pagesProcessed > 0),
+          )
+        : Option.none();
+    const terminal = Option.isSome(finished);
+    const recovered: string[] = [];
+    if (Option.isSome(finished)) {
+      const [searches, [closingOwner, closingAnchor]] = finished.value;
+      const completed = yield* validated(
+        "complete yard coverage and quality",
+        () =>
+          completeAlln1Census(
+            census,
+            searches,
+            binding.lastPage,
+            receipts.length,
+            binding.lastPage,
+            tenant,
+          ),
+      );
+      census = completed.census;
+      vehicles.push(...completed.vehicles);
+      observedVins.push(...completed.observedVins);
+      rejected += completed.rejected;
+      processed += completed.processed;
+      for (const search of searches) recovered.push(search.date);
       if (
-        closingOwner !== owner ||
-        closingAnchor.hash !== anchor.hash ||
-        closingAnchor.scopeHash !== anchor.scopeHash
+        alln1Hash({ owner: closingOwner, scope: closingAnchor.scopeHash }) !==
+          binding.scopeHash ||
+        closingAnchor.hash !== binding.anchorHash ||
+        closingAnchor.lastPage !== binding.lastPage
       )
         return yield* new Alln1ProviderError({
           operation: "terminal anchor",
@@ -270,19 +288,25 @@ function streamUpullInventoryWithRequestGate<S extends Alln1Source, E, R>(
             "Native owner, first-page inventory anchor or pagination changed during the crawl",
         });
     }
-    const cursor = yield* validated("next checkpoint", () =>
-      nextUrl === null
-        ? codec.schema.parse({ source: tenant.source, phase: "complete" })
-        : codec.checkpoint({
-            scopeHash,
-            anchorHash: anchor.hash,
-            lastPage: anchor.lastPage,
-            nextPage,
-            nextUrl,
-            seen,
-            receipts,
-          }),
-    );
+    const setDates = census.setDates;
+    const cursor = yield* validated("next checkpoint", () => {
+      if (terminal)
+        return codec.schema.parse({ source: tenant.source, phase: "complete" });
+      if (setDates === null)
+        throw new Error("A paused census must hold at least one native donor");
+      const ledger = {
+        scopeHash: binding.scopeHash,
+        anchorHash: binding.anchorHash,
+        lastPage: binding.lastPage,
+        seen: census.seen,
+        receipts,
+        setDates,
+      };
+      return nextUrl === null
+        ? codec.closing(ledger)
+        : codec.checkpoint({ ...ledger, nextPage, nextUrl });
+    });
+    const name = tenant.source === "alln1" ? "All-N-1" : tenant.yard.name;
     // No callback can return an advanced checkpoint after any failed read.
     yield* options.onBatch(vehicles);
     if (terminal && options.onYards) yield* options.onYards([tenant.yard]);
@@ -293,27 +317,43 @@ function streamUpullInventoryWithRequestGate<S extends Alln1Source, E, R>(
       count: vehicles.length,
       pagesProcessed,
       observedVins,
-      warnings: rejected
-        ? [
-            (tenant.source === "alln1" ? "All-N-1" : tenant.yard.name) +
-              " counts incomplete identities and literal availability-ambiguous positions toward rejection; valid identities remain presence-only.",
-          ]
-        : [],
+      warnings: [
+        ...(rejected
+          ? [
+              name +
+                " counts incomplete identities and literal availability-ambiguous positions toward rejection; valid identities remain presence-only.",
+            ]
+          : []),
+        ...(recovered.length
+          ? [
+              name +
+                " page boundaries split the Set Date ties " +
+                recovered.join(", ") +
+                "; their native Set Date searches recovered the donors the pages hid.",
+            ]
+          : []),
+      ],
       accounting: {
         recordsProcessed: processed,
         recordsExcluded: 0,
         recordsRejected: rejected,
-        duplicateVehicles: 0,
+        duplicateVehicles: repeated,
       },
     } satisfies UpullStreamResult<S>;
   }).pipe(
+    // Uncached inventory reads take 18 to 26 s and a read may take 60 s, so a
+    // fixed work budget below the wall limit would fail healthy censuses on
+    // slow days. With the wall limit as the work budget, every shared host
+    // turn ends by the turn horizon first: a slow turn is deferred, so an
+    // advanced chunk returns its checkpoint and an unadvanced one is retried
+    // as a deferral, never a failure.
     ProviderChunkClock.deadline({
-      duration: "3 minutes",
+      duration: PROVIDER_CHUNK_WALL_LIMIT,
       onTimeout: () =>
         new Alln1ProviderError({
           operation: "page budget",
           cause:
-            "Three-minute chunk deadline exceeded; retain the last validated checkpoint",
+            "Chunk work reached the step's wall limit outside a shared host turn; retain the last validated checkpoint",
         }),
     }),
   );

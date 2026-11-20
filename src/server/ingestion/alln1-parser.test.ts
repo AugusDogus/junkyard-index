@@ -4,7 +4,14 @@ import {
   alln1TestOwner,
   alln1TestPage,
   alln1TestRecord,
+  alln1TestRecords,
+  alln1TestReflect,
 } from "./alln1-test-fixtures";
+import {
+  ALLN1_INVENTORY_URL,
+  ALLN1_TENANT,
+  alln1CacheBustUrl,
+} from "./alln1-yard-metadata";
 
 test("All-N-1 parses native scope, complete table, agreeing pagination and optional metadata", () => {
   parseAlln1Owner(alln1TestOwner);
@@ -132,4 +139,29 @@ test("All-N-1 nulls unusable optional photo references without changing source t
     stock: "2692320",
     position: "V V-11",
   });
+});
+test("All-N-1 accepts a reflected cb only for the nonce the page was requested with", () => {
+  const nonce = "0123456789abcdef";
+  const canonical = alln1TestPage(alln1TestRecords(500), 1, 2);
+  const reflected = alln1TestReflect(canonical, nonce);
+  expect(alln1CacheBustUrl(ALLN1_INVENTORY_URL + "&pagenum=2", nonce)).toBe(
+    ALLN1_INVENTORY_URL + "&cb=" + nonce + "&pagenum=2",
+  );
+  expect(alln1CacheBustUrl("https://alln1kc.com/", nonce)).toBe(
+    "https://alln1kc.com/?cb=" + nonce,
+  );
+  const page = parseAlln1Page(reflected, 1, ALLN1_TENANT, nonce);
+  expect(page.nextUrl).toBe(ALLN1_INVENTORY_URL + "&pagenum=2");
+  expect(page.hash).toBe(parseAlln1Page(canonical, 1).hash);
+  expect(() => parseAlln1Page(reflected, 1)).toThrow("unverified selector");
+  expect(() =>
+    parseAlln1Page(reflected, 1, ALLN1_TENANT, "fedcba9876543210"),
+  ).toThrow("native fields");
+  expect(() => parseAlln1Page(canonical, 1, ALLN1_TENANT, nonce)).toThrow(
+    "unverified selector",
+  );
+  const unreflectedLinks = reflected.replaceAll("cb=" + nonce + "&amp;", "");
+  expect(() =>
+    parseAlln1Page(unreflectedLinks, 1, ALLN1_TENANT, nonce),
+  ).toThrow("unsupported continuation");
 });

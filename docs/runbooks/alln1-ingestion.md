@@ -120,9 +120,70 @@ references without guessed placeholder semantics. Current table media wins
 over older grid evidence. Accepted output contains 654 photo references and
 439 null photos. No image bytes are fetched.
 
+## Cache bypass
+
+Both tenants sit behind a Cloudways Varnish cache. On November 19, 2026 the
+canonical All-N-1 page 1 was a cache HIT 145,950 seconds old, page 2 a HIT
+120,868 seconds old and page 3 a fresh MISS. The last 12 donors of cached page
+2 were the first 12 of fresh page 3, and the closing owner and first-page
+re-reads returned the same cached bytes as the opening reads.
+
+Every inventory request (catalog pages, opening, resume and closing anchors,
+and Set Date searches) adds a fresh random `cb` nonce, for example
+`/inventory/ANY/ANY/?k=1&view=table&cb=<16 hex>&pagenum=2`. A unique `cb`
+missed the cache with `age: 0` and `cache-control: no-cache` in live checks.
+The plugin reflects `cb` as a hidden search field and in every page link. The
+parser accepts that reflection only when it equals the nonce the page was
+requested with, and strips it from continuations, so cursors, page hashes and
+scope hashes stay canonical. Any inventory response with an `x-cache` HIT, a
+`cf-cache-status` of HIT, STALE, UPDATING or REVALIDATED, or an `Age` other
+than 0 fails closed with the URL and those headers. Previous inventory is
+preserved; re-verify that a unique `cb` still bypasses the cache before
+retrying.
+
+The owner page proves only the yard's physical identity text, not an
+inventory snapshot, so it is read as published and may come from the cache.
+`/?cb=` also missed on November 19 (MISS, age 0), but took 19.3 seconds at the
+origin, so busting it would add about 40 seconds to every chunk for no
+completeness gain. Owner identity and opening/closing owner equality checks
+are unchanged.
+
+## Set Date ties
+
+The table is sorted by Set Date with LIMIT/OFFSET on that non-unique key, so
+each offset can order a date's donors differently. Dates still fill fixed,
+contiguous runs of slots. A donor of a date split across a page boundary can
+therefore show on both pages while another donor of that date shows on
+neither. The fresh November 19 census shows this: stock 261947 ends page 1
+and starts page 2 (Set Date 2026-08-28), and 261948 appears on neither page.
+
+A repeat is accepted only as the identical native record from the
+immediately preceding page, dated with both that page's last Set Date and the
+current page's first. It is counted once as a duplicate row and never
+admitted twice. Every other VIN, stock or record repeat still fails, and so
+does a repeat once the catalog stops being ordered by Set Date. Each repeat
+stands for exactly one hidden donor of that date. Pending tie dates, their
+repeat counts and the census donors of each date are kept in the checkpoint,
+so a tie found in one chunk is resolved in the last.
+
+Once every page is admitted, one host turn runs one cache-busted search per
+tie date, `/inventory/ANY/ANY/?k=1&view=table&cb=<16 hex>&search=YYYY-MM-DD`,
+then the closing reads. A search must pass the same scope, statement, form and table
+checks, reflect the searched date, publish no pagination, hold 1 to 499 rows,
+all dated that day, list every census donor of the date, and add exactly as
+many unseen donors as the catalog repeated. Anything else means inventory
+changed during the crawl: nothing is accepted, previous inventory is
+preserved, and the next run starts over. Recovered donors go through the same
+transform, identity and 10% yard rejection checks, and the run warns with the
+recovered dates. The live 2026-08-28 search (MISS, 19.6 s at the origin)
+returned 16 rows including 261948, and the fixture census accepts 1,079 unique
+donors with 45 rejected and 1 duplicate row.
+
 ## Checkpoints, quality and recovery
 
-The strict cursor phases are `start`, `pages` and `complete`. A paused cursor
+The strict cursor phases are `start`, `pages`, `closing` and `complete`.
+`closing` holds a census whose every page is admitted while its Set Date
+searches and closing reads are still pending. A paused cursor
 stores owner/scope and first-page anchor hashes, last/next page, exact Next
 URL, sequential per-page receipts and cumulative available, incomplete or
 quarantined donor states. Each state retains its native record fingerprint,
@@ -132,9 +193,11 @@ validated before HTTP, alongside accounting and unique stock/identity guards.
 This detects corruption in trusted internal durable state; it is not
 authentication against coordinated arbitrary cursor rewrites.
 
-Every chunk opens the official root and first-page inventory anchor. Resumes
-must match the prior owner, scope, anchor and page directory. Terminal
-completion rereads the root and first page. All chunk validation finishes
+Every `start` or `pages` chunk opens the official root and first-page
+inventory anchor. Resumes must match the prior owner, scope, anchor and page
+directory. Terminal completion runs the Set Date searches, then rereads the
+root and first page, which must match the opening owner, scope and anchor. A
+`closing` chunk makes only those reads, so they are also its resume check. All chunk validation finishes
 before callbacks. Callback failure returns no advanced checkpoint; a complete
 cursor makes no requests or callbacks. The default chunk has three pages,
 and connector budgets range from 1 through 32.
@@ -147,8 +210,30 @@ least 364 accepted unique donors and retains the 50% prior-count drift limit
 and duplicate/reconciliation guards. Partial or failed snapshots cannot
 reconcile inventory.
 
-Requests use the shared 1.6-second gate, no retries, 25-second request/body
-limits and a three-minute chunk deadline. Only complete unredirected HTTP 200
+Requests use the shared 1.6-second gate, no retries, one 60-second budget
+for each read's headers and body together. The chunk's work budget is the
+chunk wall limit, not a fixed three minutes, so every shared host turn ends by
+the turn horizon first.
+A 60-second read fits inside the 110-second URG host turn for one request.
+Uncached origin pages took 18 to 26 seconds on November 19, 2026 (page 1 26.0
+s, page 2 19.4 s, page 3 18.2 s, the 2026-08-28 search 19.6 s by `cfOrigin`).
+A fresh three-page chunk with one tie makes seven reads (owner, three pages,
+one search, closing owner, closing page 1), about 105 seconds of origin time
+plus a 3.5-second host gap after each, roughly 130 seconds and about 190
+seconds when the root is also uncached. Each further tie date adds about 23
+seconds. Time queued for a shared URG host turn does not count as work. No
+turn combines a catalog page with the finishing reads: the opening turn holds
+at most the owner, the anchor and one page, each later page has its own turn,
+and the finishing turn holds the T tie searches and the two closing reads. At
+the 60-second read limit plus gaps, three ties fit the 340-second turn
+horizon, so one turn holds at most three tie searches
+(`ALLN1_MAX_TIE_SEARCHES`). A census with more split ties fails closed before
+searching, naming the tie dates; that needs tie searches split across turns.
+All-N-1 (three pages) has at most two ties and Grandpa John's (two pages) one. On a slow origin the finishing turn can run past the horizon; it is
+then deferred, the chunk returns a `closing` checkpoint, and the next chunk
+makes only the finishing reads. The tests replay the captured census with
+every read, the root included, at up to 59 seconds: it completes in two
+chunks. Only complete unredirected HTTP 200
 `text/html` from the verified destination is accepted. Partial ranges, length
 mismatches, invalid UTF-8 and bodies over 4 MiB fail closed. Preserve prior
 accepted inventory on failure, inspect native ownership, scope and pagination,
@@ -157,8 +242,11 @@ fresh complete crawl.
 
 The native source exposes no transaction token or independent total count.
 Complete ordered continuation, first-page anchors and duplicate guards cannot
-prove atomicity against every interior-only concurrent edit. These limits
-remain explicit when interpreting a completed snapshot.
+prove atomicity against every interior-only concurrent edit. Fresh reads do
+not change that: pages are 500-row offsets ordered by Set Date, so a donor on
+page 2 or later that departs between page reads shifts later rows up and one
+row is skipped without a duplicate or a changed first-page anchor. These
+limits remain explicit when interpreting a completed snapshot.
 
 `scripts/soak-alln1.ts` is a count-and-discard driver. The caller supplies the
 connector and callbacks; it does not write inventory. Its total page budget is

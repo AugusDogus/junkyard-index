@@ -10,6 +10,7 @@ import {
   ALLN1_TENANT,
   type Alln1Tenant,
   alln1PageNumber,
+  alln1WithoutCacheBust,
 } from "./alln1-yard-metadata";
 
 export interface Alln1Record {
@@ -122,7 +123,7 @@ export function parseAlln1Owner(
     selfService: true,
   });
 }
-function verifyForm(clean: string): void {
+function verifyForm(clean: string, nonce: string | null, search: string): void {
   const forms = [
     ...clean.matchAll(/<form\b([^>]*)>([\s\S]*?)<\/form\s*>/gi),
   ].filter((m) => hasClass(m[1] ?? "", "iis-upull-search-form"));
@@ -134,15 +135,19 @@ function verifyForm(clean: string): void {
   )
     throw new Error("All-N-1 published unfiltered GET search form changed");
   const inputs = [...(form?.[2] ?? "").matchAll(/<input\b[^>]*>/gi)];
-  if (inputs.length !== 3)
-    throw new Error("All-N-1 search form introduced an unverified selector");
-  for (const [name, value] of [
+  // A cache-busted request is rendered with its own nonce reflected as a
+  // hidden field. Any other cb value is another request's cached page.
+  const fields: [string, string][] = [
     ["k", "1"],
     ["view", "table"],
-    ["search", ""],
-  ]) {
-    const fields = inputs.filter(([tag]) => attr(tag, "name") === name);
-    if (fields.length !== 1 || attr(fields[0]?.[0] ?? "", "value") !== value)
+    ["search", search],
+  ];
+  if (nonce !== null) fields.push(["cb", nonce]);
+  if (inputs.length !== fields.length)
+    throw new Error("All-N-1 search form introduced an unverified selector");
+  for (const [name, value] of fields) {
+    const matches = inputs.filter(([tag]) => attr(tag, "name") === name);
+    if (matches.length !== 1 || attr(matches[0]?.[0] ?? "", "value") !== value)
       throw new Error(
         "All-N-1 inventory search is filtered or changed its native fields",
       );
@@ -154,7 +159,12 @@ interface PageLink {
   url: string;
   active: boolean;
 }
-function pagination(clean: string, page: number, tenant: Alln1Tenant) {
+function pagination(
+  clean: string,
+  page: number,
+  tenant: Alln1Tenant,
+  nonce: string | null,
+) {
   const navs = [
     ...clean.matchAll(/<nav\b([^>]*)>([\s\S]*?)<\/nav\s*>/gi),
   ].filter((m) => hasClass(m[1] ?? "", "iis-upull-pagination-wrapper"));
@@ -171,7 +181,7 @@ function pagination(clean: string, page: number, tenant: Alln1Tenant) {
         const link = links[0];
         const href = attr(link?.[1] ?? "", "href");
         const url = href ? new URL(href, tenant.origin).href : "";
-        const target = alln1PageNumber(url, tenant);
+        const target = alln1PageNumber(url, tenant, nonce);
         if (links.length !== 1 || target === null)
           throw new Error(
             "All-N-1 pagination contains a foreign, filtered or unsupported continuation",
@@ -179,7 +189,7 @@ function pagination(clean: string, page: number, tenant: Alln1Tenant) {
         return {
           label: text(link?.[2] ?? ""),
           page: target,
-          url,
+          url: nonce === null ? url : alln1WithoutCacheBust(url),
           active: hasClass(li[1] ?? "", "active"),
         };
       },
@@ -264,16 +274,18 @@ function photo(
     return null;
   }
 }
-export function parseAlln1Page(
+/**
+ * Verifies the native yard scope, inventory statement and search form shared
+ * by catalog pages and Set Date searches, returning the cleaned HTML. `search`
+ * is the value the search field must reflect.
+ */
+function verifiedInventory(
   raw: string,
-  page: number,
-  tenant: Alln1Tenant = ALLN1_TENANT,
-) {
+  tenant: Alln1Tenant,
+  nonce: string | null,
+  search: string,
+): string {
   complete(raw);
-  if (!Number.isSafeInteger(page) || page < 1 || page > ALLN1_MAX_PAGES)
-    throw new Error(
-      "All-N-1 requested page is outside its bounded native traversal",
-    );
   const uncommented = raw.replace(/<!--[\s\S]*?-->/g, "");
   const scopeScripts = [
     ...uncommented.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi),
@@ -329,8 +341,30 @@ export function parseAlln1Page(
     )
   )
     throw new Error("All-N-1 native parts inventory statement changed");
-  verifyForm(clean);
-  const paging = pagination(clean, page, tenant);
+  verifyForm(clean, nonce, search);
+  return clean;
+}
+const ALLN1_HEADERS = [
+  "Image",
+  "Year",
+  "Make",
+  "Model",
+  "Row",
+  "Date",
+  "Vin",
+  "Stock #",
+  "Fresh Set",
+];
+/**
+ * The donor rows of the one native inventory table, failing with `short`
+ * unless their count is from `min` to `max`.
+ */
+function inventoryRecords(
+  clean: string,
+  tenant: Alln1Tenant,
+  [min, max]: readonly [number, number],
+  short: string,
+): Alln1Record[] {
   const tables = [
     ...clean.matchAll(/<table\b([^>]*)>([\s\S]*?)<\/table\s*>/gi),
   ].filter((m) => hasClass(m[1] ?? "", "IISUpullTable"));
@@ -361,38 +395,24 @@ export function parseAlln1Page(
       "All-N-1 table introduced an unverified remote data source",
     );
   const { head, body: tableBody } = inventoryTableSections(table?.[2] ?? "");
-  const expected = [
-    "Image",
-    "Year",
-    "Make",
-    "Model",
-    "Row",
-    "Date",
-    "Vin",
-    "Stock #",
-    "Fresh Set",
-  ];
   const headingRow =
     /^\s*<tr\b[^>]*>([\s\S]*?)<\/tr\s*>\s*$/i.exec(head)?.[1] ?? "";
   const headings = [...headingRow.matchAll(/<th\b[^>]*>([\s\S]*?)<\/th\s*>/gi)];
   if (
     JSON.stringify(headings.map((m) => text(m[1] ?? ""))) !==
-      JSON.stringify(expected) ||
+      JSON.stringify(ALLN1_HEADERS) ||
     headingRow.replace(/<th\b[^>]*>[\s\S]*?<\/th\s*>/gi, "").trim()
   )
     throw new Error("All-N-1 native inventory headers changed");
   const rows = [...tableBody.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr\s*>/gi)];
   if (
-    !rows.length ||
-    rows.length > ALLN1_PAGE_SIZE ||
-    (page < paging.lastPage && rows.length !== ALLN1_PAGE_SIZE) ||
+    rows.length < min ||
+    rows.length > max ||
     rows.length * 2 !== [...tableBody.matchAll(/<\/?tr\b/gi)].length ||
     tableBody.replace(/<tr\b[^>]*>[\s\S]*?<\/tr\s*>/gi, "").trim()
   )
-    throw new Error(
-      "All-N-1 page is empty, incomplete or short before terminal pagination",
-    );
-  const records = rows.map((m): Alln1Record => {
+    throw new Error(short);
+  return rows.map((m): Alln1Record => {
     const row = m[1] ?? "";
     const cells = [...row.matchAll(/<(th|td)\b[^>]*>([\s\S]*?)<\/\1\s*>/gi)];
     if (
@@ -422,13 +442,33 @@ export function parseAlln1Page(
       imageUrl: photo(cells[0]?.[2] ?? "", stock, tenant),
     };
   });
+}
+/** `nonce` is the cache-busting value the page was requested with, if any. */
+export function parseAlln1Page(
+  raw: string,
+  page: number,
+  tenant: Alln1Tenant = ALLN1_TENANT,
+  nonce: string | null = null,
+) {
+  if (!Number.isSafeInteger(page) || page < 1 || page > ALLN1_MAX_PAGES)
+    throw new Error(
+      "All-N-1 requested page is outside its bounded native traversal",
+    );
+  const clean = verifiedInventory(raw, tenant, nonce, "");
+  const paging = pagination(clean, page, tenant, nonce);
+  const records = inventoryRecords(
+    clean,
+    tenant,
+    [page < paging.lastPage ? ALLN1_PAGE_SIZE : 1, ALLN1_PAGE_SIZE],
+    "All-N-1 page is empty, incomplete or short before terminal pagination",
+  );
   return {
     records,
     page,
     ...paging,
     scopeHash: alln1Hash({
       yard: tenant.yard.code,
-      headers: expected,
+      headers: ALLN1_HEADERS,
       lastPage: paging.lastPage,
       form: {
         action: "/inventory/ANY/ANY/",
@@ -442,3 +482,52 @@ export function parseAlln1Page(
   };
 }
 export type Alln1Page = ReturnType<typeof parseAlln1Page>;
+
+export interface Alln1Search {
+  date: string;
+  records: Alln1Record[];
+}
+/**
+ * The native search for one Set Date, requested with `nonce`. It must pass the
+ * same scope, statement, form and table checks as a catalog page, reflect the
+ * searched date, publish no pagination and hold only donors set on that date.
+ * A full 500-row page could hide further matches, so it fails closed.
+ */
+export function parseAlln1Search(
+  raw: string,
+  date: string,
+  tenant: Alln1Tenant = ALLN1_TENANT,
+  nonce: string | null = null,
+): Alln1Search {
+  if (alln1SourceDate(date) !== date)
+    throw new Error("All-N-1 Set Date search date " + date + " is invalid");
+  const clean = verifiedInventory(raw, tenant, nonce, date);
+  const navs = [...clean.matchAll(/<nav\b([^>]*)>/gi)].filter((m) =>
+    hasClass(m[1] ?? "", "iis-upull-pagination-wrapper"),
+  );
+  if (navs.length || /[?&](?:amp;|#0*38;)?pagenum=/i.test(clean))
+    throw new Error(
+      "All-N-1 Set Date search for " +
+        date +
+        " publishes pagination, so it may not list every donor of that date",
+    );
+  const records = inventoryRecords(
+    clean,
+    tenant,
+    [1, ALLN1_PAGE_SIZE - 1],
+    "All-N-1 Set Date search for " +
+      date +
+      " is empty, malformed or holds " +
+      ALLN1_PAGE_SIZE +
+      " or more rows; completeness is only known for 1 to " +
+      (ALLN1_PAGE_SIZE - 1) +
+      " donors",
+  );
+  if (records.some((record) => record.setDate !== date))
+    throw new Error(
+      "All-N-1 Set Date search for " +
+        date +
+        " returned donors set on another date",
+    );
+  return { date, records };
+}
