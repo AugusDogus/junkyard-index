@@ -58,6 +58,11 @@ const donors = (model: number, n = 5) =>
  * be edited between runs. */
 function yard() {
   const rows = new Map(Array.from({ length: 12 }, (_, i) => [i, donors(i)]));
+  // Models whose page renders only its first card while the menus still count
+  // every donor (an empty list fails the parser on its own).
+  const short = new Set<number>();
+  // Menu counts that differ from the listed cards, as on 32 live models.
+  const badges = new Map<number, number>();
   const urls: string[] = [];
   globalThis.fetch = Object.assign(
     async (input: string | URL | Request) => {
@@ -84,12 +89,17 @@ function yard() {
               ? makes
               : url === AVIATION_ORIGIN + make.path
                 ? aviationFixtureDirectory(
-                    [...rows].map(([i, list]) => control(i, list.length)),
+                    [...rows].map(([i, list]) =>
+                      control(i, badges.get(i) ?? list.length),
+                    ),
                     "models",
                   )
                 : model
                   ? aviationFixtureModelPage(
-                      rows.get(Number(model[1])) ?? [],
+                      (rows.get(Number(model[1])) ?? []).slice(
+                        0,
+                        short.has(Number(model[1])) ? 1 : undefined,
+                      ),
                       control(Number(model[1]), 0),
                     )
                   : undefined;
@@ -101,7 +111,7 @@ function yard() {
     },
     { preconnect: originalFetch.preconnect },
   );
-  return { rows, urls };
+  return { rows, short, badges, urls };
 }
 
 const at = (day: number) => () => day * MODEL_CENSUS_DAY_MS + 7 * 60 * 60_000;
@@ -381,4 +391,87 @@ test("Aviation starts a warned cold census when a carried page fails its fingerp
   expect(next.models).toHaveLength(12);
   expect(next.warnings[0]).toContain("reading every model page");
   expect(next.vins).toEqual(allVins(native));
+});
+
+/** One full run on `day` that must fail; returns its error and how many
+ * callbacks ran before it. */
+async function failedCensus(
+  day: number,
+  previousCursor: unknown,
+): Promise<{ error: unknown; callbacks: number }> {
+  let callbacks = 0;
+  let cursor: AviationCursor = AviationCursor.initial;
+  try {
+    while (cursor.phase !== "complete") {
+      const result: AviationStreamResult = await Effect.runPromise(
+        streamAviationInventoryWithRequestGate(
+          {
+            startCursor: cursor,
+            previousCursor,
+            now: at(day),
+            onBatch: () =>
+              Effect.sync(() => {
+                callbacks++;
+              }),
+            onYards: () =>
+              Effect.sync(() => {
+                callbacks++;
+              }),
+          },
+          gate,
+        ),
+      );
+      cursor = result.cursor;
+    }
+  } catch (error) {
+    return { error, callbacks };
+  }
+  throw new Error(`Expected the day-${day} Aviation run to fail`);
+}
+
+test("Aviation fails a run whose read and carried cards fall short of today's model counts", async () => {
+  // A site fault renders one card per model page while the menus look normal.
+  // A full daily read would have shown it everywhere; with carried pages only
+  // today's sweep slice breaks, and closing re-reads it identically.
+  const native = yard();
+  const cold = await census(native, 600, null);
+  const day = sweepDay(600);
+  const broken = sweep(day);
+  for (const model of broken) native.short.add(model);
+  const failed = await failedCensus(day, cold.terminal);
+  expect(String(failed.error)).toContain("coverage floor");
+  expect(String(failed.error)).toContain(`ACURA M${broken[0]} (4)`);
+  expect(failed.callbacks).toBe(0);
+  // The last accepted census stays usable once the pages recover.
+  native.short.clear();
+  const recovered = await census(native, day, cold.terminal);
+  expect(recovered.models).toEqual(broken);
+  expect(recovered.vins).toEqual(allVins(native));
+});
+
+test("Aviation surplus cards on some models never hide a shortfall on others", async () => {
+  // Models outside the broken slice list five cards under a badge of two, so
+  // the run's cards still exceed the badge total; each model counts only up to
+  // its own badge.
+  const native = yard();
+  const day = sweepDay(600);
+  const broken = sweep(day);
+  for (const model of every)
+    if (!broken.includes(model)) native.badges.set(model, 2);
+  // Surplus cards alone are healthy and every card is published.
+  const cold = await census(native, 600, null);
+  expect(cold.vins).toEqual(allVins(native));
+  for (const model of broken) native.short.add(model);
+  const listed = every.reduce(
+    (n, i) => n + (broken.includes(i) ? 1 : (native.rows.get(i)?.length ?? 0)),
+    0,
+  );
+  const promised = every.reduce(
+    (n, i) => n + (native.badges.get(i) ?? native.rows.get(i)?.length ?? 0),
+    0,
+  );
+  expect(listed).toBeGreaterThan(promised);
+  const failed = await failedCensus(day, cold.terminal);
+  expect(String(failed.error)).toContain("coverage floor");
+  expect(failed.callbacks).toBe(0);
 });

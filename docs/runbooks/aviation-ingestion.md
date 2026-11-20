@@ -67,6 +67,12 @@ short page that does not repeat is never carried forward. Carried model lists
 were confirmed on the run that read them; other per-model changes surface as
 badge changes in the next run's opening menus. Changed graph/list fingerprints
 fail before emission.
+Before the snapshot, read and carried model cards, each model capped at its own
+badge, must cover at least 95% of today's model badges
+(`AVIATION_MINIMUM_BADGE_COVERAGE`). The November 12 capture covers 2,482 of
+2,482 (surplus cards never offset another model's shortfall). A sweep slice cut
+to one card per model leaves 82.8% to 88.6%, so a fault that breaks pages a
+sixth at a time fails its first run and publishes nothing.
 The saved qualification has nine byte-stable live closing bodies: `/parts/`,
 KIA and Pontiac make directories, and the Rio, Tahoe, Mercedes C-Class,
 Mercedes GLC-Class, Yukon and Enclave model lists. Its final root has one rolling

@@ -29,7 +29,7 @@ const scope = centralHash({
   version: 1,
   yard: CENTRAL_YARD,
   contract:
-    "DD15/literal-premium-model-graph/all-required-destination-conflicts-quarantined/incremental-model-census-v1",
+    "DD15/literal-premium-model-graph/all-required-destination-conflicts-quarantined/incremental-model-census-v2",
 });
 /** Every model page read by an accepted run, carried forward by the next one.
  * Each page must still match its own card fingerprint. */
@@ -132,6 +132,34 @@ export function centralCensusPlan(
     centralCensusControls(state.makes),
     state.previous,
     state.day,
+    { cards: centralCards },
+  );
+}
+
+/** Cards a model page lists, the count closing compares with its badge. */
+const centralCards = (page: CentralPage) => page.records.length;
+/** Every model in the saved 535-model census lists at least its badge (6,463
+ * of 6,463 badge cards covered; the 44 mismatches are all surplus cards). A
+ * fault that leaves each model of one sweep slice with a single card drops
+ * coverage to between 81.9% and 89.9% across the six slices. */
+export const CENTRAL_MINIMUM_BADGE_COVERAGE = 0.95;
+
+/** Fails a run whose read and carried model cards fall short of today's model
+ * badges, before anything is published. */
+export function centralCoverageError(
+  state: Pick<CentralProgress, "makes" | "pages">,
+): string | null {
+  const models = centralModels(state.makes);
+  return ModelCensus.coverage(
+    "Central",
+    centralCensusControls(state.makes),
+    state.pages,
+    centralCards,
+    CENTRAL_MINIMUM_BADGE_COVERAGE,
+    (index) => {
+      const entry = models[index];
+      return entry ? entry.make.label + " " + entry.model.label : "?";
+    },
   );
 }
 
@@ -144,6 +172,10 @@ export function centralCensus(state: CentralProgress): CentralCensus {
     centralCensusControls(state.makes),
     state.pages,
     centralCensusPlan(state),
+    // Closing re-reads every page read this run whose cards differ from its
+    // badge and fails on a change.
+    "confirmed",
+    centralCards,
   );
 }
 

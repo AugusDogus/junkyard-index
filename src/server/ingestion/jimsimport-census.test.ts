@@ -2,7 +2,10 @@ import { expect, test } from "bun:test";
 import { Effect } from "effect";
 import { JimsimportProviderError } from "./jimsimport-client";
 import { streamJimsimportInventory } from "./jimsimport-connector";
-import { JimsimportCursor } from "./jimsimport-cursor";
+import {
+  JIMSIMPORT_MINIMUM_BADGE_COVERAGE,
+  JimsimportCursor,
+} from "./jimsimport-cursor";
 import type { JimsimportMenu, JimsimportPage } from "./jimsimport-parser";
 import {
   jimsimportFixture,
@@ -29,6 +32,9 @@ function yard() {
     models: menu.models.map((model) => ({ ...model })),
   }));
   const pages = new Map(fixture.pages.map((page) => [page.modelPath, page]));
+  // Model paths whose page renders the native empty result while the menus
+  // still count their donors.
+  const broken = new Set<string>();
   const html = new Map<string, string>();
   const urls: string[] = [];
   const body = (url: string) => {
@@ -39,13 +45,15 @@ function yard() {
     const path = url.slice(JIMSIMPORT_ORIGIN.length);
     const page = pages.get(path);
     if (!page) return undefined;
-    if (!page.records.length) return jimsimportFixture("empty").body;
+    if (!page.records.length || broken.has(path))
+      return jimsimportFixture("empty").body;
     const cached = html.get(path) ?? nativeModelPage(page);
     html.set(path, cached);
     return cached;
   };
   return {
     urls,
+    broken,
     readPage: (url: string) => {
       urls.push(url);
       const value = body(url);
@@ -277,3 +285,97 @@ test("Jim's Import treats an unreadable or incompatible previous cursor as a war
   if (adopted.cursor.phase !== "owner") throw new Error("Wrong phase");
   expect(adopted.cursor.previous?.models).toHaveLength(MODELS);
 }, 120_000);
+
+test("Jim's Import fails a run whose read and carried cards fall short of today's badges", async () => {
+  // A site fault renders empty model pages while the menus keep their counts.
+  // Closing confirms the empty pages and the floor and previous-count guards
+  // still pass with five sixths carried, so only badge coverage catches it.
+  const native = yard();
+  const cold = await census(native, 600, null);
+  const day = [601, 602, 603, 604, 605].find((d) => slice(d).length > 0);
+  if (day === undefined) throw new Error("Fixture needs a non-empty slice");
+  for (const i of slice(day)) {
+    const path = fixture.pages[i]?.modelPath;
+    if (path) native.broken.add(path);
+  }
+  const before = native.urls.length;
+  let published = 0;
+  let cursor: unknown = undefined;
+  await expect(
+    (async () => {
+      for (;;) {
+        const result = await Effect.runPromise(
+          streamJimsimportInventory({
+            previousUniqueInventory: cold.vins.length,
+            startCursor: cursor,
+            previousCursor: cold.terminal,
+            now: () => day * MODEL_CENSUS_DAY_MS,
+            readPage: native.readPage,
+            onBatch: (batch) =>
+              Effect.sync(() => {
+                published += batch.length;
+              }),
+            onYards: () =>
+              Effect.sync(() => {
+                published++;
+              }),
+          }),
+        );
+        if (result.cursor.phase === "complete") return;
+        cursor = JSON.parse(JSON.stringify(result.cursor));
+      }
+    })(),
+  ).rejects.toThrow(
+    `below the ${JIMSIMPORT_MINIMUM_BADGE_COVERAGE * 100}% coverage floor`,
+  );
+  expect(published).toBe(0);
+  // The run stops at the end of the opening: no closing re-reads.
+  expect(native.urls.slice(before).at(-1)).toBe(
+    JIMSIMPORT_ORIGIN + fixture.pages[slice(day).at(-1) ?? -1]?.modelPath,
+  );
+}, 120_000);
+
+test("Jim's Import carries short pages its closing confirmed and re-reads unconfirmed ones", async () => {
+  const native = yard();
+  const cold = await census(native, 600, null);
+  const terminal = JimsimportCursor.parse(cold.terminal);
+  if (terminal.phase !== "complete" || !terminal.census)
+    throw new Error("Expected a terminal census");
+  // Badges are not card counts here: only pages with fewer cards than their
+  // badge (the explicit-empty SUBARU_PASS. at badge 1) are confirmed short.
+  const short = terminal.census.models.flatMap((m, i) =>
+    (fixture.pages[i]?.records.length ?? 0) < m.count ? [i] : [],
+  );
+  expect(short).toHaveLength(1);
+  expect(
+    terminal.census.models.flatMap((m, i) => (m.confirmed ? [i] : [])),
+  ).toEqual(short);
+  const model = short[0] ?? -1;
+  const day = [601, 602, 603, 604, 605].find((d) => !slice(d).includes(model));
+  if (day === undefined) throw new Error("Fixture needs a slice without it");
+  // Confirmed short evidence is carried outside its sweep slice.
+  const carried = await census(native, day, cold.terminal);
+  expect(carried.models).toEqual(slice(day));
+  // The same evidence without its in-run confirmation is read again.
+  const { checksum, ...state } = terminal;
+  void checksum;
+  const unconfirmed = JimsimportCursor.checkpoint({
+    ...state,
+    census: {
+      ...terminal.census,
+      models: terminal.census.models.map((m, i) =>
+        i === model ? { ...m, confirmed: false } : m,
+      ),
+    },
+  });
+  const reread = await census(native, day, unconfirmed);
+  expect(reread.models).toEqual([...slice(day), model].sort((a, b) => a - b));
+  expect(reread.rereads).toContain(model);
+  expect(reread.warnings.at(-1)).toContain("short 1");
+  expect(reread.vins).toEqual(native.vins());
+  const next = JimsimportCursor.parse(reread.terminal);
+  if (next.phase !== "complete" || !next.census)
+    throw new Error("Expected a terminal census");
+  expect(next.census.models[model]?.confirmed).toBe(true);
+  expect(next.census.models[model]?.readDay).toBe(day);
+}, 240_000);

@@ -10,6 +10,7 @@ import {
   jimsimportCensus,
   jimsimportCensusPlan,
   jimsimportClosingModels,
+  jimsimportCoverageError,
   type JimsimportCensus,
 } from "./jimsimport-cursor";
 import {
@@ -84,8 +85,9 @@ const requiredDonors = (page: JimsimportPage) =>
       return required;
     }),
   });
-/** Appends carried pages up to the next due read. A complete model list is
- * validated as a whole snapshot (read and carried pages) before closing. */
+/** Appends carried pages up to the next due read. A complete model list must
+ * cover today's badges and is validated as a whole snapshot (read and carried
+ * pages) before closing. */
 function openingPhase(
   state: {
     menus: readonly JimsimportMenu[];
@@ -100,11 +102,14 @@ function openingPhase(
     ...ModelCensus.carriedRun(jimsimportCensusPlan(state), read.length),
   ];
   const complete = opening.length === jimsimportModels(state.menus).length;
-  if (complete)
+  if (complete) {
+    const shortfall = jimsimportCoverageError({ menus: state.menus, opening });
+    if (shortfall) throw new Error(shortfall);
     validateJimsimportSnapshot(
       jimsimportSnapshot(state.menus, opening),
       previousUniqueInventory,
     );
+  }
   return {
     phase: complete ? ("closing-makes" as const) : ("opening" as const),
     opening,

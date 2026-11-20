@@ -25,8 +25,14 @@ complete HTML, literal headings, card boundaries, VIN/YMM, inquiries and donor
 links. New continuation controls fail closed for inspection. All native identity
 conflicts share the existing connected quarantine rules. No inventory is emitted
 until closing root, directory, every make, first/last model and every contradictory
-model witnesses match. Checkpoints retain the complete native claims and validate
-contiguous graph prefixes, request counts, context and hashes.
+model witnesses match. Model pages follow the shared incremental census
+(`model-census.ts`); a short page is carried only after its closing re-read
+confirmed it. Before anything is published, read and carried cards, each model
+capped at its badge, must cover at least 95% of today's model badges. The saved
+census covers 99.63% (6,934 of 6,960); emptying any one sweep slice of it
+leaves 76.0% to 88.9%. The 1% unrecovered rule still applies. Checkpoints
+retain the complete native claims and validate contiguous graph prefixes,
+request counts, context and hashes.
 
 This follow-up made 17 provider requests: 14 HTML pages, one published JavaScript
 resource and two native year-search AJAX calls. All returned 200. One additional

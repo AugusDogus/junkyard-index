@@ -130,6 +130,7 @@ export function streamDentonInventory<E, R>(options: DentonOptions<E, R>) {
     while (cursor.phase !== "complete") {
       if (dentonReady(cursor)) {
         const ready = cursor;
+        yield* unwrap(dentonBadgeCoverage(ready));
         const snapshot = yield* unwrap(dentonCompleteSnapshot(ready));
         yield* unwrap(
           DentonSnapshot.validate(snapshot, {
@@ -138,7 +139,6 @@ export function streamDentonInventory<E, R>(options: DentonOptions<E, R>) {
             previousAcceptedCount: options.previousAcceptedCount,
           }),
         );
-        yield* unwrap(dentonBadgeCoverage(ready));
         const complete = yield* unwrap(
           DentonCursor.complete(ready, options.previousAcceptedCount),
         );

@@ -12,6 +12,7 @@ import {
   northwestCensus,
   northwestCensusPlan,
   northwestClosingControls,
+  northwestCoverageError,
   type NorthwestProgress,
 } from "./northwest-cursor";
 import { ModelCensus } from "./model-census";
@@ -239,6 +240,8 @@ export function streamNorthwestInventoryWithRequestGate<E, R>(
         advanced.closing === northwestClosingControls(advanced).length
       ) {
         const snapshot = yield* attempt("complete native graph", () => {
+          const shortfall = northwestCoverageError(advanced);
+          if (shortfall) throw new Error(shortfall);
           const value = northwestSnapshot(advanced.makes, advanced.pages);
           validateNorthwestSnapshot(value);
           return value;

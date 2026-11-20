@@ -1,6 +1,9 @@
 import { afterEach, expect, test } from "bun:test";
 import { Effect } from "effect";
-import { streamAplusInventoryWithRequestGate } from "./aplus-connector";
+import {
+  streamAplusInventoryWithRequestGate,
+  type AplusStreamResult,
+} from "./aplus-connector";
 import { AplusCursor, AplusCursorSchema } from "./aplus-cursor";
 import type { AplusControl, AplusRecord } from "./aplus-parser";
 import {
@@ -284,7 +287,7 @@ test("A Plus fails a run whose read and carried cards fall short of today's mode
     (async () => {
       let cursor: AplusCursor = AplusCursor.initial;
       while (cursor.phase !== "complete") {
-        const result = await Effect.runPromise(
+        const result: AplusStreamResult = await Effect.runPromise(
           streamAplusInventoryWithRequestGate(
             {
               startCursor: cursor,
