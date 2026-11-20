@@ -1,5 +1,6 @@
 import { createHook, getWorkflowMetadata, sleep } from "workflow";
-import { start } from "workflow/api";
+import { getRun, start } from "workflow/api";
+import { WorkflowRunNotFoundError } from "workflow/internal/errors";
 import { hasDeliverableNotificationIntents } from "~/server/alerts/durable-alert-delivery-runtime";
 import {
   runSearchAlertCheck,
@@ -9,6 +10,11 @@ import {
   openDailySearchAlertCheck,
   searchAlertsEnabled,
 } from "~/server/alerts/search-alert-check-runtime";
+import { getAttachedIngestionWorkflowRuns } from "~/server/ingestion/durable-ingestion";
+import {
+  startIdleRunWorkflows,
+  type RunWorkflowState,
+} from "~/server/ingestion/run-workflow-starts";
 import {
   claimCommitTurn,
   runIngestionPass,
@@ -54,7 +60,9 @@ const ALGOLIA_WRITES_TOKEN = "algolia-writes";
 const ALERT_DELIVERY_TOKEN = "vehicle-alert-delivery";
 const LOCK_RETRY_DELAY = "30s";
 // Fallbacks for signals that never arrive, such as a workflow that died.
-const COMMIT_TURN_FALLBACK = "10m";
+// Each commit claim attempt also keeps a waiter live in the commit queue,
+// which skips waiters silent for 15 minutes (CommitLease).
+const COMMIT_TURN_FALLBACK = "5m";
 const COMMIT_TURN_SETTLE = "2s";
 const PASS_WATCHDOG_INTERVAL = "30m";
 const FAILED_RUN_RESUME_DELAY = "5m";
@@ -65,16 +73,37 @@ const PAGE_REGENERATION_DELAY = "2m";
 // check's window is not searchable yet.
 const ALERT_CHECK_RETRY_DELAY = "10m";
 
-/** Starts or resumes each source run's workflow; live ones exit at once. */
+/** Whether a run's attached workflow is still driving it. */
+async function ingestionWorkflowState(
+  workflowRunId: string,
+): Promise<RunWorkflowState> {
+  try {
+    const status = await getRun(workflowRunId).status;
+    return status === "pending" || status === "running" ? "live" : "idle";
+  } catch (error) {
+    if (WorkflowRunNotFoundError.is(error)) return "idle";
+    console.warn(
+      `[Workflow] Could not read ingestion workflow ${workflowRunId}'s status; starting its run anyway, which deduplicates if it is live: ${String(error)}`,
+    );
+    return "unknown";
+  }
+}
+
+/** Starts or resumes each source run whose workflow is not live. */
 async function startIngestionRunWorkflowsStep(
   runIds: readonly string[],
   day: string,
 ) {
   "use step";
 
-  await Promise.all(
-    runIds.map((runId) => start(vehicleIngestionWorkflow, [runId, day])),
-  );
+  await startIdleRunWorkflows({
+    runIds,
+    attachedWorkflows: getAttachedIngestionWorkflowRuns,
+    workflowState: ingestionWorkflowState,
+    start: async (runId) => {
+      await start(vehicleIngestionWorkflow, [runId, day]);
+    },
+  });
 }
 startIngestionRunWorkflowsStep.maxRetries = 2;
 

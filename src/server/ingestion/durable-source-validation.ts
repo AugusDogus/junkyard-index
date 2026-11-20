@@ -292,18 +292,22 @@ export async function validateDurableSourceRuns(params: {
   }));
   const errors = [...parseIngestionErrors(current.errors), ...validationErrors];
   const checkpointIndex = statements.length;
+  // The run joins the commit queue (CommitLease) in this order.
+  const readyAt = Date.now();
   statements.push({
     sql: `
       update ingestion_run
       set stage = 'reconcile_upsert', accepted_sources = ?,
-          reconciliation_cursor = null, errors = ?, last_progress_at = ?
+          reconciliation_cursor = null, errors = ?, last_progress_at = ?,
+          ready_at = ?
       where id = ? and status = 'running' and active_slot = 1
         and stage = 'sources'
     `,
     args: [
       JSON.stringify(acceptedSources),
       errors.length > 0 ? JSON.stringify([...new Set(errors)]) : null,
-      Date.now(),
+      readyAt,
+      readyAt,
       params.runId,
     ],
   });

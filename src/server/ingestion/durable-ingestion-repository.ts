@@ -3,7 +3,7 @@ import { createDurableWorkflowCursorStore } from "./durable-workflow-cursor-stor
 import { urgiisPublishedStatePath } from "./urgiis-history";
 import { IngestionDay } from "./ingestion-day";
 import type { Client, InStatement } from "@libsql/client";
-import { and, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { Yard } from "~/lib/yard";
 import { yardUpsertStatement } from "./yard-checkpoint";
@@ -27,10 +27,7 @@ import {
 import type { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import { IngestionSchedule } from "./ingestion-schedule";
 import { SourcePublication } from "./source-publication";
-import {
-  reconciliationSourcePriority,
-  reconciliationSourcePrioritySql,
-} from "./reconciliation-policy";
+import { CommitLease } from "./commit-lease";
 import type { IngestionSourceFreshness } from "./durable-health";
 
 const SNAPSHOT_WRITE_BATCH_SIZE = 500;
@@ -41,6 +38,31 @@ const CONCURRENT_WAKEUP_RECHECK_MS = 5 * 60 * 1000;
 const TERMINAL_INTENT_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;
 
 type SourceRunStatus = "running" | "success" | "partial" | "error";
+
+/** Who holds the shared commit and how long the oldest waiter has queued. */
+export interface CommitLeaseStatus {
+  checkedAt: string;
+  holder: {
+    runId: string;
+    source: string;
+    stage: string;
+    commitStartedAt: string;
+    heldMs: number;
+    lastProgressAgeMs: number;
+  } | null;
+  waiters: {
+    total: number;
+    /** Waiters that attempted a claim within the liveness window. */
+    live: number;
+    oldest: {
+      runId: string;
+      source: string;
+      readyAt: string;
+      waitingMs: number;
+      live: boolean;
+    } | null;
+  };
+}
 type LibSqlBatchClient = Pick<Client, "batch">;
 
 function sourceRunId(runId: string, source: DurableIngestionSource): string {
@@ -343,82 +365,35 @@ export function createDurableIngestionRepository(
      * time, even across workflow failures, so reconciliation and Algolia
      * publication never interleave between runs.
      *
-     * Ready runs claim in source-priority order; fetching runs do not hold up
-     * publication. Reconciliation preserves native ownership regardless of
-     * arrival order. The daily alert check runs after the pass has had its
-     * chance to publish, so a marketplace copy rarely alerts before a native
-     * source takes it over. The claim time follows every earlier alert check.
+     * See {@link CommitLease} for the queue order, liveness, spacing and
+     * expiry rules, and for how this claim interlocks with the
+     * source-priority claim that workflows pinned to older deployments run.
+     * Reconciliation preserves native ownership regardless of arrival order.
      * A full rebuild left by a finished (abandoned) run is taken on here, since
      * runs created before it was abandoned did not inherit it.
+     *
+     * stopped: the run is no longer active, including a run whose staged
+     * snapshot expired at this claim.
      */
     async claimCommit(
       runId: string,
       now = new Date(),
     ): Promise<"claimed" | "busy" | "stopped"> {
-      const [current] = await database
-        .select({ source: ingestionRun.source })
-        .from(ingestionRun)
-        .where(eq(ingestionRun.id, runId))
-        .limit(1);
-      if (!current) return "stopped";
-      const [result] = await batchClient.batch(
+      const results = await batchClient.batch(
         [
-          {
-            sql: `
-              update ingestion_run
-              set full_reindex_required = case
-                    when commit_started_at is null and exists (
-                      select 1 from ingestion_run finished
-                      where finished.full_reindex_required = 1
-                        and finished.active_slot is null
-                    ) then 1
-                    else full_reindex_required
-                  end,
-                  commit_started_at = coalesce(commit_started_at, ?),
-                  last_progress_at = ?
-              where id = ? and status = 'running' and active_slot = 1
-                and not exists (
-                  select 1 from ingestion_run other
-                  where other.id <> ? and other.active_slot = 1
-                    and other.commit_started_at is not null
-                )
-                -- A run resuming its own commit skips the first-claim waits.
-                and (commit_started_at is not null or (
-                  not exists (
-                    select 1 from ingestion_run other
-                    where other.id <> ? and other.active_slot = 1
-                      and other.stage <> 'sources'
-                      and (${reconciliationSourcePrioritySql("other")}) < ?
-                  )
-                  -- Algolia compares whole seconds, so stamp a full second
-                  -- after the newest alert check.
-                  and ? >= (
-                    select coalesce(max(last_checked_at), 0) + 1000
-                    from saved_search
-                  )
-                  -- A claim stamped inside a daily alert check's window
-                  -- would be missed by it; restamp and retry instead.
-                  and ? > (
-                    select coalesce(max(checked_through), 0)
-                    from search_alert_check
-                  )
-                ))
-            `,
-            args: [
-              now.getTime(),
-              now.getTime(),
-              runId,
-              runId,
-              runId,
-              reconciliationSourcePriority(current.source),
-              now.getTime(),
-              now.getTime(),
-            ],
-          },
+          ...CommitLease.expireStatements(now),
+          CommitLease.claimStatement(runId, now),
+          CommitLease.waitStatement(runId, now),
         ],
         "write",
       );
-      if (result?.rowsAffected === 1) return "claimed";
+      const result = results.at(-2);
+      if (!result) {
+        throw new Error(
+          `Commit claim for ingestion run ${runId} returned no claim result; no claim was recorded. Retry the claim.`,
+        );
+      }
+      if (result.rowsAffected === 1) return "claimed";
       const [run] = await database
         .select({
           status: ingestionRun.status,
@@ -444,6 +419,103 @@ export function createDurableIngestionRepository(
           ),
         );
       return rows.map((row) => row.id);
+    },
+
+    /**
+     * The commit holder and its queue, for operators. The oldest waiter's
+     * age is the starvation signal: FIFO keeps it under a few holds.
+     */
+    async getCommitLeaseStatus(now = new Date()): Promise<CommitLeaseStatus> {
+      const liveSince = now.getTime() - CommitLease.livenessMs;
+      const readyAt = sql<number>`${sql.raw(CommitLease.readySql("ingestion_run"))}`;
+      const waiting = and(
+        eq(ingestionRun.activeSlot, 1),
+        isNull(ingestionRun.commitStartedAt),
+        ne(ingestionRun.stage, "sources"),
+      );
+      const [[holder], [queue], [oldest]] = await Promise.all([
+        database
+          .select({
+            runId: ingestionRun.id,
+            source: ingestionRun.source,
+            stage: ingestionRun.stage,
+            commitStartedAt: ingestionRun.commitStartedAt,
+            lastProgressAt: ingestionRun.lastProgressAt,
+          })
+          .from(ingestionRun)
+          .where(
+            and(
+              eq(ingestionRun.activeSlot, 1),
+              sql`${ingestionRun.commitStartedAt} is not null`,
+            ),
+          )
+          .limit(1),
+        database
+          .select({
+            total: sql<number>`count(*)`,
+            live: sql<number>`coalesce(sum(${ingestionRun.lastProgressAt} >= ${liveSince}), 0)`,
+          })
+          .from(ingestionRun)
+          .where(waiting),
+        database
+          .select({
+            runId: ingestionRun.id,
+            source: ingestionRun.source,
+            readyAt,
+            lastProgressAt: ingestionRun.lastProgressAt,
+          })
+          .from(ingestionRun)
+          .where(waiting)
+          .orderBy(readyAt, ingestionRun.id)
+          .limit(1),
+      ]);
+      return {
+        checkedAt: now.toISOString(),
+        holder:
+          !holder || holder.commitStartedAt === null
+            ? null
+            : {
+                runId: holder.runId,
+                source: holder.source,
+                stage: holder.stage,
+                commitStartedAt: holder.commitStartedAt.toISOString(),
+                heldMs: now.getTime() - holder.commitStartedAt.getTime(),
+                lastProgressAgeMs:
+                  now.getTime() - holder.lastProgressAt.getTime(),
+              },
+        waiters: {
+          total: queue?.total ?? 0,
+          live: queue?.live ?? 0,
+          oldest: oldest
+            ? {
+                runId: oldest.runId,
+                source: oldest.source,
+                readyAt: new Date(oldest.readyAt).toISOString(),
+                waitingMs: now.getTime() - oldest.readyAt,
+                live: oldest.lastProgressAt.getTime() >= liveSince,
+              }
+            : null,
+        },
+      };
+    },
+
+    /** The workflow run attached to each given run that has one. */
+    async getAttachedWorkflowRuns(
+      runIds: readonly string[],
+    ): Promise<Map<string, string>> {
+      if (runIds.length === 0) return new Map();
+      const rows = await database
+        .select({
+          id: ingestionRun.id,
+          workflowRunId: ingestionRun.workflowRunId,
+        })
+        .from(ingestionRun)
+        .where(inArray(ingestionRun.id, [...runIds]));
+      return new Map(
+        rows.flatMap((row) =>
+          row.workflowRunId === null ? [] : [[row.id, row.workflowRunId]],
+        ),
+      );
     },
 
     async attachWorkflowRun(

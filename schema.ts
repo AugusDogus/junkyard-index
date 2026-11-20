@@ -388,6 +388,9 @@ export const ingestionRun = sqliteTable(
     // When this run claimed the shared commit. One active run holds it at a
     // time; it also stamps the vehicles the run first publishes.
     commitStartedAt: integer("commit_started_at", { mode: "timestamp_ms" }),
+    // When validation staged this run for the commit. Waiters claim the
+    // commit in this order (FIFO), and a staged snapshot expires after 24 h.
+    readyAt: integer("ready_at", { mode: "timestamp_ms" }),
     // Workflow executions that failed; repeated failures abandon the run.
     executionFailures: integer("execution_failures").default(0).notNull(),
     reconciliationCursor: text("reconciliation_cursor"),
@@ -432,6 +435,11 @@ export const ingestionRun = sqliteTable(
       table.activeSlot,
       table.commitStartedAt,
       table.source,
+    ),
+    index("ingestion_run_commit_queue_idx").on(
+      table.activeSlot,
+      table.commitStartedAt,
+      table.readyAt,
     ),
     index("ingestion_run_retention_idx")
       .on(table.completedAt)

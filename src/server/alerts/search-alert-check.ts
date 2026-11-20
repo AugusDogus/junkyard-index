@@ -76,7 +76,7 @@ type SearchOutcome =
  * search index (still in progress, or abandoned and awaiting a rebuild) and
  * before the claim margin. Every vehicle first seen through the bound is
  * searchable, so later checks start there without missing or repeating one.
- * New claims stamped at or before the bound wait (see claimCommit).
+ * Later claims are stamped after the bound (see CommitLease).
  *
  * Earlier unfinished checks are superseded: their written intents can be
  * delivered, and their unchecked searches kept their windows, which this

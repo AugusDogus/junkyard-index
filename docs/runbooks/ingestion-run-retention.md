@@ -37,7 +37,7 @@ including all registered sources. The six foreign-key children all cascade:
 - `durable-ingestion-repository` checks today's schedule, retry counts, active
   commit claims, full-reindex recovery and recent source freshness. Active runs
   and today's runs remain. Old schedule keys and attempts have expired.
-  Per-source commit claims, priority waits and ready-only publication guards
+  Per-source commit claims, FIFO commit waits and ready-only publication guards
   retain every active run regardless of age or source count.
 - Ario quarantine is stored in the active AutoRecycler cursor and snapshot state.
   Its preserved yard set still filters the source-scoped missing scan. Retention

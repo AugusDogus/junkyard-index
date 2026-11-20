@@ -54,8 +54,10 @@ const LEGACY_SCHEMA = `
   );
   create table ingestion_source_run (
     id text primary key,
+    run_id text,
     started_at integer not null default 0
   );
+  create index ingestion_source_run_run_id_idx on ingestion_source_run(run_id);
   create table vehicle_snapshot (run_id text, vin text, source text);
   create table autorecycler_org_geo (
     org_lookup text primary key,
@@ -237,7 +239,7 @@ describe("migration chain", () => {
   });
 });
 
-test("publish-turn waits search active runs instead of scanning run history", async () => {
+test("commit claims search active runs instead of scanning run history", async () => {
   const client = await createMigratedClient();
   try {
     const { createDurableIngestionRepository } =
@@ -259,22 +261,24 @@ test("publish-turn waits search active runs instead of scanning run history", as
       "insert into ingestion_run (id, source, status, stage, active_slot, started_at, last_progress_at) values ('claim', 'pyp', 'running', 'sources', 1, 0, 0)",
     );
     await repository.claimCommit("claim");
-    const claim = statements.at(-1);
-    if (!claim || typeof claim === "string" || Array.isArray(claim))
-      throw new Error("Expected a claim statement");
-    const plan = await client.execute({
-      ...claim,
-      sql: `EXPLAIN QUERY PLAN ${claim.sql}`,
-    });
-    const details = plan.rows.map((row) => String(row.detail));
-    expect(details.filter((detail) => detail.includes("SCAN other"))).toEqual(
-      [],
-    );
+    const details: string[] = [];
+    for (const statement of statements) {
+      if (typeof statement === "string" || Array.isArray(statement))
+        throw new Error("Expected parameterized claim statements");
+      const plan = await client.execute({
+        ...statement,
+        sql: `EXPLAIN QUERY PLAN ${statement.sql}`,
+      });
+      details.push(...plan.rows.map((row) => String(row.detail)));
+    }
+    // Waiters retry every few minutes, so no claim statement may walk the
+    // run history.
+    expect(details.filter((detail) => detail.startsWith("SCAN"))).toEqual([]);
     expect(
       details.filter(
         (detail) =>
           detail.includes("SEARCH other") &&
-          detail.includes("ingestion_run_active_commit_idx"),
+          detail.includes("ingestion_run_commit_queue_idx"),
       ),
     ).toHaveLength(2);
   } finally {

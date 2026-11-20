@@ -5,7 +5,7 @@ ${readFileSync(new URL("../../../drizzle/0008_vehicle_observations.sql", import.
   create table ingestion_run (
     id text primary key, source text not null, schedule_key text,
     workflow_run_id text, status text not null, stage text not null,
-    active_slot integer, commit_started_at integer,
+    active_slot integer, commit_started_at integer, ready_at integer,
     execution_failures integer not null default 0, reconciliation_cursor text,
     projector_cursor integer not null default 0,
     full_reindex_required integer not null default 0,

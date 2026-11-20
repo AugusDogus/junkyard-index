@@ -711,36 +711,54 @@ describe("durable ingestion repository", () => {
       const [first, second] = wakeup.runs;
       if (!first || !second) throw new Error("Expected two runs");
 
-      // pyp waits for row52 once its fetch has completed.
+      // pyp waits for row52, which validation staged first.
       await client.execute({
-        sql: "update ingestion_run set stage = 'reconcile_upsert' where id = ?",
-        args: [first.runId],
+        sql: "update ingestion_run set stage = 'reconcile_upsert', ready_at = ?1, last_progress_at = ?1 where id = ?2",
+        args: [new Date("2026-08-22T09:10:00.000Z").getTime(), first.runId],
       });
-      expect(await repository.claimCommit(second.runId)).toBe("busy");
-      const claimedAt = new Date("2026-08-22T09:30:00.000Z");
+      await client.execute({
+        sql: "update ingestion_run set stage = 'reconcile_upsert', ready_at = ?1, last_progress_at = ?1 where id = ?2",
+        args: [new Date("2026-08-22T09:20:00.000Z").getTime(), second.runId],
+      });
+      const at = (time: string) => new Date(`2026-08-22T${time}.000Z`);
+      expect(await repository.claimCommit(second.runId, at("09:21:00"))).toBe(
+        "busy",
+      );
+      const claimedAt = at("09:22:00");
       expect(await repository.claimCommit(first.runId, claimedAt)).toBe(
         "claimed",
       );
-      expect(await repository.claimCommit(second.runId)).toBe("busy");
-      // A resumed workflow reclaims its own commit and keeps the first stamp.
-      expect(await repository.claimCommit(first.runId)).toBe("claimed");
+      expect(await repository.claimCommit(second.runId, at("09:23:00"))).toBe(
+        "busy",
+      );
+      // A resumed workflow reclaims its own commit and keeps the first stamp,
+      // even after its workflow was silent past the waiter liveness window.
+      expect(await repository.claimCommit(first.runId, at("10:30:00"))).toBe(
+        "claimed",
+      );
       expect((await repository.getRun(first.runId)).commitStartedAt).toEqual(
         claimedAt,
       );
-      expect(await repository.claimCommit(second.runId)).toBe("busy");
+      expect(await repository.claimCommit(second.runId, at("10:31:00"))).toBe(
+        "busy",
+      );
 
       await client.execute({
         sql: "update ingestion_run set status = 'success', stage = 'released', active_slot = null where id = ?",
         args: [first.runId],
       });
-      expect(await repository.claimCommit(first.runId)).toBe("stopped");
-      expect(await repository.claimCommit(second.runId)).toBe("claimed");
+      expect(await repository.claimCommit(first.runId, at("10:32:00"))).toBe(
+        "stopped",
+      );
+      expect(await repository.claimCommit(second.runId, at("10:33:00"))).toBe(
+        "claimed",
+      );
     } finally {
       testDatabase.cleanup();
     }
   });
 
-  test("takes on a rebuild abandoned after it started and stamps after alert checks", async () => {
+  test("takes on a rebuild abandoned after it started and stamps a second after alert checks", async () => {
     const testDatabase = createTestClient();
     const { client } = testDatabase;
     try {
@@ -769,7 +787,12 @@ describe("durable ingestion repository", () => {
       );
 
       // row52 dies after reconciling part of its commit and is abandoned.
-      expect(await repository.claimCommit(row52.runId)).toBe("claimed");
+      expect(
+        await repository.claimCommit(
+          row52.runId,
+          new Date("2026-08-22T09:30:00.000Z"),
+        ),
+      ).toBe("claimed");
       await client.execute({
         sql: "update ingestion_run set stage = 'project_changes' where id = ?",
         args: [row52.runId],
@@ -781,20 +804,19 @@ describe("durable ingestion repository", () => {
         sql: "insert into saved_search (id, last_checked_at) values ('search', ?)",
         args: [lastChecked.getTime()],
       });
-      // Within a second of the newest alert check, the first claim waits.
+      // Within a second of the newest alert check, the claim is stamped in
+      // the next whole second instead of waiting.
       expect(
         await repository.claimCommit(
           pyp.runId,
           new Date(lastChecked.getTime() + 999),
         ),
-      ).toBe("busy");
-      const claimedAt = new Date(lastChecked.getTime() + 1000);
-      expect(await repository.claimCommit(pyp.runId, claimedAt)).toBe(
-        "claimed",
-      );
+      ).toBe("claimed");
       const run = await repository.getRun(pyp.runId);
       expect(run.fullReindexRequired).toBe(true);
-      expect(run.commitStartedAt).toEqual(claimedAt);
+      expect(run.commitStartedAt).toEqual(
+        new Date(lastChecked.getTime() + 1000),
+      );
     } finally {
       testDatabase.cleanup();
     }
@@ -1263,7 +1285,7 @@ test("provider progress and its resume path checkpoint atomically and use normal
   }
 });
 
-test("a first claim stamped inside a daily alert check's window waits", async () => {
+test("a first claim inside a daily alert check's window is stamped past it", async () => {
   const { client, cleanup } = createTestClient();
   try {
     await client.executeMultiple(TEST_SCHEMA);
@@ -1285,17 +1307,18 @@ test("a first claim stamped inside a daily alert check's window waits", async ()
         values ('check', '2026-11-20', 'running', ?, ?, ?)`,
       args: [checkedThrough.getTime(), now.getTime(), now.getTime()],
     });
-    // Its vehicles would be stamped inside the check's matched window.
-    expect(await repository.claimCommit(runId, checkedThrough)).toBe("busy");
-    const claimedAt = new Date(checkedThrough.getTime() + 1);
-    expect(await repository.claimCommit(runId, claimedAt)).toBe("claimed");
-    expect((await repository.getRun(runId)).commitStartedAt).toEqual(claimedAt);
+    // Stamped now, its vehicles would fall inside the check's matched
+    // window. The claim goes ahead, stamped in the next whole second.
+    expect(await repository.claimCommit(runId, checkedThrough)).toBe("claimed");
+    expect((await repository.getRun(runId)).commitStartedAt).toEqual(
+      new Date(checkedThrough.getTime() + 1),
+    );
   } finally {
     cleanup();
   }
 });
 
-test("a fetching native source does not delay AutoRecycler publication; ready native runs still win the turn", async () => {
+test("a fetching native source does not delay AutoRecycler publication; a native run ready later waits its turn", async () => {
   const { client, cleanup } = createTestClient();
   try {
     await client.executeMultiple(TEST_SCHEMA);
@@ -1309,9 +1332,12 @@ test("a fetching native source does not delay AutoRecycler publication; ready na
     const mirror = startedRun(
       await repository.prepareWakeup(now, ["pontiac", "autorecycler"]),
     );
+    expect(reconciliationSourcePriority("pontiac")).toBeLessThan(
+      reconciliationSourcePriority("autorecycler"),
+    );
     await client.execute({
-      sql: "update ingestion_run set stage = 'reconcile_upsert' where id = ?",
-      args: [mirror],
+      sql: "update ingestion_run set stage = 'reconcile_upsert', ready_at = ? where id = ?",
+      args: [now.getTime(), mirror],
     });
     expect(await repository.claimCommit(mirror, now)).toBe("claimed");
     await client.execute({
@@ -1319,11 +1345,13 @@ test("a fetching native source does not delay AutoRecycler publication; ready na
       args: [mirror],
     });
     await client.execute({
-      sql: "update ingestion_run set stage = 'reconcile_upsert' where id = ?",
-      args: [native],
+      sql: "update ingestion_run set stage = 'reconcile_upsert', ready_at = ? where id = ?",
+      args: [now.getTime() + 60_000, native],
     });
-    expect(await repository.claimCommit(mirror, now)).toBe("busy");
-    expect(await repository.claimCommit(native, now)).toBe("claimed");
+    // Priority decides VIN ownership, not queue order.
+    const later = new Date(now.getTime() + 2 * 60_000);
+    expect(await repository.claimCommit(native, later)).toBe("busy");
+    expect(await repository.claimCommit(mirror, later)).toBe("claimed");
   } finally {
     cleanup();
   }

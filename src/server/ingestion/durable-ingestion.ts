@@ -9,7 +9,10 @@ import {
 import { env } from "~/env";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import { db, dbClient } from "~/lib/db";
-import { createDurableIngestionRepository } from "./durable-ingestion-repository";
+import {
+  createDurableIngestionRepository,
+  type CommitLeaseStatus,
+} from "./durable-ingestion-repository";
 import type { IngestionSourceFreshness } from "./durable-health";
 import { parseAcceptedSources } from "./durable-run-state";
 import type {
@@ -116,6 +119,16 @@ export function refreshInventoryCaches(params: {
 
 export function listDurableIngestionCommitWaiters(): Promise<string[]> {
   return repository.listCommitWaiters();
+}
+
+export function getDurableIngestionCommitLeaseStatus(): Promise<CommitLeaseStatus> {
+  return repository.getCommitLeaseStatus();
+}
+
+export function getAttachedIngestionWorkflowRuns(
+  runIds: readonly string[],
+): Promise<Map<string, string>> {
+  return repository.getAttachedWorkflowRuns(runIds);
 }
 
 export function claimDurableIngestionCommit(

@@ -470,6 +470,15 @@ describe("bounded durable reconciliation", () => {
         status: "ready",
         acceptedSources: ["urgiis"],
       });
+      // Validation queues the run for the commit (CommitLease FIFO order).
+      const [staged] = (
+        await client.execute({
+          sql: "select ready_at, last_progress_at from ingestion_run where id = ?",
+          args: [runId],
+        })
+      ).rows;
+      expect(staged?.ready_at).toEqual(expect.any(Number));
+      expect(staged?.ready_at).toBe(staged?.last_progress_at);
       const result = await reconcileDurableIngestionRun({
         runId,
         database,
