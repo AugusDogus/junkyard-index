@@ -68,7 +68,8 @@ export type ChazClosingControl =
   | { kind: "directory"; url: typeof CHAZ_MAKES };
 
 /** Closing re-reads ownership and the make directory only. Per-model changes
- * during the run surface as count changes in the next run's opening menus. */
+ * during the run surface as badge changes in the next run's opening menus, and
+ * a page whose cards differ from its badge is re-read by the next run. */
 export function chazClosingControls(): ChazClosingControl[] {
   return [
     { kind: "contact", url: CHAZ_CONTACT },
@@ -92,14 +93,19 @@ function enterDay(value: string | null): number | null {
 }
 
 /**
- * Read or carry each published model. A carried model is also read when a
- * recent arrival whose own destination binds to it is missing from its carried
- * page and was entered no earlier than the day before the previous accepted
- * run. About 15% of arrivals never reach their model page, so an unbounded
- * trigger would re-read those models every day for the 21-day arrival window;
- * the Enter Date bound fires each such arrival at most twice. Arrival donors
- * are published from the arrival page either way, and older swaps wait for the
- * six-day sweep.
+ * Read or carry each published model. A carried model is also read when its
+ * carried page's card count differs from the badge it was read under, so a
+ * transient short or empty page is retried on the next run instead of being
+ * carried for up to six days (this replaces the closing badge/card re-read).
+ * Persistent discrepancies, such as the dead `&` routes, cost one GET per run.
+ *
+ * A carried model is also read when a recent arrival whose own destination
+ * binds to it is missing from its carried page and was entered no earlier than
+ * the day before the previous accepted run. About 15% of arrivals never reach
+ * their model page, so an unbounded trigger would re-read those models every
+ * day for the 21-day arrival window; the Enter Date bound fires each such
+ * arrival at most twice. Arrival donors are published from the arrival page
+ * either way, and older swaps wait for the six-day sweep.
  */
 export function chazCensusPlan(
   state: Pick<ChazProgress, "makes" | "arrivals" | "previous" | "day">,
@@ -110,6 +116,9 @@ export function chazCensusPlan(
   const previous = state.previous;
   const triggers = new Set<string>();
   if (previous) {
+    for (const evidence of previous.models)
+      if (evidence.page.records.length !== evidence.count)
+        triggers.add(evidence.key);
     const carried = new Map(previous.models.map((m) => [m.key, m.page]));
     for (const record of state.arrivals[0]?.records ?? []) {
       const entered = enterDay(record[6]);

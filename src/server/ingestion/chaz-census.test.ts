@@ -51,6 +51,9 @@ function yard() {
   // Arrivals always list at least one card; this old donor is already on M0.
   let arrivals: ChazRecord[] = [record(0, 1, date(D - 20))];
   const urls: string[] = [];
+  // Models whose page transiently answers with an explicit empty result while
+  // the menu badge still counts its donors.
+  const outages = new Set<number>();
   const models = () =>
     [...rows].map(
       ([i, list]): ChazControl => ({
@@ -81,7 +84,9 @@ function yard() {
                 ? chazFixtureDirectory(models(), "models")
                 : model
                   ? chazFixtureModelPage(
-                      rows.get(Number(model[1])) ?? [],
+                      outages.has(Number(model[1]))
+                        ? []
+                        : (rows.get(Number(model[1])) ?? []),
                       `Used ACURA ${label(Number(model[1]))}`,
                     )
                   : undefined;
@@ -96,6 +101,7 @@ function yard() {
   return {
     rows,
     urls,
+    outages,
     arrivals: () => arrivals,
     setArrivals: (next: ChazRecord[]) => {
       arrivals = next;
@@ -265,6 +271,35 @@ test("Chaz re-reads every model within six days, even across missed runs", async
     expect(run.vins).toEqual(allVins(native));
     previous = run.terminal;
   }
+});
+
+test("Chaz re-reads a model page whose cards disagree with its badge on the next run", async () => {
+  const native = yard();
+  let previous = (await census(native, D, null)).terminal;
+  for (const day of [D + 1, D + 2])
+    previous = (await census(native, day, previous)).terminal;
+  // Day D + 3: model 3 is in the sweep slice and answers with an explicit
+  // empty page while its badge still counts 40. The run stays above the floor.
+  native.outages.add(3);
+  const outage = await census(native, D + 3, previous);
+  expect(outage.models).toEqual([3, 9]);
+  expect(outage.vins).not.toContain(record(3, 1)[0]);
+  // Day D + 4: the badge is unchanged, but the carried page disagrees with it,
+  // so the model is read again; it is still empty.
+  const persistent = await census(native, D + 4, outage.terminal);
+  expect(persistent.models).toEqual([3, 4, 10]);
+  expect(persistent.warnings.at(-1)).toBe(
+    "Chaz Read 3 of 12 model pages (trigger 1, sweep 2); carried 9.",
+  );
+  // Day D + 5: the page recovers and its donors are published again.
+  native.outages.delete(3);
+  const recovered = await census(native, D + 5, persistent.terminal);
+  expect(recovered.models).toEqual([3, 5, 11]);
+  expect(recovered.vins).toEqual(allVins(native));
+  // Day D + 6: the recovered page agrees with its badge and carries again.
+  const settled = await census(native, D + 6, recovered.terminal);
+  expect(settled.models).toEqual([0, 6]);
+  expect(settled.vins).toEqual(allVins(native));
 });
 
 test("Chaz checkpoints reject carried pages, accounting and census days that disagree with the plan", async () => {
