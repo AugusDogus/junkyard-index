@@ -20,4 +20,18 @@ export const SearchAlertSchedule = {
       now.getTime() >= IngestionDay.start(now).getTime() + DEADLINE_OFFSET_MS
     );
   },
+
+  /**
+   * Whether a day with no check yet stops holding earlier intents: the
+   * deadline cron opens the check's row within its first hourly run, so a row
+   * still missing a stale interval later means checks cannot start at all.
+   */
+  isPastMissingCheckGrace(now: Date): boolean {
+    return (
+      now.getTime() >=
+      IngestionDay.start(now).getTime() +
+        DEADLINE_OFFSET_MS +
+        SearchAlertSchedule.staleAfterMs
+    );
+  },
 } as const;

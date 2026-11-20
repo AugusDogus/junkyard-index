@@ -672,7 +672,7 @@ describe("notification intent claims", () => {
       }
     });
 
-    test("no check by the deadline releases earlier intents", async () => {
+    test("no check an hour past the deadline releases earlier intents", async () => {
       const { client, cleanup } = createTestClient();
       try {
         await client.executeMultiple(SETUP);
@@ -681,10 +681,10 @@ describe("notification intent claims", () => {
         );
         const database = drizzle(client);
         expect(
-          await deliver(database, "2026-11-21T17:59:00Z", "before"),
+          await deliver(database, "2026-11-21T18:59:00Z", "before"),
         ).toEqual([]);
         expect(
-          await deliver(database, "2026-11-21T18:00:00Z", "after"),
+          await deliver(database, "2026-11-21T19:00:00Z", "after"),
         ).toEqual(["day-1-match"]);
       } finally {
         cleanup();

@@ -132,7 +132,7 @@ async function loadCheck(
 
 /** The day's check, created on first use while that day is current. */
 export async function openSearchAlertCheck(
-  context: SearchAlertCheckContext,
+  context: Pick<SearchAlertCheckContext, "database" | "client">,
   day: string,
   now: Date,
 ): Promise<SearchAlertCheckRow | null> {
@@ -149,15 +149,21 @@ export async function openSearchAlertCheck(
   return created;
 }
 
-/** missing: not created yet. running: still matching (or failing). */
+/** missing: a past day that never started. running: still matching (or failing). */
 export type SearchAlertCheckState = "missing" | "running" | "finished";
 
-export async function searchAlertCheckState(
-  database: LibSQLDatabase,
+/**
+ * Opens the day's check, creating it while the day is current, so its row
+ * (and the delivery hold it carries) exists before anything is delivered.
+ * Creating it here or from the check's first batch is the same insert.
+ */
+export async function openSearchAlertCheckState(
+  context: Pick<SearchAlertCheckContext, "database" | "client">,
   day: string,
+  now: Date,
 ): Promise<SearchAlertCheckState> {
-  const check = await loadCheck(database, day);
-  if (check === undefined) return "missing";
+  const check = await openSearchAlertCheck(context, day, now);
+  if (!check) return "missing";
   return check.status === "running" ? "running" : "finished";
 }
 

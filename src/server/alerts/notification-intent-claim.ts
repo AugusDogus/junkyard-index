@@ -55,13 +55,16 @@ const ownerFinished = sql`(
  * the daily allowance first. That covers the hours from the 07:00 UTC day
  * boundary until the pass or the deadline creates today's check, and the
  * check while it progresses. A check that stopped progressing (Algolia
- * failing, or stuck), or no check by the deadline, releases them. Intents
+ * failing, or stuck), or no check an hour past the deadline, releases them
+ * (the deadline cron opens the row on its first run). Intents
  * already grouped into a digest are not held: nothing new can join their
  * group.
  */
 function heldForTodaysCheck(now: Date) {
   const today = IngestionDay.key(now);
-  const beforeDeadline = SearchAlertSchedule.isPastDeadline(now) ? 0 : 1;
+  const awaitingCheck = SearchAlertSchedule.isPastMissingCheckGrace(now)
+    ? 0
+    : 1;
   return sql`(
     ${searchNotificationIntent.deliveryGroupId} is null
     and (
@@ -72,7 +75,7 @@ function heldForTodaysCheck(now: Date) {
           and today.last_progress_at >= ${now.getTime() - SearchAlertSchedule.staleAfterMs}
       )
       or (
-        ${beforeDeadline} = 1
+        ${awaitingCheck} = 1
         and not exists (
           select 1 from ${searchAlertCheck} today
           where today.day = ${today}
