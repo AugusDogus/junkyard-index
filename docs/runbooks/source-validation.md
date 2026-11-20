@@ -42,7 +42,7 @@ scheduled, whatever its Vercel flag serves. The manual run route refuses it with
 
 Every run reconciles a retired source as if it had accepted an empty snapshot of
 it. Its vehicles are marked missing, then deleted from the database and from
-search after three reconciled runs or three days. A source that still lists one
+search once they have been missing for 72 hours. A source that still lists one
 of its VINs takes that VIN over.
 
 Keep a retired source in `INGESTION_SOURCES` so its stored rows still parse and
