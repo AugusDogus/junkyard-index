@@ -15,6 +15,7 @@ import {
   rebuildIndexName,
   discardFailedRebuild,
   cleanupInactiveRunRebuild,
+  clearLeftoverRebuildIndices,
 } from "./algolia-rebuild-index";
 import { runIngestionEffect } from "./runtime";
 import { syncToAlgoliaEffect } from "./sync-algolia";
@@ -62,6 +63,13 @@ async function readAlgoliaVehicleRecords(vins: string[]) {
 
 async function prepareFullReindex(runId: string) {
   const temporaryIndex = rebuildIndexName(runId, ALGOLIA_INDEX_NAME);
+  // Abandoned or failed runs leave their copies for later cleanup. Remove them
+  // before this copy fills, so the app stays under its record cap.
+  await clearLeftoverRebuildIndices({
+    database,
+    algolia: getAlgoliaAdminClient(),
+    indexName: ALGOLIA_INDEX_NAME,
+  });
   const copied = await getAlgoliaAdminClient().operationIndex({
     indexName: ALGOLIA_INDEX_NAME,
     operationIndexParams: {

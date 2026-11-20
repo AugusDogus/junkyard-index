@@ -1,7 +1,8 @@
 import { expect, test } from "bun:test";
 
-// Module mocks leak across the suite, so this runs in its own process. The
-// Algolia app is blocked: every deleteIndex answers 403, as on Nov 19.
+// Module mocks leak across the suite, so this runs in its own process.
+// DELETE_INDEX picks how Algolia answers deleteIndex: "ok", "blocked" (403,
+// as on Nov 19) or "unavailable" (503).
 const SCRIPT = `
   import { mock } from "bun:test";
   import { createClient } from "@libsql/client";
@@ -17,10 +18,16 @@ const SCRIPT = `
     getAlgoliaAdminClient: () => ({
       deleteIndex: async ({ indexName }) => {
         deleteIndexCalls.push(indexName);
-        throw Object.assign(new Error("Application is blocked"), {
-          name: "ApiError",
-          status: 403,
-        });
+        if (process.env.DELETE_INDEX === "ok") return { taskID: 1 };
+        throw process.env.DELETE_INDEX === "blocked"
+          ? Object.assign(new Error("Application is blocked"), {
+              name: "ApiError",
+              status: 403,
+            })
+          : Object.assign(new Error("Service Unavailable"), {
+              name: "ApiError",
+              status: 503,
+            });
       },
       waitForTask: async () => {},
     }),
@@ -60,26 +67,45 @@ const SCRIPT = `
   }));
 `;
 
-test("abandoning or failing a run records it in Turso and defers rebuild cleanup while Algolia is blocked", () => {
+function run(deleteIndex: "ok" | "blocked" | "unavailable") {
   const result = Bun.spawnSync([process.execPath, "--eval", SCRIPT], {
     cwd: process.cwd(),
-    env: { ...process.env, SKIP_ENV_VALIDATION: "1" },
+    env: {
+      ...process.env,
+      SKIP_ENV_VALIDATION: "1",
+      DELETE_INDEX: deleteIndex,
+    },
   });
-  const output = result.stdout.toString().trim().split("\n").at(-1) ?? "";
   expect({
     exitCode: result.exitCode,
-    stderr: result.stderr.toString(),
+    stderr: result.exitCode === 0 ? "" : result.stderr.toString(),
   }).toEqual({ exitCode: 0, stderr: "" });
-  expect(JSON.parse(output)).toEqual({
-    abandonment: {
-      abandoned: { runId: "run-abandon", workflowRunId: "wf-1" },
-      workflowCancellation: "cancelled",
-      rebuildCleanup: "deferred",
-    },
-    deleteIndexCalls: [],
-    runs: [
-      ["run-abandon", "abandoned"],
-      ["run-fail", "abandoned"],
-    ],
-  });
-});
+  return JSON.parse(
+    result.stdout.toString().trim().split("\n").at(-1) ?? "null",
+  );
+}
+
+test.each([
+  ["ok", "done"],
+  ["blocked", "deferred"],
+  ["unavailable", "deferred"],
+] as const)(
+  "abandoning or failing a run records it in Turso and deletes its rebuild copy best effort (deleteIndex %s)",
+  (deleteIndex, rebuildCleanup) => {
+    expect(run(deleteIndex)).toEqual({
+      abandonment: {
+        abandoned: { runId: "run-abandon", workflowRunId: "wf-1" },
+        workflowCancellation: "cancelled",
+        rebuildCleanup,
+      },
+      deleteIndexCalls: [
+        "vehicles__rebuild_run-abandon",
+        "vehicles__rebuild_run-fail",
+      ],
+      runs: [
+        ["run-abandon", "abandoned"],
+        ["run-fail", "abandoned"],
+      ],
+    });
+  },
+);
