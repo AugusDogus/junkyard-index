@@ -4,7 +4,11 @@ import {
   streamScottsInventoryWithRequestGate,
   type ScottsStreamResult,
 } from "./scotts-connector";
-import { ScottsCursor, ScottsCursorSchema } from "./scotts-cursor";
+import {
+  ScottsCursor,
+  ScottsCursorSchema,
+  SCOTTS_MINIMUM_BADGE_COVERAGE,
+} from "./scotts-cursor";
 import {
   SCOTTS_MAKES,
   SCOTTS_ORIGIN,
@@ -12,6 +16,7 @@ import {
 } from "./scotts-yard-metadata";
 import {
   MODEL_CENSUS_DAY_MS,
+  MODEL_CENSUS_REPLAY_MINIMUM,
   MODEL_CENSUS_SWEEP_DAYS,
   ModelCensus,
 } from "./model-census";
@@ -31,16 +36,22 @@ const vin = (model: number, n: number) =>
   "1HGCM82633A" + String(model * 1000 + n).padStart(6, "0");
 const card = (model: number, n: number) =>
   `<div class="aps-la-card-wrapper"><div class="aps-la-card-premium" id="T${model}-${n}"><a class="aps-la-card-link-premium" href="${SCOTTS_ORIGIN}/used-parts/ACURA/${label(model)}/T${model}-${n}/2003"><h3 class="aps-la-title-premium">ACURA ${label(model)}</h3><p class="aps-la-subtitle-premium--vin">VIN: ${vin(model, n)}</p><div class="aps-la-right-val-premium"><span>Year</span>2003</div></a></div></div>`;
+/** The VIN-less NOF placeholder card six real Scotts models list after their
+ * donors; badges never count it. */
+const placeholder = (model: number) =>
+  `<div class="aps-la-card-wrapper"><div class="aps-la-card-premium" id="NOF"><a class="aps-la-card-link-premium" href="${SCOTTS_ORIGIN}/used-parts/ACURA/${label(model)}/NOF/2013"><h3 class="aps-la-title-premium">ACURA ${label(model)}</h3><p class="aps-la-subtitle-premium--vin">VIN: -</p><div class="aps-la-right-val-premium"><span>Year</span>2013</div></a></div></div>`;
 const donors = (n = 30) => Array.from({ length: n }, (_, i) => i + 1);
 
 /** Twelve ACURA models with 30 donors each (above the 325 floor); `rows` holds
- * each model's donor numbers, `badges` overrides a model's published count and
- * a `broken` model's page lists only its first donor while the menus still
- * count them all. All can be edited between runs. */
+ * each model's donor numbers, `badges` overrides a model's published count, a
+ * `broken` model's page lists only its first donor while the menus still count
+ * them all, and a `placeholders` model's page also lists an NOF card. All can
+ * be edited between runs. */
 function yard() {
   const rows = new Map(Array.from({ length: 12 }, (_, i) => [i, donors()]));
   const badges = new Map<number, number>();
   const broken = new Set<number>();
+  const placeholders = new Set<number>();
   const urls: string[] = [];
   globalThis.fetch = Object.assign(
     async (input: string | URL | Request) => {
@@ -76,7 +87,7 @@ function yard() {
                 )
               : model && list
                 ? document(
-                    `<h1>Used ACURA ${label(index)}</h1><p>Some vehicles may not show parts available if we haven't parted them out yet.</p><div class="aps-la-grid">${list.map((n) => card(index, n)).join("")}</div>`,
+                    `<h1>Used ACURA ${label(index)}</h1><p>Some vehicles may not show parts available if we haven't parted them out yet.</p><div class="aps-la-grid">${list.map((n) => card(index, n)).join("")}${placeholders.has(index) ? placeholder(index) : ""}</div>`,
                   )
                 : undefined;
       if (body === undefined) throw new Error("Unexpected request " + url);
@@ -84,7 +95,7 @@ function yard() {
     },
     { preconnect: originalFetch.preconnect },
   );
-  return { rows, badges, broken, urls };
+  return { rows, badges, broken, placeholders, urls };
 }
 
 /** One full run on `day`, seeded by the previous terminal cursor. */
@@ -453,4 +464,113 @@ test("Scotts fails a run whose read and carried cards fall short of today's mode
   ).rejects.toThrow("coverage floor");
   expect(published).toBe(0);
   expect(yards).toBe(0);
+});
+
+/** Runs `day` to completion and returns the error that stopped it, with what
+ * reached the inventory and yard callbacks. */
+async function failedRun(day: number, previousCursor: unknown) {
+  let published = 0;
+  let yards = 0;
+  let cursor: ScottsCursor = ScottsCursor.initial;
+  const error = await (async () => {
+    while (cursor.phase !== "complete") {
+      const result: ScottsStreamResult = await Effect.runPromise(
+        streamScottsInventoryWithRequestGate(
+          {
+            startCursor: cursor,
+            previousCursor,
+            now: () => day * MODEL_CENSUS_DAY_MS,
+            onBatch: (batch) =>
+              Effect.sync(() => {
+                published += batch.length;
+              }),
+            onYards: (list) =>
+              Effect.sync(() => {
+                yards += list.length;
+              }),
+          },
+          gate,
+        ),
+      );
+      cursor = result.cursor;
+    }
+    return null;
+  })().catch((cause: unknown) => cause);
+  return {
+    error: error instanceof Error ? error.message : error,
+    published,
+    yards,
+  };
+}
+
+test("Scotts fails a sweep slice cut to one card per model even when badges still clear their floor", async () => {
+  // The site cuts today's sweep slice to one card per page while the menus keep
+  // counting every donor. The slice is light enough that today's badges alone
+  // stay above the 95% floor, so the replay of the last accepted cards must
+  // catch it.
+  const native = yard();
+  const day = sweepDays(native, 600)[0];
+  if (day === undefined) throw new Error("Fixture needs a non-empty slice");
+  const slice = sweep(native, day);
+  for (const model of native.rows.keys())
+    native.rows.set(model, donors(slice.includes(model) ? 28 : 60));
+  const cold = await census(native, 600, null);
+  const total = allVins(native).length;
+  for (const model of slice) native.broken.add(model);
+  const kept =
+    total -
+    slice.reduce(
+      (n, model) => n + (native.rows.get(model)?.length ?? 1) - 1,
+      0,
+    );
+  expect(kept).toBeGreaterThanOrEqual(
+    Math.ceil(total * SCOTTS_MINIMUM_BADGE_COVERAGE),
+  );
+  expect(kept).toBeLessThan(Math.ceil(total * MODEL_CENSUS_REPLAY_MINIMUM));
+  expect(kept).toBeGreaterThanOrEqual(325);
+
+  const run = await failedRun(day, cold.terminal);
+  expect(run.error).toContain(
+    `Scotts model pages list ${kept} of ${total} cards that the last accepted census listed for models whose counts did not change, below the 97% coverage floor. Nothing was published`,
+  );
+  expect(run.published).toBe(0);
+  expect(run.yards).toBe(0);
+});
+
+test("Scotts re-reads an NOF placeholder page that lost a donor while it still matches its badge", async () => {
+  // As on the six real Scotts models with an NOF card, the badge counts three
+  // donors and the healthy page lists four cards.
+  const native = yard();
+  const day = sweepDays(native, 600)[0];
+  const model = day === undefined ? undefined : sweep(native, day)[0];
+  if (day === undefined || model === undefined)
+    throw new Error("Fixture needs a non-empty sweep day");
+  // The next day neither sweeps the model nor reaches the age ceiling.
+  expect(sweep(native, day + 1)).not.toContain(model);
+  expect(day + 1 - 600).toBeLessThan(MODEL_CENSUS_SWEEP_DAYS);
+  native.rows.set(model, donors(3));
+  native.placeholders.add(model);
+  const cold = await census(native, 600, null);
+  expect(cold.vins).toEqual(allVins(native));
+
+  // Its sweep read loses one real donor: three cards, exactly its badge.
+  native.rows.set(model, donors(2));
+  native.badges.set(model, 3);
+  const swept = await census(native, day, cold.terminal);
+  // Closing re-reads it although its cards equal its badge.
+  expect(swept.models).toEqual([...sweep(native, day), model]);
+  const parsed = ScottsCursorSchema.parse(swept.terminal);
+  if (parsed.phase !== "complete" || !parsed.census)
+    throw new Error("Expected a terminal census");
+  const evidence = parsed.census.models.find((m) => m.key === key(model));
+  expect(evidence?.page.records).toHaveLength(3);
+  expect(evidence?.expected).toBe(4);
+  expect(evidence?.confirmed).toBe(false);
+
+  // The next run re-reads it as short instead of carrying the lost donor away.
+  native.rows.set(model, donors(3));
+  const next = await census(native, day + 1, swept.terminal);
+  expect(next.models).toContain(model);
+  expect(next.warnings.at(-1)).toContain("short 1");
+  expect(next.vins).toEqual(allVins(native));
 });

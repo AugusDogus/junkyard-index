@@ -29,7 +29,7 @@ const scope = scottsHash({
   version: 1,
   yard: SCOTTS_YARD,
   contract:
-    "CC68,XX00/literal-premium-model-graph/required-card-id/all-required-destination-conflicts-quarantined/incremental-model-census-v2",
+    "CC68,XX00/literal-premium-model-graph/required-card-id/all-required-destination-conflicts-quarantined/incremental-model-census-v3",
 });
 /** Every model page held by an accepted run, carried forward by the next one.
  * Carried cards must still match their own fingerprint. */
@@ -81,9 +81,12 @@ export type ScottsClosingControl =
     };
 
 /** Closing re-reads ownership, the make directory and every model read this
- * run whose cards differ from its badge, so a short page is confirmed before it
- * can be carried. Carried pages were confirmed on the run that read them; other
- * per-model changes surface as badge changes in the next run's opening menus. */
+ * run whose cards differ from its badge or fall below its expected count
+ * (ModelCensus.closingReads), so a short page is confirmed before it can be
+ * carried. A page that keeps an NOF placeholder but loses a donor matches its
+ * badge and is still re-read. Carried pages were confirmed on the run that read
+ * them; other per-model changes surface as badge changes in the next run's
+ * opening menus. */
 export function scottsClosingControls(
   state: Pick<ScottsProgress, "makes" | "pages" | "previous" | "day">,
 ): ScottsClosingControl[] {
@@ -92,22 +95,28 @@ export function scottsClosingControls(
     state.day === null || state.pages.length !== models.length
       ? []
       : scottsCensusPlan(state);
-  const mismatched = decisions.flatMap((decision, index) => {
-    const value = models[index];
-    return decision.kind === "read" &&
-      value &&
-      state.pages[index]?.records.length !== value.model.count
-      ? [
-          {
-            kind: "model" as const,
-            url: SCOTTS_ORIGIN + value.model.path,
-            make: value.make,
-            model: value.model,
-            index,
-          },
-        ]
-      : [];
-  });
+  const mismatched = decisions.length
+    ? ModelCensus.closingReads({
+        controls: scottsCensusControls(state.makes),
+        pages: state.pages,
+        decisions,
+        previous: state.previous,
+        cards: scottsCards,
+      }).flatMap((index) => {
+        const value = models[index];
+        return value
+          ? [
+              {
+                kind: "model" as const,
+                url: SCOTTS_ORIGIN + value.model.path,
+                make: value.make,
+                model: value.model,
+                index,
+              },
+            ]
+          : [];
+      })
+    : [];
   return [
     { kind: "root", url: SCOTTS_ROOT },
     { kind: "directory", url: SCOTTS_MAKES },
@@ -147,19 +156,25 @@ const scottsCards = (page: ScottsPage) => page.records.length;
  * 1,058 on 221 models; the six NOF placeholders only add cards), and the four
  * pages re-read on Nov 19 matched their new badges exactly, so the 5% margin
  * (about 53 cards) far exceeds the observed 0.8 card changes a day. The
- * smallest real sweep slice holds 9.8% of badges: breaking it leaves at most
- * 90.2% covered, or 93.5% if each of its pages still lists one card. */
+ * smallest real sweep slice holds 9.8% of badges (35 models, 104 badges):
+ * breaking it leaves at most 90.2% covered, or 93.5% (989 of 1,058) if each of
+ * its pages still lists one card. Against the Nov 15 cards (1,064), that cut
+ * leaves 93.4% (994), below the 97% replay floor too. */
 export const SCOTTS_MINIMUM_BADGE_COVERAGE = 0.95;
 
 /** Fails a run whose read and carried model cards fall short of today's model
- * badges, before anything is published. */
+ * badges, or of the last accepted cards of models whose badge is unchanged,
+ * before anything is published. */
 export function scottsCoverageError(state: ScottsProgress): string | null {
   const models = scottsModels(state.makes);
   return ModelCensus.coverage(
     "Scotts",
-    scottsCensusControls(state.makes),
-    state.pages,
-    scottsCards,
+    {
+      controls: scottsCensusControls(state.makes),
+      pages: state.pages,
+      previous: state.previous,
+      cards: scottsCards,
+    },
     SCOTTS_MINIMUM_BADGE_COVERAGE,
     (index) => {
       const value = models[index];
@@ -174,13 +189,16 @@ export function scottsCensus(state: ScottsProgress): ScottsCensus {
   return ModelCensus.accept(
     scope,
     state.day,
-    scottsCensusControls(state.makes),
-    state.pages,
-    scottsCensusPlan(state),
+    {
+      controls: scottsCensusControls(state.makes),
+      pages: state.pages,
+      decisions: scottsCensusPlan(state),
+      previous: state.previous,
+      cards: scottsCards,
+    },
     // Closing re-reads every page read this run whose cards differ from its
-    // badge and fails on any change.
+    // badge or fall below its expected count and fails on any change.
     "confirmed",
-    scottsCards,
   );
 }
 
