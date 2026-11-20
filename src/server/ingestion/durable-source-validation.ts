@@ -19,7 +19,10 @@ import {
   parseAcceptedSources,
   parseDurableRunStage,
 } from "./durable-run-state";
-import { parseDurableSourceCursor } from "./durable-source";
+import {
+  isDurableSourceCursorTerminal,
+  parseDurableSourceCursor,
+} from "./durable-source";
 import {
   newestVehicleArrival,
   validateSourceSnapshot,
@@ -32,59 +35,6 @@ export type DurableSourceValidationSummary =
       acceptedSources: IngestionSource[];
       rejectedSources: Array<{ source: IngestionSource; errors: string[] }>;
     };
-
-function hasTerminalCursor(source: IngestionSource, cursor: string | null) {
-  if (!cursor) return false;
-  try {
-    const parsed = parseDurableSourceCursor(source, cursor);
-    if (parsed.source === "autorecycler")
-      return parsed.phase === "complete" && parsed.freshness !== undefined;
-    if (parsed.source === "rohner") return parsed.phase === "complete";
-    if (parsed.source === "vanderhaags")
-      return parsed.phase === "complete" && parsed.census !== undefined;
-    if (parsed.source === "pratt") return parsed.phase === "complete";
-    if (parsed.source === "cars4parts") return parsed.phase === "complete";
-    if (parsed.source === "meeks") return parsed.phase === "complete";
-    if (parsed.source === "brandywine") return parsed.phase === "complete";
-    if (parsed.source === "rmmdtp") return parsed.phase === "complete";
-    if (parsed.source === "calton") return parsed.phase === "complete";
-    if (parsed.source === "bigtruckpage") return parsed.phase === "complete";
-    if (parsed.source === "speedys") return parsed.phase === "complete";
-    if (parsed.source === "sandw") return parsed.phase === "complete";
-    if (parsed.source === "bigd") return parsed.phase === "complete";
-    if (parsed.source === "beavers") return parsed.phase === "complete";
-    if (parsed.source === "harrys" || parsed.source === "budget")
-      return parsed.phase === "complete";
-    if (parsed.source === "indianriver") return parsed.phase === "complete";
-    if (parsed.source === "denton") return parsed.phase === "complete";
-    if (parsed.source === "scotts") return parsed.phase === "complete";
-    if (parsed.source === "oem") return parsed.state.phase === "complete";
-    if (parsed.source === "dutchers") return parsed.phase === "complete";
-    if (parsed.source === "alsauto") return parsed.phase === "complete";
-    if (parsed.source === "chasencars") return parsed.phase === "complete";
-    if (parsed.source === "weberbrothers") return parsed.phase === "complete";
-    if (parsed.source === "hawaiiparts") return parsed.phase === "complete";
-    if (parsed.source === "modernmuscle") return parsed.phase === "complete";
-    if (parsed.source === "carsandparts") return parsed.phase === "complete";
-    if (parsed.source === "spartan") return parsed.phase === "complete";
-    if (parsed.source === "oemgarage") return parsed.phase === "complete";
-    if (parsed.source === "hagerman") return parsed.phase === "complete";
-    if (parsed.source === "kandr") return parsed.phase === "complete";
-    if (parsed.source === "jimsimport") return parsed.phase === "complete";
-    if (parsed.source === "lonestarimports") return parsed.phase === "complete";
-    if (parsed.source === "hollanderstores") return parsed.phase === "complete";
-    if (parsed.source === "heavytruckparts") return parsed.phase === "complete";
-    if (parsed.source === "cstruck") return parsed.phase === "complete";
-    if (parsed.source === "alshned") return parsed.phase === "complete";
-    if (parsed.source === "byot") return parsed.phase === "complete";
-    if (parsed.source === "vinplus") return parsed.phase === "complete";
-    if (parsed.source === "urgiis") return parsed.phase === "complete";
-    if (parsed.source === "allied") return parsed.phase === "complete";
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 export async function validateDurableSourceRuns(params: {
   runId: string;
@@ -141,7 +91,7 @@ export async function validateDurableSourceRuns(params: {
     if (
       row.source === "autorecycler" &&
       row.status === "success" &&
-      hasTerminalCursor(row.source, row.nextCursor)
+      isDurableSourceCursorTerminal(row.source, row.nextCursor)
     ) {
       const cursor = parseDurableSourceCursor(
         "autorecycler",
@@ -161,7 +111,7 @@ export async function validateDurableSourceRuns(params: {
     if (
       row.source === "vanderhaags" &&
       row.status === "success" &&
-      hasTerminalCursor(row.source, row.nextCursor)
+      isDurableSourceCursorTerminal(row.source, row.nextCursor)
     )
       yardErrorsBySource.set(
         row.source,
@@ -175,7 +125,7 @@ export async function validateDurableSourceRuns(params: {
     if (
       row.source === "cars4parts" &&
       row.status === "success" &&
-      hasTerminalCursor(row.source, row.nextCursor)
+      isDurableSourceCursorTerminal(row.source, row.nextCursor)
     )
       yardErrorsBySource.set(
         row.source,
@@ -187,7 +137,7 @@ export async function validateDurableSourceRuns(params: {
     if (
       row.source === "harrys" &&
       row.status === "success" &&
-      hasTerminalCursor(row.source, row.nextCursor)
+      isDurableSourceCursorTerminal(row.source, row.nextCursor)
     )
       yardErrorsBySource.set(
         row.source,
@@ -201,7 +151,7 @@ export async function validateDurableSourceRuns(params: {
     if (
       row.source === "urgiis" &&
       row.status === "success" &&
-      hasTerminalCursor(row.source, row.nextCursor)
+      isDurableSourceCursorTerminal(row.source, row.nextCursor)
     ) {
       const cursor = parseDurableSourceCursor("urgiis", row.nextCursor ?? "");
       const scope = urgiisPublication(cursor);
@@ -261,7 +211,7 @@ export async function validateDurableSourceRuns(params: {
       source: row.source,
       terminal:
         row.status === "success" &&
-        hasTerminalCursor(row.source, row.nextCursor),
+        isDurableSourceCursorTerminal(row.source, row.nextCursor),
       uniqueVehicles,
       vehiclesProcessed: row.vehiclesProcessed,
       duplicateVehicles,
