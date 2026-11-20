@@ -13,6 +13,7 @@ import {
   DENTON_MAX_REQUESTS,
   DENTON_MAX_TOTAL_BYTES,
   DENTON_MINIMUM_INVENTORY,
+  dentonBadgeCoverage,
   dentonCensusPlan,
   dentonNextUrl,
   dentonReady,
@@ -137,6 +138,7 @@ export function streamDentonInventory<E, R>(options: DentonOptions<E, R>) {
             previousAcceptedCount: options.previousAcceptedCount,
           }),
         );
+        yield* unwrap(dentonBadgeCoverage(ready));
         const complete = yield* unwrap(
           DentonCursor.complete(ready, options.previousAcceptedCount),
         );
@@ -151,7 +153,7 @@ export function streamDentonInventory<E, R>(options: DentonOptions<E, R>) {
         summary.rejections = snapshot.rejections;
         summary.warnings = [
           ...summary.warnings,
-          "Denton retained required rejects, all valid rejected/conflicting identities and the AD80068 destination quarantine. Model badge counts only select census reads; optional metadata is nullable.",
+          "Denton retained required rejects, all valid rejected/conflicting identities and the AD80068 destination quarantine. Model badge counts select census reads and bound the read plus carried model cards; optional metadata is nullable.",
           "Denton " + ModelCensus.summary(plan),
         ];
         cursor = complete;
