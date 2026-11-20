@@ -225,7 +225,8 @@ test("Northwest replays all 36 makes and 334 models through its real client and 
     new Set(requested.filter((url) => saved.models.some((m) => m.url === url)))
       .size,
   ).toBe(334);
-  expect(requested.length).toBe(418);
+  // Cold census: root, makes, 36 menus and 334 models; closing root and makes.
+  expect(requested.length).toBe(374);
   expect(IngestionSourceFlags.resolve({})).toContain("northwest");
   expect(saved.census.result.addressMatches[0]?.coordinates).toEqual({
     x: NORTHWEST_YARD.lng,
@@ -268,6 +269,8 @@ test("Northwest reports each unrecovered count and fails above the owner's 1% li
       pages: [...nativePages.slice(0, -1), mismatch],
       closing: 0,
       requests: 372,
+      day: 600,
+      previous: null,
     }),
   ).toThrow();
 });

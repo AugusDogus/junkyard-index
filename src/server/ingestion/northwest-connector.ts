@@ -9,9 +9,12 @@ import {
   NorthwestCursor,
   NorthwestCursorSchema,
   NORTHWEST_MAX_REQUESTS,
+  northwestCensus,
+  northwestCensusPlan,
   northwestClosingControls,
   type NorthwestProgress,
 } from "./northwest-cursor";
+import { ModelCensus } from "./model-census";
 import {
   northwestHash,
   parseNorthwestDirectory,
@@ -37,6 +40,10 @@ import { sharedProviderHostTurn } from "./shared-provider-host";
 
 interface NorthwestOptions<E, R> {
   startCursor?: NorthwestCursor;
+  /** Terminal cursor of the last accepted, published run; read only when the
+   * start cursor has not begun a census yet. */
+  previousCursor?: unknown;
+  now?: () => number;
   maxPages?: number;
   onBatch: (vehicles: NorthwestCandidate[]) => Effect.Effect<void, E, R>;
   onYards?: (yards: NorthwestYard[]) => Effect.Effect<void, E, R>;
@@ -82,7 +89,7 @@ function nextUrl(state: NorthwestProgress): string {
       return NORTHWEST_ORIGIN + entry.model.path;
     }
     case "closing": {
-      const entry = northwestClosingControls(state)[state.closing];
+      const entry = northwestClosingControls()[state.closing];
       if (!entry)
         throw new Error("Northwest closing native control is missing");
       return entry.url;
@@ -112,8 +119,14 @@ function advance(state: NorthwestProgress, raw: string): NorthwestProgress {
           ? { ...value, models: parseNorthwestDirectory(raw, "models", make) }
           : value,
       );
-      if (next.makes.every((value) => value.models !== null))
-        next.phase = "models";
+      if (next.makes.every((value) => value.models !== null)) {
+        // Carried models before the first due read cost no request.
+        next.pages = ModelCensus.carriedRun(northwestCensusPlan(next), 0);
+        next.phase =
+          next.pages.length === northwestModels(next.makes).length
+            ? "closing"
+            : "models";
+      }
       break;
     }
     case "models": {
@@ -123,13 +136,17 @@ function advance(state: NorthwestProgress, raw: string): NorthwestProgress {
       next.pages = [
         ...state.pages,
         parseNorthwestModel(raw, entry.make, entry.model),
+        ...ModelCensus.carriedRun(
+          northwestCensusPlan(state),
+          state.pages.length + 1,
+        ),
       ];
       if (next.pages.length === northwestModels(state.makes).length)
         next.phase = "closing";
       break;
     }
     case "closing": {
-      const entry = northwestClosingControls(state)[state.closing];
+      const entry = northwestClosingControls()[state.closing];
       if (!entry) throw new Error("Northwest closing context is missing");
       switch (entry.kind) {
         case "root":
@@ -140,20 +157,6 @@ function advance(state: NorthwestProgress, raw: string): NorthwestProgress {
             state.makes.map(({ models: _models, ...make }) => make),
             parseNorthwestDirectory(raw, "makes"),
             "make graph",
-          );
-          break;
-        case "make":
-          same(
-            entry.make.models,
-            parseNorthwestDirectory(raw, "models", entry.make),
-            "model graph",
-          );
-          break;
-        case "model":
-          same(
-            state.pages[entry.index]?.hash,
-            parseNorthwestModel(raw, entry.make, entry.model).hash,
-            "model cards",
           );
           break;
       }
@@ -197,6 +200,14 @@ export function streamNorthwestInventoryWithRequestGate<E, R>(
     };
     if (cursor.phase === "complete")
       return { ...summary, status: "complete" as const };
+    const now = options.now ?? Date.now;
+    const pending = cursor;
+    const begun = yield* attempt("begin census", () =>
+      NorthwestCursor.begin(pending, now(), options.previousCursor),
+    );
+    cursor = begun.cursor;
+    summary.cursor = cursor;
+    if (begun.warning) summary.warnings.push(begun.warning);
     while (summary.pagesProcessed < budget && cursor.phase !== "complete") {
       const current: NorthwestProgress = cursor;
       if (current.requests >= NORTHWEST_MAX_REQUESTS)
@@ -218,7 +229,7 @@ export function streamNorthwestInventoryWithRequestGate<E, R>(
       summary.pagesProcessed++;
       if (
         advanced.phase === "closing" &&
-        advanced.closing === northwestClosingControls(advanced).length
+        advanced.closing === northwestClosingControls().length
       ) {
         const snapshot = yield* attempt("complete native graph", () => {
           const value = northwestSnapshot(advanced.makes, advanced.pages);
@@ -228,12 +239,24 @@ export function streamNorthwestInventoryWithRequestGate<E, R>(
         summary.accounting = { ...snapshot.accounting };
         summary.count = snapshot.vehicles.length;
         summary.observedVins = [...snapshot.observedVins];
-        summary.warnings = snapshot.warnings;
+        const census = yield* attempt("close model census", () =>
+          northwestCensus(advanced),
+        );
+        summary.warnings = [
+          ...summary.warnings,
+          ...snapshot.warnings,
+          "Northwest " + ModelCensus.summary(northwestCensusPlan(advanced)),
+        ];
         if (options.onYards) yield* options.onYards([{ ...NORTHWEST_YARD }]);
         yield* options.onBatch(
           snapshot.vehicles.map((vehicle) => ({ ...vehicle })),
         );
-        cursor = { source: "northwest", version: 1, phase: "complete" };
+        cursor = {
+          source: "northwest",
+          version: 1,
+          phase: "complete",
+          census,
+        };
       } else cursor = advanced;
     }
     return {
