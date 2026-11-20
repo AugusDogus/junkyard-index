@@ -348,7 +348,15 @@ test("rolling slices refresh every model within six days, reserving a day to pub
   const swept: string[] = [];
   for (let day = 1; day <= 7; day++) {
     const result = await run({ previous, now: start + day * DAY });
-    if (day < 6) expect(readModels(result)).toHaveLength(1);
+    // Six slices: the slice day is also the day a model's carry expires.
+    if (day < 6)
+      expect(readModels(result)).toEqual(
+        models
+          .filter(
+            (_, index) => index % 6 === (Math.floor(start / DAY) + day) % 6,
+          )
+          .map((m) => tenant.origin + m.model.path),
+      );
     swept.push(...readModels(result));
     if (day === 6) expect(new Set(swept).size).toBe(7);
     previous = result.cursor;
@@ -623,10 +631,10 @@ test("same-day replacement missing from arrivals stays stale only until that mod
     replacement.vins[0] ?? "",
   );
   const index = models.indexOf(model);
-  const days = Array.from({ length: 7 }, (_, i) => i + 1).find(
-    (day) => (Math.floor(start / DAY) + day) % 7 === index % 7,
+  const days = Array.from({ length: 6 }, (_, i) => i + 1).find(
+    (day) => (Math.floor(start / DAY) + day) % 6 === index % 6,
   );
-  if (days === undefined) throw new Error("Missing seven-day sweep slot");
+  if (days === undefined) throw new Error("Missing six-day sweep slot");
   const swept = await run({
     previous: missed.cursor,
     now: start + days * DAY,
@@ -636,7 +644,7 @@ test("same-day replacement missing from arrivals stays stale only until that mod
   expect(readModels(swept)).toContain(tenant.origin + model.model.path);
   expect(swept.vehicles.map((v) => v.vin)).toContain(replacement.vins[0] ?? "");
   expect(swept.vehicles.map((v) => v.vin)).not.toContain(old.vins[0] ?? "");
-  expect(days).toBeLessThanOrEqual(7);
+  expect(days).toBeLessThanOrEqual(6);
 });
 
 test("shifted model slices refresh six-day evidence before the seven-day acceptance ceiling", async () => {
@@ -891,7 +899,7 @@ test("a carried tiny empty is reread when its closing badge reaches two", async 
     replace: { path, records: [] },
   });
   const day = [1, 2].find(
-    (d) => (Math.floor(start / DAY) + d) % 7 !== models.indexOf(model) % 7,
+    (d) => (Math.floor(start / DAY) + d) % 6 !== models.indexOf(model) % 6,
   );
   if (day === undefined) throw new Error("Missing non-sweep day");
   const result = await run({

@@ -95,13 +95,17 @@ function previousModel(
     : undefined;
 }
 
+// One slice per carry day: a model's slice comes back on the day its carry
+// expires, so the slice read and the age read are the same read.
+const slices = carryMs / URGIIS_DAY_MS;
 /** Balanced native-control slices start on the first incremental day, even when
  * bootstrap read every page at the same time. Age remains an independent ceiling. */
 export function urgiisSweepDue(index: number, now: number, readAt: number) {
   const day = Math.floor(now / URGIIS_DAY_MS);
   return (
     now - readAt >= carryMs ||
-    (index % 7 === day % 7 && Math.floor(readAt / URGIIS_DAY_MS) < day)
+    (index % slices === day % slices &&
+      Math.floor(readAt / URGIIS_DAY_MS) < day)
   );
 }
 export function urgiisCarry(
