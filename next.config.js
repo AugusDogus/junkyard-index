@@ -8,6 +8,8 @@ import { withWorkflow } from "workflow/next";
 
 /** @type {import("next").NextConfig} */
 const config = {
+  // The browser names Algolia indices by deployment (src/lib/constants.ts).
+  env: { NEXT_PUBLIC_VERCEL_ENV: process.env.VERCEL_ENV ?? "" },
   async redirects() {
     // Old directory URL that still gets visits.
     return [{ source: "/yards", destination: "/junkyards", permanent: true }];

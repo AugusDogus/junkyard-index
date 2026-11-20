@@ -1,7 +1,7 @@
 import { isValidationRejection } from "./ingestion-validation";
 import type { DurableWorkflowCursor } from "./durable-workflow-cursor";
 import { pruneIngestionRuns } from "./ingestion-run-retention";
-import { algoliaAdminClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia";
+import { ALGOLIA_INDEX_NAME, getAlgoliaAdminClient } from "~/lib/algolia";
 import {
   cleanupStaleRebuildIndices,
   cleanupInactiveRunRebuild,
@@ -245,7 +245,7 @@ export async function persistDurableIngestionFailure(
   await cleanupInactiveRunRebuild({
     runId,
     database: db,
-    algolia: algoliaAdminClient,
+    algolia: getAlgoliaAdminClient(),
     indexName: ALGOLIA_INDEX_NAME,
   });
 }
@@ -297,7 +297,7 @@ export async function cleanupStaleDurableAlgoliaRebuilds(): Promise<void> {
   await pruneIngestionRuns({ database: db });
   await cleanupStaleRebuildIndices({
     database: db,
-    algolia: algoliaAdminClient,
+    algolia: getAlgoliaAdminClient(),
     indexName: ALGOLIA_INDEX_NAME,
   });
 }
@@ -310,7 +310,7 @@ export async function abandonDurableIngestion(
   await cleanupInactiveRunRebuild({
     runId,
     database: db,
-    algolia: algoliaAdminClient,
+    algolia: getAlgoliaAdminClient(),
     indexName: ALGOLIA_INDEX_NAME,
   });
   return workflowRunId;

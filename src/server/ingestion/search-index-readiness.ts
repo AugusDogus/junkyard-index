@@ -1,6 +1,6 @@
 import "server-only";
 import { unstable_cache } from "next/cache";
-import { algoliaAdminClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia";
+import { ALGOLIA_INDEX_NAME, getAlgoliaAdminClient } from "~/lib/algolia";
 import {
   CHRONOLOGICAL_SEARCH_SCHEMA_VERSION,
   getSearchSchemaVersion,
@@ -16,7 +16,7 @@ export interface SearchIndexCapabilities {
 
 async function readSearchIndexCapabilities(): Promise<SearchIndexCapabilities> {
   try {
-    const settings = await algoliaAdminClient.getSettings({
+    const settings = await getAlgoliaAdminClient().getSettings({
       indexName: ALGOLIA_INDEX_NAME,
     });
     return {

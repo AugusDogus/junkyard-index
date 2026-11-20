@@ -1,6 +1,6 @@
 import { projectSearchVehicles } from "./vehicle-search-projection";
 import { and, asc, eq, gt, inArray, isNull } from "drizzle-orm";
-import { algoliaAdminClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia";
+import { ALGOLIA_INDEX_NAME, getAlgoliaAdminClient } from "~/lib/algolia";
 import { db as database, dbClient } from "~/lib/db";
 import { ingestionRun, vehicle, vehicleChange } from "~/schema";
 import {
@@ -33,18 +33,18 @@ export type DurableAlgoliaProjectionBatchResult =
   | { status: "complete"; searchPublishedAt: Date };
 
 async function waitForAlgoliaTask(indexName: string, taskID: number) {
-  await algoliaAdminClient.waitForTask({ indexName, taskID });
+  await getAlgoliaAdminClient().waitForTask({ indexName, taskID });
 }
 
 async function markIndexGeneration(indexName: string, runId: string) {
-  const settings = await algoliaAdminClient.getSettings({ indexName });
+  const settings = await getAlgoliaAdminClient().getSettings({ indexName });
   const userData = withIndexGeneration(settings.userData, runId);
   if (!userData.success) {
     throw new Error(
       `Algolia index ${indexName} has incompatible userData; cannot record rebuild generation ${runId}.`,
     );
   }
-  const updated = await algoliaAdminClient.setSettings({
+  const updated = await getAlgoliaAdminClient().setSettings({
     indexName,
     indexSettings: { userData: userData.data },
   });
@@ -62,7 +62,7 @@ async function readAlgoliaVehicleRecords(vins: string[]) {
 
 async function prepareFullReindex(runId: string) {
   const temporaryIndex = rebuildIndexName(runId, ALGOLIA_INDEX_NAME);
-  const copied = await algoliaAdminClient.operationIndex({
+  const copied = await getAlgoliaAdminClient().operationIndex({
     indexName: ALGOLIA_INDEX_NAME,
     operationIndexParams: {
       operation: "copy",
@@ -71,7 +71,7 @@ async function prepareFullReindex(runId: string) {
     },
   });
   await waitForAlgoliaTask(temporaryIndex, copied.taskID);
-  const cleared = await algoliaAdminClient.clearObjects({
+  const cleared = await getAlgoliaAdminClient().clearObjects({
     indexName: temporaryIndex,
   });
   await waitForAlgoliaTask(temporaryIndex, cleared.taskID);
@@ -163,7 +163,7 @@ async function publishFullReindex(
     runId,
     runStartedAt,
     database,
-    algolia: algoliaAdminClient,
+    algolia: getAlgoliaAdminClient(),
     indexName: ALGOLIA_INDEX_NAME,
   });
 }
@@ -339,7 +339,7 @@ export async function runDurableAlgoliaProjectionBatch(
   const cleanup = {
     runId,
     database,
-    algolia: algoliaAdminClient,
+    algolia: getAlgoliaAdminClient(),
     indexName: ALGOLIA_INDEX_NAME,
   };
   try {
