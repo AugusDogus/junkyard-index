@@ -12,8 +12,10 @@ import { z } from "zod";
  * Incremental reading needs an accepted census from today or the previous run
  * day. After a missed, failed or rejected run (a gap of more than one day),
  * every model page is read again (reason `gap`), so a fault that caused a
- * rejection is re-read in full and cannot hide behind carried pages, and no
- * short page read after a gap is stored as confirmed.
+ * rejection is re-read in full and cannot hide behind carried pages. A short
+ * page confirmed at closing in such a run counts as confirmed only while the
+ * replay floor judged the run (gap under six days); after a longer outage no
+ * short page is stored as confirmed.
  *
  * A model's expected card count is its published count plus any surplus its
  * previous accepted page listed above that page's own count (some pages list
@@ -342,11 +344,15 @@ export const ModelCensus = {
         `Model census cannot close: ${pages.length} pages and ${decisions.length} decisions for ${controls.length} published models`,
       );
     const wanted = expected(controls, previous, cards);
-    // A run that follows a gap (a missed, failed or rejected run) confirms no
-    // short page: the next incremental run reads it again.
+    // Closing confirmations count whenever this run was judged by the replay
+    // floor (any run within six days of the last accepted census, including a
+    // full read after a gap): it met the same bar against the last accepted
+    // census that every incremental run meets. After a longer outage the run
+    // is judged on the badge floor alone, so it confirms nothing and the next
+    // run reads its short pages again.
     const confirming =
       shortPages === "confirmed" &&
-      (previous === null || today - previous.day <= 1);
+      (previous === null || today - previous.day < MODEL_CENSUS_SWEEP_DAYS);
     return {
       contract,
       day: today,

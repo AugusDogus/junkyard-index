@@ -242,22 +242,16 @@ test("Jim's Import re-reads every model within six days, even across missed runs
     const run = await census(native, day, previous);
     for (const model of run.models) lastRead.set(model, day);
     for (const read of lastRead.values()) expect(day - read).toBeLessThan(6);
-    // Day 603 follows missed runs, so it reads every model and confirms no
-    // short page. Day 604 resumes incrementally with its slice plus that
-    // unconfirmed short page; later days read one sixth each.
+    // Day 603 follows missed runs, so it reads every model. Its gap is under
+    // six days, so the replay floor judged it and its closing confirmation of
+    // the short page counts. Later days resume incrementally, one sixth each.
     expect(run.models).toEqual(
-      day === 603
-        ? Array.from({ length: MODELS }, (_, i) => i)
-        : day === 604
-          ? [...slice(day), ...short].sort((a, b) => a - b)
-          : slice(day),
+      day === 603 ? Array.from({ length: MODELS }, (_, i) => i) : slice(day),
     );
     expect(run.warnings.at(-1)).toBe(
       day === 603
         ? `Jim's Import Read ${MODELS} of ${MODELS} model pages (gap ${MODELS}); carried 0.`
-        : day === 604
-          ? `Jim's Import Read ${slice(day).length + 1} of ${MODELS} model pages (sweep ${slice(day).length}, short 1); carried ${MODELS - slice(day).length - 1}.`
-          : `Jim's Import Read ${slice(day).length} of ${MODELS} model pages (sweep ${slice(day).length}); carried ${MODELS - slice(day).length}.`,
+        : `Jim's Import Read ${slice(day).length} of ${MODELS} model pages (sweep ${slice(day).length}); carried ${MODELS - slice(day).length}.`,
     );
     expect(run.vins).toEqual(native.vins());
     const accepted = JimsimportCursor.parse(run.terminal);
@@ -265,7 +259,7 @@ test("Jim's Import re-reads every model within six days, even across missed runs
       throw new Error("Expected a terminal census");
     expect(
       accepted.census.models.flatMap((m, i) => (m.confirmed ? [i] : [])),
-    ).toEqual(day === 603 ? [] : short);
+    ).toEqual(short);
     previous = run.terminal;
   }
 }, 300_000);

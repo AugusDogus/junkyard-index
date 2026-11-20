@@ -262,10 +262,10 @@ describe("ModelCensus", () => {
     expect(carried).toBeGreaterThan(0);
   });
 
-  test("a gap after the last accepted run reads every model and confirms nothing", () => {
+  test("a gap reads every model; only an outage-length gap confirms nothing", () => {
     // Accepted daily to day 110. Day 111 is missed (or rejected), so day 112
-    // reads every page again, and a short page it reads is not confirmed even
-    // though its closing re-read it identically.
+    // reads every page again. Its closing confirmations count, because the
+    // replay floor judged it against the day 110 census.
     const models = controls(12, 10);
     const listed = new Map([["model-2", 3]]);
     let census = run(models, null, 100).census;
@@ -282,9 +282,20 @@ describe("ModelCensus", () => {
     expect(
       gap.decisions.every((d) => d.kind === "read" && d.reason === "gap"),
     ).toBe(true);
-    expect(gap.census.models[2]?.confirmed).toBe(false);
-    // The next incremental run reads that short page again.
-    expect(run(models, gap.census, 113).decisions[2]).toEqual({
+    expect(gap.census.models[2]?.confirmed).toBe(true);
+    // So the next incremental run does not re-read it for being short.
+    expect(run(models, gap.census, 113).decisions[2]).not.toEqual({
+      kind: "read",
+      reason: "short",
+    });
+    // After a six-day outage the run is judged on the badge floor alone, so a
+    // short page it reads is not confirmed and the next run reads it again.
+    const outage = run(models, census, 116, undefined, {
+      listed,
+      shortPages: "confirmed",
+    });
+    expect(outage.census.models[2]?.confirmed).toBe(false);
+    expect(run(models, outage.census, 117).decisions[2]).toEqual({
       kind: "read",
       reason: "short",
     });

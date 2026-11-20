@@ -37,36 +37,64 @@ const CUT_SLICE = 5;
 const cards = (page: number) => page;
 
 interface Outcome {
-  /** Days on which an accepted run published a page cut by the fault. */
-  publishedCut: number[];
+  /** Days on which an accepted run read a page cut by the fault and
+   * published it before any outage-path run (six or more days after the last
+   * accepted census) took the cut as the new truth. */
+  publishedCutEarly: number[];
   /** Days on which a run was rejected. */
   rejected: number[];
+  /** Accepted runs that followed a missed day (full `gap` reads). */
+  acceptedAfterGap: number;
+}
+
+interface Pending {
+  due: number;
+  model: number;
+  kind: "badge-down" | "card-up";
 }
 
 /**
- * One simulated Chaz yard: a cold run on D, daily runs to D + 16 with `rate`
- * plus-or-minus-one count events a day (weighted by model size, changing the
- * badge and the true inventory together) and one random arrival trigger a
- * day. With `cut`, slice 5 lists one card per page from D + 11 while its
- * badges hold. Accepted runs advance the census; rejected runs leave it.
+ * One simulated Chaz yard on the real Nov 18 graph, from a cold run on D to
+ * D + 24, with realistic healthy drift:
+ * - `rate` events a day, weighted by model size, half arrivals and half sales;
+ * - a sale removes its card at once and its badge 0 to 2 days later;
+ * - an arrival raises its badge at once and its card 0 to 2 days later;
+ * - every 40th model lists one placeholder card above its badge;
+ * - one random arrival trigger a day, and with `missed` set, about one day in
+ *   ten has no run at all, so the next run is a full `gap` read.
+ * With `cut`, slice 5 lists one card per page from D + 11 while its badges
+ * hold. Accepted runs advance the census; rejected runs leave it.
  */
-function simulate(seed: number, rate: number, cut: boolean): Outcome {
+function simulate(
+  seed: number,
+  rate: number,
+  options: { cut: boolean; missed: boolean },
+): Outcome {
   const next = random(seed);
   const badges = graph.map((m) => m.badge);
   const truth = graph.map((m) => (m.dead ? 0 : m.badge));
+  const surplus = graph.map((m, i) => (!m.dead && i % 40 === 0 ? 1 : 0));
   const sliced = graph.map(
     (m) => !m.dead && ModelCensus.slice(m.key) === CUT_SLICE,
   );
+  const pending: Pending[] = [];
   const controls = (): ModelCensusControl[] =>
     graph.map((m, i) => ({ key: m.key, count: badges[i] ?? 0 }));
-  const listed = (day: number, i: number) => {
-    const real = truth[i] ?? 0;
-    return cut && day >= D + 11 && sliced[i] ? Math.min(real, 1) : real;
-  };
+  const healthy = (i: number) => (truth[i] ?? 0) + (surplus[i] ?? 0);
+  const listed = (day: number, i: number) =>
+    options.cut && day >= D + 11 && sliced[i]
+      ? Math.min(healthy(i), 1)
+      : healthy(i);
   let census: ModelCensusState<number> | null = null;
-  const outcome: Outcome = { publishedCut: [], rejected: [] };
-  for (let day = D; day <= D + 16; day++) {
-    if (day > D)
+  // Set once the outage path accepts the cut as a real drop, by design.
+  let outage = false;
+  const outcome: Outcome = {
+    publishedCutEarly: [],
+    rejected: [],
+    acceptedAfterGap: 0,
+  };
+  for (let day = D; day <= D + 24; day++) {
+    if (day > D) {
       for (let event = 0; event < rate; event++) {
         // Weight by size so large models change more often.
         const total = badges.reduce((n, b) => n + b + 1, 0);
@@ -76,25 +104,35 @@ function simulate(seed: number, rate: number, cut: boolean): Outcome {
           pick -= (badges[i] ?? 0) + 1;
           i++;
         }
-        const up = next() < 0.5;
-        const badge = badges[i] ?? 0;
-        if (!up && badge === 0) continue;
-        badges[i] = badge + (up ? 1 : -1);
-        if (!graph[i]?.dead)
-          truth[i] = Math.max(0, (truth[i] ?? 0) + (up ? 1 : -1));
+        const lag = Math.floor(next() * 3);
+        if (graph[i]?.dead) continue;
+        if (next() < 0.5) {
+          badges[i] = (badges[i] ?? 0) + 1;
+          pending.push({ due: day + lag, model: i, kind: "card-up" });
+        } else if ((truth[i] ?? 0) > 0) {
+          truth[i] = (truth[i] ?? 0) - 1;
+          pending.push({ due: day + lag, model: i, kind: "badge-down" });
+        }
       }
+      for (const change of pending.filter((p) => p.due <= day)) {
+        if (change.kind === "card-up")
+          truth[change.model] = (truth[change.model] ?? 0) + 1;
+        else
+          badges[change.model] = Math.max(0, (badges[change.model] ?? 0) - 1);
+      }
+      pending.splice(0, pending.length, ...pending.filter((p) => p.due > day));
+    }
     const triggers = new Set(
       day > D ? [graph[Math.floor(next() * graph.length)]?.key ?? ""] : [],
     );
+    // A missed run: nothing is read, nothing is accepted.
+    if (options.missed && day > D && next() < 0.1) continue;
     const models = controls();
     const decisions: ModelCensusDecision<number>[] = ModelCensus.plan(
       models,
       census,
       day,
-      {
-        cards,
-        triggers,
-      },
+      { cards, triggers },
     );
     const pages: number[] = decisions.map((d, i) =>
       d.kind === "carry" ? d.evidence.page : listed(day, i),
@@ -109,13 +147,18 @@ function simulate(seed: number, rate: number, cut: boolean): Outcome {
       outcome.rejected.push(day);
       continue;
     }
-    if (
-      pages.some(
-        (page, i) =>
-          sliced[i] && cut && day >= D + 11 && page < (truth[i] ?? 0),
+    const gap = census === null ? 0 : day - census.day;
+    if (gap > 1) outcome.acceptedAfterGap++;
+    if (options.cut && day >= D + 11) {
+      if (gap >= MODEL_CENSUS_SWEEP_DAYS) outage = true;
+      else if (
+        !outage &&
+        decisions.some(
+          (d, i) => d.kind === "read" && sliced[i] && healthy(i) > 1,
+        )
       )
-    )
-      outcome.publishedCut.push(day);
+        outcome.publishedCutEarly.push(day);
+    }
     census = ModelCensus.accept(
       "chaz-property",
       day,
@@ -128,29 +171,33 @@ function simulate(seed: number, rate: number, cut: boolean): Outcome {
 }
 
 describe("Chaz census on the real Nov 18 graph", () => {
-  for (const rate of [5, 10, 20])
-    test(`never publishes a cut sweep slice before the outage path at ${rate} count events a day`, () => {
-      const early: string[] = [];
-      for (let seed = 1; seed <= 200; seed++) {
-        const { publishedCut } = simulate(seed, rate, true);
-        // The last accepted run before the fault is D + 10; the outage path
-        // (badge floor only) starts once it is six days old, on D + 16.
-        const before = publishedCut.filter(
-          (day) => day < D + 10 + MODEL_CENSUS_SWEEP_DAYS,
-        );
-        if (before.length) early.push(`seed ${seed}: ${before.join(", ")}`);
-      }
-      expect(early).toEqual([]);
-    });
+  for (const missed of [false, true])
+    for (const rate of [5, 10, 20])
+      test(`never publishes a cut sweep slice before the outage path at ${rate} events a day${missed ? " with missed days" : ""}`, () => {
+        const early: string[] = [];
+        for (let seed = 1; seed <= 200; seed++) {
+          const { publishedCutEarly } = simulate(seed, rate, {
+            cut: true,
+            missed,
+          });
+          if (publishedCutEarly.length)
+            early.push(`seed ${seed}: ${publishedCutEarly.join(", ")}`);
+        }
+        expect(early).toEqual([]);
+      });
 
   for (const rate of [5, 10, 20])
-    test(`accepts every healthy daily run at ${rate} count events a day`, () => {
+    test(`accepts every healthy run, including full reads after missed days, at ${rate} events a day`, () => {
       const rejected: string[] = [];
+      let afterGap = 0;
       for (let seed = 1; seed <= 200; seed++) {
-        const outcome = simulate(seed, rate, false);
+        const outcome = simulate(seed, rate, { cut: false, missed: true });
+        afterGap += outcome.acceptedAfterGap;
         if (outcome.rejected.length)
           rejected.push(`seed ${seed}: ${outcome.rejected.join(", ")}`);
       }
       expect(rejected).toEqual([]);
+      // The missed days really produced full reads after a gap.
+      expect(afterGap).toBeGreaterThan(100);
     });
 });
