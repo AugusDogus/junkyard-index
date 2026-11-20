@@ -113,6 +113,28 @@ test("typing replaces history, submit checkpoints once, and no extra requests ar
   }
 }, 15_000);
 
+test("typing at a steady pace searches once, after the pause", async () => {
+  const page = await createPage(browser);
+  try {
+    await openFixture(page);
+    const initialRequests = await requests(page);
+    const input = page.getByRole("searchbox");
+    await input.fill("toyota");
+    // Keystrokes about half a second apart, slower than the old debounce.
+    for (const key of [" ", "v", "e", "n", "z", "a"]) {
+      await input.press(key === " " ? "Space" : key);
+      await page.waitForTimeout(450);
+    }
+    await page.waitForFunction(
+      () => new URL(location.href).searchParams.get("q") === "toyota venza",
+    );
+    await page.waitForTimeout(100);
+    expect(await requests(page)).toBe(initialRequests + 1);
+  } finally {
+    await closePage(page);
+  }
+}, 15_000);
+
 for (const search of [
   "?q=toyota&yards[]=RTP+Pick-A-Part+-+Hebron%2C+KY&yards[]=RTP+Pick-A-Part+-+Lexington%2C+KY",
   "?q=toyota&yards=RTP+Pick-A-Part+-+Hebron%2C+KY,RTP+Pick-A-Part+-+Lexington%2C+KY",
