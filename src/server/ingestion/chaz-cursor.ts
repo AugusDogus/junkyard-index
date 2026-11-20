@@ -31,7 +31,18 @@ const scope = chazHash({
     "literal-model-graph/native-arrival-union/all-conflicts-quarantined/incremental-model-census-v1",
 });
 /** Every model page read by an accepted run, carried forward by the next one. */
-export const ChazCensusSchema = ModelCensus.schema(ChazPageSchema, 512);
+// A page failing its fingerprint makes the terminal cursor unreadable, so the
+// next run starts a warned cold census instead of failing on the carried page.
+export const ChazCensusSchema = ModelCensus.schema(
+  ChazPageSchema,
+  512,
+).superRefine((census, context) => {
+  if (census.models.some((m) => m.page.hash !== chazHash(m.page.records)))
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Chaz census card fingerprint changed",
+    });
+});
 export type ChazCensus = z.infer<typeof ChazCensusSchema>;
 const MakeSchema = ChazControlSchema.extend({
   models: z.array(ChazControlSchema).max(128).nullable(),
