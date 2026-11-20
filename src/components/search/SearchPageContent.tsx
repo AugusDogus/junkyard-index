@@ -796,6 +796,7 @@ function AlgoliaSearchInner({
   const resultCap = SearchResultCap.resolve({ isLoggedIn, planAccess });
   const visibleLimit = resultCap.kind === "capped" ? resultCap.limit : null;
   const capReason = resultCap.kind === "capped" ? resultCap.reason : null;
+  const isPlanLimit = SearchResultCap.isPlanLimit(resultCap);
   const isResultCapped = visibleLimit !== null && nbHits > visibleLimit;
 
   const visibleVehicles = useMemo(
@@ -1148,6 +1149,7 @@ function AlgoliaSearchInner({
     if (
       !analyticsSearchValue ||
       !isResultCapped ||
+      !isPlanLimit ||
       visibleLimit === null ||
       isSearching ||
       error
@@ -1168,6 +1170,7 @@ function AlgoliaSearchInner({
   }, [
     analyticsSearchValue,
     isResultCapped,
+    isPlanLimit,
     isSearching,
     error,
     nbHits,

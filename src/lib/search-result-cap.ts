@@ -47,4 +47,16 @@ function resolve(input: {
   }
 }
 
-export const SearchResultCap = { resolve } as const;
+/**
+ * Whether the cap is the plan's limit, so the page may offer an upgrade and
+ * count a `result_cap_reached`. A pending or unconfirmed plan is capped only
+ * until it resolves, and may already be paid.
+ */
+function isPlanLimit(cap: SearchResultCap): boolean {
+  return (
+    cap.kind === "capped" &&
+    (cap.reason === "visitor" || cap.reason === "free_plan")
+  );
+}
+
+export const SearchResultCap = { resolve, isPlanLimit } as const;

@@ -69,9 +69,14 @@ async function open(query: string, width = 1440, height = 900) {
     });
   });
   // tRPC lookups the fixture does not seed go to this origin. Hold them
-  // open for fixtureOptions=pending; fail them otherwise.
+  // open for pending options, a pending plan or a checkout still
+  // confirming; fail them otherwise.
+  const holdLookups =
+    query.includes("fixtureOptions=pending") ||
+    query.includes("fixturePlan=pending") ||
+    query.includes("subscription=success");
   await page.route("http://unused.test/**", (route) =>
-    query.includes("fixtureOptions=pending") ? undefined : route.abort(),
+    holdLookups ? undefined : route.abort(),
   );
   await page.route("https://wsrv.nl/**", (route) =>
     route.fulfill({
@@ -284,6 +289,76 @@ for (const [state, message] of [
     }
   }, 30_000);
 }
+
+async function scrollToEnd(page: Page) {
+  await page.evaluate(() => {
+    document.documentElement.dataset.searchQueryLog = "[]";
+    window.scrollTo(0, document.body.scrollHeight);
+  });
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+}
+
+for (const [label, query] of [
+  ["a plan that is still loading", "q=pagination&fixturePlan=pending"],
+  [
+    "a just-paid account while checkout confirms",
+    "q=pagination&fixturePlan=free&subscription=success",
+  ],
+] as const) {
+  test(`${label} stays on the first page without an upgrade prompt`, async () => {
+    const { page } = await open(query);
+    try {
+      await page
+        .getByText("Showing 24 of 96 vehicles", { exact: true })
+        .waitFor();
+      await scrollToEnd(page);
+      await page.waitForTimeout(500);
+      expect(
+        await page
+          .getByRole("heading", {
+            name: "Upgrade to Lite to see every result.",
+          })
+          .count(),
+      ).toBe(0);
+      expect(
+        (await requestLog(page)).filter(({ params }) => (params.page ?? 0) > 0),
+      ).toEqual([]);
+      expect(
+        await page.locator("h3").filter({ hasText: "Pagination Car" }).count(),
+      ).toBe(24);
+    } finally {
+      await closePage(page);
+    }
+  }, 30_000);
+}
+
+test("a plan lookup that fails stays on the first page and asks for a refresh", async () => {
+  const { page } = await open("q=pagination&fixturePlan=unavailable");
+  try {
+    await page
+      .getByText("Showing 24 of 96 vehicles", { exact: true })
+      .waitFor();
+    await scrollToEnd(page);
+    await page
+      .getByRole("heading", { name: "Your plan could not be confirmed." })
+      .waitFor();
+    expect(
+      await page
+        .getByRole("heading", { name: "Upgrade to Lite to see every result." })
+        .count(),
+    ).toBe(0);
+    expect(
+      (await requestLog(page)).filter(({ params }) => (params.page ?? 0) > 0),
+    ).toEqual([]);
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
 
 test("signed-in pagination survives sort switches and rows do not overlap after resizing", async () => {
   const { page, html } = await open("q=pagination");

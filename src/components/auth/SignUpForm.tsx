@@ -201,8 +201,8 @@ export function SignUpForm() {
       </Button>
 
       <div className="text-muted-foreground text-center text-sm">
-        Browse every page free. Year and distance filters included. Save
-        searches with Lite; alerts with Full.
+        Search free with year and distance filters. Lite adds every result and
+        saved searches; Full adds alerts.
       </div>
 
       <div className="text-muted-foreground text-center text-sm">
