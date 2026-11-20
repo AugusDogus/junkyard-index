@@ -965,10 +965,20 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
       await runIngestionEffect(
         streamAviationInventory({
           startCursor: cursor,
+          previousCursor:
+            cursor.phase !== "complete" && cursor.day === null
+              ? await loadPublishedSourceCursor(db, "aviation")
+              : null,
           maxPages: context.maxPages,
           onBatch: context.onBatch,
           onYards: context.onYards,
-        }),
+        }).pipe(
+          Effect.tap((result) =>
+            Effect.sync(() => {
+              for (const warning of result.warnings) console.warn(warning);
+            }),
+          ),
+        ),
       ),
       (next) => next,
       context.vehiclesByVin,

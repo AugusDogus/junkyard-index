@@ -3,28 +3,36 @@ import {
   aviationHash,
   AviationControlSchema,
   AviationPageSchema,
-  type AviationControl,
+  type AviationPage,
 } from "./aviation-parser";
 import { aviationModels, type AviationMake } from "./aviation-snapshot";
+import {
+  ModelCensus,
+  type ModelCensusControl,
+  type ModelCensusDecision,
+} from "./model-census";
 import {
   AVIATION_CONTACT,
   AVIATION_MAKES,
   AVIATION_ORIGIN,
-  AVIATION_PARTS,
-  AVIATION_ROOT,
   AVIATION_YARD,
   aviationBrowsePath,
 } from "./aviation-yard-metadata";
 
-export const AVIATION_MAX_CURSOR_BYTES = 1024 * 1024;
+// Room for the previous census plus this run's pages (about 0.4 MiB each today),
+// and for both at the 10000-row checkpoint ceiling.
+export const AVIATION_MAX_CURSOR_BYTES = 4 * 1024 * 1024;
 export const AVIATION_MAX_REQUESTS = 650;
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
 const scope = aviationHash({
   version: 1,
   yard: AVIATION_YARD,
   authority:
-    "literal-model-graph/native-arrival-union/all-conflicts-quarantined-v1",
+    "literal-model-graph/native-arrival-union/all-conflicts-quarantined/incremental-model-census-v1",
 });
+/** Every model page read by an accepted run, carried forward by the next one. */
+export const AviationCensusSchema = ModelCensus.schema(AviationPageSchema, 512);
+export type AviationCensus = z.infer<typeof AviationCensusSchema>;
 const MakeSchema = AviationControlSchema.extend({
   models: z.array(AviationControlSchema).max(128).nullable(),
 });
@@ -46,79 +54,67 @@ const progress = z
     contact: hash.nullable(),
     makes: z.array(MakeSchema).max(64),
     pages: z.array(AviationPageSchema).max(512),
-    arrivals: z.array(AviationPageSchema).max(2),
+    arrivals: z.array(AviationPageSchema).max(1),
     closing: z.number().int().min(0).max(200),
     requests: z.number().int().min(0).max(AVIATION_MAX_REQUESTS),
+    /** UTC run day fixed before the first request; null only in the initial cursor. */
+    day: z.number().int().nonnegative().safe().nullable(),
+    /** Compatible census from the last accepted run, or null for a cold census. */
+    previous: AviationCensusSchema.nullable(),
   })
   .strict();
 export type AviationProgress = z.infer<typeof progress>;
 export type AviationClosingControl =
   | { kind: "contact"; url: typeof AVIATION_CONTACT }
-  | { kind: "directory"; url: typeof AVIATION_PARTS | typeof AVIATION_MAKES }
-  | { kind: "make"; url: string; make: AviationMake }
-  | {
-      kind: "model";
-      url: string;
-      make: AviationMake;
-      model: AviationControl;
-      index: number;
-    }
-  | { kind: "root"; url: typeof AVIATION_ROOT };
+  | { kind: "directory"; url: typeof AVIATION_MAKES };
 
-export function aviationClosingControls(
-  state: Pick<AviationProgress, "makes" | "pages" | "arrivals">,
-): AviationClosingControl[] {
-  const models = aviationModels(state.makes);
-  const selected = new Set<number>(models.length ? [0, models.length - 1] : []);
-  state.pages.forEach((page, index) => {
-    if (page.records.length !== models[index]?.model.count) selected.add(index);
-  });
-  // Close every literal model containing an arrival absent from its own list.
-  // A native arrival-only model with no published control remains in the union;
-  // its detail URL is not repurposed into an invented browse route.
-  for (const record of state.arrivals[0]?.records ?? []) {
-    const path = record[4].startsWith(AVIATION_ORIGIN)
-      ? record[4].slice(AVIATION_ORIGIN.length)
-      : record[4];
-    const parent = path.split("/").slice(0, -2).join("/");
-    const index = models.findIndex((m) => m.model.path === parent);
-    if (
-      index >= 0 &&
-      !state.pages[index]?.records.some((r) => r[0] === record[0])
-    )
-      selected.add(index);
-  }
-  const modelControls = [...selected]
-    .sort((a, b) => a - b)
-    .map((index) => {
-      const value = models[index];
-      if (!value)
-        throw new Error(
-          "Aviation closing model is outside the published graph",
-        );
-      return {
-        kind: "model",
-        url: AVIATION_ORIGIN + value.model.path,
-        make: value.make,
-        model: value.model,
-        index,
-      } satisfies AviationClosingControl;
-    });
+/** Closing re-reads ownership and the live make directory only. The WPO-cached
+ * `/parts/` copy and root are not re-read: their equality proves only that the
+ * page cache did not rebuild. Per-model changes during the run surface as count
+ * changes in the next run's opening menus. */
+export function aviationClosingControls(): AviationClosingControl[] {
   return [
     { kind: "contact", url: AVIATION_CONTACT },
-    { kind: "directory", url: AVIATION_PARTS },
     { kind: "directory", url: AVIATION_MAKES },
-    ...state.makes.map(
-      (make) =>
-        ({
-          kind: "make",
-          url: AVIATION_ORIGIN + make.path,
-          make,
-        }) satisfies AviationClosingControl,
-    ),
-    ...modelControls,
-    { kind: "root", url: AVIATION_ROOT },
   ];
+}
+
+/** Keys bind every field the model parser and snapshot bind to: the parent make
+ * path and label and the model path and label. */
+function aviationCensusControls(
+  makes: readonly AviationMake[],
+): ModelCensusControl[] {
+  return aviationModels(makes).map(({ make, model }) => ({
+    key: JSON.stringify([make.path, make.label, model.path, model.label]),
+    count: model.count,
+  }));
+}
+
+/** Read or carry each published model. Arrivals never trigger a read: they are
+ * unioned into every snapshot already, and many stay absent from their own model
+ * page for weeks, so a trigger would re-read the same models every day. */
+export function aviationCensusPlan(
+  state: Pick<AviationProgress, "makes" | "previous" | "day">,
+): ModelCensusDecision<AviationPage>[] {
+  if (state.day === null)
+    throw new Error("Aviation census plan needs a run day");
+  return ModelCensus.plan(
+    aviationCensusControls(state.makes),
+    state.previous,
+    state.day,
+  );
+}
+
+/** Terminal census for a fully closed run. */
+export function aviationCensus(state: AviationProgress): AviationCensus {
+  if (state.day === null) throw new Error("Aviation census has no run day");
+  return ModelCensus.accept(
+    scope,
+    state.day,
+    aviationCensusControls(state.makes),
+    state.pages,
+    aviationCensusPlan(state),
+  );
 }
 
 function checksum(
@@ -135,6 +131,8 @@ function checksum(
     arrivals: state.arrivals,
     closing: state.closing,
     requests: state.requests,
+    day: state.day,
+    previous: state.previous,
   });
 }
 
@@ -145,6 +143,8 @@ export const AviationCursorSchema = z
         source: z.literal("aviation"),
         version: z.literal(1),
         phase: z.literal("complete"),
+        // Pre-incremental terminal cursors stay readable but seed a cold census.
+        census: AviationCensusSchema.optional(),
       })
       .strict(),
     progress,
@@ -173,13 +173,7 @@ export const AviationCursorSchema = z
       ).length;
       if (
         (stage === 0) !== (state.contact === null) ||
-        (stage < 2
-          ? state.arrivals.length !== 0
-          : state.arrivals.length !==
-            (state.phase === "closing" &&
-            state.closing === aviationClosingControls(state).length
-              ? 2
-              : 1))
+        state.arrivals.length !== (stage < 2 ? 0 : 1)
       )
         throw new Error("Aviation owner/root phase evidence is inconsistent");
       if (
@@ -202,8 +196,31 @@ export const AviationCursorSchema = z
       )
         throw new Error("Aviation model page phase/order is inconsistent");
       if (
+        state.day === null
+          ? state.requests !== 0 || state.previous !== null
+          : state.previous !== null &&
+            (state.previous.contract !== scope ||
+              state.previous.day > state.day)
+      )
+        throw new Error("Aviation run day or previous census is inconsistent");
+      // Carried pages are exactly the previous census evidence and cost no GET.
+      let readPages = 0;
+      if (stage >= 5) {
+        const decisions = aviationCensusPlan(state);
+        state.pages.forEach((page, index) => {
+          const decision = decisions[index];
+          if (decision?.kind === "read") readPages++;
+          else if (decision?.evidence.page.hash !== page.hash)
+            throw new Error(
+              "Aviation carried model page differs from its census",
+            );
+        });
+        if (stage === 5 && decisions[state.pages.length]?.kind !== "read")
+          throw new Error("Aviation next model page is not due for a read");
+      }
+      if (
         (stage < 6 && state.closing !== 0) ||
-        (stage === 6 && state.closing > aviationClosingControls(state).length)
+        (stage === 6 && state.closing > aviationClosingControls().length)
       )
         throw new Error("Aviation closing control prefix is inconsistent");
       if (
@@ -213,9 +230,8 @@ export const AviationCursorSchema = z
           (state.makes.length ? 1 : 0) +
           (stage >= 4 ? 1 : 0) +
           completedMakes +
-          state.pages.length +
-          state.closing -
-          (state.arrivals.length === 2 ? 1 : 0)
+          readPages +
+          state.closing
       )
         throw new Error("Aviation request accounting is inconsistent");
       if (
@@ -263,13 +279,15 @@ const initial: Omit<AviationProgress, "checksum"> = {
   arrivals: [],
   closing: 0,
   requests: 0,
+  day: null,
+  previous: null,
 };
 export const AviationCursor = {
   initial: { ...initial, checksum: checksum(initial) },
   parse(value: string): AviationCursor {
     if (Buffer.byteLength(value) > AVIATION_MAX_CURSOR_BYTES)
       throw new Error(
-        "Aviation cursor wire payload exceeds 1 MiB; keep the last validated checkpoint",
+        "Aviation cursor wire payload exceeds 4 MiB; keep the last validated checkpoint",
       );
     let candidate: unknown;
     try {
@@ -285,9 +303,38 @@ export const AviationCursor = {
     const value = JSON.stringify(AviationCursorSchema.parse(cursor));
     if (Buffer.byteLength(value) > AVIATION_MAX_CURSOR_BYTES)
       throw new Error(
-        "Aviation cursor wire payload exceeds 1 MiB; keep the last validated checkpoint",
+        "Aviation cursor wire payload exceeds 4 MiB; keep the last validated checkpoint",
       );
     return value;
+  },
+  /** Fixes the run day and adopts the last accepted census before the first
+   * request. Anything unusable starts a cold census with a warning. */
+  begin(
+    cursor: AviationProgress,
+    now: number,
+    previousCursor: unknown,
+  ): { cursor: AviationProgress; warning: string | null } {
+    if (cursor.day !== null) return { cursor, warning: null };
+    const day = ModelCensus.day(now);
+    const parsed = AviationCursorSchema.safeParse(previousCursor ?? undefined);
+    const previous =
+      parsed.success && parsed.data.phase === "complete"
+        ? ModelCensus.previous(parsed.data.census, scope, day)
+        : {
+            kind: "cold" as const,
+            warning:
+              previousCursor === null || previousCursor === undefined
+                ? null
+                : "Previous Aviation checkpoint is not a readable terminal census; reading every model page.",
+          };
+    return {
+      cursor: AviationCursor.checkpoint({
+        ...cursor,
+        day,
+        previous: previous.kind === "incremental" ? previous.census : null,
+      }),
+      warning: previous.kind === "cold" ? previous.warning : null,
+    };
   },
   checkpoint(
     state: Omit<AviationProgress, "checksum"> | AviationProgress,
@@ -305,6 +352,11 @@ export const AviationCursor = {
   initial: AviationProgress;
   parse: (value: string) => AviationCursor;
   serialize: (cursor: AviationCursor) => string;
+  begin: (
+    cursor: AviationProgress,
+    now: number,
+    previousCursor: unknown,
+  ) => { cursor: AviationProgress; warning: string | null };
   checkpoint: (
     state: Omit<AviationProgress, "checksum"> | AviationProgress,
   ) => AviationProgress;
