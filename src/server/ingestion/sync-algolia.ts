@@ -1,5 +1,6 @@
 import { Effect } from "effect";
 import { algoliaAdminClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia";
+import { AlgoliaError } from "./algolia-error";
 import { applyAlgoliaSettingsPlan } from "./algolia-settings-plan";
 import type { AlgoliaVehicleRecord } from "./types";
 
@@ -66,7 +67,7 @@ function hasWaitForTask(value: unknown): value is WaitForTaskClient {
 function waitForTaskEffect(
   taskID: number,
   indexName: string,
-): Effect.Effect<void, Error> {
+): Effect.Effect<void, AlgoliaError> {
   return Effect.tryPromise({
     try: () =>
       algoliaAdminClient.waitForTask({
@@ -74,14 +75,14 @@ function waitForTaskEffect(
         taskID,
       }),
     catch: (cause) =>
-      cause instanceof Error ? cause : new Error(String(cause)),
+      AlgoliaError.classify({ operation: "waitForTask", indexName }, cause),
   }).pipe(Effect.asVoid);
 }
 
 function saveObjectsBatchEffect(
   objects: ReadonlyArray<Record<string, unknown>>,
   indexName: string,
-): Effect.Effect<unknown, Error> {
+): Effect.Effect<unknown, AlgoliaError> {
   return Effect.tryPromise({
     try: () =>
       algoliaAdminClient.saveObjects({
@@ -90,14 +91,14 @@ function saveObjectsBatchEffect(
         waitForTasks: false,
       }),
     catch: (cause) =>
-      cause instanceof Error ? cause : new Error(String(cause)),
+      AlgoliaError.classify({ operation: "saveObjects", indexName }, cause),
   });
 }
 
 function deleteObjectsBatchEffect(
   objectIDs: string[],
   indexName: string,
-): Effect.Effect<unknown, Error> {
+): Effect.Effect<unknown, AlgoliaError> {
   return Effect.tryPromise({
     try: () =>
       algoliaAdminClient.deleteObjects({
@@ -106,14 +107,14 @@ function deleteObjectsBatchEffect(
         waitForTasks: false,
       }),
     catch: (cause) =>
-      cause instanceof Error ? cause : new Error(String(cause)),
+      AlgoliaError.classify({ operation: "deleteObjects", indexName }, cause),
   });
 }
 
 function waitForFinalTask(
   taskIds: number[],
   indexName: string,
-): Effect.Effect<void, Error> {
+): Effect.Effect<void, AlgoliaError> {
   return Effect.gen(function* () {
     const finalTaskId = taskIds.at(-1);
     if (finalTaskId === undefined) {
@@ -138,13 +139,16 @@ function waitForFinalTask(
  * Configure Algolia index settings.
  * Usually invoked during deploys or manually, not every ingestion run.
  */
-export function configureAlgoliaIndexEffect(): Effect.Effect<void, Error> {
+export function configureAlgoliaIndexEffect(): Effect.Effect<
+  void,
+  AlgoliaError
+> {
   return Effect.gen(function* () {
     yield* Effect.logInfo("[Algolia] Configuring index settings...");
     yield* Effect.tryPromise({
       try: () => applyAlgoliaSettingsPlan(algoliaAdminClient),
       catch: (cause) =>
-        cause instanceof Error ? cause : new Error(String(cause)),
+        AlgoliaError.classify({ operation: "setSettings" }, cause),
     });
     yield* Effect.logInfo("[Algolia] Index settings configured");
   });
@@ -160,7 +164,7 @@ export async function configureAlgoliaIndex(): Promise<void> {
 export function saveAlgoliaObjects(
   records: AlgoliaVehicleRecord[],
   indexName = ALGOLIA_INDEX_NAME,
-): Effect.Effect<number[], Error> {
+): Effect.Effect<number[], AlgoliaError> {
   return Effect.gen(function* () {
     const taskIds: number[] = [];
     if (records.length === 0) return taskIds;
@@ -191,7 +195,7 @@ export function saveAlgoliaObjects(
 export function deleteAlgoliaObjects(
   vins: string[],
   indexName = ALGOLIA_INDEX_NAME,
-): Effect.Effect<number[], Error> {
+): Effect.Effect<number[], AlgoliaError> {
   return Effect.gen(function* () {
     const taskIds: number[] = [];
     if (vins.length === 0) return taskIds;
@@ -215,7 +219,7 @@ export function syncToAlgoliaEffect(
   upserted: AlgoliaVehicleRecord[],
   deletedVins: string[],
   options?: SyncToAlgoliaOptions,
-): Effect.Effect<void, Error> {
+): Effect.Effect<void, AlgoliaError> {
   return Effect.gen(function* () {
     const shouldConfigureIndex = options?.configureIndex === true;
     const indexName = options?.indexName ?? ALGOLIA_INDEX_NAME;
