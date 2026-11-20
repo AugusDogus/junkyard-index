@@ -281,3 +281,13 @@ export const MID_CRAWL_CURSOR_FIXTURES: Partial<
   ],
   vanderhaags: ['{"phase":"complete"}'],
 };
+
+/** A source's committed finished cursor, for tests that stage a successful run. */
+export function terminalCursorWire(source: IngestionSource): string {
+  const fixture = TERMINAL_CURSOR_FIXTURES[source];
+  if (fixture.kind !== "wire")
+    throw new Error(
+      `${source} has no committed finished cursor (${fixture.kind}); stage a source with a wire fixture or build the cursor from its connector test.`,
+    );
+  return fixture.terminal;
+}
