@@ -4,6 +4,9 @@ export const PICKAPARTVA_ORIGIN = "https://pickapartva.com";
 export const PICKAPARTVA_CATALOG = `${PICKAPARTVA_ORIGIN}/inventory/ANY/ANY/?k=1&id=ANY&pagenum=1`;
 export const PICKAPARTVA_MAX_PAGES = 15;
 export const PICKAPARTVA_PAGE_SIZE = 500;
+/** Each page boundary can split at most one Set Date tie, so a census needs at
+ * most one set-date search per boundary. */
+export const PICKAPARTVA_MAX_TIE_SEARCHES = PICKAPARTVA_MAX_PAGES - 1;
 export type PickapartvaYardCode = "TT87" | "UU81";
 
 // Native footer/selector ownership, corroborated by the saved exact-address
@@ -70,3 +73,44 @@ export function pickapartvaPageUrl(raw: string, page?: number): string | null {
     return null;
   return url.href;
 }
+
+/** A real calendar date in the native `YYYY-MM-DD` Set Date format. */
+export function pickapartvaSetDate(raw: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return false;
+  const value = new Date(raw + "T00:00:00.000Z");
+  return (
+    Number.isFinite(value.getTime()) && value.toISOString().slice(0, 10) === raw
+  );
+}
+
+/** The unfiltered native search for one Set Date, or null for anything else. */
+export function pickapartvaSearchUrl(
+  raw: string,
+  date?: string,
+): string | null {
+  const url = URL.parse(raw, PICKAPARTVA_ORIGIN);
+  if (
+    !url ||
+    url.origin !== PICKAPARTVA_ORIGIN ||
+    url.username ||
+    url.password ||
+    url.hash ||
+    url.pathname !== "/inventory/ANY/ANY/"
+  )
+    return null;
+  const search = url.searchParams.get("search") ?? "";
+  const entries = [...url.searchParams.entries()];
+  if (
+    !pickapartvaSetDate(search) ||
+    (date !== undefined && search !== date) ||
+    entries.length !== 3 ||
+    url.searchParams.get("k") !== "1" ||
+    url.searchParams.get("id") !== "ANY" ||
+    new Set(entries.map(([key]) => key)).size !== 3
+  )
+    return null;
+  return url.href;
+}
+
+export const pickapartvaSearchHref = (date: string) =>
+  pickapartvaSearchUrl(`/inventory/ANY/ANY/?k=1&id=ANY&search=${date}`, date);

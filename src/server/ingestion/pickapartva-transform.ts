@@ -52,9 +52,13 @@ function date(raw: string): string | null {
     : null;
 }
 
+/** Where the donor card was listed: a catalog page number, or the set-date
+ * search that recovered a donor the catalog pages hid. */
+export type PickapartvaListing = number | { search: string };
+
 export function transformPickapartvaRecord(
   record: PickapartvaRecord,
-  page: number,
+  listing: PickapartvaListing,
 ): PickapartvaVehicleResult {
   const vin = inventoryVin(record.vin, record.year);
   const year = /^\d{4}$/.test(record.year) ? Number(record.year) : NaN;
@@ -101,7 +105,10 @@ export function transformPickapartvaRecord(
           : null,
       space: null,
       detailsUrl:
-        `${PICKAPARTVA_ORIGIN}/inventory/ANY/ANY/?k=1&id=ANY&pagenum=${page}` +
+        `${PICKAPARTVA_ORIGIN}/inventory/ANY/ANY/?k=1&id=ANY&` +
+        (typeof listing === "number"
+          ? `pagenum=${listing}`
+          : `search=${encodeURIComponent(listing.search)}`) +
         (record.cardId ? "#" + encodeURIComponent(record.cardId) : ""),
       partsUrl: null,
       pricesUrl: null,

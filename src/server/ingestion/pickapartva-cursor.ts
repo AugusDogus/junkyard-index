@@ -1,9 +1,11 @@
 import { z } from "zod";
-import { pickapartvaHash } from "./pickapartva-parser";
+import { pickapartvaSnapshotHash } from "./pickapartva-snapshot";
 import {
   PICKAPARTVA_MAX_PAGES,
+  PICKAPARTVA_MAX_TIE_SEARCHES,
   PICKAPARTVA_PAGE_SIZE,
   pickapartvaPageUrl,
+  pickapartvaSearchUrl,
 } from "./pickapartva-yard-metadata";
 
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
@@ -36,6 +38,20 @@ export const PickapartvaCursorSchema = z
           )
           .min(2)
           .max(PICKAPARTVA_MAX_PAGES),
+        // Set-date searches that recovered donors hidden by catalog ties.
+        // Checkpoints written before these searches carry none.
+        searches: z
+          .array(
+            z
+              .object({
+                date: z.string().max(10),
+                url: z.string().max(1000),
+                hash,
+              })
+              .strict(),
+          )
+          .max(PICKAPARTVA_MAX_TIE_SEARCHES)
+          .default([]),
         processed: count,
         emitted: count,
         rejected: count,
@@ -53,13 +69,13 @@ export const PickapartvaCursorSchema = z
     if (cursor.phase !== "pages") return;
     if (
       cursor.snapshotHash !==
-        pickapartvaHash(
-          cursor.receipts.map((receipt) => [
-            receipt.page,
-            receipt.url,
-            receipt.hash,
-          ]),
-        ) ||
+        pickapartvaSnapshotHash(cursor.receipts, cursor.searches) ||
+      new Set(cursor.searches.map((search) => search.date)).size !==
+        cursor.searches.length ||
+      cursor.searches.some(
+        (search) =>
+          pickapartvaSearchUrl(search.url, search.date) !== search.url,
+      ) ||
       cursor.nextPage > cursor.lastPage ||
       cursor.receipts.length !== cursor.lastPage ||
       cursor.processed !== (cursor.nextPage - 1) * PICKAPARTVA_PAGE_SIZE ||

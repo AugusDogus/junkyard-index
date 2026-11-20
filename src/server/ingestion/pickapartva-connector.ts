@@ -11,17 +11,22 @@ import {
 } from "./pickapartva-cursor";
 import {
   parsePickapartvaPage,
+  parsePickapartvaSearch,
   type PickapartvaPage,
+  type PickapartvaSearchPage,
 } from "./pickapartva-parser";
 import {
   buildPickapartvaSnapshot,
   pickapartvaPrefix,
+  pickapartvaTieDates,
 } from "./pickapartva-snapshot";
 import type { PickapartvaCanonicalVehicle } from "./pickapartva-transform";
 import {
   PICKAPARTVA_CATALOG,
   PICKAPARTVA_MAX_PAGES,
+  PICKAPARTVA_MAX_TIE_SEARCHES,
   PICKAPARTVA_YARDS,
+  pickapartvaSearchHref,
   type PickapartvaYard,
 } from "./pickapartva-yard-metadata";
 import { ProviderChunkClock } from "./provider-chunk-clock";
@@ -37,6 +42,20 @@ interface PickapartvaOptions<E, R> {
   ) => Effect.Effect<void, E, R>;
   onYards?: (yards: PickapartvaYard[]) => Effect.Effect<void, E, R>;
 }
+/** Every catalog page, one search per page boundary and three closing reads. */
+const PICKAPARTVA_MAX_REQUESTS =
+  PICKAPARTVA_MAX_PAGES + PICKAPARTVA_MAX_TIE_SEARCHES + 3;
+/** The turn estimate reserves the six set-date searches the November 12, 2026
+ * census needed. Turns estimate 8.5 s per request (a 5 s answer plus the URG
+ * gap), so this reserves 204 s and a turn is still granted after the two
+ * minute queue waits seen at 07:00. Measured reads take longer: about 14 s per
+ * catalog page at November 19, 2026 latency (11 s on November 12), 10 s per
+ * search and 5 s per edge-cached closing read, about 286 s for this census.
+ * A turn that waited long reaches the chunk horizon first and the chunk is
+ * deferred whole. A turn that waited under 40 s reaches the five-minute work
+ * limit first, which fails the chunk once a census needs more than about 7
+ * searches (12 at November 12 latency). Neither advances a checkpoint. */
+const PICKAPARTVA_TURN_REQUESTS = PICKAPARTVA_MAX_PAGES + 6 + 3;
 export type PickapartvaStreamResult = ConnectorChunkResult<
   "pickapartva",
   PickapartvaCursor
@@ -85,24 +104,27 @@ export function streamPickapartvaInventoryWithRequestGate<E, R>(
       },
     };
     if (parsed.data.phase === "complete") return summary;
-    // The census is atomic: emitting any page depends on every later page and
-    // the closing reads, so the whole crawl (up to 15 pages and 3 closing
-    // reads) is one shared host turn. It only fetches and validates; nothing
-    // here touches chunk state, so a deferred turn discards it whole.
+    // The census is atomic: emitting any page depends on every later page, the
+    // set-date searches and the closing reads, so the whole crawl is one
+    // shared host turn. It only fetches and validates; nothing here touches
+    // chunk state, so a deferred turn discards it whole.
     const { pages, snapshot } = yield* Effect.gen(function* () {
       let requests = 0;
-      const fetchPage = (url: string, ordinal: number) =>
+      const read = (url: string) =>
         Effect.gen(function* () {
-          if (++requests > PICKAPARTVA_MAX_PAGES + 3)
+          if (++requests > PICKAPARTVA_MAX_REQUESTS)
             return yield* failure(
               "request budget",
-              "18-request chunk limit exceeded",
+              `${PICKAPARTVA_MAX_REQUESTS}-request chunk limit exceeded`,
             );
-          const raw = yield* fetchPickapartvaPage(url, gate);
-          return yield* attempt("native page " + ordinal, () =>
-            parsePickapartvaPage(raw, ordinal),
-          );
+          return yield* fetchPickapartvaPage(url, gate);
         });
+      const fetchPage = (url: string, ordinal: number) =>
+        Effect.flatMap(read(url), (raw) =>
+          attempt("native page " + ordinal, () =>
+            parsePickapartvaPage(raw, ordinal),
+          ),
+        );
       const pages: Array<{ url: string; page: PickapartvaPage }> = [];
       let nextUrl: string | null = PICKAPARTVA_CATALOG;
       while (nextUrl !== null) {
@@ -116,8 +138,28 @@ export function streamPickapartvaInventoryWithRequestGate<E, R>(
           );
         nextUrl = page.nextUrl;
       }
+      // Pages split Set Date ties differently at each offset, so a donor of a
+      // tied date can repeat while another of that date is never shown. Each
+      // repeated date's native search lists all its donors on one page.
+      const searches: Array<{ url: string; page: PickapartvaSearchPage }> = [];
+      const dates = yield* attempt("set-date ties", () =>
+        pickapartvaTieDates(pages),
+      );
+      for (const date of dates) {
+        const url = pickapartvaSearchHref(date);
+        if (url === null)
+          return yield* failure(
+            "set-date search " + date,
+            "Repeated catalog donors carry an invalid Set Date",
+          );
+        const raw = yield* read(url);
+        const page = yield* attempt("set-date search " + date, () =>
+          parsePickapartvaSearch(raw, date),
+        );
+        searches.push({ url, page });
+      }
       const snapshot = yield* attempt("complete global census", () =>
-        buildPickapartvaSnapshot(pages),
+        buildPickapartvaSnapshot(pages, searches),
       );
       for (const ordinal of new Set([
         1,
@@ -139,7 +181,7 @@ export function streamPickapartvaInventoryWithRequestGate<E, R>(
       }
       return { pages, snapshot };
     }).pipe(
-      sharedProviderHostTurn(PICKAPARTVA_CATALOG, PICKAPARTVA_MAX_PAGES + 3),
+      sharedProviderHostTurn(PICKAPARTVA_CATALOG, PICKAPARTVA_TURN_REQUESTS),
     );
     const start = parsed.data.phase === "pages" ? parsed.data.nextPage : 1;
     const previous = pickapartvaPrefix(snapshot, start);
@@ -148,6 +190,7 @@ export function streamPickapartvaInventoryWithRequestGate<E, R>(
       if (
         cursor.snapshotHash !== snapshot.hash ||
         cursor.lastPage !== pages.length ||
+        JSON.stringify(cursor.searches) !== JSON.stringify(snapshot.searches) ||
         cursor.receipts.some((receipt, index) => {
           const current = snapshot.receipts[index];
           return (
@@ -178,6 +221,7 @@ export function streamPickapartvaInventoryWithRequestGate<E, R>(
               phase: "pages",
               snapshotHash: snapshot.hash,
               receipts: snapshot.receipts,
+              searches: snapshot.searches,
               lastPage: pages.length,
               nextPage,
               ...counts,
@@ -215,12 +259,15 @@ export function streamPickapartvaInventoryWithRequestGate<E, R>(
           : [],
     } satisfies PickapartvaStreamResult;
   }).pipe(
+    // Measured reads put this census at about 286 s of provider work (see
+    // PICKAPARTVA_TURN_REQUESTS). A census past five minutes fails here unless
+    // its turn waited over 40 s and reached the chunk horizon first.
     ProviderChunkClock.deadline({
-      duration: "3 minutes",
+      duration: "5 minutes",
       onTimeout: () =>
         failure(
           "chunk budget",
-          "Three-minute limit exceeded; no completed checkpoint returned",
+          "Five-minute provider work limit exceeded before the catalog, set-date searches and closing reads finished. No checkpoint advanced and previous inventory is preserved. Check native latency and the number of repeated Set Dates before retrying",
         ),
     }),
   );

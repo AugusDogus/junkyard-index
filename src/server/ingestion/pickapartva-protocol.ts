@@ -2,6 +2,7 @@ import { inventoryHtmlAttribute } from "./inventory-html";
 import {
   pickapartvaClass,
   pickapartvaDecode,
+  pickapartvaDivs,
   pickapartvaText,
 } from "./pickapartva-html";
 import {
@@ -10,7 +11,9 @@ import {
   pickapartvaPageUrl,
 } from "./pickapartva-yard-metadata";
 
-export function verifyPickapartvaOwner(html: string, raw: string) {
+/** `search` is the expected native search term: empty for the catalog pages,
+ * the Set Date for a set-date search. */
+export function verifyPickapartvaOwner(html: string, raw: string, search = "") {
   const plain = pickapartvaText(html);
   if (
     ![
@@ -92,7 +95,7 @@ export function verifyPickapartvaOwner(html: string, raw: string) {
         JSON.stringify([
           ["k", "1"],
           ["id", "ANY"],
-          ["search", ""],
+          ["search", search],
         ])
     )
       throw new Error("Pick-A-Part VA inventory form is filtered or changed");
@@ -159,4 +162,20 @@ export function parsePickapartvaPagination(html: string, page: number) {
   const control = controls[0];
   if (!control) throw new Error("Pick-A-Part VA pagination is empty");
   return control;
+}
+
+/** A set-date search publishes every match on one page: it has no pagination
+ * list and its pagination toolbars are empty. */
+export function verifyPickapartvaSearchTerminal(html: string) {
+  const toolbars = pickapartvaDivs(html, "iis-upull-toolbar-pagination");
+  if (
+    !toolbars.length ||
+    toolbars.some((toolbar) => !/^\s*$/.test(toolbar.body)) ||
+    [...html.matchAll(/<ul\b[^>]*>/gi)].some(([tag]) =>
+      pickapartvaClass(tag, "pagination"),
+    )
+  )
+    throw new Error(
+      "Pick-A-Part VA set-date search has a continuation or changed pagination controls",
+    );
 }

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   verifyPickapartvaOwner,
+  verifyPickapartvaSearchTerminal,
   parsePickapartvaPagination,
 } from "./pickapartva-protocol";
 import {
@@ -18,6 +19,7 @@ import {
   PICKAPARTVA_MAX_PAGES,
   PICKAPARTVA_ORIGIN,
   PICKAPARTVA_PAGE_SIZE,
+  pickapartvaSetDate,
   type PickapartvaYardCode,
 } from "./pickapartva-yard-metadata";
 
@@ -130,23 +132,7 @@ function donor(
   };
 }
 
-export function parsePickapartvaPage(
-  raw: string,
-  page: number,
-): PickapartvaPage {
-  const html = stripInventoryRawText(raw);
-  if (
-    Buffer.byteLength(raw) > 4 * 1024 * 1024 ||
-    !/<\/html>\s*$/i.test(html) ||
-    !Number.isInteger(page) ||
-    page < 1 ||
-    page > PICKAPARTVA_MAX_PAGES
-  )
-    throw new Error(
-      "Pick-A-Part VA document is oversized, truncated or has an invalid page ordinal",
-    );
-  verifyPickapartvaOwner(html, raw);
-  const control = parsePickapartvaPagination(html, page);
+function pickapartvaMakes(html: string): string[] {
   const selects = [
     ...html.matchAll(/(<select\b[^>]*>)([\s\S]*?)<\/select>/gi),
   ].filter((match) => pickapartvaClass(match[1] ?? "", "upullsimpleMake"));
@@ -186,7 +172,7 @@ export function parsePickapartvaPage(
     throw new Error(
       "Pick-A-Part VA make selector has a narrowed or changed scope",
     );
-  const makes = [
+  return [
     ...(selects[0]?.[2] ?? "").matchAll(
       /<option\b[^>]*>([\s\S]*?)<\/option>/gi,
     ),
@@ -194,6 +180,41 @@ export function parsePickapartvaPage(
     .map((match) => pickapartvaText(match[1] ?? ""))
     .filter((value) => !["ANY", "Choose Make..."].includes(value))
     .sort((a, b) => b.length - a.length);
+}
+
+function pickapartvaRecords(
+  cards: Array<{ tag: string; body: string }>,
+  makes: string[],
+): PickapartvaRecord[] {
+  const records = cards.map((card) => donor(card, makes));
+  const ids = records.flatMap((record) =>
+    record.cardId ? [record.cardId] : [],
+  );
+  if (new Set(ids).size !== ids.length)
+    throw new Error("Pick-A-Part VA repeated card id within one page");
+  return records;
+}
+
+const unbroken = (raw: string, html: string) =>
+  Buffer.byteLength(raw) <= 4 * 1024 * 1024 && /<\/html>\s*$/i.test(html);
+
+export function parsePickapartvaPage(
+  raw: string,
+  page: number,
+): PickapartvaPage {
+  const html = stripInventoryRawText(raw);
+  if (
+    !unbroken(raw, html) ||
+    !Number.isInteger(page) ||
+    page < 1 ||
+    page > PICKAPARTVA_MAX_PAGES
+  )
+    throw new Error(
+      "Pick-A-Part VA document is oversized, truncated or has an invalid page ordinal",
+    );
+  verifyPickapartvaOwner(html, raw);
+  const control = parsePickapartvaPagination(html, page);
+  const makes = pickapartvaMakes(html);
   const cards = pickapartvaDivs(html, "card-price");
   if (
     cards.length < 1 ||
@@ -204,12 +225,7 @@ export function parsePickapartvaPage(
     throw new Error(
       "Pick-A-Part VA page is empty, truncated or has unmatched donor cards",
     );
-  const records = cards.map((card) => donor(card, makes));
-  const ids = records.flatMap((record) =>
-    record.cardId ? [record.cardId] : [],
-  );
-  if (new Set(ids).size !== ids.length)
-    throw new Error("Pick-A-Part VA repeated card id within one page");
+  const records = pickapartvaRecords(cards, makes);
   return {
     page,
     lastPage: control.lastPage,
@@ -217,4 +233,45 @@ export function parsePickapartvaPage(
     records,
     hash: pickapartvaHash([page, control.lastPage, control.nextUrl, records]),
   };
+}
+
+export interface PickapartvaSearchPage {
+  date: string;
+  records: PickapartvaRecord[];
+  hash: string;
+}
+
+/**
+ * The native search for one Set Date. It must answer the same unfiltered
+ * owner, yard and make scope as the catalog, reflect the searched date, publish
+ * no continuation and hold only donors set on that date. A full page could
+ * hide further matches, so 500 or more cards fail closed.
+ */
+export function parsePickapartvaSearch(
+  raw: string,
+  date: string,
+): PickapartvaSearchPage {
+  const html = stripInventoryRawText(raw);
+  if (!unbroken(raw, html) || !pickapartvaSetDate(date))
+    throw new Error(
+      "Pick-A-Part VA set-date search is oversized, truncated or has an invalid date",
+    );
+  verifyPickapartvaOwner(html, raw, date);
+  verifyPickapartvaSearchTerminal(html);
+  const makes = pickapartvaMakes(html);
+  const cards = pickapartvaDivs(html, "card-price");
+  if (
+    cards.length < 1 ||
+    cards.length >= PICKAPARTVA_PAGE_SIZE ||
+    pickapartvaDivs(html, "car-details-uPull").length !== cards.length
+  )
+    throw new Error(
+      `Pick-A-Part VA set-date search for ${date} returned ${cards.length} cards; completeness is only known for 1 to ${PICKAPARTVA_PAGE_SIZE - 1} matched donor cards`,
+    );
+  const records = pickapartvaRecords(cards, makes);
+  if (records.some((record) => record.setDate !== date))
+    throw new Error(
+      `Pick-A-Part VA set-date search for ${date} returned donors set on another date`,
+    );
+  return { date, records, hash: pickapartvaHash([date, records]) };
 }
