@@ -108,13 +108,16 @@ async function census(
   }
   const paths = fixture.pages.map((p) => JIMSIMPORT_ORIGIN + p.modelPath);
   const urls = native.urls.slice(before);
+  const indexes = urls.flatMap((url) => {
+    const index = paths.indexOf(url);
+    return index < 0 ? [] : [index];
+  });
   return {
     terminal: cursor,
     requests: urls.length,
-    models: urls.flatMap((url) => {
-      const index = paths.indexOf(url);
-      return index < 0 ? [] : [index];
-    }),
+    // Opening reads; a repeat of a model already read is its closing re-read.
+    models: indexes.filter((index, i) => indexes.indexOf(index) === i),
+    rereads: indexes.filter((index, i) => indexes.indexOf(index) !== i),
     vins: vins.sort(),
     warnings,
   };
@@ -128,6 +131,13 @@ const KEYS = jimsimportModels(fixture.menus).map(({ make, model }, index) => {
   return JSON.stringify([make.path, make.label, model.path, model.label]);
 });
 
+/** Fixture models whose saved cards differ from their published badge. */
+const MISMATCHED = jimsimportModels(fixture.menus).flatMap(({ model }, i) =>
+  fixture.pages[i]?.records.length === model.count ? [] : [i],
+);
+const mismatched = (models: readonly number[]) =>
+  models.filter((i) => MISMATCHED.includes(i));
+
 /** Models in a day's sweep slice, by their stable key hash. */
 const slice = (day: number) =>
   KEYS.flatMap((key, i) => (ModelCensus.slice(key) === day % 6 ? [i] : []));
@@ -136,8 +146,11 @@ test("Jim's Import cold start reads every model and publishes its census", async
   const native = yard();
   const cold = await census(native, 600, null);
   expect(cold.models).toEqual(Array.from({ length: MODELS }, (_, i) => i));
-  // Owner, makes, 33 menus, 334 models, closing makes and owner.
-  expect(cold.requests).toBe(2 + 33 + MODELS + 2);
+  // Owner, makes, 33 menus, 334 models, closing makes, every read model
+  // whose cards differ from its badge, and owner.
+  expect(MISMATCHED).toHaveLength(23);
+  expect(cold.rereads).toEqual(MISMATCHED);
+  expect(cold.requests).toBe(2 + 33 + MODELS + 2 + MISMATCHED.length);
   expect(cold.vins).toEqual(native.vins());
   expect(cold.vins).toHaveLength(3649);
   expect(cold.warnings.some((w) => w.includes("every model page"))).toBe(false);
@@ -154,7 +167,11 @@ test("Jim's Import carries unread models, rotates the sweep and reads count chan
   expect(slice(602).length).toBeGreaterThan(0);
   const next = await census(native, 601, cold.terminal);
   expect(next.models).toEqual(slice(601));
-  expect(next.requests).toBe(2 + 33 + slice(601).length + 2);
+  // Carried mismatched models are not re-read at closing.
+  expect(next.rereads).toEqual(mismatched(slice(601)));
+  expect(next.requests).toBe(
+    2 + 33 + slice(601).length + 2 + mismatched(slice(601)).length,
+  );
   // Carried donors are still published in full.
   expect(next.vins).toEqual(native.vins());
 

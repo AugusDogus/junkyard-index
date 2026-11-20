@@ -89,7 +89,7 @@ function nextUrl(state: ScottsProgress): string {
       return SCOTTS_ORIGIN + entry.model.path;
     }
     case "closing": {
-      const entry = scottsClosingControls()[state.closing];
+      const entry = scottsClosingControls(state)[state.closing];
       if (!entry) throw new Error("Scotts closing native control is missing");
       return entry.url;
     }
@@ -144,7 +144,7 @@ function advance(state: ScottsProgress, raw: string): ScottsProgress {
       break;
     }
     case "closing": {
-      const entry = scottsClosingControls()[state.closing];
+      const entry = scottsClosingControls(state)[state.closing];
       if (!entry) throw new Error("Scotts closing context is missing");
       switch (entry.kind) {
         case "root":
@@ -155,6 +155,13 @@ function advance(state: ScottsProgress, raw: string): ScottsProgress {
             state.makes.map(({ models: _models, ...make }) => make),
             parseScottsDirectory(raw, "makes"),
             "make graph",
+          );
+          break;
+        case "model":
+          same(
+            state.pages[entry.index]?.hash,
+            parseScottsModel(raw, entry.make, entry.model).hash,
+            "model cards for " + entry.make.label + " " + entry.model.label,
           );
           break;
       }
@@ -225,7 +232,7 @@ export function streamScottsInventoryWithRequestGate<E, R>(
       summary.pagesProcessed++;
       if (
         advanced.phase === "closing" &&
-        advanced.closing === scottsClosingControls().length
+        advanced.closing === scottsClosingControls(advanced).length
       ) {
         const snapshot = yield* attempt("complete native graph", () => {
           const value = scottsSnapshot(advanced.makes, advanced.pages);

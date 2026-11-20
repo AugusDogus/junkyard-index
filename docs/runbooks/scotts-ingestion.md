@@ -8,7 +8,7 @@ The November 15 UTC census follows all 34 makes and 221 model controls: 1,064 ca
 
 Required fields use existing VIN/serial and year/make/model validation. Optional stock, images, color, dates and position remain nullable. Valid rejected identities remain presence evidence, and required identity/destination conflicts are quarantined. Shared validation retains the 325-donor minimum, 10% rejection, 25% duplicate and 50% previous-count drift guards.
 
-The collector uses serial requests with five-second completed spacing, no retries, six GETs per chunk, a three-minute chunk deadline and a 2 MiB serialized checkpoint bound. It emits inventory and yard metadata only after closing and quality checks. Failed callbacks cannot return terminal completion. Shared durable validation checks previous inventory before reconciliation. Nothing is enabled or published.
+The collector uses serial requests with five-second completed spacing, no retries, six GETs per chunk, a three-minute chunk deadline and a 2 MiB serialized checkpoint bound. Closing repeats ownership, the make directory and every model read this run whose card count differs from its badge, so a short page that does not repeat is never carried forward; carried models are not re-read. It emits inventory and yard metadata only after closing and quality checks. Failed callbacks cannot return terminal completion. Shared durable validation checks previous inventory before reconciliation. Nothing is enabled or published.
 
 Actual receipts and complete offline replay are under `.scratchpad/provider-coverage/nov14-provider-goal/research/mt_wy_id_ut_co/refill-02/`. The read-only soak discards inventory callbacks and retains incomplete status at a request cap:
 

@@ -9,6 +9,7 @@ import {
   JimsimportCursor,
   jimsimportCensus,
   jimsimportCensusPlan,
+  jimsimportClosingModels,
 } from "./jimsimport-cursor";
 import { jimsimportHash, parseJimsimportModel } from "./jimsimport-parser";
 import { runWithQueuedHost } from "./provider-host-test-support";
@@ -47,6 +48,75 @@ function closingState() {
     menus,
     opening: pages,
   };
+}
+/** A cold run at closing where every badge matches its cards except one
+ * model read one card short of its badge. */
+function shortModelClosing() {
+  const state = closingState();
+  const contexts = jimsimportModels(state.menus);
+  const short = state.opening.findIndex(
+    (page) =>
+      page.records.length >= 2 &&
+      page.records.every((r) => r.image && r.destinations.length === 2),
+  );
+  const full = state.opening[short];
+  const context = contexts[short];
+  if (!full || !context) throw new Error("Fixture needs a renderable model");
+  const opening = state.opening.map((page, i) =>
+    i === short ? { ...page, records: page.records.slice(1) } : page,
+  );
+  const menus = state.menus.map((menu) => ({
+    ...menu,
+    models: menu.models.map((model) => {
+      const index = contexts.findIndex((c) => c.model === model);
+      return {
+        ...model,
+        count:
+          index === short
+            ? full.records.length
+            : (opening[index]?.records.length ?? model.count),
+      };
+    }),
+  }));
+  const url = JIMSIMPORT_ORIGIN + context.model.path;
+  const start = JimsimportCursor.checkpoint({
+    ...state,
+    menus,
+    opening,
+    phase: "closing-makes",
+  });
+  const run = (page: string) => {
+    const calls: string[] = [];
+    let emitted = 0;
+    const result = Effect.runPromise(
+      streamJimsimportInventory({
+        previousUniqueInventory: null,
+        startCursor: start,
+        readPage: (value) => {
+          calls.push(value);
+          return Effect.succeed(
+            value === JIMSIMPORT_CATALOG
+              ? jimsimportFixture("catalog").body
+              : value === JIMSIMPORT_OWNER
+                ? jimsimportFixture("owner").body
+                : value === url
+                  ? page
+                  : "",
+          );
+        },
+        onBatch: () =>
+          Effect.sync(() => {
+            emitted++;
+          }),
+        onYards: () =>
+          Effect.sync(() => {
+            emitted++;
+          }),
+      }),
+    );
+    return { calls, emitted: () => emitted, result };
+  };
+  return { full, run, url, requests: state.requests };
 }
 describe("Jim's Import complete census guards", () => {
   test("all 4016 actual opening rows reconcile with all required rejects and connected conflicts", () => {
@@ -182,7 +252,8 @@ describe("Jim's Import complete census guards", () => {
         onBatch: () => Effect.die("Early emission"),
       }),
     );
-    expect(result.cursor.phase).toBe("owner-closing");
+    // The cold fixture read models whose cards differ from their badge.
+    expect(result.cursor.phase).toBe("closing-models");
     let calls = 0;
     await expect(
       Effect.runPromise(
@@ -206,6 +277,27 @@ describe("Jim's Import complete census guards", () => {
       ),
     ).rejects.toThrow("membership");
     expect(calls).toBe(1);
+  });
+  test("a short model page that repeats at closing completes the run", async () => {
+    const { full, run, url, requests } = shortModelClosing();
+    const repeated = run(
+      nativeModelPage({ ...full, records: full.records.slice(1) }),
+    );
+    const complete = await repeated.result;
+    expect(complete.status).toBe("complete");
+    // Re-read once, between the make directory and the owner.
+    expect(repeated.calls).toEqual([JIMSIMPORT_CATALOG, url, JIMSIMPORT_OWNER]);
+    expect(repeated.emitted()).toBe(2);
+    if (complete.cursor.phase !== "complete") throw new Error("Not complete");
+    expect(complete.cursor.requests).toBe(requests + 3);
+  });
+  test("a short model page that differs at closing fails without callbacks", async () => {
+    const { full, run, url } = shortModelClosing();
+    // The closing re-read finds the missing card.
+    const changed = run(nativeModelPage(full));
+    await expect(changed.result).rejects.toThrow("changed during closing");
+    expect(changed.calls).toEqual([JIMSIMPORT_CATALOG, url]);
+    expect(changed.emitted()).toBe(0);
   });
   test("carried model pages must equal their accepted census evidence", () => {
     const state = closingState();
@@ -255,8 +347,8 @@ describe("Jim's Import complete census guards", () => {
         previousUniqueInventory: null,
         startCursor: JimsimportCursor.checkpoint({
           ...state,
-          // Opening reads plus the closing make directory re-read.
-          requests: state.requests + 1,
+          // Opening reads plus the closing make directory and model re-reads.
+          requests: state.requests + 1 + jimsimportClosingModels(state).length,
           phase: "owner-closing",
         }),
         readPage: () => Effect.succeed(jimsimportFixture("owner").body),
@@ -309,7 +401,8 @@ describe("Jim's Import complete census guards", () => {
           previousUniqueInventory: null,
           startCursor: JimsimportCursor.checkpoint({
             ...state,
-            requests: state.requests + 1,
+            requests:
+              state.requests + 1 + jimsimportClosingModels(state).length,
             phase: "owner-closing",
           }),
           readPage: () =>
@@ -443,9 +536,20 @@ test("Jim's Import opening tail and closing re-reads complete when every GET wai
   const state = closingState();
   const models = jimsimportModels(state.menus);
   const remaining = 4;
+  const closing = jimsimportClosingModels(state);
   const native = new Map<string, string>([
     [JIMSIMPORT_OWNER, jimsimportFixture("owner").body],
     [JIMSIMPORT_CATALOG, jimsimportFixture("catalog").body],
+    ...closing.map(({ url, index }): [string, string] => {
+      const page = state.opening[index];
+      if (!page) throw new Error("Missing fixture closing page");
+      return [
+        url,
+        page.records.length
+          ? nativeModelPage(page)
+          : jimsimportFixture("empty").body,
+      ];
+    }),
   ]);
   state.opening.slice(-remaining).forEach((page, offset) => {
     const context = models[state.opening.length - remaining + offset];
@@ -483,7 +587,7 @@ test("Jim's Import opening tail and closing re-reads complete when every GET wai
     { preconnect: original.preconnect },
   );
   try {
-    for (let count = 0; count < 10; count++) {
+    for (let count = 0; count < 40; count++) {
       const chunk = await runWithQueuedHost(
         streamJimsimportInventory({
           previousUniqueInventory: null,
@@ -512,11 +616,16 @@ test("Jim's Import opening tail and closing re-reads complete when every GET wai
   } finally {
     globalThis.fetch = original;
   }
-  // The closing re-reads only the make directory and the owner page.
-  expect(pages.reduce((sum, value) => sum + value, 0)).toBe(remaining + 2);
+  // The closing re-reads the make directory, each read model whose cards
+  // differ from its badge, and the owner page.
+  const total = remaining + 2 + closing.length;
+  expect(pages.reduce((sum, value) => sum + value, 0)).toBe(total);
   expect(pages.every((value) => value > 0)).toBe(true);
-  expect(calls).toHaveLength(remaining + 2);
-  expect(calls.at(-2)).toBe(JIMSIMPORT_CATALOG);
-  expect(calls.at(-1)).toBe(JIMSIMPORT_OWNER);
+  expect(calls).toEqual([
+    ...calls.slice(0, remaining),
+    JIMSIMPORT_CATALOG,
+    ...closing.map((control) => control.url),
+    JIMSIMPORT_OWNER,
+  ]);
   expect(emitted).toHaveLength(1);
 }, 120_000);

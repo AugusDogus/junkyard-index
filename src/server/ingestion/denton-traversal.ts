@@ -85,8 +85,9 @@ const fixed: DentonTask[] = [
   { kind: "contact", url: DENTON_CONTACT },
   { kind: "makes", url: DENTON_MAKES },
 ];
-/** Closing re-reads the ownership pages and the make directory only. */
+/** Closing always re-reads the ownership pages and the make directory first. */
 export const DENTON_CLOSING_TASKS = fixed.length;
+export const DENTON_MAX_MODELS = 768;
 /** Make controls publish without a trailing slash and the native server
  * answers them with an exact slash 301, so menus are read at the slash URL. */
 const slash = (url: string) => (url.endsWith("/") ? url : url + "/");

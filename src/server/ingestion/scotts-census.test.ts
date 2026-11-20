@@ -31,9 +31,11 @@ const card = (model: number, n: number) =>
 const donors = (n = 30) => Array.from({ length: n }, (_, i) => i + 1);
 
 /** Twelve ACURA models with 30 donors each (above the 325 floor); `rows` holds
- * each model's donor numbers and can be edited between runs. */
+ * each model's donor numbers and `badges` overrides a model's published count.
+ * Both can be edited between runs. */
 function yard() {
   const rows = new Map(Array.from({ length: 12 }, (_, i) => [i, donors()]));
+  const badges = new Map<number, number>();
   const urls: string[] = [];
   globalThis.fetch = Object.assign(
     async (input: string | URL | Request) => {
@@ -61,7 +63,7 @@ function yard() {
                         "model",
                         "/used-parts/ACURA/" + label(i),
                         label(i),
-                        l.length,
+                        badges.get(i) ?? l.length,
                       ),
                     )
                     .join(""),
@@ -76,7 +78,7 @@ function yard() {
     },
     { preconnect: originalFetch.preconnect },
   );
-  return { rows, urls };
+  return { rows, badges, urls };
 }
 
 /** One full run on `day`, seeded by the previous terminal cursor. */
@@ -166,6 +168,28 @@ test("Scotts cold start reads every model and publishes its census", async () =>
   expect(parsed.census.models.map((m) => m.key)).toEqual(
     Array.from({ length: 12 }, (_, i) => key(i)),
   );
+});
+
+test("Scotts confirms a short model page only on the run that reads it", async () => {
+  const native = yard();
+  // Model 3's badge promises one more donor than its page lists.
+  native.badges.set(3, 31);
+  const cold = await census(native, 600, null);
+  // Model 3 is read once in the model phase and once more at closing.
+  expect(cold.models).toEqual([...Array.from({ length: 12 }, (_, i) => i), 3]);
+  expect(cold.requests).toBe(18);
+  expect(cold.vins).toEqual(allVins(native));
+
+  // A carried short page was confirmed on the run that read it.
+  const day = sweepDays(native, 600).find(
+    (candidate) => !sweep(native, candidate).includes(3),
+  );
+  if (day === undefined)
+    throw new Error("Fixture needs a sweep day without M3");
+  const carried = await census(native, day, cold.terminal);
+  expect(carried.models).toEqual(sweep(native, day));
+  expect(carried.requests).toBe(5 + sweep(native, day).length);
+  expect(carried.vins).toEqual(allVins(native));
 });
 
 test("Scotts carries unread models, rotates the sweep and reads count changes", async () => {

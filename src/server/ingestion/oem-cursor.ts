@@ -5,6 +5,7 @@ import {
   OemControlSchema,
   OemPageSchema,
   oemControlUrl,
+  type OemControl,
   type OemPage,
 } from "./oem-parser";
 import {
@@ -89,12 +90,46 @@ export type OemState = z.infer<typeof StateSchema>;
 export type OemCensusState = Extract<OemState, { phase: "closing" }>;
 export const oemModels = (menus: z.infer<typeof menusSchema>) =>
   menus.flatMap(({ make, models }) => models.map((model) => ({ make, model })));
-export type OemClosingControl = { kind: "makes"; url: string };
-/** Closing re-reads the make directory only; every page already proves OH40
- * ownership. Per-model changes during the run surface as badge changes in the
- * next run's opening menus. */
-export function oemClosingControls(): OemClosingControl[] {
-  return [{ kind: "makes", url: OEM_MAKES }];
+export type OemClosingControl =
+  | { kind: "makes"; url: string }
+  | {
+      kind: "model";
+      url: string;
+      make: OemControl;
+      model: OemControl;
+      index: number;
+    };
+/** Closing re-reads the make directory (every page already proves OH40
+ * ownership) and every model read this run whose cards differ from its badge,
+ * so a short page is confirmed before it can be carried. Carried pages were
+ * confirmed on the run that read them; other per-model changes surface as badge
+ * changes in the next run's opening menus. */
+export function oemClosingControls(
+  state: Pick<
+    OemCensusState,
+    "menus" | "pages" | "day" | "previous" | "previousArrivals" | "arrivals"
+  >,
+): OemClosingControl[] {
+  const models = oemModels(state.menus);
+  const decisions = oemCensusPlan(state);
+  return [
+    { kind: "makes", url: OEM_MAKES },
+    ...state.pages.flatMap((page, index) => {
+      const entry = models[index];
+      return entry &&
+        decisions[index]?.kind === "read" &&
+        page.records.length !== entry.model.count
+        ? [
+            {
+              kind: "model" as const,
+              url: oemControlUrl(entry.model, 3),
+              ...entry,
+              index,
+            },
+          ]
+        : [];
+    }),
+  ];
 }
 function oemCensusControls(
   menus: z.infer<typeof menusSchema>,
@@ -303,7 +338,7 @@ function inspect(value: OemCursor): void {
       )
         throw new Error("OEM checkpoint exceeds the observed donor capacity");
       if (state.phase === "closing") {
-        if (state.closing > oemClosingControls().length)
+        if (state.closing > oemClosingControls(state).length)
           throw new Error("OEM closing prefix exceeds its native controls");
         expected += state.closing;
       }

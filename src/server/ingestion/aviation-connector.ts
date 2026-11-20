@@ -98,7 +98,7 @@ function nextUrl(state: AviationProgress): string {
       return AVIATION_ORIGIN + next.model.path;
     }
     case "closing": {
-      const control = aviationClosingControls()[state.closing];
+      const control = aviationClosingControls(state)[state.closing];
       if (!control) throw new Error("Missing Aviation closing control");
       return control.url;
     }
@@ -166,7 +166,7 @@ function advance(state: AviationProgress, raw: string): AviationProgress {
       break;
     }
     case "closing": {
-      const control = aviationClosingControls()[state.closing];
+      const control = aviationClosingControls(state)[state.closing];
       if (!control) throw new Error("Missing Aviation closing native context");
       switch (control.kind) {
         case "contact":
@@ -177,6 +177,13 @@ function advance(state: AviationProgress, raw: string): AviationProgress {
             state.makes.map(({ models: _models, ...make }) => make),
             parseAviationDirectory(raw, "makes"),
             "make directory",
+          );
+          break;
+        case "model":
+          same(
+            state.pages[control.index]?.hash,
+            parseAviationModel(raw, control.make, control.model).hash,
+            "model list " + control.model.label,
           );
           break;
       }
@@ -250,7 +257,7 @@ export function streamAviationInventoryWithRequestGate<E, R>(
       summary.pagesProcessed++;
       if (
         advanced.phase === "closing" &&
-        advanced.closing === aviationClosingControls().length
+        advanced.closing === aviationClosingControls(advanced).length
       ) {
         const snapshot = yield* attempt("complete native union", () => {
           const snapshot = aviationSnapshot(

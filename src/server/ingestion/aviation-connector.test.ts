@@ -29,6 +29,11 @@ import {
 } from "./aviation-test-fixtures";
 import type { AviationCanonicalVehicle } from "./aviation-transform";
 import type { AviationRecord } from "./aviation-parser";
+import {
+  MODEL_CENSUS_DAY_MS,
+  MODEL_CENSUS_SWEEP_DAYS,
+  ModelCensus,
+} from "./model-census";
 import { runWithQueuedHost } from "./provider-host-test-support";
 
 const originalFetch = globalThis.fetch;
@@ -119,9 +124,9 @@ test("Aviation serializes small chunks and quarantines late cross-surface confli
     duplicates += result.accounting.duplicateVehicles;
   }
   // Opening contact, root, parts, makes, one menu and one model; closing
-  // contact and makes.
-  expect(chunks).toBe(4);
-  expect(requests).toBe(8);
+  // contact, makes and the model, whose 21 cards differ from its badge of 20.
+  expect(chunks).toBe(5);
+  expect(requests).toBe(9);
   expect(processed).toBe(23);
   expect(rejected).toBe(2);
   expect(duplicates).toBe(0);
@@ -307,7 +312,8 @@ test("Aviation production soak round-trips every chunk and preserves terminal di
   expect(result.status).toBe("complete");
   expect(result.cursor.phase).toBe("complete");
   expect(result.pagesProcessed).toBe(native.urls.length);
-  expect(result.pagesProcessed).toBe(8);
+  // The model's 21 cards differ from its badge of 20, so closing re-reads it.
+  expect(result.pagesProcessed).toBe(9);
   expect(result.count).toBe(emitted);
   expect(result.count).toBe(21);
   expect(result.accounting).toEqual({
@@ -332,7 +338,7 @@ test("Aviation soak rejects paused presence/accounting and a chunk exceeding its
         return { ...result, observedVins: [aviationFixtureRecord(1)[0]] };
       },
       20,
-      // The eight-GET run would complete in one default chunk; four pauses it.
+      // Four GETs pause the nine-GET run after its first chunk.
       4,
     ),
   ).rejects.toThrow("paused chunk emitted");
@@ -383,7 +389,110 @@ test("Aviation completes a full crawl when every request waits two minutes for a
     expect(chunk.elapsedMs).toBeLessThanOrEqual(6 * 60_000);
     expect(chunk.turns.every((turn) => turn.releasedAt !== null)).toBe(true);
   }
-  expect(pages).toEqual([2, 2, 2, 2]);
+  // Closing re-reads the model, whose 21 cards differ from its badge of 20.
+  expect(pages).toEqual([2, 2, 2, 2, 1]);
   expect(count).toBe(21);
-  expect(native.urls).toHaveLength(8);
+  expect(native.urls).toHaveLength(9);
 }, 120_000);
+
+test("Aviation confirms a model read with fewer cards than its badge at closing", async () => {
+  const native = transport();
+  // The badges promise one more donor than the 21 cards the model page lists.
+  const makes = aviationFixtureDirectory(
+    [{ ...aviationFixtureMake, count: 22 }],
+    "makes",
+  );
+  native.bodies.set(AVIATION_PARTS, makes);
+  native.bodies.set(AVIATION_MAKES, makes);
+  native.bodies.set(
+    AVIATION_ORIGIN + aviationFixtureMake.path,
+    aviationFixtureDirectory(
+      [{ ...aviationFixtureModel, count: 22 }],
+      "models",
+    ),
+  );
+  const modelUrl = AVIATION_ORIGIN + aviationFixtureModel.path;
+  const day = 600;
+  const now = () => day * MODEL_CENSUS_DAY_MS;
+  const run = async (
+    startCursor: AviationCursor,
+    previousCursor: unknown,
+    runDay: number,
+  ) =>
+    Effect.runPromise(
+      streamAviationInventoryWithRequestGate(
+        {
+          startCursor,
+          previousCursor,
+          now: () => runDay * MODEL_CENSUS_DAY_MS,
+          maxPages: 8,
+          onBatch: () => Effect.void,
+        },
+        gate,
+      ),
+    );
+  // Opening contact, root, parts, makes, one menu and one model; closing
+  // contact and makes, then the short model page once more.
+  const paused = await run(AviationCursor.initial, null, day);
+  expect(paused.status).toBe("paused");
+  expect(paused.pagesProcessed).toBe(8);
+  const complete = await run(paused.cursor, null, day);
+  expect(complete.status).toBe("complete");
+  expect(complete.pagesProcessed).toBe(1);
+  expect(native.urls).toHaveLength(9);
+  expect(native.urls.filter((url) => url === modelUrl)).toHaveLength(2);
+  expect(native.urls.at(-1)).toBe(modelUrl);
+
+  // A carried short page was confirmed on the run that read it and is not
+  // re-read at closing.
+  const key = JSON.stringify([
+    aviationFixtureMake.path,
+    aviationFixtureMake.label,
+    aviationFixtureModel.path,
+    aviationFixtureModel.label,
+  ]);
+  const carryDay = Array.from({ length: 5 }, (_, i) => day + i + 1).find(
+    (d) => ModelCensus.slice(key) !== d % MODEL_CENSUS_SWEEP_DAYS,
+  );
+  if (carryDay === undefined)
+    throw new Error("Expected a day that carries the fixture model");
+  const carriedFrom = native.urls.length;
+  const carried = await run(AviationCursor.initial, complete.cursor, carryDay);
+  expect(carried.status).toBe("complete");
+  expect(native.urls.slice(carriedFrom)).not.toContain(modelUrl);
+  expect(native.urls.length - carriedFrom).toBe(7);
+
+  // A short page that does not repeat at closing is never accepted.
+  const opening = await run(AviationCursor.initial, null, day);
+  expect(opening.status).toBe("paused");
+  native.bodies.set(
+    modelUrl,
+    aviationFixtureModelPage(
+      Array.from({ length: 20 }, (_, i) => aviationFixtureRecord(i + 1)),
+    ),
+  );
+  let callbacks = 0;
+  const before = native.urls.length;
+  await expect(
+    Effect.runPromise(
+      streamAviationInventoryWithRequestGate(
+        {
+          startCursor: opening.cursor,
+          now,
+          maxPages: 8,
+          onBatch: () =>
+            Effect.sync(() => {
+              callbacks++;
+            }),
+          onYards: () =>
+            Effect.sync(() => {
+              callbacks++;
+            }),
+        },
+        gate,
+      ),
+    ),
+  ).rejects.toThrow("Closing Aviation model list ILX");
+  expect(callbacks).toBe(0);
+  expect(native.urls.slice(before)).toEqual([modelUrl]);
+});

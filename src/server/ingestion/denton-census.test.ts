@@ -298,7 +298,8 @@ test("Denton rejects a run whose read and carried model cards fall short of toda
   native.rows.set(3, donors(3, 20));
   native.unreachable.add(3);
   const small = await census(native, 601, cold.terminal);
-  expect(small.models).toEqual(sorted([...sweep(601), 3]));
+  // Its empty page differs from its badge, so closing confirms it once more.
+  expect(small.models).toEqual([...sorted([...sweep(601), 3]), 3]);
   // On day 605 every model page renders the native empty result while badges
   // hold. No evidence is past the ceiling and only the (non-empty) sweep slice
   // is read, so the 765 floor and the 50% prior guard would pass on the
@@ -310,10 +311,11 @@ test("Denton rejects a run whose read and carried model cards fall short of toda
   await expect(
     census(native, 605, small.terminal, small.vins.length),
   ).rejects.toThrow("opening model badges");
-  // Only the sweep slice was read before the union was rejected.
+  // Only the sweep slice was read, then confirmed at closing (each empty page
+  // differs from its badge), before the union was rejected.
   expect(
     native.calls.slice(before).filter((url) => /\/M\d+\/$/.test(url)),
-  ).toEqual(sweep(605).map(modelUrl));
+  ).toEqual([...sweep(605), ...sweep(605)].map(modelUrl));
 }, 30_000);
 
 test("Denton treats an unreadable or incompatible previous cursor as a warned cold census", async () => {

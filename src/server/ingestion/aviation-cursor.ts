@@ -3,6 +3,7 @@ import {
   aviationHash,
   AviationControlSchema,
   AviationPageSchema,
+  type AviationControl,
   type AviationPage,
 } from "./aviation-parser";
 import { aviationModels, type AviationMake } from "./aviation-snapshot";
@@ -66,16 +67,49 @@ const progress = z
 export type AviationProgress = z.infer<typeof progress>;
 export type AviationClosingControl =
   | { kind: "contact"; url: typeof AVIATION_CONTACT }
-  | { kind: "directory"; url: typeof AVIATION_MAKES };
+  | { kind: "directory"; url: typeof AVIATION_MAKES }
+  | {
+      kind: "model";
+      url: string;
+      make: AviationMake;
+      model: AviationControl;
+      index: number;
+    };
 
-/** Closing re-reads ownership and the live make directory only. The WPO-cached
- * `/parts/` copy and root are not re-read: their equality proves only that the
- * page cache did not rebuild. Per-model changes during the run surface as count
- * changes in the next run's opening menus. */
-export function aviationClosingControls(): AviationClosingControl[] {
+/** Closing re-reads ownership, the live make directory and every model read
+ * this run whose cards differ from its badge, so a short page is confirmed
+ * before it can be carried. The WPO-cached `/parts/` copy and root are not
+ * re-read: their equality proves only that the page cache did not rebuild.
+ * Carried pages were confirmed on the run that read them; other per-model
+ * changes surface as count changes in the next run's opening menus. */
+export function aviationClosingControls(
+  state: Pick<AviationProgress, "makes" | "pages" | "previous" | "day">,
+): AviationClosingControl[] {
+  const models = aviationModels(state.makes);
+  const decisions =
+    state.day === null || state.pages.length !== models.length
+      ? []
+      : aviationCensusPlan(state);
+  const mismatched = decisions.flatMap((decision, index) => {
+    const value = models[index];
+    return decision.kind === "read" &&
+      value &&
+      state.pages[index]?.records.length !== value.model.count
+      ? [
+          {
+            kind: "model" as const,
+            url: AVIATION_ORIGIN + value.model.path,
+            make: value.make,
+            model: value.model,
+            index,
+          },
+        ]
+      : [];
+  });
   return [
     { kind: "contact", url: AVIATION_CONTACT },
     { kind: "directory", url: AVIATION_MAKES },
+    ...mismatched,
   ];
 }
 
@@ -220,7 +254,7 @@ export const AviationCursorSchema = z
       }
       if (
         (stage < 6 && state.closing !== 0) ||
-        (stage === 6 && state.closing > aviationClosingControls().length)
+        (stage === 6 && state.closing > aviationClosingControls(state).length)
       )
         throw new Error("Aviation closing control prefix is inconsistent");
       if (

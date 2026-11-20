@@ -12,6 +12,7 @@ import {
 } from "./denton-html";
 import {
   DENTON_CLOSING_TASKS,
+  DENTON_MAX_MODELS,
   DentonEntrySchema,
   DentonModelEntrySchema,
   DentonRedirectSchema,
@@ -55,7 +56,7 @@ const censusContract = dentonHash({ contract: CONTRACT, yard: DENTON_YARD });
 /** Every model page held by an accepted run, carried forward by the next one. */
 export const DentonCensusSchema = ModelCensus.schema(
   DentonModelEntrySchema,
-  768,
+  DENTON_MAX_MODELS,
 );
 export type DentonCensus = z.infer<typeof DentonCensusSchema>;
 export type DentonCensusDecision = ModelCensusDecision<DentonModelEntry>;
@@ -67,7 +68,9 @@ const progress = z
     checksum: hash,
     phase: z.literal("active"),
     opening: z.array(DentonEntrySchema).max(1024),
-    closing: z.array(DentonEntrySchema).max(DENTON_CLOSING_TASKS),
+    closing: z
+      .array(DentonEntrySchema)
+      .max(DENTON_CLOSING_TASKS + DENTON_MAX_MODELS),
     pending: DentonRedirectSchema.nullable(),
     requests: z.number().int().min(0).max(DENTON_MAX_REQUESTS),
     bytes: z.number().int().min(0).max(DENTON_MAX_TOTAL_BYTES),
@@ -109,16 +112,14 @@ export function dentonReady(state: DentonProgress) {
   return (
     state.pending === null &&
     dentonOpened(state.opening) &&
-    state.closing.length === DENTON_CLOSING_TASKS
+    state.closing.length === dentonClosingControls(state).length
   );
 }
 export function dentonNextTask(state: DentonProgress) {
   const tasks = dentonTasks(state.opening);
-  return tasks[
-    state.opening.length < tasks.length
-      ? state.opening.length
-      : state.closing.length
-  ];
+  return state.opening.length < tasks.length
+    ? tasks[state.opening.length]
+    : dentonClosingControls(state)[state.closing.length]?.task;
 }
 
 type ModelTask = Extract<DentonTask, { kind: "model" }>;
@@ -177,6 +178,36 @@ export function dentonCensusPlan(
         triggers.add(key);
     }
   return ModelCensus.plan(controls, state.previous, state.day, triggers);
+}
+/** A closing re-read and the opening entry it must repeat. */
+export interface DentonClosingControl {
+  task: DentonTask;
+  index: number;
+}
+/** Closing re-reads ownership, the make directory and every model read this
+ * run whose cards differ from its badge, so a short page is confirmed before it
+ * can be carried. Carried pages were confirmed on the run that read them; other
+ * per-model changes surface as badge changes in the next run's opening.
+ * Re-derived from cursor contents. */
+export function dentonClosingControls(
+  state: Pick<DentonProgress, "opening" | "day" | "previous">,
+): DentonClosingControl[] {
+  if (!dentonOpened(state.opening))
+    throw new Error("Closing controls need the complete opening");
+  const tasks = dentonTasks(state.opening);
+  const plan = dentonCensusPlan(state);
+  let model = 0;
+  return tasks.flatMap((task, index) => {
+    if (index < DENTON_CLOSING_TASKS) return [{ task, index }];
+    if (task.kind !== "model") return [];
+    const decision = plan[model++];
+    const entry = state.opening[index];
+    return decision?.kind === "read" &&
+      entry?.kind === "model" &&
+      entry.page.records.length !== task.model.count
+      ? [{ task, index }]
+      : [];
+  });
 }
 const modelEntries = (opening: readonly DentonEntry[]) =>
   opening.filter((entry): entry is DentonModelEntry => entry.kind === "model");
@@ -284,15 +315,23 @@ function validate(
     );
   if (state.closing.length && !dentonOpened(state.opening))
     throw new Error("Closing checkpoint precedes complete opening details");
-  state.closing.forEach((entry, index) => {
-    const task = tasks[index],
-      original = state.opening[index];
-    if (!task || !original || index >= DENTON_CLOSING_TASKS)
-      throw new Error("Closing checkpoint exceeds its ownership and directory");
+  const closing = state.closing.length ? dentonClosingControls(state) : [];
+  state.closing.forEach((entry, position) => {
+    const control = closing[position];
+    const original = control && state.opening[control.index];
+    if (!control || !original)
+      throw new Error(
+        "Closing checkpoint exceeds its ownership, directory and short model controls",
+      );
+    const { task } = control;
     dentonValidateEntry(entry, task);
     account(entry.receipt, task.url);
     if (dentonFingerprint(entry) !== dentonFingerprint(original))
-      throw new Error("Closing ownership or make directory changed");
+      throw new Error(
+        task.kind === "model" && original.kind === "model"
+          ? `Closing re-read of model page ${task.make.label} ${task.model.label} differs from its opening read of ${original.page.records.length} cards under a badge of ${task.model.count}; a short page that does not repeat is never accepted, so nothing was staged`
+          : "Closing ownership or make directory changed",
+      );
   });
   if (state.pending) {
     const task = dentonNextTask(state);
@@ -313,7 +352,7 @@ function validate(
   const graph = modelTasks(tasks);
   if (
     tasks.length > 1024 ||
-    graph.length > 768 ||
+    graph.length > DENTON_MAX_MODELS ||
     new Set(graph.map((task) => task.url)).size !== graph.length ||
     state.opening.reduce(
       (n, e) =>

@@ -13,7 +13,11 @@ import {
   DENTON_MINIMUM_INVENTORY,
 } from "./denton-cursor";
 import { dentonHash } from "./denton-traversal";
-import { dentonTestGraph, dentonTestVin } from "./denton-test-fixtures";
+import {
+  dentonTestCard,
+  dentonTestGraph,
+  dentonTestVin,
+} from "./denton-test-fixtures";
 import { DENTON_MAX_BODY_BYTES } from "./denton-client";
 
 async function collect(
@@ -206,6 +210,79 @@ test("Denton closing proof catches make directory and geography changes before c
     });
     expect((await Effect.runPromise(Effect.either(run)))._tag).toBe("Left");
   }
+}, 15_000);
+
+test("Denton confirms a model read with fewer cards than its badge at closing", async () => {
+  const graph = dentonTestGraph();
+  const menu = "https://dentonauto.com/used-parts/ACURA/";
+  const model = menu + "MDX0/";
+  const body = graph.pages.get(menu);
+  if (!body) throw new Error("Missing fixture");
+  // The badge promises one more donor than the model page lists.
+  graph.pages.set(
+    menu,
+    body.replace(
+      'MDX0 <span class="badge">400',
+      'MDX0 <span class="badge">401',
+    ),
+  );
+  const complete = await collect(graph);
+  expect(complete.final.count).toBe(2000);
+  // The thirteen GETs of a full run plus one closing re-read of MDX0 only.
+  expect(graph.calls).toHaveLength(14);
+  expect(graph.calls.filter((url) => url === model)).toHaveLength(2);
+  expect(graph.calls.at(-1)).toBe(model);
+
+  // A short page that does not repeat at closing is never accepted.
+  const short = dentonTestGraph();
+  short.pages.set(menu, graph.pages.get(menu) ?? "");
+  const read = short.read;
+  short.read = (url) =>
+    read(url).pipe(
+      Effect.map((response) =>
+        response.kind === "document" &&
+        url === model &&
+        short.calls.filter((call) => call === url).length > 1
+          ? {
+              ...response,
+              body: response.body.replace(dentonTestCard(0, "MDX0"), ""),
+            }
+          : response,
+      ),
+    );
+  let staged = 0;
+  let start: unknown;
+  const run = Effect.gen(function* () {
+    for (let i = 0; i < 10; i++) {
+      const part = yield* streamDentonInventory({
+        previousAcceptedCount: null,
+        startCursor: start,
+        readPage: short.read,
+        onBatch: () =>
+          Effect.sync(() => {
+            staged++;
+          }),
+        onYards: () =>
+          Effect.sync(() => {
+            staged++;
+          }),
+      });
+      start = part.cursor;
+      if (part.status === "complete") return part;
+    }
+    throw new Error("Test graph did not terminate");
+  });
+  const failed = await Effect.runPromise(Effect.either(run));
+  if (Either.isRight(failed)) throw new Error("Expected a closing failure");
+  expect(failed.left.message).toContain(
+    "Closing re-read of model page ACURA MDX0",
+  );
+  expect(staged).toBe(0);
+  expect(short.calls).toHaveLength(14);
+  expect(DentonCursor.parse(start, null)).toMatchObject({
+    ok: true,
+    value: { phase: "active" },
+  });
 }, 15_000);
 
 test("Denton does not return a terminal checkpoint when the final staging callback fails", async () => {

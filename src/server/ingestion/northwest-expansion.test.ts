@@ -225,8 +225,9 @@ test("Northwest replays all 36 makes and 334 models through its real client and 
     new Set(requested.filter((url) => saved.models.some((m) => m.url === url)))
       .size,
   ).toBe(334);
-  // Cold census: root, makes, 36 menus and 334 models; closing root and makes.
-  expect(requested.length).toBe(374);
+  // Cold census: root, makes, 36 menus and 334 models; closing root, makes
+  // and the six models whose cards differ from their badges.
+  expect(requested.length).toBe(380);
   expect(IngestionSourceFlags.resolve({})).toContain("northwest");
   expect(saved.census.result.addressMatches[0]?.coordinates).toEqual({
     x: NORTHWEST_YARD.lng,
