@@ -232,6 +232,16 @@ async function run(day: Day = {}) {
   expect(cursor.phase).toBe("complete");
   return { cursor, reads, vehicles, warnings, peakCursorBytes, checkpoints };
 }
+/** A tenant failure ends only that tenant: it publishes nothing this run and
+ * its earlier inventory stays published. */
+async function expectBlocked(day: Day, reason: string) {
+  const result = await run(day);
+  expect(result.vehicles).toEqual([]);
+  expect(result.cursor.completed).toEqual([
+    { code: tenant.code, blocked: expect.stringContaining(reason) },
+  ]);
+  return result;
+}
 const readModels = (result: Awaited<ReturnType<typeof run>>) =>
   result.reads.filter((url) =>
     models.some((m) => tenant.origin + m.model.path === url),
@@ -415,9 +425,10 @@ test("failed model carries its donors, persists a retry, and cannot reset the re
     now: start + 2 * 3600_000,
   });
   expect(readModels(retried)).toEqual([tenant.origin + path]);
-  await expect(
-    run({ previous: retried.cursor, fail: path, now: start + 7 * DAY }),
-  ).rejects.toThrow("offline repeated HTTP500");
+  await expectBlocked(
+    { previous: retried.cursor, fail: path, now: start + 7 * DAY },
+    "offline repeated HTTP500",
+  );
   const recovered = await run({ previous: failed.cursor, badge: path });
   expect(readModels(recovered)).toEqual([tenant.origin + path]);
 });
@@ -455,7 +466,7 @@ test("a failed model whose retry could not get a shared host turn defers the chu
     // The earlier evidence is too old to carry.
     { previous: baseline.cursor, fail: path, now: start + 8 * DAY },
   ]) {
-    await expect(run(day)).rejects.toThrow("offline repeated HTTP500");
+    await expectBlocked(day, "offline repeated HTTP500");
     const deferral = await run({ ...day, retryDeferred: true }).catch(
       (error: unknown) => error,
     );
@@ -465,7 +476,8 @@ test("a failed model whose retry could not get a shared host turn defers the chu
   }
 });
 test("first-census page failures and parse/structural drift never use a carry", async () => {
-  await expect(run({ fail: target().model.path })).rejects.toThrow(
+  await expectBlocked(
+    { fail: target().model.path },
     "offline repeated HTTP500",
   );
   const blocked = await run({
@@ -487,9 +499,10 @@ test("first-census page failures and parse/structural drift never use a carry", 
     (m) => models.filter((x) => x.make.path === m.make.path).length > 1,
   )?.make;
   if (!make) throw new Error("Missing multi-model captured menu");
-  await expect(
-    run({ previous: baseline.cursor, drift: make.path }),
-  ).rejects.toThrow("paths or labels changed");
+  await expectBlocked(
+    { previous: baseline.cursor, drift: make.path },
+    "paths or labels changed",
+  );
 });
 test("a disappeared control retires its donors only after closing confirms the graph", async () => {
   const removed = target();
@@ -531,12 +544,13 @@ test("carried donors still participate in full-snapshot admission and rejection 
     inquiries: [],
     destinations: [],
   };
-  await expect(
-    run({
+  await expectBlocked(
+    {
       previous: baseline.cursor,
       arrivals: Array.from({ length: 100 }, () => rejected),
-    }),
-  ).rejects.toThrow("admission");
+    },
+    "admission",
+  );
 });
 
 test("native arrival labels refresh a same-count model when its donor link uses another route", async () => {
@@ -588,13 +602,14 @@ test("an all-new arrivals window requires every model and cannot defer a failed 
     replacement.vins[0] ?? "",
   );
   expect(result.vehicles.map((v) => v.vin)).not.toContain(old.vins[0] ?? "");
-  await expect(
-    run({
+  await expectBlocked(
+    {
       previous: previous.cursor,
       arrivals: [replacement],
       fail: models[0]?.model.path,
-    }),
-  ).rejects.toThrow("offline repeated HTTP500");
+    },
+    "offline repeated HTTP500",
+  );
 });
 
 test("an oldest purchase date beyond the accepted run requires a full census even with known stocks", async () => {
@@ -669,9 +684,10 @@ test("late chunk retries share the run clock and reserve a full day for acceptan
   expect(readModels(result)).toHaveLength(7);
   expect(result.cursor.asOf).toBe(now);
   const reads: string[] = [];
-  await expect(
-    run({ previous: baseline.cursor, now, fail: target().model.path, reads }),
-  ).rejects.toThrow("offline repeated HTTP500");
+  await expectBlocked(
+    { previous: baseline.cursor, now, fail: target().model.path, reads },
+    "offline repeated HTTP500",
+  );
 });
 
 test("model deferrals checkpoint individually and a second distinct failure stops the tenant", async () => {
@@ -685,15 +701,16 @@ test("model deferrals checkpoint individually and a second distinct failure stop
   expect(deferred?.pages).toBe(1);
   const failures = models.slice(0, 3).map((m) => m.model.path);
   const reads: string[] = [];
-  await expect(
-    run({
+  await expectBlocked(
+    {
       previous: baseline.cursor,
       now: start + DAY,
       fail: failures,
       reads,
       maxPages: 3,
-    }),
-  ).rejects.toThrow("distinct model pages");
+    },
+    "distinct model pages",
+  );
   expect(
     reads.filter((url) => failures.includes(new URL(url).pathname)),
   ).toHaveLength(2);

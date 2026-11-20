@@ -22,7 +22,11 @@ import { Effect, Either, Option } from "effect";
 import type { Yard } from "~/lib/yard";
 import type { CanonicalVehicle } from "./types";
 import type { ConnectorChunkAccounting } from "./connector-chunk";
-import { UrgiisCursor, URGIIS_MAX_REQUESTS } from "./urgiis-cursor";
+import {
+  UrgiisCursor,
+  URGIIS_MAX_REQUESTS,
+  URGIIS_PAGE_ATTEMPTS,
+} from "./urgiis-cursor";
 import { URGIIS_TENANTS } from "./urgiis-configuration";
 import {
   urgiisTasks,
@@ -32,6 +36,7 @@ import {
 } from "./urgiis-traversal";
 import {
   iisCards,
+  iisDeclaresSupplier,
   iisDirectory,
   iisDocument,
   iisValidateModelPage,
@@ -215,6 +220,32 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
         return yield* Effect.fail(
           urgiisError("next tenant", "Qualified tenant is missing"),
         );
+      // A tenant's failure ends only that tenant: it emits nothing and its
+      // previous inventory stays published, outside this run's floors and
+      // baselines. `bytes` is the failed request's body, or null for none.
+      const blockTenant = (reason: string, bytes: number | null) =>
+        boundary("blocked tenant checkpoint", () =>
+          UrgiisCursor.nextTenant(
+            bytes === null
+              ? cursor
+              : {
+                  ...cursor,
+                  requests: cursor.requests + 1,
+                  bytes: cursor.bytes + bytes,
+                },
+            { code: tenant.code, blocked: reason },
+            tenants,
+            urgiisFingerprint(census),
+          ),
+        ).pipe(
+          Effect.map((next) => {
+            cursor = next;
+            unsealed = false;
+            result.checkpointState = census;
+            if (bytes !== null) result.pagesProcessed++;
+            result.warnings.push(`${tenant.code}: ${reason}`);
+          }),
+        );
       const tasks = urgiisTasks(cursor.entries, tenant);
       const previousTenant =
         cursor.runKind === "cold"
@@ -245,13 +276,7 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
         if (coverage.count)
           result.warnings.push(`${tenant.code}: ${coverage.message}.`);
         if (coverage.blocked) {
-          cursor = UrgiisCursor.nextTenant(
-            cursor,
-            { code: tenant.code, blocked: coverage.message },
-            tenants,
-            urgiisFingerprint(census),
-          );
-          result.checkpointState = census;
+          yield* blockTenant(coverage.message, null);
           break;
         }
         const pages: UrgiisModelPage[] = [];
@@ -295,16 +320,7 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
           return snapshot;
         }).pipe(Effect.either);
         if (assessed._tag === "Left") {
-          if (assessed.left.kind !== "identity")
-            return yield* Effect.fail(assessed.left);
-          cursor = UrgiisCursor.nextTenant(
-            cursor,
-            { code: tenant.code, blocked: assessed.left.message },
-            tenants,
-            urgiisFingerprint(census),
-          );
-          result.checkpointState = census;
-          result.warnings.push(`${tenant.code}: ${assessed.left.message}`);
+          yield* blockTenant(assessed.left.message, null);
           break;
         }
         const snapshot = assessed.right;
@@ -375,6 +391,33 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
             "next task",
             "Contiguous native frontier has no next task",
           ),
+        );
+      const attempt =
+        (cursor.failedReads?.url === task.url
+          ? cursor.failedReads.attempts
+          : 0) + 1;
+      // Read the same frontier page again in the next chunk, before giving up
+      // on the tenant. Nothing from the failed read is kept.
+      const readAgain = (failure: string, bytes: number) =>
+        boundary("failed read checkpoint", () =>
+          UrgiisCursor.checkpoint(
+            {
+              ...cursor,
+              requests: cursor.requests + 1,
+              bytes: cursor.bytes + bytes,
+              failedReads: { url: task.url, attempts: attempt },
+            },
+            tenants,
+          ),
+        ).pipe(
+          Effect.map((next) => {
+            cursor = next;
+            unsealed = false;
+            result.pagesProcessed++;
+            result.warnings.push(
+              `${tenant.code}: ${failure} Reading ${task.url} again in the next chunk (attempt ${attempt + 1} of ${URGIIS_PAGE_ATTEMPTS}).`,
+            );
+          }),
         );
       const carried =
         cursor.phase === "opening" && !retrying
@@ -458,26 +501,30 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
             };
           }
         }
-        if (
-          response.left.kind === "blocked" ||
-          (task.kind === "model" && alreadyDeferred)
-        )
-          return {
-            ...result,
-            cursor,
-            status: "failed" as const,
-            pagesProcessed: result.pagesProcessed + 1,
-            errors: [
-              response.left.kind === "blocked"
-                ? response.left.message
-                : `${tenant.code}: requests failed on distinct model pages; stopping the tenant crawl. ${response.left.message}`,
-            ],
-          };
+        if (response.left.kind === "blocked") {
+          yield* blockTenant(response.left.message, 0);
+          break;
+        }
+        if (task.kind === "model" && alreadyDeferred) {
+          yield* blockTenant(
+            `requests failed on distinct model pages; stopping the tenant crawl. ${response.left.message}`,
+            0,
+          );
+          break;
+        }
         const deferred =
           cursor.phase === "opening"
             ? urgiisDefer(task, cursor.entries, previousTenant, failedAt)
             : undefined;
-        if (!deferred) return yield* Effect.fail(response.left);
+        if (!deferred) {
+          yield* attempt < URGIIS_PAGE_ATTEMPTS
+            ? readAgain(response.left.message, 0)
+            : blockTenant(
+                `${task.url} failed in ${attempt} separate chunks. ${response.left.message}`,
+                0,
+              );
+          break;
+        }
         const entries = retrying
           ? cursor.entries.map((e, i) => (i === pendingIndex ? deferred : e))
           : [...cursor.entries, deferred];
@@ -488,6 +535,7 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
               entries,
               asOf: failedAt,
               requests: cursor.requests + 1,
+              failedReads: undefined,
               phase:
                 entries.length === urgiisTasks(entries, tenant).length &&
                 !entries.some(
@@ -508,6 +556,16 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
         break;
       }
       const raw = response.right;
+      if (!iisDeclaresSupplier(raw, tenant) && attempt < URGIIS_PAGE_ATTEMPTS) {
+        // Production saw one such page each at Linder's and Chuckran; both
+        // declared their supplier on the next read. A page that still declares
+        // none on the last attempt fails the supplier check below.
+        yield* readAgain(
+          "The page declares no supplier (var urgid), so it cannot be attributed.",
+          Buffer.byteLength(raw),
+        );
+        break;
+      }
       const readAt = now;
       // Closing can schedule this retry even when the opening badge was one.
       const parsed = yield* boundary("parse " + task.url, () =>
@@ -527,31 +585,8 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
         ),
       ).pipe(Effect.either);
       if (parsed._tag === "Left") {
-        if (parsed.left.kind === "identity") {
-          cursor = UrgiisCursor.nextTenant(
-            {
-              ...cursor,
-              requests: cursor.requests + 1,
-              bytes: cursor.bytes + Buffer.byteLength(raw),
-            },
-            { code: tenant.code, blocked: parsed.left.message },
-            tenants,
-            urgiisFingerprint(census),
-          );
-          result.checkpointState = census;
-          result.pagesProcessed++;
-          result.warnings.push(`${tenant.code}: ${parsed.left.message}`);
-          break;
-        }
-        if (cursor.phase !== "closing") return yield* Effect.fail(parsed.left);
-        return {
-          ...result,
-          cursor,
-          status: "failed" as const,
-          failureKind: "validation" as const,
-          pagesProcessed: result.pagesProcessed + 1,
-          errors: [parsed.left.message],
-        };
+        yield* blockTenant(parsed.left.message, Buffer.byteLength(raw));
+        break;
       }
       let entry = parsed.right;
       if (
@@ -564,21 +599,10 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
           (e) => e.kind === "model" && e.freshness.kind === "deferred",
         );
         if (!deferred || alreadyDeferred) {
-          const reason = `${task.url} still returns an explicit empty result after a later retry; no eligible prior model evidence can be carried. Prior tenant inventory is preserved.`;
-          const counted = {
-            ...cursor,
-            requests: cursor.requests + 1,
-            bytes: cursor.bytes + Buffer.byteLength(raw),
-          };
-          cursor = UrgiisCursor.nextTenant(
-            counted,
-            { code: tenant.code, blocked: reason },
-            tenants,
-            urgiisFingerprint(census),
+          yield* blockTenant(
+            `${task.url} still returns an explicit empty result after a later retry; no eligible prior model evidence can be carried. Prior tenant inventory is preserved.`,
+            Buffer.byteLength(raw),
           );
-          result.checkpointState = census;
-          result.pagesProcessed++;
-          result.warnings.push(`${tenant.code}: ${reason}`);
           break;
         }
         entry = deferred;
@@ -590,6 +614,7 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
       const state = cursor;
       const base = {
         ...state,
+        failedReads: undefined,
         asOf: readAt,
         requests: state.requests + 1,
         bytes: state.bytes + Buffer.byteLength(raw),
@@ -604,22 +629,18 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
           state.entries,
           state.badgeDrift ?? { makes: 0, models: 0 },
         );
-        // Frozen opening evidence cannot be repaired by rereading closing pages.
-        // A failed result ends the durable source without workflow step retries.
-        if (closing.kind === "drift")
-          return {
-            ...result,
-            cursor,
-            status: "failed" as const,
-            failureKind: "validation" as const,
-            pagesProcessed: result.pagesProcessed + 1,
-            errors: [
-              urgiisError(
-                "closing graph drift",
-                `${tenant.code}: ${closing.message}; inspect the captures and restart this run`,
-              ).message,
-            ],
-          };
+        // Frozen opening evidence cannot be repaired by rereading closing pages,
+        // so drift blocks this tenant at once.
+        if (closing.kind === "drift") {
+          yield* blockTenant(
+            urgiisError(
+              "closing graph drift",
+              `${closing.message}; inspect the captures before tomorrow's fresh tenant crawl`,
+            ).message,
+            Buffer.byteLength(raw),
+          );
+          break;
+        }
         if (closing.kind === "retry") {
           const paths = new Set(
             closing.models.map((model) => tenant.origin + model.path),

@@ -15,6 +15,8 @@ import {
 
 export const URGIIS_MAX_CURSOR_BYTES = 16 * 1024 * 1024;
 export const URGIIS_MAX_REQUESTS = 30_000;
+/** Reads of one page, in separate chunks, before its failure blocks the tenant. */
+export const URGIIS_PAGE_ATTEMPTS = 3;
 const base = {
   source: z.literal("urgiis"),
   version: z.literal(2),
@@ -51,6 +53,18 @@ const working = {
   // Older v1 checkpoints required exact badge equality, so omitted drift is zero.
   badgeDrift: UrgiisBadgeDriftSchema.optional(),
   closingModels: z.array(UrgiisControlSchema).max(10000).optional(),
+  // The frontier page's failed reads so far; the next chunk reads it again.
+  failedReads: z
+    .object({
+      url: z.string().max(2000),
+      attempts: z
+        .number()
+        .int()
+        .min(1)
+        .max(URGIIS_PAGE_ATTEMPTS - 1),
+    })
+    .strict()
+    .optional(),
 };
 const schema = z.discriminatedUnion("phase", [
   z.object({ ...working, phase: z.literal("opening") }).strict(),

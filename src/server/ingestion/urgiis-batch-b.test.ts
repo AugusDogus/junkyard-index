@@ -235,22 +235,22 @@ for (const tenant of rejectedTenants) {
               }),
           }).pipe(Effect.either),
         );
-        if (result._tag === "Left") {
-          // Shared host and chunk clock failures carry no URG operation.
-          if (!("operation" in result.left)) throw result.left;
-          expect(result.left.operation).toBe("snapshot " + tenant.code);
-          expect(result.left.message).toContain("failed admission");
-          expect(
-            archive.expected.recordsRejected /
-              (archive.expected.recordsProcessed -
-                archive.expected.recordsExcluded),
-          ).toBeGreaterThan(0.1);
-          expect(reads).toBe(archive.responseCount);
-          expect(published).toBe(false);
-          return;
-        }
+        if (result._tag === "Left") throw result.left;
         if (result.right.cursor.completed.some((c) => "blocked" in c)) {
           expect(published).toBe(false);
+          const done = result.right.cursor.completed[0];
+          const reason = done && "blocked" in done ? done.blocked : "";
+          // A failed admission blocks only this tenant's publication.
+          if (reason.includes("failed admission")) {
+            expect(reason).toContain("snapshot " + tenant.code);
+            expect(
+              archive.expected.recordsRejected /
+                (archive.expected.recordsProcessed -
+                  archive.expected.recordsExcluded),
+            ).toBeGreaterThan(0.1);
+            expect(reads).toBe(archive.responseCount);
+            return;
+          }
           expect(result.right.cursor.completed[0]).toMatchObject({
             blocked: expect.stringContaining(
               "still returns an explicit empty result",

@@ -43,16 +43,9 @@ export function iisBrowsePath(raw: string, depth: number, site: UrgiisSite) {
       : url.pathname
     : null;
 }
-export function iisDocument(raw: string, site: UrgiisSite) {
-  const html = stripInventoryRawText(raw);
-  if (
-    Buffer.byteLength(raw) > 4 * 1024 * 1024 ||
-    [/<html\b/gi, /<body\b/gi, /<\/body\s*>/gi, /<\/html\s*>/gi].some(
-      (p) => [...html.matchAll(p)].length !== 1,
-    ) ||
-    !/<\/body\s*>\s*<\/html\s*>\s*$/i.test(html)
-  )
-    throw new Error("IIS document is oversized or truncated");
+/** The supplier a native page declares in the plugin's head config, either
+ * inline or (Lake Point) in a verified bundle. */
+function supplierDeclaration(raw: string, site: UrgiisSite) {
   const ids = [...raw.matchAll(/\bvar\s+urgid\s*=\s*(['"])(.*?)\1\s*;/g)].map(
     (m) => m[2],
   );
@@ -81,6 +74,26 @@ export function iisDocument(raw: string, site: UrgiisSite) {
           hash +
           '.js?ver=9a323">',
     );
+  return { ids, knownSupplierBundle };
+}
+/** False for a page with no supplier declaration at all. Production saw
+ * single such pages at Linder's and Chuckran that declared their supplier on
+ * the next read, so the connector rereads them before blocking the tenant. */
+export function iisDeclaresSupplier(raw: string, site: UrgiisSite) {
+  const { ids, knownSupplierBundle } = supplierDeclaration(raw, site);
+  return ids.length > 0 || knownSupplierBundle;
+}
+export function iisDocument(raw: string, site: UrgiisSite) {
+  const html = stripInventoryRawText(raw);
+  if (
+    Buffer.byteLength(raw) > 4 * 1024 * 1024 ||
+    [/<html\b/gi, /<body\b/gi, /<\/body\s*>/gi, /<\/html\s*>/gi].some(
+      (p) => [...html.matchAll(p)].length !== 1,
+    ) ||
+    !/<\/body\s*>\s*<\/html\s*>\s*$/i.test(html)
+  )
+    throw new Error("IIS document is oversized or truncated");
+  const { ids, knownSupplierBundle } = supplierDeclaration(raw, site);
   if (
     (!ids.length && !knownSupplierBundle) ||
     ids.some((id) => id !== site.urgid)

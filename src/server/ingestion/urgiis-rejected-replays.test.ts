@@ -161,24 +161,19 @@ for (const candidate of cases) {
                 }),
             }).pipe(Effect.either),
           );
-          if (outcome._tag === "Left") {
-            // Shared host and chunk clock failures carry no URG operation.
-            if (!("operation" in outcome.left)) throw outcome.left;
-            expect(outcome.left.operation).toBe("snapshot " + tenant.code);
-            expect(outcome.left.message).toContain(
-              placeholderStocks.length
-                ? candidate.optimisticRejection
-                : candidate.rejection,
-            );
-            rejected = true;
-            break;
-          }
+          if (outcome._tag === "Left") throw outcome.left;
           expect(outcome.right.status).not.toBe("failed");
           cursor = outcome.right.cursor;
-          if (cursor.completed.some((c) => "blocked" in c)) {
-            expect(cursor.completed[0]).toMatchObject({
-              blocked: expect.stringContaining("maximum is 1%"),
-            });
+          const done = cursor.completed[0];
+          if (done && "blocked" in done) {
+            // Coverage and admission failures each block only this tenant.
+            const admission = placeholderStocks.length
+              ? candidate.optimisticRejection
+              : candidate.rejection;
+            if (!done.blocked.includes("maximum is 1%")) {
+              expect(done.blocked).toContain("snapshot " + tenant.code);
+              expect(done.blocked).toContain(admission);
+            }
             rejected = true;
           }
         }

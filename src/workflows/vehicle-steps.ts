@@ -49,6 +49,7 @@ import { IngestionTokens } from "./ingestion-tokens";
 import {
   recordDurableRunFailure,
   recordDurableSourceRejections,
+  recordUrgiisBlockedTenant,
 } from "./vehicle-observability";
 
 function formatError(error: unknown): string {
@@ -299,6 +300,11 @@ export async function runDurableSourceChunkStep<
     });
     return { ...result, cursor };
   }
+  recordUrgiisBlockedTenant({
+    runId,
+    before: requestedCursor,
+    after: result.cursor,
+  });
   console.info("[Workflow] Completed source chunk", {
     source: result.cursor.source,
     status: result.status,
