@@ -176,6 +176,13 @@
       "when": 1795363200000,
       "tag": "0024_consumer_checkpoint",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1795449600000,
+      "tag": "0025_search_projector",
+      "breakpoints": true
     }
   ]
 }

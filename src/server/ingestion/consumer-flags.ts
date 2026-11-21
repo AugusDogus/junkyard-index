@@ -7,7 +7,8 @@ import { flagsClient, Reason, type EvaluationResult } from "@vercel/flags-core";
 export type DownstreamConsumer =
   | "inventory-downstream"
   | "maintenance"
-  | "notification-delivery";
+  | "notification-delivery"
+  | "search-projector";
 
 export type ConsumerMode = "enabled" | "paused";
 

@@ -24,6 +24,12 @@ export async function reportConsumerTick(params: {
   summary: ConsumerTickSummary;
   heartbeats: ConsumerHeartbeats;
   production: boolean;
+  /**
+   * Whether a failed tick raises a Sentry issue. False for a failure the
+   * consumer already reported, such as each tick of an open circuit after
+   * the one that opened it; the heartbeat still fails.
+   */
+  notify?: boolean;
   sentry?: {
     info(message: string, attributes: Record<string, unknown>): void;
     captureMessage: typeof Sentry.captureMessage;
@@ -42,7 +48,7 @@ export async function reportConsumerTick(params: {
   };
   try {
     sentry.info(`Downstream consumer ${params.consumer} tick`, attributes);
-    if (params.outcome === "failed") {
+    if (params.outcome === "failed" && params.notify !== false) {
       // A consumer that backs off after failures reports when it retries.
       const retryAt = params.summary.retryAt;
       sentry.captureMessage(

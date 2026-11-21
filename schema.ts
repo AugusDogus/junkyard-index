@@ -757,6 +757,63 @@ export const ingestionProjectorCheckpoint = sqliteTable(
   },
 );
 
+/**
+ * Generations of the search index, built by the search projector from the
+ * `vehicle` table into a temporary index and moved over the live one. Each
+ * environment (deployment) has at most one in-flight generation and one live
+ * generation. See SearchIndexGeneration for the lifecycle.
+ */
+export const searchIndexGeneration = sqliteTable(
+  "search_index_generation",
+  {
+    id: text("id").primaryKey(),
+    environment: text("environment").notNull(),
+    indexName: text("index_name").notNull(),
+    // "requested" | "loading" | "moving" | "live" | "superseded" | "discarded"
+    status: text("status").notNull(),
+    reason: text("reason").notNull(), // "bootstrap" | "operator" | "drift"
+    tempIndexName: text("temp_index_name"),
+    // The outbox horizon when loading began; replay starts after it.
+    snapshotChangeId: integer("snapshot_change_id"),
+    vinCursor: text("vin_cursor"),
+    recordsLoaded: integer("records_loaded").default(0).notNull(),
+    moveTaskId: integer("move_task_id"),
+    requestedAt: integer("requested_at", { mode: "timestamp_ms" }).notNull(),
+    startedAt: integer("started_at", { mode: "timestamp_ms" }),
+    liveAt: integer("live_at", { mode: "timestamp_ms" }),
+    endedAt: integer("ended_at", { mode: "timestamp_ms" }),
+    tempIndexDeletedAt: integer("temp_index_deleted_at", {
+      mode: "timestamp_ms",
+    }),
+    lastError: text("last_error"),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("search_index_generation_active_idx")
+      .on(table.environment)
+      .where(sql`status in ('requested', 'loading', 'moving')`),
+    uniqueIndex("search_index_generation_live_idx")
+      .on(table.environment)
+      .where(sql`status = 'live'`),
+  ],
+);
+
+/** Outbox changes the search backend or the projection rejected. */
+export const searchDeadLetter = sqliteTable(
+  "search_dead_letter",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    changeId: integer("change_id").notNull(),
+    vin: text("vin").notNull(),
+    environment: text("environment").notNull(),
+    indexName: text("index_name").notNull(),
+    errorTag: text("error_tag").notNull(),
+    detail: text("detail").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [index("search_dead_letter_vin_idx").on(table.vin)],
+);
+
 /** Cached yard geolocation verified against the yard's own AutoRecycler records. */
 export const autorecyclerOrgGeo = sqliteTable(
   "autorecycler_org_geo",

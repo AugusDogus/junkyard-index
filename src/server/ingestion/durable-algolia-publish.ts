@@ -20,7 +20,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function indexGeneration(userData: unknown): string | null {
+/** The generation marker a rebuild stamped in an index's userData. */
+export function readIndexGeneration(userData: unknown): string | null {
   if (!isRecord(userData)) return null;
   const generation = userData[INDEX_GENERATION_KEY];
   return typeof generation === "string" ? generation : null;
@@ -99,7 +100,7 @@ export async function publishFullReindexForRun(params: {
   const liveSettings = await params.algolia.getSettings({
     indexName: params.indexName,
   });
-  if (indexGeneration(liveSettings.userData) !== params.runId) {
+  if (readIndexGeneration(liveSettings.userData) !== params.runId) {
     let taskId = run.moveTaskId;
     if (taskId === null) {
       if (run.stage === "full_reindex_publish") {
@@ -192,7 +193,7 @@ export async function publishFullReindexForRun(params: {
     const publishedSettings = await params.algolia.getSettings({
       indexName: params.indexName,
     });
-    if (indexGeneration(publishedSettings.userData) !== params.runId) {
+    if (readIndexGeneration(publishedSettings.userData) !== params.runId) {
       throw new Error(
         `Algolia rebuild ${params.runId} completed without publishing its generation marker.`,
       );

@@ -1,4 +1,5 @@
 import { createHook, sleep } from "workflow";
+import { IngestionTokens } from "./ingestion-tokens";
 import {
   finalizeSearchIndexMigrationStep,
   initializeSearchIndexMigrationStep,
@@ -6,7 +7,6 @@ import {
 } from "./vehicle-steps";
 
 const MIGRATION_RUN_TOKEN = "search-index-schema-migration";
-const ALGOLIA_WRITES_TOKEN = "algolia-writes";
 const LOCK_RETRY_DELAY = "30s";
 
 export async function searchIndexMigrationWorkflow() {
@@ -22,11 +22,21 @@ export async function searchIndexMigrationWorkflow() {
   }
 
   while (true) {
-    using algoliaWrites = createHook({ token: ALGOLIA_WRITES_TOKEN });
+    using algoliaWrites = createHook({ token: IngestionTokens.algoliaWrites });
     const activeWriter = await algoliaWrites.getConflict();
     if (activeWriter) {
       console.info(
         `[Workflow] Waiting for Algolia writer ${activeWriter.runId}`,
+      );
+      await sleep(LOCK_RETRY_DELAY);
+      continue;
+    }
+    // The search projector writes the same index; wait for it to finish.
+    using projector = createHook({ token: IngestionTokens.searchProjector });
+    const activeProjector = await projector.getConflict();
+    if (activeProjector) {
+      console.info(
+        `[Workflow] Waiting for the search projector ${activeProjector.runId}`,
       );
       await sleep(LOCK_RETRY_DELAY);
       continue;

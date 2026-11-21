@@ -50,9 +50,10 @@ import {
 } from "./vehicle-steps";
 import { IngestionTokens } from "./ingestion-tokens";
 import { vehicleNotificationDeliveryWorkflow } from "./downstream-consumers";
+import { searchProjectorWorkflow } from "./search-projector";
+import { PublicationModeFlag } from "~/server/ingestion/publication-mode-flag";
 import { withAlgoliaWriterLock } from "~/server/ingestion/algolia-writer-lock";
 
-const ALGOLIA_WRITES_TOKEN = "algolia-writes";
 const LOCK_RETRY_DELAY = "30s";
 // Fallbacks for signals that never arrive, such as a workflow that died.
 // Each commit claim attempt also keeps a waiter live in the commit queue,
@@ -126,6 +127,27 @@ async function startNotificationDeliveryStep() {
   }
 }
 startNotificationDeliveryStep.maxRetries = 2;
+
+/**
+ * Starts the search projector once a decoupled run has published to Turso,
+ * so search catches up without waiting for its cron. A projector already
+ * running deduplicates. Best effort: the run already published, and the
+ * cron starts the projector within 10 minutes if this fails.
+ */
+async function kickSearchProjectorStep() {
+  "use step";
+
+  try {
+    if ((await PublicationModeFlag.mode()) === "decoupled") {
+      await start(searchProjectorWorkflow);
+    }
+  } catch (error) {
+    console.warn(
+      `[Workflow] Could not start the search projector after a decoupled run; its cron starts it within 10 minutes: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+kickSearchProjectorStep.maxRetries = 0;
 
 /**
  * One ingestion day. The hourly cron starts it; a pass already running
@@ -267,6 +289,7 @@ async function runSourceIngestion(runId: string) {
     // Algolia.
     if (ingestionResult.search === "skipped") {
       await reportProviderStatusStep(runId);
+      await kickSearchProjectorStep();
       await drainDurableCleanup(() =>
         cleanupDurableIngestionStateBatchStep(runId),
       );
@@ -281,7 +304,7 @@ async function runSourceIngestion(runId: string) {
       runId,
       project: () =>
         withAlgoliaWriterLock({
-          acquire: () => createHook({ token: ALGOLIA_WRITES_TOKEN }),
+          acquire: () => createHook({ token: IngestionTokens.algoliaWrites }),
           waitForWriter: async (activeRunId) => {
             console.info(
               `[Workflow] Waiting for Algolia writer ${activeRunId}`,

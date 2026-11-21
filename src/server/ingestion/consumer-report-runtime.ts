@@ -25,8 +25,10 @@ export function reportConsumerTickNow(
   consumer: DownstreamConsumer,
   outcome: ConsumerTickOutcome,
   summary: ConsumerTickSummary,
+  options?: { notify?: boolean },
 ): Promise<void> {
   return reportConsumerTick({
+    notify: options?.notify,
     consumer,
     outcome,
     summary,

@@ -64,7 +64,8 @@ function hasWaitForTask(value: unknown): value is WaitForTaskClient {
   return isRecord(value) && typeof value.waitForTask === "function";
 }
 
-function waitForTaskEffect(
+/** Waits until Algolia has applied a task. */
+export function waitForAlgoliaTask(
   taskID: number,
   indexName: string,
 ): Effect.Effect<void, AlgoliaError> {
@@ -131,7 +132,7 @@ function waitForFinalTask(
     yield* Effect.logInfo(
       `[Algolia] Waiting for final indexing task ${finalTaskId}...`,
     );
-    yield* waitForTaskEffect(finalTaskId, indexName);
+    yield* waitForAlgoliaTask(finalTaskId, indexName);
   });
 }
 

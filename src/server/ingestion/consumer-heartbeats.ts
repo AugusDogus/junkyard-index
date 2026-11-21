@@ -8,6 +8,7 @@ const HeartbeatsSchema = z
     "inventory-downstream": z.string().url(),
     maintenance: z.string().url(),
     "notification-delivery": z.string().url(),
+    "search-projector": z.string().url(),
   } satisfies Record<DownstreamConsumer, z.ZodString>)
   .partial()
   .strict();
@@ -39,13 +40,13 @@ export const ConsumerHeartbeats = {
       value = JSON.parse(json);
     } catch (error) {
       throw new Error(
-        `BETTERSTACK_CONSUMER_HEARTBEATS is not valid JSON (${error instanceof Error ? error.message : String(error)}). Set it to an object of consumer name (inventory-downstream, maintenance, notification-delivery) to heartbeat URL.`,
+        `BETTERSTACK_CONSUMER_HEARTBEATS is not valid JSON (${error instanceof Error ? error.message : String(error)}). Set it to an object of consumer name (inventory-downstream, maintenance, notification-delivery, search-projector) to heartbeat URL.`,
       );
     }
     const parsed = HeartbeatsSchema.safeParse(value);
     if (!parsed.success) {
       throw new Error(
-        `BETTERSTACK_CONSUMER_HEARTBEATS must map consumer names (inventory-downstream, maintenance, notification-delivery) to heartbeat URLs: ${parsed.error.message}`,
+        `BETTERSTACK_CONSUMER_HEARTBEATS must map consumer names (inventory-downstream, maintenance, notification-delivery, search-projector) to heartbeat URLs: ${parsed.error.message}`,
       );
     }
     return parsed.data;
