@@ -4,11 +4,15 @@ import {
   type HtpSupplier,
   htpCatalogUrl,
   htpStoreUrl,
+  htpYearUrl,
 } from "./heavytruckparts-yard-metadata";
 import {
   htpPageSchema,
   htpRoster,
+  htpYearPageSchema,
+  htpYearPlan,
   type HtpPage,
+  type HtpYearPage,
 } from "./heavytruckparts-census";
 
 export const HTP_MAX_CURSOR_BYTES = 8 * 1024 * 1024;
@@ -19,13 +23,14 @@ function hash(value: unknown): string {
     result = Math.imul(result ^ char.charCodeAt(0), 16777619);
   return (result >>> 0).toString(16).padStart(8, "0");
 }
-const scope = hash([HTP_SUPPLIERS, "salvage-only-dual-sort-v1"]);
+const scope = hash([HTP_SUPPLIERS, "salvage-only-dual-sort-year-fill-v2"]);
 const totalSchema = z.number().int().min(1).max(2000);
 const censusSchema = z
   .object({
     code: z.string(),
     total: totalSchema,
     pages: z.array(z.unknown()).max(160),
+    fills: z.array(z.unknown()).max(160),
   })
   .strict();
 const common = {
@@ -55,23 +60,45 @@ const schema = z.discriminatedUnion("phase", [
   z
     .object({
       ...common,
+      phase: z.literal("year-fill"),
+      total: totalSchema,
+      pages: z.array(z.unknown()).max(160),
+      fills: z.array(z.unknown()).max(160),
+    })
+    .strict(),
+  z
+    .object({
+      ...common,
       phase: z.literal("store-closing"),
       total: totalSchema,
       pages: z.array(z.unknown()).max(160),
+      fills: z.array(z.unknown()).max(160),
     })
     .strict(),
   z.object({ ...common, phase: z.literal("ready") }).strict(),
   z.object({ ...common, phase: z.literal("complete") }).strict(),
 ]);
-export type HtpCensus = { code: string; total: number; pages: HtpPage[] };
+export type HtpCensus = {
+  code: string;
+  total: number;
+  pages: HtpPage[];
+  fills: HtpYearPage[];
+};
 // Keep the discriminated union explicit when replacing boundary-unknown pages.
 type Parsed =
   | (Omit<
-      Extract<z.infer<typeof schema>, { phase: "catalog" | "store-closing" }>,
+      Extract<z.infer<typeof schema>, { phase: "catalog" }>,
       "completed" | "pages"
     > & { completed: HtpCensus[]; pages: HtpPage[] })
   | (Omit<
-      Exclude<z.infer<typeof schema>, { phase: "catalog" | "store-closing" }>,
+      Extract<z.infer<typeof schema>, { phase: "year-fill" | "store-closing" }>,
+      "completed" | "pages" | "fills"
+    > & { completed: HtpCensus[]; pages: HtpPage[]; fills: HtpYearPage[] })
+  | (Omit<
+      Exclude<
+        z.infer<typeof schema>,
+        { phase: "catalog" | "year-fill" | "store-closing" }
+      >,
       "completed"
     > & { completed: HtpCensus[] });
 export type HtpCursor = Parsed & { checksum: string };
@@ -90,11 +117,19 @@ export function htpNextPage(pages: readonly HtpPage[], total: number) {
       }
     : null;
 }
+/** The next single-year fill once both year orders are complete. */
+export function htpNextFill(
+  s: HtpSupplier,
+  pages: readonly HtpPage[],
+  fills: readonly HtpYearPage[],
+  total: number,
+) {
+  return htpYearPlan(s, pages, total)[fills.length] ?? null;
+}
 function parsePages(
   raw: readonly unknown[],
   s: HtpSupplier,
   total: number,
-  complete: boolean,
 ): HtpPage[] {
   const pages = raw.map((p) => htpPageSchema(s).parse(p));
   const last = Math.ceil(total / 25);
@@ -108,8 +143,28 @@ function parsePages(
     )
   )
     throw new Error(`HTP ${s.code} checkpoint lost its exact page frontier`);
-  if (complete) htpRoster(s, pages, total);
   return pages;
+}
+function parseFills(
+  raw: readonly unknown[],
+  s: HtpSupplier,
+  pages: readonly HtpPage[],
+  total: number,
+  complete: boolean,
+): HtpYearPage[] {
+  const fills = raw.map((p) => htpYearPageSchema(s).parse(p));
+  const plan = htpYearPlan(s, pages, total);
+  if (
+    fills.length > plan.length ||
+    fills.some(
+      (f, i) => f.year !== plan[i]?.year || f.direction !== plan[i]?.direction,
+    )
+  )
+    throw new Error(
+      `HTP ${s.code} checkpoint lost its exact year-fill frontier`,
+    );
+  if (complete) htpRoster(s, pages, fills, total);
+  return fills;
 }
 function checkpoint(input: unknown): HtpCursor {
   const state = schema.parse(input);
@@ -117,21 +172,41 @@ function checkpoint(input: unknown): HtpCursor {
     const s = supplier(i);
     if (c.code !== s.code)
       throw new Error("HTP checkpoint changed supplier order");
-    return { ...c, pages: parsePages(c.pages, s, c.total, true) };
+    const pages = parsePages(c.pages, s, c.total);
+    return { ...c, pages, fills: parseFills(c.fills, s, pages, c.total, true) };
   });
   let parsed: Parsed,
-    requests = completed.reduce((sum, c) => sum + 2 + c.pages.length, 0);
-  if (state.phase === "catalog" || state.phase === "store-closing") {
+    requests = completed.reduce(
+      (sum, c) => sum + 2 + c.pages.length + c.fills.length,
+      0,
+    );
+  if (state.phase === "catalog") {
     const pages = parsePages(
       state.pages,
       supplier(completed.length),
       state.total,
-      state.phase === "store-closing",
     );
-    if (state.phase === "catalog" && !htpNextPage(pages, state.total))
+    if (!htpNextPage(pages, state.total))
       throw new Error("HTP catalog frontier is already exhausted");
     parsed = { ...state, completed, pages };
     requests += 1 + pages.length;
+  } else if (state.phase === "year-fill" || state.phase === "store-closing") {
+    const s = supplier(completed.length);
+    const pages = parsePages(state.pages, s, state.total);
+    const fills = parseFills(
+      state.fills,
+      s,
+      pages,
+      state.total,
+      state.phase === "store-closing",
+    );
+    if (
+      state.phase === "year-fill" &&
+      !htpNextFill(s, pages, fills, state.total)
+    )
+      throw new Error("HTP year-fill frontier is already exhausted");
+    parsed = { ...state, completed, pages, fills };
+    requests += 1 + pages.length + fills.length;
   } else {
     parsed = { ...state, completed };
     if (
@@ -195,6 +270,11 @@ export const HeavytruckpartsCursor = {
       const next = htpNextPage(cursor.pages, cursor.total);
       if (!next) throw new Error("HTP catalog frontier exhausted");
       return htpCatalogUrl(s, next.direction, next.page);
+    }
+    if (cursor.phase === "year-fill") {
+      const next = htpNextFill(s, cursor.pages, cursor.fills, cursor.total);
+      if (!next) throw new Error("HTP year-fill frontier exhausted");
+      return htpYearUrl(s, next.year, next.direction, 1);
     }
     if (cursor.phase === "store-opening" || cursor.phase === "store-closing")
       return htpStoreUrl(s);

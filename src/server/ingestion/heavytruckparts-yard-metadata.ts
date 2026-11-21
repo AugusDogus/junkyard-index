@@ -208,3 +208,16 @@ export function htpCatalogUrl(
     throw new Error("HTP catalog page must be from 1 through 80");
   return `${HTP_ORIGIN}/search/Any/Any/Complete-Vehicle?fltpc=${s.supplier}&store=${s.store}&SortBy=year${direction === "ASC" ? "&Order=asc" : ""}${page > 1 ? `&page=${page}` : ""}`;
 }
+/** One native model year sorted by make, in the live Next/Last param order. */
+export function htpYearUrl(
+  s: HtpSupplier,
+  year: string,
+  direction: "DESC" | "ASC",
+  page: number,
+) {
+  if (!/^\d{4}$/.test(year))
+    throw new Error("HTP year fill needs a four-digit native year");
+  if (page !== 1 && page !== 2)
+    throw new Error("HTP year fill page must be 1 or 2");
+  return `${HTP_ORIGIN}/search/Any/Any/Complete-Vehicle?fltpc=${s.supplier}&store=${s.store}&SortBy=make${direction === "ASC" ? "&Order=asc" : ""}&year_start=${year}&year_end=${year}${page > 1 ? `&page=${page}` : ""}`;
+}
