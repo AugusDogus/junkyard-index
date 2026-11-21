@@ -60,15 +60,27 @@ shared rules.
   cannot hold a removed placeholder open. Cold, gap and outage full reads
   never lower it.
 - A surplus lowered by time while the page still lists less is kept as a
-  `ceiling`: any later read listing fewer than its count plus that ceiling is
-  closing-read, so a one-off fault behind a real placeholder still fails the
-  run. Daily short reads stop, and the ceiling clears once a read lists it
-  again. It adds a closing re-read only on days the page is read anyway.
-- So a real card lost behind a placeholder is read again and healed on the
-  next run, while a placeholder that is really gone costs about two GETs a day
-  (the read and its closing re-read) for 6 run days, or up to 12 on a model
-  whose badge keeps rising: about 12 to 24 GETs once, then one closing re-read
-  on each later read of that page while its ceiling stands.
+  `ceiling` for 12 run days (`ceilingSince`). Daily short reads stop, and the
+  ceiling clears early once a read lists it again. While it stands, any read
+  listing fewer than its count plus that ceiling is checked again:
+  - **connectors with a closing pass:** closing re-reads the page, so a
+    one-off fault behind a real placeholder fails the run;
+  - **Calton (no closing pass):** the read sets `recheck` and the next run
+    reads the page again (reason `short`), including after the read that
+    lowered the surplus. The re-read settles it only when it lists the same
+    cards; a different count asks again. A one-off fault is published for at
+    most one run.
+- Costs, per surplus that really went away: about two GETs a day (the read
+  and its closing re-read) for 6 run days, or up to 12 on a model whose badge
+  keeps rising, then at most one extra GET on each read of that page during
+  the 12-day ceiling. That is at most about 24 + 12 = 36 GETs once on a busy
+  model read every day, and far fewer on a quiet one.
+- Limits of the bounded ceiling: a placeholder that comes back more than 12
+  run days after its surplus was lowered, or a real placeholder hidden by
+  continuous arrival lag for longer than the window plus the ceiling (about
+  24 run days), is a first observation again. A one-off fault on that first
+  read can hide a card until the page's next read (up to 6 days). The
+  simulation in the pull request measures both.
 - Counting only VIN-bearing cards instead would need per-source placeholder
   detection. Only Scotts' NOF rows are known to be VIN-less, and real surplus
   rows from badge undercounts (Calton, Central, Aviation) erode the same way, so
