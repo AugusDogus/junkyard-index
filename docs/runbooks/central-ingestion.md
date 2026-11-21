@@ -75,7 +75,7 @@ Closing controls repeat ownership, the make directory and every model read this
 run whose card count differs from its badge or falls below its expected count
 (`ModelCensus.closingReads`), and the run fails if a re-read differs. A model's
 expected count is its badge plus a sticky surplus (44 saved models list
-surplus cards): it is lowered only after six run days of lower reads (twelve when the badge has risen by at least the missing cards, which looks like arrival lag), see [Incremental model census](model-census.md). A page below its
+surplus cards): it is lowered only after six run days of lower reads, or twelve when the badge rose by at least the missing cards during that window, which looks like arrival lag; a surplus lowered by time while the page still lists less stays as a ceiling, so closing still re-reads any read below it, see [Incremental model census](model-census.md). A page below its
 badge that repeats is stored as confirmed evidence only by a normal
 incremental run (not a cold, gap or outage full read). Any other page below its expected count, including a surplus
 page that only fell toward its badge, is read again next run. Other per-model

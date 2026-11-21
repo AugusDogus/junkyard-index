@@ -51,16 +51,24 @@ shared rules.
   read again every run, and evidence records when the window began and the
   count at which the surplus was last intact (`lowSince`, `lowCount`). A
   normal incremental run lowers the surplus once the window has lasted 6 run
-  days (`MODEL_CENSUS_SWEEP_DAYS`), unless the count has risen since by at
-  least the missing cards: badges that count arrivals before their cards
-  appear make the surplus look smaller for days, so a single arrival lagging
-  a week does not lower it. Count changes never restart the window, and after
-  12 run days the surplus is lowered whatever the count did, so a busy model
+  days (`MODEL_CENSUS_SWEEP_DAYS`), unless the count rose at some point in the
+  window by at least the missing cards (`lowRise`): badges that count
+  arrivals before their cards appear make the surplus look smaller for days,
+  so a single arrival lagging a week does not lower it, and a later sale does
+  not cancel that signal. Count changes never restart the window, and after 12
+  run days the surplus is lowered whatever the count did, so a busy model
   cannot hold a removed placeholder open. Cold, gap and outage full reads
-  never lower it. So a real card lost behind a placeholder is read again and
-  healed on the next run, while a placeholder that is really gone costs about
-  two GETs a day (the read and its closing re-read) for 6 run days, or up to
-  12 on a model whose badge keeps rising: about 12 to 24 GETs once.
+  never lower it.
+- A surplus lowered by time while the page still lists less is kept as a
+  `ceiling`: any later read listing fewer than its count plus that ceiling is
+  closing-read, so a one-off fault behind a real placeholder still fails the
+  run. Daily short reads stop, and the ceiling clears once a read lists it
+  again. It adds a closing re-read only on days the page is read anyway.
+- So a real card lost behind a placeholder is read again and healed on the
+  next run, while a placeholder that is really gone costs about two GETs a day
+  (the read and its closing re-read) for 6 run days, or up to 12 on a model
+  whose badge keeps rising: about 12 to 24 GETs once, then one closing re-read
+  on each later read of that page while its ceiling stands.
 - Counting only VIN-bearing cards instead would need per-source placeholder
   detection. Only Scotts' NOF rows are known to be VIN-less, and real surplus
   rows from badge undercounts (Calton, Central, Aviation) erode the same way, so
