@@ -72,8 +72,9 @@ without automatic retry.
 Closing controls repeat contact, the make directory and every model page read
 this run whose cards differ from its badge or fall below its expected count
 (`ModelCensus.closingReads`: the badge plus a sticky surplus of placeholder or
-surplus rows, lowered only after six run days of lower reads under an unchanged
-badge, see [Incremental model census](model-census.md)). A
+surplus rows, lowered only after six run days of lower reads, or twelve when the
+badge rose by at least the missing cards during that window, which looks like
+arrival lag; a surplus lowered by time while the page still lists less stays as a ceiling, so closing still re-reads any read below it, see [Incremental model census](model-census.md)). A
 changed fingerprint stops the run before emission, so a transient short or
 empty page is never published or carried. A page below its badge that re-reads
 identically, such as the dead `&` routes (TOWN & COUNTRY: badge 8, explicit
