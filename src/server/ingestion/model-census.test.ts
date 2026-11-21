@@ -594,32 +594,142 @@ describe("ModelCensus", () => {
     );
   });
 
-  test("a count change restarts the surplus window, so arrival lag never lowers it", () => {
-    // Badge 3, page 4 (a placeholder). Arrivals raise the badge every day for
-    // seven days before their cards appear, so each read lists exactly the
-    // badge: the surplus looks gone but must not be lowered.
+  test("arrival lag holds the surplus window open, but never past twelve days", () => {
+    // Badge 3, page 4 (a placeholder). From day 102 an arrival raises the
+    // badge every day before its card appears, so each read lists exactly the
+    // badge. The count has risen by at least the missing card, so this looks
+    // like arrival lag: the surplus is kept past six days, and lowered only by
+    // the twelve-day bound.
     let models = controls(12, 3);
-    const placeholder = (day: number, count: number) =>
-      new Map([["model-2", day === 100 || day === 101 ? 4 : count]]);
+    const listed = (count: number) => new Map([["model-2", count]]);
     let census = run(models, null, 100, undefined, {
-      listed: placeholder(100, 3),
+      listed: listed(4),
     }).census;
-    census = run(models, census, 101, undefined, {
-      listed: placeholder(101, 3),
-    }).census;
-    for (let day = 102; day <= 109; day++) {
+    census = run(models, census, 101, undefined, { listed: listed(4) }).census;
+    for (let day = 102; day <= 114; day++) {
       const count = 3 + (day - 101);
       models = models.map((m, i) => (i === 2 ? { ...m, count } : m));
       const next = run(models, census, day, undefined, {
-        listed: placeholder(day, count),
+        listed: listed(count),
       });
       expect(next.decisions[2]?.kind).toBe("read");
+      expect(next.census.models[2]).toMatchObject(
+        day < 102 + 2 * MODEL_CENSUS_SWEEP_DAYS
+          ? { expected: count + 1, lowSince: 102 }
+          : { expected: count, lowSince: null },
+      );
+      census = next.census;
+    }
+  });
+
+  test("one arrival lagging seven days does not lower the surplus", () => {
+    // Quiet model: badge 10, page 11 (a placeholder). An arrival is counted
+    // on day 102 and its card appears on day 109. The window from day 102
+    // must not lower the surplus on day 108, so a fault on day 109 that drops
+    // another card (the page lists 11) is still caught.
+    let models = controls(12, 10);
+    const listed = (cards: number) => new Map([["model-2", cards]]);
+    let census = run(models, null, 100, undefined, {
+      listed: listed(11),
+    }).census;
+    census = run(models, census, 101, undefined, { listed: listed(11) }).census;
+    models = models.map((m, i) => (i === 2 ? { ...m, count: 11 } : m));
+    for (let day = 102; day <= 108; day++) {
+      const next = run(models, census, day, undefined, { listed: listed(11) });
+      expect(next.decisions[2]?.kind).toBe("read");
       expect(next.census.models[2]).toMatchObject({
-        expected: count + 1,
-        lowSince: day,
+        expected: 12,
+        lowSince: 102,
       });
       census = next.census;
     }
+    // Day 109: the arrival's card appears, but a fault drops another card.
+    const fault = run(models, census, 109, undefined, { listed: listed(11) });
+    expect(
+      ModelCensus.closingReads({
+        controls: models,
+        pages: fault.pages,
+        decisions: fault.decisions,
+        previous: census,
+        cards,
+      }),
+    ).toContain(2);
+    expect(fault.census.models[2]).toMatchObject({ expected: 12 });
+    expect(run(models, fault.census, 110).decisions[2]).toEqual({
+      kind: "read",
+      reason: "short",
+    });
+  });
+
+  test("a placeholder removed on a busy model is lowered within twelve days, and a count fall never restarts the window", () => {
+    // Badge 40, page 41 (a placeholder) until the placeholder is removed for
+    // good on day 102. The badge then falls and rises every few days.
+    let models = controls(12, 40);
+    const at = (count: number) => new Map([["model-2", count]]);
+    let census = run(models, null, 100, undefined, { listed: at(41) }).census;
+    census = run(models, census, 101, undefined, { listed: at(41) }).census;
+    const badge = (day: number) =>
+      40 + (day >= 105 ? -1 : 0) + (day >= 109 ? 1 : 0) + (day >= 112 ? 1 : 0);
+    let lowered: number | null = null;
+    let windowStart: number | null = null;
+    let reads = 0;
+    for (let day = 102; day <= 125 && lowered === null; day++) {
+      models = models.map((m, i) =>
+        i === 2 ? { ...m, count: badge(day) } : m,
+      );
+      const next = run(models, census, day, undefined, {
+        listed: at(badge(day)),
+      });
+      if (windowStart !== null && next.decisions[2]?.kind === "read") reads++;
+      const lowSince = next.census.models[2]?.lowSince ?? null;
+      // The window opens on the first read after the removal, and no later
+      // count change, up or down, restarts it.
+      if (lowSince !== null) {
+        windowStart ??= lowSince;
+        expect(lowSince).toBe(windowStart);
+      } else if (windowStart !== null) lowered = day;
+      census = next.census;
+    }
+    if (windowStart === null || lowered === null)
+      throw new Error("Expected the removal to open and close a low window");
+    // Read every run while the window lasts, and lowered by the twelve-day
+    // bound at the latest.
+    expect(lowered - windowStart).toBeLessThanOrEqual(
+      2 * MODEL_CENSUS_SWEEP_DAYS,
+    );
+    expect(reads).toBe(lowered - windowStart);
+    expect(census.models[2]).toMatchObject({
+      expected: badge(lowered),
+      lowSince: null,
+      lowCount: null,
+    });
+  });
+
+  test("a surplus that grows on a gap or outage read is unconfirmed until an incremental run sees it", () => {
+    // Badge 3, page 4, confirmed on day 101. Day 102 is missed; the day 103
+    // gap read lists 5 (surplus 2). It must not inherit the earlier
+    // confirmation, so the next incremental run reads it again.
+    const models = controls(12, 3);
+    const at = (cards: number) => new Map([["model-2", cards]]);
+    let census = run(models, null, 100, undefined, { listed: at(4) }).census;
+    census = run(models, census, 101, undefined, { listed: at(4) }).census;
+    expect(census.models[2]).toMatchObject({ surplusConfirmed: true });
+    const gap = run(models, census, 103, undefined, { listed: at(5) });
+    expect(gap.decisions[2]).toEqual({ kind: "read", reason: "gap" });
+    expect(gap.census.models[2]).toMatchObject({
+      expected: 5,
+      surplusConfirmed: false,
+    });
+    expect(run(models, gap.census, 104).decisions[2]).toEqual({
+      kind: "read",
+      reason: "short",
+    });
+    // A full read that sees the same confirmed surplus keeps its confirmation.
+    const same = run(models, census, 103, undefined, { listed: at(4) });
+    expect(same.census.models[2]).toMatchObject({
+      expected: 4,
+      surplusConfirmed: true,
+    });
   });
 
   test("a surplus page that loses a donor on the day its count changes is still re-read", () => {
