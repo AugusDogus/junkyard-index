@@ -8,14 +8,24 @@ import {
   HTP_SUPPLIERS,
   htpCatalogUrl,
   htpStoreUrl,
+  htpYearMakeUrl,
   htpYearUrl,
 } from "./heavytruckparts-yard-metadata";
 import {
   HTP_REJECTED_SUPPLIERS,
   HTP_RETAIL_SUPPLIER,
 } from "./heavytruckparts-qualification-fixtures";
-import { parseHtpCatalog, parseHtpStore } from "./heavytruckparts-catalog";
-import { htpRoster, htpYearPlan, type HtpPage } from "./heavytruckparts-census";
+import {
+  parseHtpCatalog,
+  parseHtpStore,
+  parseHtpYearFill,
+} from "./heavytruckparts-catalog";
+import {
+  htpRoster,
+  htpYearPlan,
+  type HtpPage,
+  type HtpYearFill,
+} from "./heavytruckparts-census";
 import {
   HeavytruckpartsCursor,
   type HtpCursor,
@@ -529,6 +539,12 @@ describe("HeavyTruckParts marketplace", () => {
         "year_end=2015",
         "year_end=2016",
       ),
+      htpYearMakeUrl(HTP_RETAIL_SUPPLIER, "2016", "Kenworth"),
+      htpYearMakeUrl(first, "2016", "Kenworth") + "&page=2",
+      htpYearMakeUrl(first, "2016", "Kenworth").replace(
+        "Kenworth",
+        "Kenworth%2F",
+      ),
     ]) {
       const result = await Effect.runPromiseExit(fetchHtpPage(url));
       expect(result._tag).toBe("Failure");
@@ -680,8 +696,8 @@ describe("HeavyTruckParts marketplace", () => {
     expect(union.has("129266")).toBe(false);
     expect(() => htpRoster(westside, orders, [], 624)).toThrow();
     expect(htpYearPlan(westside, orders, 624)).toEqual([
-      { year: "2015", direction: "DESC", count: 35 },
-      { year: "2015", direction: "ASC", count: 35 },
+      { kind: "year", year: "2015", direction: "DESC", count: 35 },
+      { kind: "year", year: "2015", direction: "ASC", count: 35 },
     ]);
     cursor = htpAdvance(cursor, raw("westside-asc-25"));
     for (const key of ["westside-y2015-desc-1", "westside-y2015-asc-1"]) {
@@ -738,24 +754,104 @@ describe("HeavyTruckParts marketplace", () => {
     const closed = htpAdvance(cursor, raw("westside-store"));
     expect(closed.phase).toBe("store-opening");
     expect(closed.completed[1]?.fills).toHaveLength(2);
-    // A tied year over two native pages has no complete single-year fill.
-    const all2016 = orders
-      .flatMap((p) => p.records)
-      .filter((r) => r.year === "2016");
-    const first2016 = all2016[0],
+    // A tied year over two native pages (2016 has 58) splits by native make
+    // into single complete pages.
+    const all2016 = [
+      ...new Map(
+        orders
+          .flatMap((p) => p.records)
+          .filter((r) => r.year === "2016")
+          .map((r) => [r.id, r]),
+      ).values(),
+    ];
+    expect(all2016).toHaveLength(58);
+    const first2016 = all2016.find((r) => r.make === "KENWORTH"),
       other2016 = all2016.find((r) => r.id !== first2016?.id);
     if (!first2016 || !other2016) throw new Error("2016 items missing");
-    expect(() =>
-      htpYearPlan(
-        westside,
-        orders.map((p) => ({
-          ...p,
-          records: p.records.map((r) =>
-            r.id === first2016.id ? other2016 : r,
+    const gap2016 = orders.map((p) => ({
+      ...p,
+      records: p.records.map((r) => (r.id === first2016.id ? other2016 : r)),
+    }));
+    const slug = (r: { url: string }) =>
+      new URL(r.url).pathname.split("/")[2] ?? "";
+    const makes = [...new Set(all2016.map(slug))].sort();
+    expect(makes).toContain("Western-Star-Tr");
+    const split = htpYearPlan(westside, gap2016, 624);
+    expect(split).toEqual([
+      ...htpYearPlan(westside, orders, 624),
+      ...makes.map(
+        (make): HtpYearFill => ({
+          kind: "make",
+          year: "2016",
+          direction: "DESC",
+          make,
+        }),
+      ),
+    ]);
+    const kenworth = parseHtpYearFill(
+      gunzipSync(
+        readFileSync(
+          new URL(
+            "./heavytruckparts-test-fixtures/westside-kenworth-2016.html.gz",
+            import.meta.url,
           ),
-        })),
-        624,
+        ),
+      ).toString(),
+      westside,
+      { kind: "make", year: "2016", direction: "DESC", make: "Kenworth" },
+    );
+    expect(kenworth.make).toBe("Kenworth");
+    expect(kenworth.records.map((r) => r.id).sort()).toEqual(
+      all2016
+        .filter((r) => r.make === "KENWORTH")
+        .map((r) => r.id)
+        .sort(),
+    );
+    const makeFills = makes.map((make) =>
+      make === "Kenworth"
+        ? kenworth
+        : {
+            year: "2016",
+            make,
+            direction: "DESC" as const,
+            records: all2016.filter((r) => slug(r) === make),
+          },
+    );
+    expect(
+      htpRoster(westside, gap2016, [...fills, ...makeFills], total),
+    ).toHaveLength(624);
+    const withMake = (records: (rows: typeof all2016) => typeof all2016) => [
+      ...fills,
+      ...makeFills.map((f) =>
+        f.make === "Kenworth" ? { ...f, records: records(f.records) } : f,
+      ),
+    ];
+    expect(() =>
+      htpRoster(
+        westside,
+        gap2016,
+        withMake((rows) => rows.filter((r) => r.id !== first2016.id)),
+        total,
       ),
     ).toThrow("2016");
+    const foreign = all2016.find((r) => r.make === "FREIGHTLINER");
+    if (!foreign) throw new Error("2016 Freightliner missing");
+    expect(() =>
+      htpRoster(
+        westside,
+        gap2016,
+        withMake((rows) => [...rows, foreign]),
+        total,
+      ),
+    ).toThrow("year fills do not match");
+    // A make page that paginates is not a single complete page.
+    expect(() =>
+      parseHtpYearFill(raw("westside-y2015-desc-1"), westside, {
+        kind: "make",
+        year: "2015",
+        direction: "DESC",
+        make: "Freightliner",
+      }),
+    ).toThrow("pagination");
   });
 });

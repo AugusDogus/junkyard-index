@@ -221,3 +221,15 @@ export function htpYearUrl(
     throw new Error("HTP year fill page must be 1 or 2");
   return `${HTP_ORIGIN}/search/Any/Any/Complete-Vehicle?fltpc=${s.supplier}&store=${s.store}&SortBy=make${direction === "ASC" ? "&Order=asc" : ""}&year_start=${year}&year_end=${year}${page > 1 ? `&page=${page}` : ""}`;
 }
+/** Native make path segment as item URLs spell it, such as "Western-Star-Tr". */
+export const HTP_MAKE_SLUG = /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;
+/** Page 1 of one native model year narrowed to one make path segment. */
+export function htpYearMakeUrl(s: HtpSupplier, year: string, make: string) {
+  if (!/^\d{4}$/.test(year))
+    throw new Error("HTP year fill needs a four-digit native year");
+  if (!HTP_MAKE_SLUG.test(make) || make === "Any")
+    throw new Error(
+      `HTP make fill needs a native make path segment, not ${JSON.stringify(make)}`,
+    );
+  return `${HTP_ORIGIN}/search/${make}/Any/Complete-Vehicle?fltpc=${s.supplier}&store=${s.store}&SortBy=make&year_start=${year}&year_end=${year}`;
+}

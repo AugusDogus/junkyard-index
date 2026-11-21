@@ -1,7 +1,8 @@
-import type {
-  HtpPage,
-  HtpYearFill,
-  HtpYearPage,
+import {
+  htpFillMake,
+  type HtpPage,
+  type HtpYearFill,
+  type HtpYearPage,
 } from "./heavytruckparts-census";
 import { heavyTruckPartsParser } from "./heavytruckparts-parser";
 import {
@@ -13,6 +14,7 @@ import {
 import {
   HTP_ORIGIN,
   htpCatalogUrl,
+  htpYearMakeUrl,
   htpYearUrl,
   type HtpSupplier,
 } from "./heavytruckparts-yard-metadata";
@@ -42,18 +44,26 @@ export function parseHtpStore(raw: string, s: HtpSupplier): number {
     throw new Error(`HTP ${s.code} lacks a unique bounded store count`);
   return total;
 }
+/**
+ * `extent` is the known item count, or "single-page" when the page must hold
+ * its whole query with no Next or Last link.
+ */
 function nativeRecords(
   raw: string,
   s: HtpSupplier,
   page: number,
-  total: number,
+  extent: number | "single-page",
   url: (page: number) => string,
 ) {
   const html = heavyTruckPartsDocument(raw),
     regions = heavyTruckPartsDivs(html, "search_result_div"),
-    region = regions[0],
+    region = regions[0];
+  if (regions.length !== 1 || !region)
+    throw new Error(`HTP ${s.code} inventory region or page changed`);
+  const records = htpRecordParser(s).cards(region),
+    total = extent === "single-page" ? records.length : extent,
     last = Math.ceil(total / 25);
-  if (regions.length !== 1 || !region || page > last)
+  if (page > last)
     throw new Error(`HTP ${s.code} inventory region or page changed`);
   for (const [label, expected] of [
     ["Next", page < last ? url(page + 1) : null],
@@ -73,7 +83,6 @@ function nativeRecords(
         `HTP ${s.code} ${label} pagination disagrees with store count`,
       );
   }
-  const records = htpRecordParser(s).cards(region);
   if (
     records.length !== Math.min(25, total - (page - 1) * 25) ||
     new Set(records.map((r) => r.id)).size !== records.length
@@ -96,7 +105,10 @@ export function parseHtpCatalog(
     ),
   };
 }
-/** Page 1 of a single-year query; the dual-sort year count bounds its size. */
+/**
+ * Page 1 of a single-year query. The dual-sort year count bounds a whole-year
+ * page; a make page must be complete on its own.
+ */
 export function parseHtpYearFill(
   raw: string,
   s: HtpSupplier,
@@ -104,9 +116,15 @@ export function parseHtpYearFill(
 ): HtpYearPage {
   return {
     year: fill.year,
+    make: htpFillMake(fill),
     direction: fill.direction,
-    records: nativeRecords(raw, s, 1, fill.count, (p) =>
-      htpYearUrl(s, fill.year, fill.direction, p),
-    ),
+    records:
+      fill.kind === "year"
+        ? nativeRecords(raw, s, 1, fill.count, (p) =>
+            htpYearUrl(s, fill.year, fill.direction, p),
+          )
+        : nativeRecords(raw, s, 1, "single-page", () =>
+            htpYearMakeUrl(s, fill.year, fill.make),
+          ),
   };
 }

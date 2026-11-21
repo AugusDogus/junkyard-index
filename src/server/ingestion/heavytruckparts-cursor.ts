@@ -4,9 +4,11 @@ import {
   type HtpSupplier,
   htpCatalogUrl,
   htpStoreUrl,
+  htpYearMakeUrl,
   htpYearUrl,
 } from "./heavytruckparts-yard-metadata";
 import {
+  htpFillMake,
   htpPageSchema,
   htpRoster,
   htpYearPageSchema,
@@ -23,7 +25,7 @@ function hash(value: unknown): string {
     result = Math.imul(result ^ char.charCodeAt(0), 16777619);
   return (result >>> 0).toString(16).padStart(8, "0");
 }
-const scope = hash([HTP_SUPPLIERS, "salvage-only-dual-sort-year-fill-v2"]);
+const scope = hash([HTP_SUPPLIERS, "salvage-only-dual-sort-year-make-fill-v3"]);
 const totalSchema = z.number().int().min(1).max(2000);
 const censusSchema = z
   .object({
@@ -156,9 +158,15 @@ function parseFills(
   const plan = htpYearPlan(s, pages, total);
   if (
     fills.length > plan.length ||
-    fills.some(
-      (f, i) => f.year !== plan[i]?.year || f.direction !== plan[i]?.direction,
-    )
+    fills.some((f, i) => {
+      const e = plan[i];
+      return (
+        !e ||
+        f.year !== e.year ||
+        f.direction !== e.direction ||
+        f.make !== htpFillMake(e)
+      );
+    })
   )
     throw new Error(
       `HTP ${s.code} checkpoint lost its exact year-fill frontier`,
@@ -274,7 +282,9 @@ export const HeavytruckpartsCursor = {
     if (cursor.phase === "year-fill") {
       const next = htpNextFill(s, cursor.pages, cursor.fills, cursor.total);
       if (!next) throw new Error("HTP year-fill frontier exhausted");
-      return htpYearUrl(s, next.year, next.direction, 1);
+      return next.kind === "year"
+        ? htpYearUrl(s, next.year, next.direction, 1)
+        : htpYearMakeUrl(s, next.year, next.make);
     }
     if (cursor.phase === "store-opening" || cursor.phase === "store-closing")
       return htpStoreUrl(s);
