@@ -21,8 +21,10 @@ import { z } from "zod";
  * any read that lists more and carries across count changes. A read listing
  * less keeps it (`lowSince` and `lowCount` record when and at what count), and
  * a normal incremental run lowers it after six run days of such reads, unless
- * the count has risen since by at least the missing cards (arrival lag), and
- * after twelve run days in any case. A
+ * the count rose at some point in the window by at least the missing cards
+ * (arrival lag; `lowRise`), and after twelve run days in any case. A surplus
+ * lowered by time while the page still lists less stays as a `ceiling` that
+ * closing enforces until a read lists it again. A
  * surplus first seen or grown on a cold, gap or outage read is unconfirmed and
  * read again by the next incremental run. A page with fewer cards than its published
  * count is carried only when a normal incremental run read it and confirmed
@@ -81,6 +83,15 @@ export interface ModelCensusEvidence<Page> {
    * missing cards looks like arrival lag and keeps the window from lowering
    * the surplus before the twelve-day bound. */
   lowCount: number | null;
+  /** Largest rise of the count above `lowCount` seen while the window is open
+   * (null when there is none). A later sale cannot cancel an arrival's lag. */
+  lowRise: number | null;
+  /** Surplus that a time rule lowered while the page still listed less, kept
+   * as a floor for closing re-reads (null when there is none). Any read
+   * listing fewer than count plus ceiling is closing-read, so a one-off fault
+   * behind a real placeholder still fails the run. Cleared once a read lists
+   * the ceiling again. */
+  ceiling: number | null;
   /** True when a normal incremental run observed this surplus (or there is
    * none). A surplus first seen, or grown, on a cold, gap or outage full read
    * is unconfirmed, and the next incremental run reads the page again: a fault
@@ -163,6 +174,8 @@ function schema<Page>(page: z.ZodType<Page>, maxModels: number) {
               expected: z.number().int().nonnegative().safe(),
               lowSince: day.nullable(),
               lowCount: z.number().int().nonnegative().safe().nullable(),
+              lowRise: z.number().int().nonnegative().safe().nullable(),
+              ceiling: z.number().int().positive().safe().nullable(),
               surplusConfirmed: z.boolean(),
               confirmed: z.boolean(),
               page,
@@ -187,6 +200,8 @@ function schema<Page>(page: z.ZodType<Page>, maxModels: number) {
             (m.lowSince !== null &&
               (m.lowSince > m.readDay || m.expected === m.count)) ||
             (m.lowSince === null) !== (m.lowCount === null) ||
+            (m.lowSince === null) !== (m.lowRise === null) ||
+            (m.ceiling !== null && m.ceiling <= m.expected - m.count) ||
             (m.expected === m.count && !m.surplusConfirmed),
         )
       )
@@ -350,12 +365,16 @@ export const ModelCensus = {
     cards,
   }: ModelCensusRun<Page>): number[] {
     const wanted = expected(controls, previous);
+    const evidence = new Map((previous?.models ?? []).map((m) => [m.key, m]));
     return controls.flatMap((control, index) => {
       const page = pages[index];
       const listed = page === undefined ? null : cards(page);
+      const ceiling = evidence.get(control.key)?.ceiling ?? 0;
       return decisions[index]?.kind === "read" &&
         listed !== null &&
-        (listed !== control.count || listed < (wanted[index] ?? control.count))
+        (listed !== control.count ||
+          listed < (wanted[index] ?? control.count) ||
+          listed < control.count + ceiling)
         ? [index]
         : [];
     });
@@ -410,12 +429,14 @@ export const ModelCensus = {
         // lost card) and opens a low window; meanwhile the page counts as
         // short and is read again every run. A normal incremental run lowers
         // it once the window has lasted six run days, unless the count has
-        // risen since the surplus was last intact by at least the missing
-        // cards (arrival lag: badges counting arrivals before their cards
-        // appear). Count changes never restart the window, and after twelve run
-        // days it is lowered whatever the count did, so a busy model's removed
-        // placeholder costs bounded reads. Cold, gap and outage full reads
-        // never lower it.
+        // risen at some point in the window, above the count when the surplus
+        // was last intact, by at least the missing cards (arrival lag: badges
+        // counting arrivals before their cards appear; a later sale does not
+        // cancel it). Count changes never restart the window, and after twelve
+        // run days it is lowered whatever the count did, so a busy model's
+        // removed placeholder costs bounded reads. A surplus lowered by time
+        // while the page still lists less stays as a ceiling that closing
+        // enforces. Cold, gap and outage full reads never lower it.
         const before = evidence.get(control.key);
         const held = before ? surplusOf(before) : 0;
         const observed = Math.max(0, cards(page) - control.count);
@@ -426,14 +447,25 @@ export const ModelCensus = {
           ? (before?.lowCount ?? control.count)
           : (before?.count ?? control.count);
         const age = today - lowSince;
-        const rise = control.count - lowCount;
-        const lagging = rise > 0 && held - observed <= rise;
+        const lowRise = Math.max(
+          open ? (before?.lowRise ?? 0) : 0,
+          control.count - lowCount,
+        );
+        const lagging = lowRise > 0 && held - observed <= lowRise;
         const lowered =
           observed >= held ||
           (incremental &&
             (age >= 2 * MODEL_CENSUS_SWEEP_DAYS ||
               (age >= MODEL_CENSUS_SWEEP_DAYS && !lagging)));
         const surplus = lowered ? observed : held;
+        // A time rule lowered a surplus the page still lists less than: keep
+        // the old surplus as a ceiling until a read lists it again.
+        const kept =
+          lowered && observed < held
+            ? Math.max(before?.ceiling ?? 0, held)
+            : (before?.ceiling ?? null);
+        const ceiling =
+          kept !== null && observed < kept && kept > surplus ? kept : null;
         // Only a normal incremental run confirms a surplus it observes; a full
         // read keeps an earlier confirmation only when it saw the same surplus.
         const surplusConfirmed =
@@ -449,6 +481,8 @@ export const ModelCensus = {
           expected: control.count + surplus,
           lowSince: lowered ? null : lowSince,
           lowCount: lowered ? null : lowCount,
+          lowRise: lowered ? null : lowRise,
+          ceiling,
           surplusConfirmed,
           confirmed: confirming && cards(page) < control.count,
           page,
