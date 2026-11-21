@@ -129,6 +129,14 @@ test("Hollander references reject legacy, corrupt, missing and substituted censu
       onBatch: () => Effect.die("Partial census must not publish"),
     }),
   );
+  const wire = HollanderstoresCursor.serialize(result.cursor);
+  expect(wire).toBe(JSON.stringify(result.cursor));
+  expect(HollanderstoresCursor.fromWire(wire)).toEqual(result.cursor);
+  expect(() =>
+    HollanderstoresCursor.fromWire(
+      wire.replace(/"requests":\d+/, '"requests":0'),
+    ),
+  ).toThrow();
   const reference = HollanderstoresDurableCursor.checkpoint(result.cursor);
   await expect(
     HollanderstoresDurableCursor.load(reference, async () => result.cursor),
