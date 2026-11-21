@@ -94,12 +94,14 @@ function buildStringOrFilter(
 }
 
 /** Matches vehicles first seen after `lastCheckedAt` and, when given, at or
- * before `checkedThrough`. Algolia stores `firstSeenAt` in whole seconds. */
+ * before `checkedThrough`. Algolia stores `firstSeenAt` in whole seconds.
+ * An arrival window ends at `checkedThrough` so a delayed check matches what
+ * the search matched when the check was bounded. */
 export function compileAlertFilters(
   filters: AlertFilters,
   lastCheckedAt: Date | null,
   checkedThrough: Date | null = null,
-  now = Date.now(),
+  now = checkedThrough?.getTime() ?? Date.now(),
 ): AlertFilterCompilation {
   const clauses: string[] = [];
   const arrivalFilter = ArrivalWindow.filter(filters.arrivalWindow, now);
