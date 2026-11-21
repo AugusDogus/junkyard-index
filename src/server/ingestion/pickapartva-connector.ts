@@ -25,8 +25,11 @@ import {
   PICKAPARTVA_CATALOG,
   PICKAPARTVA_MAX_PAGES,
   PICKAPARTVA_MAX_TIE_SEARCHES,
+  PICKAPARTVA_PAGE_SIZE,
+  PICKAPARTVA_YARD_CODES,
   PICKAPARTVA_YARDS,
   pickapartvaSearchHref,
+  type PickapartvaSearchScope,
   type PickapartvaYard,
 } from "./pickapartva-yard-metadata";
 import { ProviderChunkClock } from "./provider-chunk-clock";
@@ -42,17 +45,23 @@ interface PickapartvaOptions<E, R> {
   ) => Effect.Effect<void, E, R>;
   onYards?: (yards: PickapartvaYard[]) => Effect.Effect<void, E, R>;
 }
-/** Every catalog page, one search per page boundary and three closing reads. */
+/** Every catalog page, for each page boundary one search plus one per yard
+ * when that search is capped, and three closing reads. */
 const PICKAPARTVA_MAX_REQUESTS =
-  PICKAPARTVA_MAX_PAGES + PICKAPARTVA_MAX_TIE_SEARCHES + 3;
+  PICKAPARTVA_MAX_PAGES +
+  PICKAPARTVA_MAX_TIE_SEARCHES * (1 + PICKAPARTVA_YARD_CODES.length) +
+  3;
 /** The turn estimate reserves the six set-date searches the November 12, 2026
  * census needed. Turns estimate 8.5 s per request (a 5 s answer plus the URG
  * gap), so this reserves 204 s and a turn is still granted after the two
- * minute queue waits seen at 07:00. Measured reads take longer: about 14 s per
- * catalog page at November 19, 2026 latency (11 s on November 12), 10 s per
- * search and 5 s per edge-cached closing read, about 286 s for this census.
- * A turn that waited long reaches the chunk horizon first and the chunk is
- * deferred whole. A turn that waited under 40 s reaches the five-minute work
+ * minute queue waits seen at 07:00; reserving more would not be. Measured
+ * reads take longer: about 14 s per catalog page at November 19, 2026 latency
+ * (11 s on November 12), 10 s per search and 5 s per edge-cached closing read,
+ * about 286 s for this census. A date set in bulk past the 500-card search cap
+ * (2026-11-18, about 580 donors) needs two yard searches. The catalog already
+ * shows over 500 of its donors, so its capped unfiltered search is skipped and
+ * the date costs one search more than a small date, about 10 s. A turn that
+ * waited long reaches the chunk horizon first and the chunk is deferred whole. A turn that waited under 40 s reaches the five-minute work
  * limit first, which fails the chunk once a census needs more than about 7
  * searches (12 at November 12 latency). Neither advances a checkpoint. */
 const PICKAPARTVA_TURN_REQUESTS = PICKAPARTVA_MAX_PAGES + 6 + 3;
@@ -145,18 +154,42 @@ export function streamPickapartvaInventoryWithRequestGate<E, R>(
       const dates = yield* attempt("set-date ties", () =>
         pickapartvaTieDates(pages),
       );
-      for (const date of dates) {
-        const url = pickapartvaSearchHref(date);
-        if (url === null)
-          return yield* failure(
-            "set-date search " + date,
-            "Repeated catalog donors carry an invalid Set Date",
+      const search = (date: string, id: PickapartvaSearchScope) =>
+        Effect.gen(function* () {
+          const url = pickapartvaSearchHref(date, id);
+          if (url === null)
+            return yield* failure(
+              "set-date search " + date,
+              "Repeated catalog donors carry an invalid Set Date",
+            );
+          const raw = yield* read(url);
+          const result = yield* attempt("set-date search " + date, () =>
+            parsePickapartvaSearch(raw, date, id),
           );
-        const raw = yield* read(url);
-        const page = yield* attempt("set-date search " + date, () =>
-          parsePickapartvaSearch(raw, date),
-        );
-        searches.push({ url, page });
+          return { url, result };
+        });
+      for (const { date, shown } of dates) {
+        // A catalog that already showed a full search page of this date's
+        // donors would get a capped unfiltered search, so that search is
+        // skipped to keep the census inside the five-minute work limit.
+        if (shown < PICKAPARTVA_PAGE_SIZE) {
+          const all = yield* search(date, "ANY");
+          if (all.result.status === "complete") {
+            searches.push({ url: all.url, page: all.result.page });
+            continue;
+          }
+        }
+        // One search page holds at most 500 cards, so a date set in bulk is
+        // read one physical yard at a time.
+        for (const id of PICKAPARTVA_YARD_CODES) {
+          const yard = yield* search(date, id);
+          if (yard.result.status === "capped")
+            return yield* failure(
+              "set-date search " + date,
+              `Pick-A-Part VA set-date search for ${date} in ${id} returned ${yard.result.cards} cards; completeness is only known for 1 to ${PICKAPARTVA_PAGE_SIZE - 1} matched donor cards per yard`,
+            );
+          searches.push({ url: yard.url, page: yard.result.page });
+        }
       }
       const snapshot = yield* attempt("complete global census", () =>
         buildPickapartvaSnapshot(pages, searches),

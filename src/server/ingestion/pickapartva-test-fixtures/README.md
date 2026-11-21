@@ -15,3 +15,15 @@ other five searches from the captured search page around that census's own
 cards for the date plus one donor per repeated card: the real donor
 PAP174600 (from the live November 19 page 8) for 2026-10-20 and synthetic
 `PAP99000N` donors otherwise.
+
+`searches-2026-11-18.json.br` holds 3 raw native searches for Set Date
+2026-11-18 as `{ url, body }`, captured live on November 21, 2026 (HTTP 200,
+15:38 to 15:50 UTC). The yards set about 580 donors that day, more than one
+search page holds:
+
+- `/inventory/ANY/ANY/?k=1&id=ANY&search=2026-11-18`: capped at exactly 500
+  cards (396 Fredericksburg, 104 Stafford), with no continuation.
+- `/inventory/ANY/ANY/?k=1&id=TT87&search=2026-11-18`: 412 cards, all
+  Fredericksburg, with Fredericksburg selected and `id=TT87` in the form.
+- `/inventory/ANY/ANY/?k=1&id=UU81&search=2026-11-18`: 169 cards, all
+  Stafford, with Stafford selected and `id=UU81` in the form.
