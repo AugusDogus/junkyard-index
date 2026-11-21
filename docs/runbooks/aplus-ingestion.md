@@ -74,7 +74,8 @@ this run whose cards differ from its badge or fall below its expected cards.
 Make menus and arrivals are not re-read at closing. Carried models are not
 re-read; other per-model changes surface as badge changes in the next run's
 opening menus. Changed closing fingerprints stop emission. A short page whose
-closing re-read matched is stored as confirmed. These controls do not claim
+closing re-read matched in a normal incremental run is stored as confirmed;
+cold, gap and outage full reads confirm none. These controls do not claim
 simultaneous stability of every unrefetched model page. Explicit empty
 pages must bind their native h1 and lack donor continuation.
 
@@ -84,8 +85,8 @@ pages, the 97% replay floor and the outage path. A Plus specifics:
 - The badge floor is 95% (`APLUS_MINIMUM_BADGE_COVERAGE`), because published
   model counts matched model cards exactly in every observed census (1,133 of
   1,133 on 210 models).
-- Closing confirms short pages, so a confirmed short page is carried rather
-  than re-read on the next run.
+- Closing confirms short pages on normal incremental runs, so a confirmed
+  short page is carried rather than re-read on the next run.
 - With the November 12 graph (35 makes, 232 models), a cold or gap read costs
   270 opening GETs plus two closing GETs and one re-read per short page. A
   steady day costs about 80 GETs: 38 fixed opening GETs, about 39 sweep pages
