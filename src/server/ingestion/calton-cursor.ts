@@ -185,6 +185,14 @@ export function caltonCensusPlan(
 
 /** Cards a model page lists: the count `countCheck` compares with its badge. */
 const caltonCards = (page: CaltonCensusPage) => page.records.length;
+/** The cards a page lists, independent of their order: two reads with the
+ * same count but another card (a placeholder back, a real card hidden) differ. */
+const caltonCardIdentity = (page: CaltonCensusPage) =>
+  JSON.stringify(
+    page.records
+      .map((r) => JSON.stringify([r.cardId, r.vins, r.titles, r.years]))
+      .sort(),
+  );
 /** Minimum share of today's model badges the read and carried model cards must
  * cover, each model capped at its badge. The November 13 capture covers
  * 12,856 of 12,857 model badge cards (99.99%) on 630 models: the only short
@@ -473,8 +481,8 @@ export const CaltonCursor = {
           },
           // Calton has no closing pass: a page read today below its badge or
           // its previous surplus card count is read again on the next run
-          // instead of being carried.
-          "unconfirmed",
+          // instead of being carried, until a re-read lists the same cards.
+          { kind: "unconfirmed", identity: caltonCardIdentity },
         ),
         summary: ModelCensus.summary(decisions),
       };

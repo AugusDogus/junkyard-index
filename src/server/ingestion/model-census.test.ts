@@ -11,10 +11,14 @@ import {
 const contract = "fixture-contract";
 const controls = (n: number, count = 3): ModelCensusControl[] =>
   Array.from({ length: n }, (_, i) => ({ key: "model-" + i, count }));
-/** A fixture page names its model, read day and listed card count. */
-const page = (key: string, day: number, listed: number) =>
-  `${key}@${day}#${listed}`;
-const cards = (value: string) => Number(value.split("#")[1]);
+/** A fixture page names its model, read day, listed card count and, when a
+ * test needs other cards at the same count, a tag for which cards it lists. */
+const page = (key: string, day: number, listed: number, tag?: string) =>
+  `${key}@${day}#${listed}${tag === undefined ? "" : "/" + tag}`;
+const cards = (value: string) =>
+  Number((value.split("#")[1] ?? "").split("/")[0]);
+/** The cards a fixture page lists: its count and tag, not its read day. */
+const identity = (value: string) => value.split("#")[1] ?? "";
 const reads = (decisions: readonly ModelCensusDecision<string>[]) =>
   decisions.flatMap((d, i) => (d.kind === "read" ? [i] : []));
 
@@ -27,6 +31,8 @@ function run(
   options: {
     /** Cards a read page lists today, by key; otherwise its full count. */
     listed?: ReadonlyMap<string, number>;
+    /** Which cards a read page lists, by key, when not the usual ones. */
+    tags?: ReadonlyMap<string, string>;
     shortPages?: "confirmed" | "unconfirmed";
   } = {},
 ) {
@@ -38,7 +44,12 @@ function run(
     if (d.kind === "carry") return d.evidence.page;
     const model = models[i];
     if (!model) throw new Error("fixture decision has no model");
-    return page(model.key, day, options.listed?.get(model.key) ?? model.count);
+    return page(
+      model.key,
+      day,
+      options.listed?.get(model.key) ?? model.count,
+      options.tags?.get(model.key),
+    );
   });
   return {
     decisions,
@@ -47,7 +58,9 @@ function run(
       contract,
       day,
       { controls: models, pages, decisions, previous, cards },
-      options.shortPages ?? "confirmed",
+      options.shortPages === "unconfirmed"
+        ? { kind: "unconfirmed", identity }
+        : "confirmed",
     ),
   };
 }
@@ -906,6 +919,84 @@ describe("ModelCensus", () => {
     // A re-read that disagrees (a fault on the re-read itself) asks again.
     const disagree = run(models, lowered, 115, undefined, at(16, 15));
     expect(disagree.census.models[2]).toMatchObject({ recheck: true });
+  });
+
+  test("without a closing pass, a re-read with the same count but other cards is read again", () => {
+    // Day 114 lowered the surplus while the page listed 16 real cards. On the
+    // day 115 re-read the placeholder returns and a one-off fault hides a real
+    // card: 16 again, but not the same cards. It must not settle the recheck.
+    const { models, census: lowered, at } = laggedToCeiling("unconfirmed");
+    const swapped = run(models, lowered, 115, undefined, {
+      ...at(16, 16),
+      tags: new Map([["model-2", "placeholder-back-one-real-hidden"]]),
+    });
+    expect(swapped.decisions[2]).toEqual({ kind: "read", reason: "short" });
+    expect(swapped.census.models[2]).toMatchObject({ recheck: true });
+    const next = run(models, swapped.census, 116, undefined, at(16, 17));
+    expect(next.decisions[2]).toEqual({ kind: "read", reason: "short" });
+  });
+
+  test("without a closing pass, a ceiling is enforced on the same run days as closing", () => {
+    // The badge changes every day so the page is read daily and lists exactly
+    // its badge, below the ceiling set on day 114. Closing would re-read it on
+    // days 115 to 126; the no-closing mode must flag the same reads.
+    const { models: start, census: lowered } = laggedToCeiling("unconfirmed");
+    let models = start;
+    let census = lowered;
+    const recheckDays: number[] = [];
+    for (let day = 115; day <= 140; day++) {
+      const count = 16 + (day % 2);
+      models = models.map((m, i) => (i === 2 ? { ...m, count } : m));
+      census = run(models, census, day, undefined, {
+        listed: new Map([["model-2", count]]),
+        shortPages: "unconfirmed",
+      }).census;
+      if (census.models[2]?.recheck) recheckDays.push(day);
+    }
+    expect(recheckDays).toEqual(
+      Array.from({ length: 2 * MODEL_CENSUS_SWEEP_DAYS }, (_, i) => 115 + i),
+    );
+  });
+
+  test("a carried ceiling holds until twelve run days after it was set", () => {
+    // model-2 is in sweep slice 5: lowered on day 114, it is read on days 119,
+    // 125 and 131 and carried on the others. The count holds at its badge.
+    expect(ModelCensus.slice("model-2")).toBe(5);
+    const { models, census: lowered } = laggedToCeiling("confirmed");
+    let census = lowered;
+    const readDays: number[] = [];
+    const closingDays: number[] = [];
+    const carried: [number, number | null][] = [];
+    for (let day = 115; day <= 130; day++) {
+      const next = run(models, census, day);
+      if (next.decisions[2]?.kind === "read") readDays.push(day);
+      else carried.push([day, next.census.models[2]?.ceiling ?? null]);
+      if (
+        ModelCensus.closingReads({
+          controls: models,
+          pages: next.pages,
+          decisions: next.decisions,
+          previous: census,
+          cards,
+        }).includes(2)
+      )
+        closingDays.push(day);
+      census = next.census;
+    }
+    expect(readDays).toEqual([119, 125]);
+    // The first read from day 120 (ceilingSince + 6) is still closing-read.
+    expect(closingDays).toEqual([119, 125]);
+    // Carried evidence keeps the ceiling through day 125 and drops it from
+    // day 126 (ceilingSince + 12).
+    expect(carried).toEqual(
+      [
+        115, 116, 117, 118, 120, 121, 122, 123, 124, 126, 127, 128, 129, 130,
+      ].map((day): [number, number | null] => [day, day < 126 ? 1 : null]),
+    );
+    expect(census.models[2]).toMatchObject({
+      ceiling: null,
+      ceilingSince: null,
+    });
   });
 
   test("a surplus that grows on a gap or outage read is unconfirmed until an incremental run sees it", () => {

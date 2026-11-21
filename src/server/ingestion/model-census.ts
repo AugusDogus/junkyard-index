@@ -99,9 +99,11 @@ export interface ModelCensusEvidence<Page> {
   /** Run day the ceiling was set (null when there is none). */
   ceilingSince: number | null;
   /** Set on a connector without a closing pass when a read listed fewer than
-   * count plus ceiling: the next run reads the page again (reason `short`),
-   * standing in for a closing re-read. Cleared when that re-read lists the
-   * same cards; set again when it lists a different count. */
+   * count plus the ceiling closing would enforce: the next run reads the page
+   * again (reason `short`), standing in for a closing re-read. Cleared when
+   * that re-read lists the same cards; set again when it lists other cards.
+   * The read on the day the ceiling expires can still set it, so it may
+   * outlive the ceiling by one run. */
   recheck: boolean;
   /** True when a normal incremental run observed this surplus (or there is
    * none). A surplus first seen, or grown, on a cold, gap or outage full read
@@ -115,8 +117,13 @@ export interface ModelCensusEvidence<Page> {
 }
 
 /** How a run treated short pages it read: confirmed by an identical in-run
- * re-read (otherwise the run failed), or not confirmed at all. */
-export type ModelCensusShortPages = "confirmed" | "unconfirmed";
+ * re-read (otherwise the run failed), or not confirmed at all. Without that
+ * re-read, a page below its ceiling is read again on the next run, which
+ * settles it only when `identity` (the cards a page lists, not its count) is
+ * unchanged. */
+export type ModelCensusShortPages<Page> =
+  | "confirmed"
+  | { kind: "unconfirmed"; identity: (page: Page) => string };
 
 export interface ModelCensusPlanOptions<Page> {
   /** Cards a page lists, compared with its published count. */
@@ -216,7 +223,6 @@ function schema<Page>(page: z.ZodType<Page>, maxModels: number) {
             (m.lowSince === null) !== (m.lowRise === null) ||
             (m.ceiling !== null && m.ceiling <= m.expected - m.count) ||
             (m.ceiling === null) !== (m.ceilingSince === null) ||
-            (m.recheck && m.ceiling === null) ||
             (m.expected === m.count && !m.surplusConfirmed),
         )
       )
@@ -408,7 +414,7 @@ export const ModelCensus = {
     contract: string,
     today: number,
     run: ModelCensusRun<Page>,
-    shortPages: ModelCensusShortPages,
+    shortPages: ModelCensusShortPages<Page>,
   ): ModelCensus<Page> {
     const { controls, pages, decisions, previous, cards } = run;
     if (
@@ -496,14 +502,21 @@ export const ModelCensus = {
             ? kept
             : null;
         // Without a closing pass, a read below the ceiling (including the
-        // read that sets it) is read again on the next run instead. That
-        // re-read settles it only when it lists the same cards; a different
-        // count (for example a fault on either read) asks for another.
+        // read that sets it) is read again on the next run instead. It
+        // enforces the ceiling closingReads would (the previous evidence's,
+        // or the one this read raises), so both modes stop on the same run
+        // day. That re-read settles it only when it lists the same cards;
+        // other cards (for example a fault on either read, even at the same
+        // count) ask for another.
+        const enforced = raised ? held : (before?.ceiling ?? null);
         const recheck =
-          shortPages === "unconfirmed" &&
-          ceiling !== null &&
-          cards(page) < control.count + ceiling &&
-          !(before?.recheck === true && cards(page) === cards(before.page));
+          shortPages !== "confirmed" &&
+          enforced !== null &&
+          cards(page) < control.count + enforced &&
+          !(
+            before?.recheck === true &&
+            shortPages.identity(page) === shortPages.identity(before.page)
+          );
         // Only a normal incremental run confirms a surplus it observes; a full
         // read keeps an earlier confirmation only when it saw the same surplus.
         const surplusConfirmed =
