@@ -159,6 +159,13 @@ for (const width of [390, 640, 1440]) {
   }
 }
 
+/**
+ * next/font defines --font-chivo-mono in the app. Without it the font stack
+ * is invalid and text falls back to a proportional face, narrower than the
+ * monospace the site sets every glyph in, so widths would read too small.
+ */
+const monospaceBody = `<style>:root{--font-chivo-mono:"Chivo Mono"}</style>`;
+
 async function openHeader(path: string, width: number) {
   const result = Bun.spawn(["bun", server, path], {
     stdout: "pipe",
@@ -187,7 +194,7 @@ async function openHeader(path: string, width: number) {
           ? script
           : pathname === "/app.css"
             ? stylesheet
-            : `<!doctype html><html><head><link rel="stylesheet" href="/app.css"></head><body><script>globalThis.process={env:{NODE_ENV:"production"}}</script><div id="root">${html}</div><script type="module" src="/app.js"></script></body></html>`,
+            : `<!doctype html><html><head><link rel="stylesheet" href="/app.css">${monospaceBody}</head><body><script>globalThis.process={env:{NODE_ENV:"production"}}</script><div id="root">${html}</div><script type="module" src="/app.js"></script></body></html>`,
     });
   });
   await page.goto(`http://header.test${path}`);
@@ -210,26 +217,36 @@ for (const width of [390, 1440]) {
   }, 20_000);
 }
 
-test("the phone nav row fits a 360px screen", async () => {
-  const page = await openHeader("/junkyards?signed-in=1", 360);
-  try {
-    for (const label of ["Junkyards", "Map", "Cars", "Pricing", "Search"]) {
+for (const width of [320, 360, 375]) {
+  test(`the phone nav row fits a ${width}px screen without scrolling`, async () => {
+    const page = await openHeader("/junkyards?signed-in=1", width);
+    try {
+      for (const label of ["Junkyards", "Map", "Cars", "Pricing", "Search"]) {
+        expect(
+          await page
+            .getByRole("link", { name: label, exact: true })
+            .filter({ visible: true })
+            .count(),
+        ).toBe(1);
+      }
+      // The row clips its overflow, so the page never scrolls sideways; a
+      // link past its edge would be hidden with no cue that the row scrolls.
+      const nav = page
+        .getByRole("navigation", { name: "Main", exact: true })
+        .filter({ visible: true });
       expect(
-        await page
-          .getByRole("link", { name: label, exact: true })
-          .filter({ visible: true })
-          .count(),
-      ).toBe(1);
+        await nav.evaluate((row) => row.scrollWidth <= row.clientWidth),
+      ).toBe(true);
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true);
+    } finally {
+      await closePage(page);
     }
-    expect(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth <= innerWidth,
-      ),
-    ).toBe(true);
-  } finally {
-    await closePage(page);
-  }
-}, 20_000);
+  }, 20_000);
+}
 
 test("the account menu carries every footer link the header lacks, by keyboard", async () => {
   const footerLinks = [
