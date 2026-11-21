@@ -1,5 +1,6 @@
 import { SEARCH_CONFIG } from "~/lib/constants";
 import type { PlanAccessState } from "~/lib/plan-access";
+import { isPaidPlanTier, type PlanTier } from "~/lib/plans";
 
 /**
  * Why a search shows only its first page. Each reason has its own prompt:
@@ -33,6 +34,12 @@ function capped(reason: SearchResultCapReason): SearchResultCap {
 function resolve(input: {
   isLoggedIn: boolean;
   planAccess: PlanAccessState;
+  /**
+   * The tier of the key the browser searches with, or null while one is
+   * fetched. A free key returns only the first page whatever the page asks,
+   * so paging past it would fetch the same results again.
+   */
+  searchKeyTier: PlanTier | null;
 }): SearchResultCap {
   if (!input.isLoggedIn) return capped("visitor");
   switch (input.planAccess.kind) {
@@ -41,9 +48,12 @@ function resolve(input: {
     case "unavailable":
       return capped("plan_unconfirmed");
     case "resolved":
-      return input.planAccess.tier === "free"
-        ? capped("free_plan")
-        : { kind: "uncapped" };
+      if (input.planAccess.tier === "free") return capped("free_plan");
+      if (input.searchKeyTier === null) return capped("plan_pending");
+      // The server could not confirm the plan the browser sees.
+      return isPaidPlanTier(input.searchKeyTier)
+        ? { kind: "uncapped" }
+        : capped("plan_unconfirmed");
   }
 }
 

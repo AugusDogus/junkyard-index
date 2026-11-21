@@ -77,12 +77,8 @@ export function SearchAccessShell({
   // plan, which the next search fetches. Drop the old key while rendering:
   // the remounted InstantSearch searches in its effects, which run before an
   // effect here would.
-  if (
-    typeof window !== "undefined" &&
-    planAccess.kind === "resolved" &&
-    browserSearchKey.isStaleFor(planAccess.tier)
-  )
-    browserSearchKey.invalidate();
+  if (typeof window !== "undefined" && planAccess.kind === "resolved")
+    browserSearchKey.renewFor(planAccess.tier);
   const canUseAdvancedFilters = resolveClientPlanFeatureAccess({
     access: planAccess,
     feature: "advanced_filters",

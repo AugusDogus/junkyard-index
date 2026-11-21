@@ -51,19 +51,22 @@ describe("SearchApiKey.mint", () => {
     }
   });
 
-  test("free keys force the first page of 24 results", () => {
+  test("free keys force the first 24 results in both pagination forms", () => {
     const grant = mint("free");
     const { params } = decode(grant.apiKey);
     expect(params.get("hitsPerPage")).toBe("24");
     expect(params.get("page")).toBe("0");
+    // offset/length would otherwise page past the first 24 results.
+    expect(params.get("offset")).toBe("0");
+    expect(params.get("length")).toBe("24");
     expect(grant.tier).toBe("free");
   });
 
   test("paid keys leave pagination to the page", () => {
     for (const tier of ["lite", "full"] as const) {
       const { params } = decode(mint(tier).apiKey);
-      expect(params.has("hitsPerPage")).toBe(false);
-      expect(params.has("page")).toBe(false);
+      for (const name of ["hitsPerPage", "page", "offset", "length"])
+        expect(params.has(name)).toBe(false);
     }
   });
 

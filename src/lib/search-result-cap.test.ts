@@ -16,6 +16,7 @@ describe("SearchResultCap.resolve", () => {
       SearchResultCap.resolve({
         isLoggedIn: false,
         planAccess: { kind: "resolved", tier: "full" },
+        searchKeyTier: "full",
       }),
     ).toEqual(firstPage("visitor"));
   });
@@ -25,6 +26,7 @@ describe("SearchResultCap.resolve", () => {
       SearchResultCap.resolve({
         isLoggedIn: true,
         planAccess: { kind: "resolved", tier: "free" },
+        searchKeyTier: "free",
       }),
     ).toEqual(firstPage("free_plan"));
   });
@@ -35,6 +37,7 @@ describe("SearchResultCap.resolve", () => {
         SearchResultCap.resolve({
           isLoggedIn: true,
           planAccess: { kind: "resolved", tier },
+          searchKeyTier: tier,
         }),
       ).toEqual({ kind: "uncapped" });
     }
@@ -45,12 +48,34 @@ describe("SearchResultCap.resolve", () => {
       SearchResultCap.resolve({
         isLoggedIn: true,
         planAccess: { kind: "loading" },
+        searchKeyTier: "free",
       }),
     ).toEqual(firstPage("plan_pending"));
     expect(
       SearchResultCap.resolve({
         isLoggedIn: true,
         planAccess: { kind: "unavailable", reason: "lookup_failed" },
+        searchKeyTier: "free",
+      }),
+    ).toEqual(firstPage("plan_unconfirmed"));
+  });
+
+  test("keeps a paid plan on the first page until its key is paid too", () => {
+    const paid = { kind: "resolved", tier: "lite" } as const;
+    expect(
+      SearchResultCap.resolve({
+        isLoggedIn: true,
+        planAccess: paid,
+        searchKeyTier: null,
+      }),
+    ).toEqual(firstPage("plan_pending"));
+    // The server resolved free (for example, Polar failed), so the key only
+    // returns the first page; paging would fetch it again.
+    expect(
+      SearchResultCap.resolve({
+        isLoggedIn: true,
+        planAccess: paid,
+        searchKeyTier: "free",
       }),
     ).toEqual(firstPage("plan_unconfirmed"));
   });

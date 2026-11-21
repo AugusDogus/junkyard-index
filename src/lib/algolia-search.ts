@@ -32,23 +32,35 @@ export { ALGOLIA_INDEX_NAME } from "~/lib/constants";
 // tab's secured key from `browserSearchKey`, which the server mints per plan
 // tier (see src/server/search-api-key.ts). Server renders search with the
 // server-only ALGOLIA_SEARCH_API_KEY. Never use an admin or write-capable key.
-const liteSearchClient = algoliasearch(
-  env.NEXT_PUBLIC_ALGOLIA_APP_ID,
-  typeof window === "undefined" ? env.ALGOLIA_SEARCH_API_KEY : "",
-  // Meter browser calls for analytics. Server renders keep the default
-  // requester; their searches are not a page view's.
+// The lite client refuses an empty key, so the browser builds its client
+// from the first granted key and swaps later keys in place.
+const serverSearchClient =
   typeof window === "undefined"
-    ? undefined
-    : SearchQueryMeter.clientOptions(searchQueryMeter, createXhrRequester()),
-);
+    ? algoliasearch(env.NEXT_PUBLIC_ALGOLIA_APP_ID, env.ALGOLIA_SEARCH_API_KEY)
+    : null;
+let browserSearchClient: LiteClient | null = null;
+async function liteSearchClient(): Promise<LiteClient> {
+  if (serverSearchClient) return serverSearchClient;
+  const apiKey = await browserSearchKey.current(Date.now());
+  if (!browserSearchClient) {
+    // Meter browser calls for analytics. Server renders keep the default
+    // requester; their searches are not a page view's.
+    browserSearchClient = algoliasearch(
+      env.NEXT_PUBLIC_ALGOLIA_APP_ID,
+      apiKey,
+      SearchQueryMeter.clientOptions(searchQueryMeter, createXhrRequester()),
+    );
+  } else {
+    browserSearchClient.setClientApiKey({ apiKey });
+  }
+  return browserSearchClient;
+}
 const keyedSearchClient: Pick<LiteClient, "search"> = {
   async search(searchMethodParams, requestOptions) {
-    if (typeof window !== "undefined") {
-      liteSearchClient.setClientApiKey({
-        apiKey: await browserSearchKey.current(Date.now()),
-      });
-    }
-    return liteSearchClient.search(searchMethodParams, requestOptions);
+    return (await liteSearchClient()).search(
+      searchMethodParams,
+      requestOptions,
+    );
   },
 };
 const baseSearchClient = withFullServiceCount(

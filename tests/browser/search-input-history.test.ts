@@ -16,7 +16,7 @@ beforeAll(async () => {
         setup(builder) {
           builder.onLoad({ filter: /src\/env\.js$/ }, () => ({
             contents:
-              'export const env = {NEXT_PUBLIC_APP_URL:"http://history.test"};',
+              'export const env = {NEXT_PUBLIC_APP_URL:"http://history.test",NEXT_PUBLIC_ALGOLIA_APP_ID:"FIXTURE"};',
             loader: "js",
           }));
           builder.onResolve({ filter: /^algoliasearch\/lite$/ }, () => ({
