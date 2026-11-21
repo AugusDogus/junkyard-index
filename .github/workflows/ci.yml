@@ -47,19 +47,19 @@ jobs:
       # The latest main run's shard timings; PR runs never save this cache.
       - uses: actions/cache/restore@v4.3.0
         with:
-          path: .bun-test-timings
+          path: bun-test-timings
           key: bun-test-timings-${{ github.run_id }}
           restore-keys: bun-test-timings-
       - name: Fall back to committed timings
         run: |
-          if [ -z "$(find .bun-test-timings -name '*.json' 2>/dev/null)" ]; then
-            mkdir -p .bun-test-timings/committed
-            cp .github/test-timings.json .bun-test-timings/committed/timings.json
+          if [ -z "$(find bun-test-timings -name '*.json' 2>/dev/null)" ]; then
+            mkdir -p bun-test-timings/committed
+            cp .github/test-timings.json bun-test-timings/committed/timings.json
           fi
       - uses: actions/upload-artifact@v4.6.2
         with:
           name: test-timings-input
-          path: .bun-test-timings/
+          path: bun-test-timings/
           if-no-files-found: error
           retention-days: 1
 
@@ -110,12 +110,12 @@ jobs:
       - name: Collect shard timings
         run: |
           for shard in test-results/test-shard-*; do
-            mkdir -p ".bun-test-timings/${shard##*/}"
-            cp "$shard/timings.json" ".bun-test-timings/${shard##*/}/timings.json"
+            mkdir -p "bun-test-timings/${shard##*/}"
+            cp "$shard/timings.json" "bun-test-timings/${shard##*/}/timings.json"
           done
       - uses: actions/cache/save@v4.3.0
         with:
-          path: .bun-test-timings
+          path: bun-test-timings
           key: bun-test-timings-${{ github.run_id }}
 
   browser:
