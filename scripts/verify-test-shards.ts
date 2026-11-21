@@ -1,10 +1,30 @@
 import { Glob } from "bun";
-import { z } from "zod";
 
-const timingsSchema = z.object({
-  version: z.literal(1),
-  files: z.record(z.number().finite().nonnegative()),
-});
+// No dependencies beyond Bun, so the required check runs without bun install.
+/** The test files a shard's `--update-timings` manifest records. */
+export function shardTimingsFiles(value: unknown, path: string): string[] {
+  const files =
+    typeof value === "object" &&
+    value !== null &&
+    "version" in value &&
+    value.version === 1 &&
+    "files" in value &&
+    typeof value.files === "object" &&
+    value.files !== null &&
+    !Array.isArray(value.files)
+      ? Object.entries(value.files)
+      : null;
+  if (
+    !files ||
+    files.some(
+      ([, ms]) => typeof ms !== "number" || !Number.isFinite(ms) || ms < 0,
+    )
+  )
+    throw new Error(
+      `${path} is not a Bun version 1 timings manifest with non-negative durations. Re-run the shard that uploaded it.`,
+    );
+  return files.map(([file]) => file);
+}
 
 export function verifyTestShards(
   expected: readonly string[],
@@ -40,12 +60,9 @@ if (import.meta.main) {
       `Expected ${count} shard manifests, received ${manifests.length}. Check failed or missing artifact uploads.`,
     );
   const shards = await Promise.all(
-    manifests.map(async (path) => {
-      const timings = timingsSchema.parse(
-        await Bun.file(`${directory}/${path}`).json(),
-      );
-      return Object.keys(timings.files);
-    }),
+    manifests.map(async (path) =>
+      shardTimingsFiles(await Bun.file(`${directory}/${path}`).json(), path),
+    ),
   );
   // These are Bun's supported test filename suffixes. Keep discovery independent
   // of the historical durations, so newly added tests cannot silently disappear.
