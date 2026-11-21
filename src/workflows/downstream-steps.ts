@@ -216,6 +216,13 @@ export async function cleanupStaleSnapshotsStep(): Promise<MaintenanceTaskResult
   );
 }
 
+/** Deletes outbox changes search no longer needs; failures are returned. */
+export async function pruneSearchOutboxStep(): Promise<MaintenanceTaskResult> {
+  "use step";
+
+  return IngestionMaintenanceTasks.outboxRetention(db, new Date());
+}
+
 /** Purges old delivered or cancelled intents; failures are returned. */
 export async function purgeTerminalIntentsStep(): Promise<MaintenanceTaskResult> {
   "use step";

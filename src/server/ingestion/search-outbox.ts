@@ -1,4 +1,4 @@
-import { and, asc, gt, lte } from "drizzle-orm";
+import { and, asc, gt, lte, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { vehicleChange } from "~/schema";
 
@@ -56,6 +56,9 @@ const HORIZON_SQL = `
     0
   ) as horizon
 `;
+
+/** Projected changes are kept this long for diagnosis and replay. */
+export const OUTBOX_RETENTION_MS = 14 * 24 * 60 * 60 * 1000;
 
 export const SearchOutbox = {
   checkpointName: CHECKPOINT_NAME,
@@ -139,5 +142,52 @@ export const SearchOutbox = {
       .orderBy(asc(vehicleChange.id))
       .limit(1);
     return oldest?.createdAt ?? null;
+  },
+
+  /**
+   * Deletes one batch of changes the search projector no longer needs:
+   * those at or below its checkpoint that a live generation's snapshot
+   * covers, or that are older than the retention window. Nothing is deleted
+   * before the projector has a live generation, so inline and skipped runs'
+   * changes stay for the rebuild that owes them. Resolves rows deleted.
+   */
+  async pruneBatch(
+    database: LibSQLDatabase,
+    params: { now: Date; limit: number },
+  ): Promise<number> {
+    const cutoff = params.now.getTime() - OUTBOX_RETENTION_MS;
+    // One id bound, so the scan stops at it: the checkpoint, and below it
+    // the live snapshot or the first change still inside the window (ids
+    // and created_at grow together), whichever is higher.
+    const result = await database.run(sql`
+      delete from vehicle_change_v2
+      where id in (
+        select outbox_change.id from vehicle_change_v2 outbox_change
+        where exists (
+            select 1 from search_index_generation where status = 'live'
+          )
+          and outbox_change.id <= min(
+            ${sql.raw(PROJECTED_THROUGH_SQL)},
+            max(
+              (
+                select coalesce(max(snapshot_change_id), 0)
+                from search_index_generation where status = 'live'
+              ),
+              coalesce(
+                (
+                  select recent.id from vehicle_change_v2 recent
+                  where recent.created_at >= ${cutoff}
+                  order by recent.id
+                  limit 1
+                ),
+                ${sql.raw(PROJECTED_THROUGH_SQL)} + 1
+              ) - 1
+            )
+          )
+        order by outbox_change.id
+        limit ${params.limit}
+      )
+    `);
+    return result.rowsAffected;
   },
 } as const;

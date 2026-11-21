@@ -16,6 +16,7 @@ import {
   consumerModeStep,
   deliverVehicleSearchAlertIntentsStep,
   pruneIngestionRunsStep,
+  pruneSearchOutboxStep,
   purgeTerminalIntentsStep,
   inventoryDownstreamDueStep,
   recordInventoryDownstreamFailureStep,
@@ -101,6 +102,7 @@ export async function ingestionMaintenanceWorkflow() {
   try {
     result = await runIngestionMaintenance({
       mode: () => consumerModeStep("maintenance"),
+      outboxRetention: pruneSearchOutboxStep,
       pruneRuns: pruneIngestionRunsStep,
       staleSnapshots: cleanupStaleSnapshotsStep,
       terminalIntents: purgeTerminalIntentsStep,

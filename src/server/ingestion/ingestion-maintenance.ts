@@ -4,6 +4,7 @@ import type { ConsumerMode } from "./consumer-flags";
 import type { ConsumerTickSummary } from "./consumer-report";
 
 export type MaintenanceTask =
+  | "outbox-retention"
   | "prune-runs"
   | "stale-snapshots"
   | "terminal-intents";
@@ -31,23 +32,28 @@ export type IngestionMaintenanceResult =
   | { status: "completed"; failed: boolean; tasks: MaintenanceTaskResult[] };
 
 /**
- * The daily ingestion-maintenance tick: prunes old ingestion runs, deletes
- * Blob snapshot chunks of runs no longer active, and purges delivered or
- * cancelled notification intents older than 30 days. Each task runs even if
+ * The daily ingestion-maintenance tick: deletes outbox changes the search
+ * projector no longer needs (first, so runs left without changes can be
+ * pruned the same day), prunes old ingestion runs, deletes Blob snapshot
+ * chunks of runs no longer active, and purges delivered or cancelled
+ * notification intents older than 30 days. Each task runs even if
  * another fails, and each result is a value. None depends on an ingestion
  * pass completing or on search.
  */
 export async function runIngestionMaintenance(operations: {
   mode(): Promise<ConsumerMode>;
+  outboxRetention(): Promise<MaintenanceTaskResult>;
   pruneRuns(): Promise<MaintenanceTaskResult>;
   staleSnapshots(): Promise<MaintenanceTaskResult>;
   terminalIntents(): Promise<MaintenanceTaskResult>;
 }): Promise<IngestionMaintenanceResult> {
   // Invoke step callbacks without serializing the operations object as `this`.
-  const { mode, pruneRuns, staleSnapshots, terminalIntents } = operations;
+  const { mode, outboxRetention, pruneRuns, staleSnapshots, terminalIntents } =
+    operations;
   if ((await mode()) === "paused") return { status: "paused" };
   const tasks: MaintenanceTaskResult[] = [];
   for (const [task, run] of [
+    ["outbox-retention", outboxRetention],
     ["prune-runs", pruneRuns],
     ["stale-snapshots", staleSnapshots],
     ["terminal-intents", terminalIntents],

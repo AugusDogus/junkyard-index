@@ -1,3 +1,4 @@
+import { SearchOutbox } from "./search-outbox";
 import { sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import type { MaintenanceTaskResult } from "./ingestion-maintenance";
@@ -10,6 +11,9 @@ export const TERMINAL_INTENT_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;
 const TERMINAL_INTENT_BATCH_SIZE = 5_000;
 // Bounds one daily run; anything left is picked up the next day.
 const MAX_BATCHES_PER_RUN = 20;
+const OUTBOX_BATCH_SIZE = 5_000;
+// About 300K changes a day: the cutover's leftovers clear in one run.
+const OUTBOX_MAX_BATCHES_PER_RUN = 60;
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -63,6 +67,48 @@ export const IngestionMaintenanceTasks = {
     } catch (error) {
       return {
         task: "stale-snapshots",
+        status: "failed",
+        deleted,
+        message: message(error),
+      };
+    }
+  },
+
+  /**
+   * Deletes outbox changes the search projector no longer needs, in id
+   * order. After the cutover rebuild that is every leftover change of the
+   * skipped period, so this runs more batches than the other tasks.
+   */
+  async outboxRetention(
+    database: LibSQLDatabase,
+    now: Date,
+  ): Promise<MaintenanceTaskResult> {
+    let deleted = 0;
+    try {
+      for (let batch = 1; batch <= OUTBOX_MAX_BATCHES_PER_RUN; batch += 1) {
+        const rows = await SearchOutbox.pruneBatch(database, {
+          now,
+          limit: OUTBOX_BATCH_SIZE,
+        });
+        deleted += rows;
+        if (rows < OUTBOX_BATCH_SIZE) {
+          return {
+            task: "outbox-retention",
+            status: "done",
+            deleted,
+            complete: true,
+          };
+        }
+      }
+      return {
+        task: "outbox-retention",
+        status: "done",
+        deleted,
+        complete: false,
+      };
+    } catch (error) {
+      return {
+        task: "outbox-retention",
         status: "failed",
         deleted,
         message: message(error),
