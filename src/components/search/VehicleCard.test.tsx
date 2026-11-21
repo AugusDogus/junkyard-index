@@ -40,9 +40,18 @@ describe("search card details", () => {
       "space",
       "engine",
       "transmission",
+      "trim",
+      "sourceModel",
     ] as const) {
       expect([...SEARCH_CARD_ATTRIBUTES]).toContain(field);
     }
+  });
+
+  test("shows trim and a differing yard model", () => {
+    const html = card({ trim: "EX", sourceModel: "CIVIC EX" });
+    expect(html).toContain(">EX</p>");
+    expect(html).toContain("Yard model: CIVIC EX");
+    expect(card({ sourceModel: "Civic" })).not.toContain("Yard model");
   });
 
   test("shows section, row and space with engine and transmission", () => {
