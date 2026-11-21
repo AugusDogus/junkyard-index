@@ -93,29 +93,27 @@ export const AlertStatus = {
     }
     const today = IngestionDay.key(now);
     const yesterday = previousDay(now);
-    const todaysCheck = inputs.openedChecks.find(
-      (check) => check.day === today,
-    );
-    const yesterdayOpened = inputs.openedChecks.some(
-      (check) => check.day === yesterday,
-    );
-    // From 20:00 UTC today's check should be finished, unless it opened so
-    // recently that it may still be running healthily.
+    // A check is expected to have completed only once it was opened and has
+    // had 2 hours from its own start, across the 07:00 UTC day boundary too;
+    // today's is not expected before 20:00 UTC either. No check opens while
+    // alerts are paused, so a day without one (paused, just switched back on,
+    // or a search-alerts cron that never opened it) expects nothing.
+    const hadTime = (check: { startedAt: Date } | undefined) =>
+      check !== undefined &&
+      now.getTime() - check.startedAt.getTime() >=
+        SearchAlertSchedule.staleAfterMs + CHECK_GRACE_MS;
     const pastOverdue =
       now.getTime() >=
       SearchAlertSchedule.missingCheckGraceAt(now).getTime() + CHECK_GRACE_MS;
-    const todayOverdue =
+    const todayExpected =
       pastOverdue &&
-      (todaysCheck === undefined
-        ? yesterdayOpened
-        : now.getTime() - todaysCheck.startedAt.getTime() >=
-          SearchAlertSchedule.staleAfterMs + CHECK_GRACE_MS);
-    // No check opens while alerts are paused, so a day is expected only when
-    // alerts were on for it: today's once it is overdue (if it or yesterday's
-    // was opened), otherwise yesterday's if it was opened.
-    const expectedDay = todayOverdue
+      hadTime(inputs.openedChecks.find((check) => check.day === today));
+    const yesterdayExpected = hadTime(
+      inputs.openedChecks.find((check) => check.day === yesterday),
+    );
+    const expectedDay = todayExpected
       ? today
-      : yesterdayOpened
+      : yesterdayExpected
         ? yesterday
         : null;
     const problems: string[] = [];

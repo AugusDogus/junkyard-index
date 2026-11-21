@@ -44,11 +44,19 @@ describe("AlertStatus.evaluate", () => {
         morning,
       ),
     ).toMatchObject({ status: "unhealthy", expectedDay: "2026-11-19" });
-    // Alerts were on yesterday, so the deadline cron should have opened today's.
-    expect(AlertStatus.evaluate(enabled, evening)).toMatchObject({
-      status: "unhealthy",
-      expectedDay: "2026-11-20",
-    });
+    // Today's check, once opened, must finish within 2 hours after 20:00 UTC.
+    expect(
+      AlertStatus.evaluate(
+        {
+          ...enabled,
+          openedChecks: [
+            yesterdaysCheck,
+            { day: "2026-11-20", startedAt: utc("20T16:00:00") },
+          ],
+        },
+        evening,
+      ),
+    ).toMatchObject({ status: "unhealthy", expectedDay: "2026-11-20" });
     expect(
       AlertStatus.evaluate(
         {
@@ -90,6 +98,32 @@ describe("AlertStatus.evaluate", () => {
     expect(AlertStatus.evaluate(opened, utc("20T22:41:00"))).toMatchObject({
       status: "unhealthy",
       expectedDay: "2026-11-20",
+    });
+  });
+
+  test("switching alerts back on after 20:00 UTC following a one-day pause stays healthy", () => {
+    // Alerts ran yesterday, were paused before today's check opened, and are
+    // switched back on at 20:05 UTC.
+    expect(AlertStatus.evaluate(enabled, utc("20T20:05:00"))).toMatchObject({
+      status: "healthy",
+      expectedDay: "2026-11-19",
+    });
+  });
+
+  test("a check opened late in its day keeps its 2 hours across the 07:00 UTC rollover", () => {
+    const lateCheck = {
+      ...enabled,
+      lastCompletedDay: "2026-11-17",
+      // Opened at 06:40 UTC, so it belongs to the 2026-11-19 ingestion day.
+      openedChecks: [{ day: "2026-11-19", startedAt: utc("20T06:40:00") }],
+    };
+    expect(AlertStatus.evaluate(lateCheck, utc("20T07:05:00"))).toMatchObject({
+      status: "healthy",
+      expectedDay: null,
+    });
+    expect(AlertStatus.evaluate(lateCheck, utc("20T08:41:00"))).toMatchObject({
+      status: "unhealthy",
+      expectedDay: "2026-11-19",
     });
   });
 
@@ -136,7 +170,8 @@ describe("AlertStatus.load", () => {
         id text primary key, run_id text, alert_check_id text,
         user_id text not null default 'user-1', channel text not null default 'email',
         status text not null default 'pending', delivery_group_id text,
-        claimed_at integer, next_attempt_at integer, created_at integer not null default 0
+        claimed_at integer, next_attempt_at integer, created_at integer not null default 0,
+        cancelled_at integer, delivered_at integer
       );
       create table search_notification_delivery (
         user_id text not null, channel text not null, delivered_at integer not null
@@ -248,5 +283,54 @@ describe("AlertStatus.load", () => {
     expect(AlertStatus.evaluate(inputs, now)).toMatchObject({
       status: "unhealthy",
     });
+  });
+
+  test("an intent released when its recipient's queued group is cancelled is dated from the cancellation", async () => {
+    const database = await setup();
+    await check("b", "2026-11-19", "complete", {
+      started: utc("19T16:00:00"),
+      completed: utc("19T16:10:00"),
+    });
+    await check("c", "2026-11-20", "complete", {
+      started: utc("20T16:00:00"),
+      completed: utc("20T16:10:00"),
+    });
+    // Today's ungrouped intent waited behind the recipient's queued retry
+    // group until the recipient edited that search at 20:00.
+    await client.executeMultiple(`
+      insert into search_notification_intent (id, alert_check_id, status, created_at)
+        values ('today', 'c', 'pending', ${utc("20T16:05:00").getTime()});
+      insert into search_notification_intent (id, alert_check_id, status, delivery_group_id, next_attempt_at, created_at, cancelled_at)
+        values ('queued', 'b', 'cancelled', 'g1', ${utc("20T22:00:00").getTime()}, ${utc("19T16:05:00").getTime()}, ${utc("20T20:00:00").getTime()});
+    `);
+    const now = utc("20T20:05:00");
+    const inputs = await AlertStatus.load(database, now, "enabled", LEASE_MS);
+    expect(inputs.oldestDeliverableAt).toEqual(utc("20T20:00:00"));
+    expect(AlertStatus.evaluate(inputs, now)).toMatchObject({
+      status: "healthy",
+    });
+  });
+
+  test("another recipient's digest or cancellation does not re-date an intent", async () => {
+    const database = await setup();
+    await check("b", "2026-11-19", "complete", {
+      started: utc("19T16:00:00"),
+      completed: utc("19T16:10:00"),
+    });
+    await client.executeMultiple(`
+      insert into search_notification_intent (id, alert_check_id, status, delivery_group_id, created_at)
+        values ('mine', 'b', 'pending', 'g1', ${utc("19T17:00:00").getTime()});
+      insert into search_notification_intent (id, alert_check_id, user_id, status, created_at, cancelled_at)
+        values ('theirs', 'b', 'user-2', 'cancelled', 0, ${utc("20T07:20:00").getTime()});
+      insert into search_notification_delivery (user_id, channel, delivered_at)
+        values ('user-2', 'email', ${utc("19T17:30:00").getTime()});
+    `);
+    const inputs = await AlertStatus.load(
+      database,
+      utc("20T07:30:00"),
+      "enabled",
+      LEASE_MS,
+    );
+    expect(inputs.oldestDeliverableAt).toEqual(utc("19T17:00:00"));
   });
 });
