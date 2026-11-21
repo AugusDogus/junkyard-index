@@ -86,6 +86,28 @@ export const SearchPublicationFlag = {
   },
 
   /**
+   * How maintenance that writes Algolia outside a run (the daily search-index
+   * migration) treats search now. It follows the same rule as runs: decoupled
+   * whatever the skip flag serves, otherwise the skip flag decides. An
+   * unreadable mode is reported, not guessed, so the caller writes nothing.
+   */
+  async maintenance(): Promise<SearchPublicationMode | "mode_unavailable"> {
+    return SearchPublicationFlag.maintenanceFor(
+      await PublicationModeFlag.mode(),
+      () => SearchPublicationFlag.mode(),
+    );
+  },
+
+  /** `maintenance` for a mode reading. */
+  async maintenanceFor(
+    mode: PublicationModeReading,
+    skipFlag: () => Promise<"inline" | "skipped">,
+  ): Promise<SearchPublicationMode | "mode_unavailable"> {
+    if (mode === "unavailable") return "mode_unavailable";
+    return SearchPublicationFlag.publicationFor(mode, skipFlag);
+  },
+
+  /**
    * `publication` for a mode reading; reads the skip flag only when inline,
    * and throws `PublicationModeUnavailable` for an unreadable mode.
    */

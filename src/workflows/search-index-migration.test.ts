@@ -47,6 +47,54 @@ test.each([
   },
 );
 
+for (const { mode, expected } of [
+  {
+    mode: "decoupled",
+    expected: ["decode", "flag", "lock", "initialize", "project", "finalize"],
+  },
+  { mode: "mode_unavailable", expected: ["decode", "flag"] },
+] as const) {
+  test(`the migration under publication ${mode}`, () => {
+    const script = `
+    import { mock } from 'bun:test';
+    let writer = false;
+    const events = [];
+    mock.module('workflow', () => ({
+      sleep: async () => {},
+      createHook: ({token}) => {
+        if (token === 'algolia-writes') { writer = true; events.push('lock'); }
+        return { getConflict: async () => null, [Symbol.dispose]() { if (token === 'algolia-writes') writer = false; } };
+      },
+    }));
+    mock.module('./src/workflows/search-projector-steps', () => ({
+      searchRebuildInFlightStep: async () => false,
+    }));
+    mock.module('./src/workflows/vehicle-steps', () => ({
+      searchPublicationModeStep: async () => { events.push('flag'); return '${mode}'; },
+      warmVinCacheBatchStep: async state => { events.push('decode'); return {status:'complete',state:{...state,accepted:1}}; },
+      initializeSearchIndexMigrationStep: async () => { events.push('initialize'); return {status:'pending',state:{}}; },
+      runSearchIndexMigrationBatchStep: async state => { if(!writer) throw new Error('publication lacks writer lock'); events.push('project'); return {done:true,state}; },
+      finalizeSearchIndexMigrationStep: async () => { events.push('finalize'); return {}; },
+    }));
+    const {searchIndexMigrationWorkflow} = await import('./src/workflows/search-index-migration');
+    console.log(JSON.stringify({ result: await searchIndexMigrationWorkflow(), events }));
+  `;
+    const result = Bun.spawnSync([process.execPath, "--eval", script], {
+      cwd: process.cwd(),
+    });
+    expect(result.stderr.toString()).toBe("");
+    expect(result.exitCode).toBe(0);
+    const out = JSON.parse(result.stdout.toString());
+    expect(out.events).toEqual([...expected]);
+    if (mode === "mode_unavailable") {
+      expect(out.result).toEqual({
+        status: "skipped",
+        reason: "publication_mode_unavailable",
+      });
+    }
+  });
+}
+
 test("frozen search publication skips the migration before the writer lock", () => {
   const script = `
     import { mock, expect } from 'bun:test';
