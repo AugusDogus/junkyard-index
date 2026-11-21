@@ -16,9 +16,13 @@ import { z } from "zod";
  * normal incremental run confirms short pages: a cold, gap or outage run
  * stores none as confirmed, so the next run reads them again.
  *
- * A model's expected card count is its published count plus any surplus its
- * previous accepted page listed above that page's own count (some pages list
- * placeholders or surplus rows). A page with fewer cards than its published
+ * A model's expected card count is its published count plus a sticky surplus of
+ * placeholder or surplus rows its pages have listed. The surplus grows with
+ * any read that lists more and carries across count changes. A read listing
+ * less keeps it (`lowSince` records when), and it is lowered only after six run
+ * days of such reads under an unchanged count, by a normal incremental run. A
+ * surplus first seen or grown on a cold, gap or outage read is unconfirmed and
+ * read again by the next incremental run. A page with fewer cards than its published
  * count is carried only when a normal incremental run read it and confirmed
  * it with an identical re-read. Any other page below its expected count (an unconfirmed
  * short page, or a surplus page that lost cards without its count dropping)
@@ -70,6 +74,11 @@ export interface ModelCensusEvidence<Page> {
    * allows above the count, or null. The surplus is lowered only after six
    * run days of such reads. */
   lowSince: number | null;
+  /** True when a normal incremental run observed this surplus (or there is
+   * none). A surplus first seen, or grown, on a cold, gap or outage full read
+   * is unconfirmed, and the next incremental run reads the page again: a fault
+   * on that one day could have hidden real cards behind the placeholders. */
+  surplusConfirmed: boolean;
   /** True only for a page with fewer cards than `count` that an identical
    * re-read confirmed in the run that read it. */
   confirmed: boolean;
@@ -146,6 +155,7 @@ function schema<Page>(page: z.ZodType<Page>, maxModels: number) {
               readDay: day,
               expected: z.number().int().nonnegative().safe(),
               lowSince: day.nullable(),
+              surplusConfirmed: z.boolean(),
               confirmed: z.boolean(),
               page,
             })
@@ -167,7 +177,8 @@ function schema<Page>(page: z.ZodType<Page>, maxModels: number) {
           (m) =>
             m.expected < m.count ||
             (m.lowSince !== null &&
-              (m.lowSince > m.readDay || m.expected === m.count)),
+              (m.lowSince > m.readDay || m.expected === m.count)) ||
+            (m.expected === m.count && !m.surplusConfirmed),
         )
       )
         context.addIssue({
@@ -240,7 +251,10 @@ function plan<Page>(
     if (before.count !== control.count)
       return { kind: "read", reason: "count" };
     if (triggers.has(control.key)) return { kind: "read", reason: "trigger" };
-    if (cards(before.page) < before.expected && !before.confirmed)
+    if (
+      (cards(before.page) < before.expected && !before.confirmed) ||
+      !before.surplusConfirmed
+    )
       return { kind: "read", reason: "short" };
     if (today - before.readDay >= MODEL_CENSUS_SWEEP_DAYS)
       return { kind: "read", reason: "stale" };
@@ -384,23 +398,42 @@ export const ModelCensus = {
           };
         // The surplus follows a read that lists at least as much. A read that
         // lists less keeps it (badge lag after a sale looks exactly like a
-        // lost card) until such reads have lasted six run days and a normal
-        // incremental run confirms the lower count; meanwhile the page counts
-        // as short and is read again every run. Like confirmation, a cold, gap
-        // or outage full read never lowers it.
+        // lost card) until such reads have lasted six run days under an
+        // unchanged count and a normal incremental run confirms the lower
+        // count; meanwhile the page counts as short and is read again every
+        // run. Like confirmation, a cold, gap or outage full read never lowers
+        // it.
         const before = evidence.get(control.key);
         const held = before ? surplusOf(before) : 0;
         const observed = Math.max(0, cards(page) - control.count);
-        const lowSince = before?.lowSince ?? today;
+        // A count change restarts the window: badges that count arrivals
+        // before their cards appear make the surplus look smaller for days,
+        // while a placeholder that is really gone leaves the count alone.
+        const lowSince =
+          before?.lowSince !== null &&
+          before?.lowSince !== undefined &&
+          before.count === control.count
+            ? before.lowSince
+            : today;
         const lowered =
           observed >= held ||
           (incremental && today - lowSince >= MODEL_CENSUS_SWEEP_DAYS);
+        const surplus = lowered ? observed : held;
+        // Only a normal incremental run confirms a surplus it observes; a full
+        // read keeps an earlier confirmation only when it saw the same surplus.
+        const surplusConfirmed =
+          surplus === 0 ||
+          (lowered
+            ? incremental ||
+              (observed === held && before?.surplusConfirmed === true)
+            : before?.surplusConfirmed === true);
         return {
           key: control.key,
           count: control.count,
           readDay: today,
-          expected: control.count + (lowered ? observed : held),
+          expected: control.count + surplus,
           lowSince: lowered ? null : lowSince,
+          surplusConfirmed,
           confirmed: confirming && cards(page) < control.count,
           page,
         };

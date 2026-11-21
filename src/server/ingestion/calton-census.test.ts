@@ -485,7 +485,9 @@ test("incremental checkpoints re-derive carried evidence and request accounting"
 
 test("a model page read short of its badge is read again on the next run", async () => {
   // Calton has no closing pass, so a short page read today is unconfirmed: the
-  // next run reads it again instead of carrying it for up to six days.
+  // next run reads it again instead of carrying it for up to six days. A
+  // surplus first seen on a cold read is unconfirmed too, so the next normal
+  // incremental run reads that page again and confirms it.
   const site = yard();
   const sweep = sweepAt(site, D + 1);
   const outside = [...Array(MODEL_COUNT).keys()].filter(
@@ -507,18 +509,63 @@ test("a model page read short of its badge is read again on the next run", async
     confirmed: false,
   });
   expect(cold.cursor.census.models[shortModel]?.page.records).toHaveLength(1);
+  expect(cold.cursor.census.models[extraModel]).toMatchObject({
+    count: 2,
+    readDay: D,
+    expected: 3,
+    lowSince: null,
+    surplusConfirmed: false,
+    confirmed: false,
+  });
   // Day N + 1: the badge is unchanged and the page lists every donor again.
+  // The unconfirmed surplus page, still listing its extra row, is read again
+  // (short) beside the short page.
   site.short.clear();
   const next = await runDay(site, D + 1, cold.terminal);
+  expect(shortModel).toBeLessThan(extraModel);
   expect(next.modelReads).toEqual(
     urlsAt(
       site,
-      [...sweep, shortModel].sort((a, b) => a - b),
+      [...sweep, shortModel, extraModel].sort((a, b) => a - b),
     ),
   );
   expect(next.published).toContain(vin(dropped));
+  expect(next.published).toContain(vin(`S${extraModel}X`));
+  const reasons =
+    (sweep[0] ?? Infinity) < shortModel
+      ? `sweep ${sweep.length}, short 2`
+      : `short 2, sweep ${sweep.length}`;
   expect(next.warnings).toContain(
-    `Calton Read ${sweep.length + 1} of ${MODEL_COUNT} model pages (${sweepAndOne(sweep, shortModel, "short")}); carried ${MODEL_COUNT - sweep.length - 1}.`,
+    `Calton Read ${sweep.length + 2} of ${MODEL_COUNT} model pages (${reasons}); carried ${MODEL_COUNT - sweep.length - 2}.`,
+  );
+  if (next.cursor.phase !== "complete" || !next.cursor.census)
+    throw new Error("Expected a terminal census");
+  expect(next.cursor.census.models[shortModel]).toMatchObject({
+    count: 2,
+    readDay: D + 1,
+    expected: 2,
+    lowSince: null,
+    surplusConfirmed: true,
+    confirmed: false,
+  });
+  expect(next.cursor.census.models[shortModel]?.page.records).toHaveLength(2);
+  expect(next.cursor.census.models[extraModel]).toMatchObject({
+    count: 2,
+    readDay: D + 1,
+    expected: 3,
+    lowSince: null,
+    surplusConfirmed: true,
+    confirmed: false,
+  });
+  // Day N + 2: both pages agree with their badge and confirmed surplus, so
+  // they carry outside their slices.
+  const settledSweep = sweepAt(site, D + 2);
+  expect(settledSweep).not.toContain(shortModel);
+  expect(settledSweep).not.toContain(extraModel);
+  const settled = await runDay(site, D + 2, next.terminal);
+  expect(settled.modelReads).toEqual(urlsAt(site, settledSweep));
+  expect(settled.warnings).toContain(
+    `Calton Read ${settledSweep.length} of ${MODEL_COUNT} model pages (sweep ${settledSweep.length}); carried ${MODEL_COUNT - settledSweep.length}.`,
   );
 });
 
@@ -558,6 +605,15 @@ test("a surplus page that drops to its badge is read again on the next run", asy
   site.extra.add(surplus);
   const cold = await runDay(site, D, null);
   expect(cold.published).toContain(vin(`S${surplus}X`));
+  if (cold.cursor.phase !== "complete" || !cold.cursor.census)
+    throw new Error("Expected a terminal census");
+  // A surplus first seen on a cold read is unconfirmed.
+  expect(cold.cursor.census.models[surplus]).toMatchObject({
+    count: 4,
+    expected: 5,
+    lowSince: null,
+    surplusConfirmed: false,
+  });
   // Day D + 1 sweeps the surplus page, which now lists exactly its badge.
   site.extra.clear();
   const dropped = await runDay(site, D + 1, cold.terminal);
@@ -569,6 +625,7 @@ test("a surplus page that drops to its badge is read again on the next run", asy
     count: 4,
     expected: 5,
     lowSince: D + 1,
+    surplusConfirmed: false,
     confirmed: false,
   });
   expect(dropped.cursor.census.models[surplus]?.page.records).toHaveLength(4);
@@ -598,6 +655,7 @@ test("a surplus page that drops to its badge is read again on the next run", asy
       readDay: day,
       expected: 5,
       lowSince: D + 1,
+      surplusConfirmed: false,
       confirmed: false,
     });
     previous = run.terminal;
@@ -620,6 +678,7 @@ test("a surplus page that drops to its badge is read again on the next run", asy
     readDay: D + 7,
     expected: 4,
     lowSince: null,
+    surplusConfirmed: true,
     confirmed: false,
   });
   // From then on the page agrees with its badge and lowered surplus, so it
@@ -639,6 +698,7 @@ test("a surplus page that drops to its badge is read again on the next run", asy
     readDay: D + 7,
     expected: 4,
     lowSince: null,
+    surplusConfirmed: true,
   });
 });
 

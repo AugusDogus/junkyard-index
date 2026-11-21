@@ -434,9 +434,19 @@ test("Scotts stores closing-confirmed short pages as confirmed and carries surpl
   expect(parsed.census.models.map((m) => m.confirmed)).toEqual(
     Array.from({ length: 12 }, () => false),
   );
+  // Nor does it confirm the surplus it first saw: model 5 expects its extra
+  // card, but the next incremental run must read it again.
+  expect(parsed.census.models.map((m) => m.surplusConfirmed)).toEqual(
+    Array.from({ length: 12 }, (_, i) => i !== 5),
+  );
+  expect(parsed.census.models[5]?.expected).toBe(30);
+  expect(parsed.census.models.map((m) => m.lowSince)).toEqual(
+    Array.from({ length: 12 }, () => null),
+  );
 
-  // The next incremental run re-reads only the short page as short, re-reads
-  // it at closing and stores it as confirmed; the surplus page carries as full.
+  // The next incremental run re-reads both mismatched pages as short and
+  // re-reads them at closing: it stores the short page as confirmed and
+  // confirms the surplus page's surplus.
   const sweep601 = sweep(native, 601);
   if (sweep601.length === 0 || sweep601.includes(3) || sweep601.includes(5))
     throw new Error(
@@ -444,19 +454,29 @@ test("Scotts stores closing-confirmed short pages as confirmed and carries surpl
     );
   const confirming = await census(native, 601, cold.terminal);
   expect(confirming.models).toEqual([
-    ...[3, ...sweep601].sort((a, b) => a - b),
+    ...[3, 5, ...sweep601].sort((a, b) => a - b),
     3,
+    5,
   ]);
-  expect(confirming.requests).toBe(5 + sweep601.length + 2);
+  // The five non-model requests a cold run also makes (17 less its 12 model
+  // pages), the two short pages, the sweep slice and two closing re-reads.
+  expect(confirming.requests).toBe(5 + 2 + sweep601.length + 2);
   expect(confirming.vins).toEqual(allVins(native));
   expect(confirming.warnings.at(-1)).toBe(
-    `Scotts Read ${sweep601.length + 1} of 12 model pages (${3 < Math.min(...sweep601) ? `short 1, sweep ${sweep601.length}` : `sweep ${sweep601.length}, short 1`}); carried ${11 - sweep601.length}.`,
+    `Scotts Read ${sweep601.length + 2} of 12 model pages (${3 < Math.min(...sweep601) ? `short 2, sweep ${sweep601.length}` : `sweep ${sweep601.length}, short 2`}); carried ${10 - sweep601.length}.`,
   );
   const confirmedParsed = ScottsCursorSchema.parse(confirming.terminal);
   if (confirmedParsed.phase !== "complete" || !confirmedParsed.census)
     throw new Error("Expected a terminal census");
   expect(confirmedParsed.census.models.map((m) => m.confirmed)).toEqual(
     Array.from({ length: 12 }, (_, i) => i === 3),
+  );
+  expect(confirmedParsed.census.models.map((m) => m.surplusConfirmed)).toEqual(
+    Array.from({ length: 12 }, () => true),
+  );
+  expect(confirmedParsed.census.models[5]?.expected).toBe(30);
+  expect(confirmedParsed.census.models.map((m) => m.lowSince)).toEqual(
+    Array.from({ length: 12 }, () => null),
   );
 
   // Neither page is read again as short on a day whose slice skips both.

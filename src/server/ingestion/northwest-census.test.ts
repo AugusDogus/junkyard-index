@@ -676,11 +676,53 @@ test("Northwest re-reads a surplus page that lost cards down to exactly its badg
     swept(native, candidate).includes(3),
   );
   if (day === undefined) throw new Error("fixture needs M3 swept by day 604");
-  // Run every day before it, so no gap forces a full read on that day.
+  if (swept(native, 601).includes(3))
+    throw new Error("fixture needs M3 outside the day 601 slice");
+  const model3 = (terminal: unknown) => {
+    const parsed = NorthwestCursor.parse(JSON.stringify(terminal));
+    if (parsed.phase !== "complete" || !parsed.census)
+      throw new Error("Expected a terminal census");
+    return parsed.census.models[3];
+  };
+  // The cold read first saw the surplus, so it is stored unconfirmed.
+  expect(model3(cold.terminal)).toEqual({
+    key: censusKey(3),
+    count: 190,
+    readDay: 600,
+    expected: 200,
+    lowSince: null,
+    surplusConfirmed: false,
+    confirmed: false,
+    page: expect.anything(),
+  });
+  // Run every day before it, so no gap forces a full read on that day. The
+  // first incremental run reads model 3 again as short (its surplus is
+  // unconfirmed) and closing re-reads it (200 cards against a 190 badge);
+  // that run confirms the surplus, so later runs only read their slice.
   let previous = cold.terminal;
   for (let daily = 601; daily < day; daily++) {
     const run = await census(native, daily, previous);
-    expect(run.models).toEqual(swept(native, daily));
+    const confirming = daily === 601;
+    expect(run.models).toEqual(
+      confirming ? [...swept(native, daily), 3, 3] : swept(native, daily),
+    );
+    expect(run.vins).toEqual(allVins(native));
+    expect(run.warnings.at(-1)).toBe(
+      summary(12, [
+        ...swept(native, daily).map(() => "sweep"),
+        ...(confirming ? ["short"] : []),
+      ]),
+    );
+    expect(model3(run.terminal)).toEqual({
+      key: censusKey(3),
+      count: 190,
+      readDay: 601,
+      expected: 200,
+      lowSince: null,
+      surplusConfirmed: true,
+      confirmed: false,
+      page: expect.anything(),
+    });
     previous = run.terminal;
   }
   // Real donors leave model 3 until its page lists exactly its badge.
@@ -690,20 +732,16 @@ test("Northwest re-reads a surplus page that lost cards down to exactly its badg
   // closing re-reads the page.
   expect(cut.models).toEqual([...swept(native, day), 3]);
   expect(cut.vins).toEqual(allVins(native));
-  const model3 = (terminal: unknown) => {
-    const parsed = NorthwestCursor.parse(JSON.stringify(terminal));
-    if (parsed.phase !== "complete" || !parsed.census)
-      throw new Error("Expected a terminal census");
-    return parsed.census.models[3];
-  };
-  // The surplus is sticky: the drop keeps the 200 expectation and opens a low
-  // window on the cut day instead of accepting 190 as the new truth.
+  // The surplus is sticky: the drop keeps the 200 expectation (still
+  // confirmed) and opens a low window on the cut day instead of accepting 190
+  // as the new truth.
   expect(model3(cut.terminal)).toEqual({
     key: censusKey(3),
     count: 190,
     readDay: day,
     expected: 200,
     lowSince: day,
+    surplusConfirmed: true,
     confirmed: false,
     page: expect.anything(),
   });
@@ -735,6 +773,7 @@ test("Northwest re-reads a surplus page that lost cards down to exactly its badg
       readDay: daily,
       expected: lowered ? 190 : 200,
       lowSince: lowered ? null : day,
+      surplusConfirmed: true,
       confirmed: false,
       page: expect.anything(),
     });
@@ -757,6 +796,7 @@ test("Northwest re-reads a surplus page that lost cards down to exactly its badg
     readDay: day + 6,
     expected: 190,
     lowSince: null,
+    surplusConfirmed: true,
     confirmed: false,
     page: expect.anything(),
   });

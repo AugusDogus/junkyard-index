@@ -80,7 +80,11 @@ function simulate(
   const next = random(seed);
   const badges = graph.map((m) => m.badge);
   const truth = graph.map((m) => (m.dead ? 0 : m.badge));
-  const surplus = graph.map((m, i) => (!m.dead && i % 40 === 0 ? 1 : 0));
+  // Every 40th model lists placeholder rows above its badge: two on every
+  // 80th model, one on the rest.
+  const surplus = graph.map((m, i) =>
+    m.dead ? 0 : i % 80 === 0 ? 2 : i % 40 === 0 ? 1 : 0,
+  );
   const sliced = graph.map(
     (m) => !m.dead && ModelCensus.slice(m.key) === CUT_SLICE,
   );
@@ -168,15 +172,16 @@ function simulate(
         if (!graph[i]?.dead && healthy(i) >= 3) faulted.add(i);
       }
     }
-    // The cold run's first observation is the baseline; nothing can tell a
-    // fault in it apart from the yard's real state, so faults start after it.
+    // A cold run has no history, so a fault that leaves a placeholder page at
+    // exactly its badge has no signal there (an accepted cold-start limit);
+    // one that still leaves it above its badge must be read again next run.
     // Each fault is confined to one day: a model is faulted again only after
     // a week, since a drop that lasts six run days is accepted as real.
-    if (options.surplusFault && census !== null)
+    if (options.surplusFault)
       for (const i of placeholders)
         if (
           decisions[i]?.kind === "read" &&
-          healthy(i) - 1 >= (badges[i] ?? 0) &&
+          healthy(i) - 1 >= (badges[i] ?? 0) + (census === null ? 1 : 0) &&
           day - (lastFault.get(i) ?? -Infinity) > MODEL_CENSUS_SWEEP_DAYS + 1 &&
           next() < 0.5
         ) {

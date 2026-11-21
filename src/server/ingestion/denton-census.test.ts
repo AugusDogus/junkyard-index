@@ -48,6 +48,26 @@ const terminalKeys = (terminal: unknown) =>
     .census.models.map((m) => m.key);
 /** A donor is [model, ordinal]; its stock, VIN and destination derive from both. */
 type Donor = readonly [number, number];
+/** The stored census evidence of `model`, without its page. */
+const evidenceOf = (terminal: unknown, model: number) =>
+  z
+    .object({
+      census: z.object({
+        models: z.array(
+          z.object({
+            key: z.string(),
+            count: z.number(),
+            readDay: z.number(),
+            expected: z.number(),
+            lowSince: z.number().nullable(),
+            surplusConfirmed: z.boolean(),
+            confirmed: z.boolean(),
+          }),
+        ),
+      }),
+    })
+    .parse(terminal)
+    .census.models.find((m) => m.key === censusKey(model));
 const index = ([model, n]: Donor) => model * 1000 + n;
 const card = (donor: Donor) => dentonTestCard(index(donor), label(donor[0]));
 const donors = (model: number, n = 70): Donor[] =>
@@ -136,6 +156,20 @@ function yard() {
           [...[...rows.values()].flat(), ...arrivals].map((donor) =>
             dentonTestVin(index(donor)),
           ),
+        ),
+      ].sort(),
+    /** Every VIN a full read publishes: badge rows, arrivals and the surplus
+     * cards model pages list beyond their badges. */
+    listedVins: () =>
+      [
+        ...new Set(
+          [
+            ...[...rows.values()].flat(),
+            ...arrivals,
+            ...[...surplus].flatMap(([model, n]) =>
+              Array.from({ length: n }, (_, i): Donor => [model, 500 + i]),
+            ),
+          ].map((donor) => dentonTestVin(index(donor))),
         ),
       ].sort(),
   };
@@ -387,10 +421,52 @@ test("Denton caps each model's cards at its badge, so a surplus page cannot hide
   const cold = await census(native, 600, null);
   // Surplus pages differ from their badges, so closing confirmed each one.
   expect(cold.models).toEqual([...models, ...others]);
+  // A surplus first seen on a cold read is unconfirmed: a fault on that one
+  // day could hide real cards behind the placeholders.
+  const surplusEvidence = (
+    terminal: unknown,
+    model: number,
+    readDay: number,
+    surplusConfirmed: boolean,
+  ) =>
+    expect(evidenceOf(terminal, model)).toEqual({
+      key: censusKey(model),
+      count: 150,
+      readDay,
+      expected: 150 + extra,
+      lowSince: null,
+      surplusConfirmed,
+      confirmed: false,
+    });
+  for (const model of others) surplusEvidence(cold.terminal, model, 600, false);
+  for (const model of broken)
+    expect(evidenceOf(cold.terminal, model)).toEqual({
+      key: censusKey(model),
+      count: 150,
+      readDay: 600,
+      expected: 150,
+      lowSince: null,
+      surplusConfirmed: true,
+      confirmed: false,
+    });
+  // Day 601, the first normal incremental run, reads every surplus page again
+  // (short) and closing re-reads each one; that run confirms the surplus. Its
+  // slice holds only surplus pages.
+  expect(sweep(601).every((model) => others.includes(model))).toBe(true);
+  const confirming = await census(native, 601, cold.terminal, cold.vins.length);
+  expect(confirming.models).toEqual([...others, ...others]);
+  expect(confirming.requests).toBe(8 + 2 * others.length);
+  expect(confirming.vins).toEqual(native.listedVins());
+  expect(confirming.warnings.at(-1)).toBe(
+    `Denton Read ${others.length} of 12 model pages (short ${others.length}); carried ${12 - others.length}.`,
+  );
+  for (const model of others)
+    surplusEvidence(confirming.terminal, model, 601, true);
   // Daily runs through day 604 read each slice (surplus pages again at
-  // closing) and carry the rest.
-  let previous = cold;
-  for (const day of [601, 602, 603, 604]) {
+  // closing) and carry the rest, confirmed surplus included.
+  let previous = confirming;
+  const readDay = new Map(others.map((model) => [model, 601]));
+  for (const day of [602, 603, 604]) {
     const run = await census(
       native,
       day,
@@ -401,6 +477,9 @@ test("Denton caps each model's cards at its badge, so a surplus page cannot hide
       ...sweep(day),
       ...sweep(day).filter((model) => others.includes(model)),
     ]);
+    for (const model of sweep(day)) readDay.set(model, day);
+    for (const model of others)
+      surplusEvidence(run.terminal, model, readDay.get(model) ?? 0, true);
     previous = run;
   }
   // Day 605: the sweep slice renders empty while its badges hold; the surplus
@@ -460,38 +539,54 @@ test("Denton confirms a surplus page that falls to its badge at closing and re-r
   expect(sweep(603)).toEqual([model]);
   const native = yard();
   native.surplus.set(model, 10);
-  const cold = await census(native, 600, null);
-  // Daily runs through day 602 carry the surplus page outside its slice.
-  let previous = cold;
-  for (const day of [601, 602]) {
-    const run = await census(
-      native,
-      day,
-      previous.terminal,
-      previous.vins.length,
-    );
-    expect(run.models).toEqual(sweep(day));
-    previous = run;
-  }
   /** The stored census evidence of the surplus model. */
-  const evidence = (terminal: unknown) =>
-    z
-      .object({
-        census: z.object({
-          models: z.array(
-            z.object({
-              key: z.string(),
-              count: z.number(),
-              readDay: z.number(),
-              expected: z.number(),
-              lowSince: z.number().nullable(),
-              confirmed: z.boolean(),
-            }),
-          ),
-        }),
-      })
-      .parse(terminal)
-      .census.models.find((m) => m.key === censusKey(model));
+  const evidence = (terminal: unknown) => evidenceOf(terminal, model);
+  const cold = await census(native, 600, null);
+  // The surplus first seen on the cold read is unconfirmed.
+  expect(evidence(cold.terminal)).toEqual({
+    key: censusKey(model),
+    count: 70,
+    readDay: 600,
+    expected: 80,
+    lowSince: null,
+    surplusConfirmed: false,
+    confirmed: false,
+  });
+  // Day 601, a normal incremental run, reads the surplus page again (short,
+  // outside its slice) and closing re-reads it; that run confirms the surplus.
+  expect(sweep(601)).not.toContain(model);
+  const confirming = await census(native, 601, cold.terminal, cold.vins.length);
+  expect(confirming.models).toEqual([...sorted([...sweep(601), model]), model]);
+  expect(confirming.requests).toBe(8 + sweep(601).length + 2);
+  expect(confirming.vins).toEqual(native.listedVins());
+  expect(confirming.warnings.at(-1)).toBe(
+    `Denton Read ${sweep(601).length + 1} of 12 model pages (${
+      (sweep(601)[0] ?? Infinity) < model
+        ? `sweep ${sweep(601).length}, short 1`
+        : `short 1, sweep ${sweep(601).length}`
+    }); carried ${11 - sweep(601).length}.`,
+  );
+  expect(evidence(confirming.terminal)).toEqual({
+    key: censusKey(model),
+    count: 70,
+    readDay: 601,
+    expected: 80,
+    lowSince: null,
+    surplusConfirmed: true,
+    confirmed: false,
+  });
+  // Day 602 carries the confirmed surplus page outside its slice.
+  expect(sweep(602)).not.toContain(model);
+  const carried = await census(
+    native,
+    602,
+    confirming.terminal,
+    confirming.vins.length,
+  );
+  expect(carried.models).toEqual(sweep(602));
+  expect(carried.requests).toBe(8 + sweep(602).length);
+  expect(evidence(carried.terminal)).toEqual(evidence(confirming.terminal));
+  let previous = carried;
   // Day 603: its page loses ten real cards and now lists exactly its badge.
   // A cards === badge check would neither confirm nor re-read it; it fell
   // below the 80 cards it is expected to list, so closing re-reads it. The
@@ -512,6 +607,7 @@ test("Denton confirms a surplus page that falls to its badge at closing and re-r
     readDay: 603,
     expected: 80,
     lowSince: 603,
+    surplusConfirmed: true,
     confirmed: false,
   });
   // Days 604 to 608: the page still lists only its badge. A re-read cannot
@@ -547,6 +643,7 @@ test("Denton confirms a surplus page that falls to its badge at closing and re-r
       readDay: day,
       expected: 80,
       lowSince: 603,
+      surplusConfirmed: true,
       confirmed: false,
     });
     previous = run;
@@ -574,6 +671,7 @@ test("Denton confirms a surplus page that falls to its badge at closing and re-r
     readDay: 609,
     expected: 70,
     lowSince: null,
+    surplusConfirmed: true,
     confirmed: false,
   });
   // From then on it agrees with its badge and lowered surplus, so it carries
@@ -602,6 +700,7 @@ test("Denton confirms a surplus page that falls to its badge at closing and re-r
       readDay: 609,
       expected: 70,
       lowSince: null,
+      surplusConfirmed: true,
       confirmed: false,
     });
     previous = run;

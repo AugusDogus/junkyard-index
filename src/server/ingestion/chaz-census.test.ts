@@ -730,9 +730,11 @@ test("Chaz rejects a broken due slice after a missed run", async () => {
 }, 300_000);
 
 test("Chaz re-reads a surplus model page that loses a donor down to its badge, at closing and on the next run", async () => {
-  // A badge of 40 whose page lists 41 (a placeholder or surplus row). Losing a
-  // real donor leaves exactly 40 cards: equal to the badge, but below the 41
-  // last accepted under that badge. Closing re-reads it, and the next run reads
+  // A badge of 40 whose page lists 41 (a placeholder or surplus row). The cold
+  // run sees the surplus unconfirmed, so the first incremental run reads it
+  // again (reason short) and confirms it. Losing a real donor later leaves
+  // exactly 40 cards: equal to the badge, but below the 41 last accepted under
+  // that badge. Closing re-reads it, and the next run reads
   // it again instead of carrying the drop for up to six days. The surplus is
   // sticky: one lower read is not the new truth. The page stays expected at 41
   // and is read (and re-read at closing) on every daily run until a normal
@@ -740,9 +742,10 @@ test("Chaz re-reads a surplus model page that loses a donor down to its badge, a
   // the surplus; only then does it carry.
   const native = yard();
   const twelve = ids(12);
-  const offset = [1, 2, 3, 4].find((k) => sweep(D + k, twelve).length > 0);
+  // Swept after the confirming run on D + 1, so the drop is a sweep read.
+  const offset = [2, 3, 4, 5].find((k) => sweep(D + k, twelve).length > 0);
   if (offset === undefined)
-    throw new Error("fixture needs a model swept on D + 1 to D + 4");
+    throw new Error("fixture needs a model swept on D + 2 to D + 5");
   const [model] = sweep(D + offset, twelve);
   if (model === undefined) throw new Error("Expected a swept model");
   /** The stored census evidence for `model` in a terminal cursor. */
@@ -752,8 +755,9 @@ test("Chaz re-reads a surplus model page that loses a donor down to its badge, a
       throw new Error("Expected a terminal census");
     const found = parsed.census.models.find((m) => m.key === key(model));
     if (!found) throw new Error("Expected census evidence for the model");
-    const { count, expected, lowSince, readDay, confirmed } = found;
-    return { count, expected, lowSince, readDay, confirmed };
+    const { count, expected, lowSince, readDay, surplusConfirmed, confirmed } =
+      found;
+    return { count, expected, lowSince, readDay, surplusConfirmed, confirmed };
   };
   /** Expected reads on a daily run: from D + 6 on, every routine slice read
    * comes six days after the last one, so its reason is stale, not sweep. */
@@ -774,15 +778,33 @@ test("Chaz re-reads a surplus model page that loses a donor down to its badge, a
   const cold = await census(native, D, null);
   // Its 41 cards differ from its badge, so the cold run re-reads it at closing.
   expect(cold.requests).toBe(19);
+  // A surplus first seen on a cold read is unconfirmed.
   expect(evidence(cold.terminal)).toEqual({
     count: 40,
     expected: 41,
     lowSince: null,
     readDay: D,
+    surplusConfirmed: false,
     confirmed: false,
   });
-  let previous = cold.terminal;
-  for (let day = D + 1; day < D + offset; day++)
+  // The first incremental run reads it again as short, closing re-reads it,
+  // and the same surplus is now confirmed.
+  const confirm = await census(native, D + 1, cold.terminal);
+  const confirmReads = reads(D + 1, twelve, [[model, "short"]]);
+  expect(confirm.models).toEqual([...confirmReads.keys(), model]);
+  expect(confirm.requests).toBe(6 + confirmReads.size + 1);
+  expect(confirm.warnings.at(-1)).toBe(summary(12, confirmReads));
+  expect(confirm.vins).toEqual(allVins(native));
+  expect(evidence(confirm.terminal)).toEqual({
+    count: 40,
+    expected: 41,
+    lowSince: null,
+    readDay: D + 1,
+    surplusConfirmed: true,
+    confirmed: false,
+  });
+  let previous = confirm.terminal;
+  for (let day = D + 2; day < D + offset; day++)
     previous = (await census(native, day, previous)).terminal;
   native.rows.set(model, donors(model, 40));
   native.surplus.delete(model);
@@ -798,6 +820,7 @@ test("Chaz re-reads a surplus model page that loses a donor down to its badge, a
     expected: 41,
     lowSince: D + offset,
     readDay: D + offset,
+    surplusConfirmed: true,
     confirmed: false,
   });
   // Every following daily run reads it as short and closing re-reads it. Five
@@ -818,6 +841,7 @@ test("Chaz re-reads a surplus model page that loses a donor down to its badge, a
             expected: 41,
             lowSince: D + offset,
             readDay: day,
+            surplusConfirmed: true,
             confirmed: false,
           }
         : {
@@ -825,6 +849,7 @@ test("Chaz re-reads a surplus model page that loses a donor down to its badge, a
             expected: 40,
             lowSince: null,
             readDay: day,
+            surplusConfirmed: true,
             confirmed: false,
           },
     );
@@ -845,6 +870,7 @@ test("Chaz re-reads a surplus model page that loses a donor down to its badge, a
       expected: 40,
       lowSince: null,
       readDay: lowered,
+      surplusConfirmed: true,
       confirmed: false,
     });
     previous = run.terminal;
