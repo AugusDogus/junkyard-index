@@ -36,10 +36,11 @@ every model page. The census contract is
 `calton/literal-model-graph/root-arrivals-union/incremental-model-census-v3`.
 
 Calton has no closing pass, so no short page is ever confirmed. A model page
-read below its expected cards (its badge plus any surplus its last accepted page
-listed) is read again on the next run instead of being carried. In the November
-13 capture, 22 models list one row above their badge, and that surplus counts
-toward their expected cards.
+read below its expected cards (its badge plus a sticky surplus) is read again on
+the next run instead of being carried. In the November 13 capture, 22 models
+list one row above their badge, and that surplus counts toward their expected
+cards. The surplus is lowered only after six run days of lower reads under an
+unchanged badge (see [Incremental model census](model-census.md)).
 
 Before the snapshot, read and carried model cards, each model capped at its own
 badge, must cover at least 95% of today's model badges
@@ -55,7 +56,10 @@ fault fails both floors on its first run and publishes nothing.
 A cold census, or the full read after a missed, failed or rejected run, makes
 about 679 requests (the November 13 graph). A steady day makes the 49 fixed
 requests (homepage, make directory and 47 make menus) plus about a sixth of the
-630 model pages and any new, recounted, triggered or short ones.
+630 model pages and any new, recounted, triggered or short ones. A surplus
+model listing less than its sticky surplus adds about one GET a day for up to
+six days, and after a cold or gap read each of the 22 surplus models costs one
+extra read to confirm its surplus.
 
 Required VIN or supported historical serial, year, make, model and owned donor
 destination come from native claims. No VIN decoder fills or changes identity.

@@ -71,8 +71,9 @@ without automatic retry.
 
 Closing controls repeat contact, the make directory and every model page read
 this run whose cards differ from its badge or fall below its expected count
-(`ModelCensus.closingReads`: the badge plus any surplus the last accepted page
-listed above its own badge; the surplus carries across badge changes). A
+(`ModelCensus.closingReads`: the badge plus a sticky surplus of placeholder or
+surplus rows, lowered only after six run days of lower reads under an unchanged
+badge, see [Incremental model census](model-census.md)). A
 changed fingerprint stops the run before emission, so a transient short or
 empty page is never published or carried. A page below its badge that re-reads
 identically, such as the dead `&` routes (TOWN & COUNTRY: badge 8, explicit
@@ -109,7 +110,9 @@ Closing confirms short pages. On the Nov 18 graph (35 makes, 240 models) a
 cold or gap full read costs 282 GETs: 278 opening reads, then contact, the
 make directory and the two dead `&` routes at closing. A steady day costs about
 80: 38 opening reads, about 40 model pages plus changes and triggers, and the
-closing controls.
+closing controls. A surplus model listing less than its sticky surplus adds
+about two GETs a day (its read and closing re-read) for up to six days, and
+after a cold or gap read each surplus model costs one extra read to confirm.
 
 Nonempty model destinations must match the requested literal model parent.
 Explicit empty pages must retain their native model heading; labels containing `&` also accept the native `-and`
