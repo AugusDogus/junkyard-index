@@ -53,6 +53,7 @@ function existingVehicle(
     sourceModel: null,
     observedArrivalAt: null,
     firstSeenAt: new Date("2026-02-01T00:00:00.000Z"),
+    firstSighting: "arrival",
     lastSeenAt: new Date("2026-03-01T00:00:00.000Z"),
     missingSinceAt: null,
     missingRunCount: 0,
@@ -214,6 +215,84 @@ describe("reconciliation policy", () => {
     ]);
   });
 
+  test("decides a new VIN's first sighting by whether its yard was published", () => {
+    const cars = [
+      canonicalVehicle("known-yard", { source: "pyp", locationCode: "100" }),
+      canonicalVehicle("new-yard", { source: "pyp", locationCode: "200" }),
+      canonicalVehicle("new-source", { source: "row52", locationCode: "100" }),
+    ];
+    const changes = planChangedVehicleUpserts({
+      inventory: new Map(cars.map((car) => [car.vin, car])),
+      existingRows: [],
+      recentDepartures: [],
+      runTimestamp: new Date("2026-11-16T12:00:00Z"),
+      acceptedSources: new Set(["pyp", "row52"]),
+      publishedYards: new Map([["pyp", new Set(["100"])]]),
+    });
+    expect(
+      changes.map(({ vehicle, firstSighting }) => [vehicle.vin, firstSighting]),
+    ).toEqual([
+      ["known-yard", "arrival"],
+      ["new-yard", "yard_backfill"],
+      ["new-source", "yard_backfill"],
+    ]);
+  });
+
+  test("a handoff to another yard keeps the VIN's first sighting", () => {
+    const runTimestamp = new Date("2026-11-21T18:00:00Z");
+    // An arrival at a published aggregator yard, then a new direct source
+    // publishes its first crawl listing the same VIN, and the reverse.
+    const plan = (
+      firstSighting: "arrival" | "yard_backfill",
+      publishedYards: ReadonlyMap<string, ReadonlySet<string>>,
+    ) =>
+      planChangedVehicleUpserts({
+        inventory: new Map([
+          ["VIN123", canonicalVehicle("VIN123", { source: "calton" })],
+        ]),
+        existingRows: [
+          existingVehicle("VIN123", {
+            source: "autorecycler",
+            locationCode: "a",
+            firstSighting,
+          }),
+        ],
+        recentDepartures: [],
+        runTimestamp,
+        acceptedSources: new Set(["calton"]),
+        publishedYards,
+      }).map((entry) => entry.firstSighting);
+
+    expect(plan("arrival", new Map())).toEqual(["arrival"]);
+    expect(
+      plan("yard_backfill", new Map([["calton", new Set(["100"])]])),
+    ).toEqual(["yard_backfill"]);
+  });
+
+  test("a relist keeps its departed listing's first sighting", () => {
+    const runTimestamp = new Date("2026-11-21T18:00:00Z");
+    const changes = planChangedVehicleUpserts({
+      inventory: new Map([["VIN123", canonicalVehicle("VIN123")]]),
+      existingRows: [],
+      recentDepartures: [
+        {
+          vin: "VIN123",
+          source: "pyp",
+          locationCode: "100",
+          firstSeenAt: new Date("2026-11-01T00:00:00Z"),
+          firstSighting: "yard_backfill",
+          departedAt: new Date("2026-11-10T00:00:00Z"),
+        },
+      ],
+      runTimestamp,
+      acceptedSources: new Set(["pyp"]),
+      publishedYards: new Map([["pyp", new Set(["100"])]]),
+    });
+    expect(changes.map((entry) => entry.firstSighting)).toEqual([
+      "yard_backfill",
+    ]);
+  });
+
   test("ignores coordinate noise from the database's float round trip", () => {
     // Turso returns -97.51810604352379 as -97.5181060435238.
     const changed = planChangedVehicleUpserts({
@@ -316,6 +395,7 @@ describe("reconciliation policy", () => {
         {
           vehicle: native,
           firstSeenAt: owner.firstSeenAt,
+          firstSighting: owner.firstSighting,
           observedArrivalAt: null,
         },
       ]);

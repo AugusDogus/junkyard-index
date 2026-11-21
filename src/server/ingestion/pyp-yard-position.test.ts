@@ -50,6 +50,7 @@ test("updates a previously unpositioned vehicle from the bulk fixture through se
         row: null,
         space: null,
         firstSeenAt: now,
+        firstSighting: "arrival",
         lastSeenAt: now,
         observedArrivalAt: null,
         missingSinceAt: null,

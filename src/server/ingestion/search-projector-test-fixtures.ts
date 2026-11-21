@@ -254,6 +254,7 @@ export function vehicleRow(
     trim: null,
     transmission: null,
     firstSeenAt: new Date("2026-11-20T08:00:00Z"),
+    firstSighting: "arrival",
     lastSeenAt: new Date("2026-11-20T08:00:00Z"),
     missingSinceAt: null,
     missingRunCount: 0,

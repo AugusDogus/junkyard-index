@@ -38,6 +38,7 @@ describe("algolia-projector helpers", () => {
       transmission: "Automatic",
       observedArrivalAt: null,
       firstSeenAt: new Date("2026-02-01T00:00:00.000Z"),
+      firstSighting: "arrival",
       lastSeenAt: new Date("2026-02-01T00:00:00.000Z"),
       missingSinceAt: null,
       missingRunCount: 0,

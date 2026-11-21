@@ -2,6 +2,7 @@ import { rememberModelRedirects } from "./vin-canonicalization";
 import type { Client, InStatement, InValue } from "@libsql/client";
 import { and, asc, eq, gt, gte, inArray, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
+import type { FirstSighting } from "~/lib/first-sighting";
 import {
   mapIngestionSources,
   RETIRED_INGESTION_SOURCES,
@@ -46,7 +47,7 @@ import {
 
 const RECONCILIATION_BATCH_SIZE = 500;
 const MISSING_DELETE_AFTER_MS = 3 * 24 * 60 * 60 * 1000;
-const VEHICLE_VALUE_COLUMN_COUNT = 32;
+const VEHICLE_VALUE_COLUMN_COUNT = 33;
 
 // Leave most of a workflow step's duration for the batches' own writes.
 const RECONCILIATION_STEP_BUDGET_MS = 240_000;
@@ -177,6 +178,7 @@ function changeInsertStatement(
 function toVehicleValues(params: {
   vehicle: CanonicalVehicle;
   firstSeenAt: Date;
+  firstSighting: FirstSighting;
   observedArrivalAt: Date | null;
   runTimestamp: Date;
 }): InValue[] {
@@ -211,6 +213,7 @@ function toVehicleValues(params: {
     value.trim,
     value.transmission,
     params.firstSeenAt.getTime(),
+    params.firstSighting,
     params.runTimestamp.getTime(),
     null,
     0,
@@ -223,6 +226,7 @@ function vehicleUpsertStatement(params: {
   rows: Array<{
     vehicle: CanonicalVehicle;
     firstSeenAt: Date;
+    firstSighting: FirstSighting;
     observedArrivalAt: Date | null;
     runTimestamp: Date;
   }>;
@@ -244,8 +248,8 @@ function vehicleUpsertStatement(params: {
         vin, source, year, make, model, source_make, source_model, color, stock_number, image_url,
         available_date, observed_arrival_at, location_code, location_name, location_city, state,
         state_abbr, lat, lng, section, row, space, details_url, parts_url,
-        prices_url, engine, trim, transmission, first_seen_at, last_seen_at,
-        missing_since_at, missing_run_count
+        prices_url, engine, trim, transmission, first_seen_at, first_sighting,
+        last_seen_at, missing_since_at, missing_run_count
       )
       select ${columns}
       from (values ${placeholders})
@@ -546,6 +550,7 @@ async function runUpsertBatch(
             source: vehicleDeparture.source,
             locationCode: vehicleDeparture.locationCode,
             firstSeenAt: vehicleDeparture.firstSeenAt,
+            firstSighting: vehicleDeparture.firstSighting,
             departedAt: vehicleDeparture.departedAt,
           })
           .from(vehicleDeparture)
@@ -719,10 +724,10 @@ function departureInsertStatement(params: {
     sql: `
       insert into vehicle_departure (
         vin, source, location_code, year, make, model, available_date,
-        first_seen_at, departed_at, recorded_at
+        first_seen_at, first_sighting, departed_at, recorded_at
       )
       select vin, source, location_code, year, make, model, available_date,
-        first_seen_at, case vin ${deleted.map(() => "when ? then ?").join(" ")} end, ?
+        first_seen_at, first_sighting, case vin ${deleted.map(() => "when ? then ?").join(" ")} end, ?
       from vehicle
       where ${filter.sql}
         and ${guardSql("reconcile_missing")}

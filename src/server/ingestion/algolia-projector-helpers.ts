@@ -49,13 +49,17 @@ export function mapDbVehicleToCanonical(
 
 /** Shared by incremental publication and every full reindex entry point. */
 export function mapDbVehicleToAlgolia(row: typeof vehicle.$inferSelect) {
-  return toAlgoliaRecord(
-    mapDbVehicleToCanonical(row),
-    row.firstSeenAt,
-    row.missingSinceAt,
-    row.missingRunCount ?? 0,
-    row.observedArrivalAt,
-  );
+  return {
+    ...toAlgoliaRecord(
+      mapDbVehicleToCanonical(row),
+      row.firstSeenAt,
+      row.missingSinceAt,
+      row.missingRunCount ?? 0,
+      row.observedArrivalAt,
+    ),
+    // Alert scans exclude yard backfill (FirstSighting.arrivalsFilter).
+    firstSighting: row.firstSighting,
+  };
 }
 
 export function partitionVehicleChanges(
