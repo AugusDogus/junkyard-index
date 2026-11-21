@@ -12,8 +12,9 @@ import type { SearchAlertsMode } from "./search-alerts-flag";
  */
 export const DELIVERY_STALE_AFTER_MS = 2 * 60 * 60 * 1000;
 
-// Today's check is expected finished this long after it stops counting as
-// stuck (the deadline plus SearchAlertSchedule.staleAfterMs).
+// A check is expected finished this long after it stops counting as stuck:
+// after the missing-check grace (deadline plus staleAfterMs), and after its
+// own start plus staleAfterMs.
 const CHECK_GRACE_MS = 60 * 60 * 1000;
 
 function previousDay(now: Date): string {
@@ -24,8 +25,8 @@ export type AlertStatusInputs = {
   mode: SearchAlertsMode;
   /** The latest day whose alert check completed, if any. */
   lastCompletedDay: string | null;
-  /** Of yesterday and today, the days whose alert check was opened. */
-  openedDays: string[];
+  /** Yesterday's and today's alert checks, where they were opened. */
+  openedChecks: { day: string; startedAt: Date }[];
   /** When the longest-waiting deliverable notification became due. */
   oldestDeliverableAt: Date | null;
 };
@@ -35,7 +36,10 @@ export type AlertStatus =
   | {
       status: "healthy" | "unhealthy";
       lastCompletedDay: string | null;
-      /** Null while no check is expected (alerts were paused yesterday). */
+      /**
+       * Null while no check is expected: none opened yesterday or today,
+       * because alerts were paused then or were just switched back on.
+       */
       expectedDay: string | null;
       oldestDeliverableAt: string | null;
       problems: string[];
@@ -58,9 +62,13 @@ export const AlertStatus = {
         .orderBy(desc(searchAlertCheck.day))
         .limit(1),
       database
-        .select({ day: searchAlertCheck.day })
+        .select({
+          day: searchAlertCheck.day,
+          startedAt: searchAlertCheck.startedAt,
+        })
         .from(searchAlertCheck)
-        .where(inArray(searchAlertCheck.day, [yesterday, today])),
+        .where(inArray(searchAlertCheck.day, [yesterday, today]))
+        .orderBy(searchAlertCheck.day),
       mode === "enabled"
         ? oldestDeliverableNotificationIntentAt({ database, now, leaseMs })
         : Promise.resolve(null),
@@ -68,7 +76,7 @@ export const AlertStatus = {
     return {
       mode,
       lastCompletedDay: check?.day ?? null,
-      openedDays: opened.map((row) => row.day).sort(),
+      openedChecks: opened,
       oldestDeliverableAt,
     };
   },
@@ -84,17 +92,30 @@ export const AlertStatus = {
       return { status: "paused", lastCompletedDay: inputs.lastCompletedDay };
     }
     const today = IngestionDay.key(now);
-    const graceStart = new Date(now.getTime() - CHECK_GRACE_MS);
-    const todayOverdue =
-      IngestionDay.key(graceStart) === today &&
-      SearchAlertSchedule.isPastMissingCheckGrace(graceStart);
-    // Today's check must exist once it is overdue: the deadline cron opens
-    // it. Yesterday's is expected only if it was opened, since no check opens
-    // while alerts are paused.
     const yesterday = previousDay(now);
+    const todaysCheck = inputs.openedChecks.find(
+      (check) => check.day === today,
+    );
+    const yesterdayOpened = inputs.openedChecks.some(
+      (check) => check.day === yesterday,
+    );
+    // From 20:00 UTC today's check should be finished, unless it opened so
+    // recently that it may still be running healthily.
+    const pastOverdue =
+      now.getTime() >=
+      SearchAlertSchedule.missingCheckGraceAt(now).getTime() + CHECK_GRACE_MS;
+    const todayOverdue =
+      pastOverdue &&
+      (todaysCheck === undefined
+        ? yesterdayOpened
+        : now.getTime() - todaysCheck.startedAt.getTime() >=
+          SearchAlertSchedule.staleAfterMs + CHECK_GRACE_MS);
+    // No check opens while alerts are paused, so a day is expected only when
+    // alerts were on for it: today's once it is overdue (if it or yesterday's
+    // was opened), otherwise yesterday's if it was opened.
     const expectedDay = todayOverdue
       ? today
-      : inputs.openedDays.includes(yesterday)
+      : yesterdayOpened
         ? yesterday
         : null;
     const problems: string[] = [];

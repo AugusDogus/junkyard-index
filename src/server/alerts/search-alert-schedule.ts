@@ -28,10 +28,16 @@ export const SearchAlertSchedule = {
    */
   isPastMissingCheckGrace(now: Date): boolean {
     return (
-      now.getTime() >=
+      now.getTime() >= SearchAlertSchedule.missingCheckGraceAt(now).getTime()
+    );
+  },
+
+  /** When a day with no check stops holding earlier intents. */
+  missingCheckGraceAt(now: Date): Date {
+    return new Date(
       IngestionDay.start(now).getTime() +
         DEADLINE_OFFSET_MS +
-        SearchAlertSchedule.staleAfterMs
+        SearchAlertSchedule.staleAfterMs,
     );
   },
 } as const;

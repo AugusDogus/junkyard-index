@@ -75,12 +75,21 @@ state changes an intent. The workflow keeps its singleton hook token
 (`vehicle-alert-delivery`), so a delivery started by an older deployment and
 one started here never run at once.
 
-`/api/status/alerts` is the alerts monitor. It returns 503 when the expected
-day's alert check has not completed (yesterday's, if one was opened, then
-today's from 20:00 UTC) or a notification has been deliverable for more than
-2 hours, and 200 otherwise, including while `search-alerts-enabled` pauses
-alerts (`status: "paused"`). Days on which alerts were paused have no check,
-so re-enabling alerts does not turn the monitor red for the gap.
+`/api/status/alerts` is the alerts monitor. It returns 200 while
+`search-alerts-enabled` pauses alerts (`status: "paused"`). Otherwise it
+returns 503 when:
+
+- the expected day's alert check has not completed. Yesterday's is expected
+  if it was opened. From 20:00 UTC today's is expected if it or yesterday's
+  was opened, with at least 2 hours from its own start to finish. Days on
+  which alerts were paused have no check, so switching alerts back on (even
+  after 20:00 UTC) does not turn the monitor red for the gap. One blind spot:
+  if the search-alerts cron never opens a check after alerts are switched on,
+  this monitor shows no expected day rather than red;
+- a notification has been deliverable for more than 2 hours. Each intent is
+  dated by its own release: the latest of its creation, retry time, expired
+  claim, its owner finishing, today's hold lifting, and the day start for a
+  recipient who already got that day's digest.
 
 ## Pausing a consumer
 
