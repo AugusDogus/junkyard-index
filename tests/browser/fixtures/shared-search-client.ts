@@ -79,12 +79,16 @@ type SearchRequest = { indexName: string; params?: SearchParams };
 /** Searches the server render ran. Production pays quota for each one. */
 export const serverSearches = { count: 0 };
 
+/** The key the app's client searches with now. */
+let currentApiKey: string | undefined;
+
 /** The requester the app built its client with, as the real client keeps it. */
 let transport: Requester | undefined;
 
 const client = {
   /** Browser searches record the key they were sent with. */
   setClientApiKey({ apiKey }: { apiKey: string }) {
+    currentApiKey = apiKey;
     if (typeof document !== "undefined")
       document.documentElement.dataset.searchApiKey = apiKey;
   },
@@ -94,6 +98,20 @@ const client = {
       | { requests: (SearchParams & { indexName: string })[] },
   ) {
     if (typeof document === "undefined") serverSearches.count += 1;
+    // Algolia refuses this key, as it refuses an expired secured key.
+    if (
+      typeof document !== "undefined" &&
+      currentApiKey === "fixture-rejected-key"
+    ) {
+      const previous = Number(
+        document.documentElement.dataset.rejectedSearches ?? 0,
+      );
+      document.documentElement.dataset.rejectedSearches = String(previous + 1);
+      throw Object.assign(new Error("Invalid Application-ID or API key"), {
+        name: "ApiError",
+        status: 403,
+      });
+    }
     // A query of "blocked" answers as a blocked Algolia app does.
     if (
       (Array.isArray(input) ? input : input.requests).some((request) =>

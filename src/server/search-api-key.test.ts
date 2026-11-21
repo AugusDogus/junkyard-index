@@ -80,8 +80,9 @@ describe("SearchApiKey.mint", () => {
       "vehicles_year_asc",
       "vehicles_newest",
     ]);
-    expect(grant.validUntil).toBe(NOW / 1000 + 3600);
+    // Algolia checks the signed timestamp; the browser gets the lifetime.
     expect(params.get("validUntil")).toBe(String(NOW / 1000 + 3600));
+    expect(grant.expiresInSeconds).toBe(3600);
   });
 
   test("rate limits count per visitor through a hashed user token", () => {

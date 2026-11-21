@@ -14,7 +14,7 @@ import { db } from "~/lib/db";
 import { SearchServerRender } from "~/lib/search-server-render";
 import { searchPageMetadata } from "./search-metadata";
 import { getHomepageYards } from "~/server/homepage-yards";
-import { grantSearchKey } from "~/server/search-key-grant";
+import { searchKeyGrants } from "~/server/search-key-grant";
 import { auth } from "~/lib/auth";
 import { api, HydrateClient } from "~/trpc/server";
 
@@ -64,7 +64,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   ]);
   const isLoggedIn = Boolean(session?.user);
   const [searchKey] = await Promise.all([
-    grantSearchKey({
+    searchKeyGrants.forRender({
       userId: session?.user.id ?? null,
       headers: reqHeaders,
       nowMs: Date.now(),

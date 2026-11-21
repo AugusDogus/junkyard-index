@@ -93,7 +93,7 @@ function mint(input: {
 }): SearchKeyGrant {
   return {
     apiKey: sign(input.parentApiKey, restrictions(input)),
-    validUntil: validUntil(input.nowMs),
+    expiresInSeconds: SEARCH_KEY_LIFETIME_SECONDS,
     tier: input.tier,
   };
 }

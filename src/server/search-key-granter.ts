@@ -40,8 +40,7 @@ function create(deps: Dependencies) {
       }
       return {
         apiKey: deps.serverApiKey,
-        validUntil:
-          Math.floor(input.nowMs / 1000) + SEARCH_KEY_LIFETIME_SECONDS,
+        expiresInSeconds: SEARCH_KEY_LIFETIME_SECONDS,
         tier,
       };
     }
@@ -56,4 +55,40 @@ function create(deps: Dependencies) {
   };
 }
 
-export const SearchKeyGranter = { create } as const;
+type Granter = ReturnType<typeof create>;
+
+/**
+ * The two ways a browser gets a key. A `/search` render uses the cached tier
+ * lookup, which sits on every page view. A renewal from `/api/search-key`
+ * (about hourly, or when the page's plan changed, such as right after
+ * checkout) asks the billing provider directly, since the cache can lag a
+ * checkout by up to a minute. When that lookup fails, it mints a free key
+ * rather than failing, so search stays up, capped, during an outage.
+ */
+function pair(
+  deps: Omit<Dependencies, "planTier"> & {
+    cachedTier: (userId: string) => Promise<PlanTier>;
+    directTier: (userId: string) => Promise<PlanTier>;
+  },
+): { forRender: Granter; forRenewal: Granter } {
+  const { cachedTier, directTier, ...shared } = deps;
+  return {
+    forRender: create({ ...shared, planTier: cachedTier }),
+    forRenewal: create({
+      ...shared,
+      planTier: (userId) => directTier(userId).catch((): PlanTier => "free"),
+    }),
+  };
+}
+
+/** The `/api/search-key` response: a key for this visitor, never cached. */
+async function respond(
+  grant: Granter,
+  input: { userId: string | null; headers: Headers; nowMs: number },
+): Promise<Response> {
+  return Response.json(await grant(input), {
+    headers: { "Cache-Control": "private, no-store" },
+  });
+}
+
+export const SearchKeyGranter = { create, pair, respond } as const;
