@@ -1,5 +1,9 @@
 import { afterEach, expect, test } from "bun:test";
-import { isDurableSourceCursorTerminal } from "./durable-source";
+import {
+  isDurableSourceCursorTerminal,
+  parseDurableSourceCursor,
+  serializeDurableSourceCursor,
+} from "./durable-source";
 import { Effect, Either } from "effect";
 import {
   streamDentonInventory,
@@ -25,6 +29,7 @@ async function collect(
   prior: number | null = null,
 ) {
   let wire: string | undefined,
+    midWire: string | undefined,
     batches = 0,
     yards = 0,
     chunks = 0;
@@ -56,6 +61,7 @@ async function collect(
       final = result;
       break;
     }
+    midWire ??= wire;
     expect(batches).toBe(0);
     expect(yards).toBe(0);
     expect(result.count).toBe(0);
@@ -63,8 +69,9 @@ async function collect(
     expect(result.rejections).toEqual([]);
     expect(result.accounting.recordsProcessed).toBe(0);
   }
-  if (!final || !wire) throw new Error("Test graph did not terminate");
-  return { final, wire, batches, yards, chunks };
+  if (!final || !wire || !midWire)
+    throw new Error("Test graph did not terminate after a paused chunk");
+  return { final, wire, midWire, batches, yards, chunks };
 }
 
 // The full saved census and checkpoint replays can exceed five seconds in CI.
@@ -79,7 +86,15 @@ test("Denton serializes every chunk, stages only terminal data and makes complet
     duplicateVehicles: 0,
     recordsExcluded: 0,
   });
+  // The persisted finished cursor round-trips, carries the model census and is
+  // terminal evidence; a real mid-crawl checkpoint of the same crawl is not.
+  const terminal = parseDurableSourceCursor("denton", result.wire);
+  expect(serializeDurableSourceCursor(terminal)).toBe(result.wire);
+  if (terminal.phase !== "complete" || !terminal.census)
+    throw new Error("Expected a finished census cursor");
+  expect(terminal.census.models.length).toBeGreaterThan(0);
   expect(isDurableSourceCursorTerminal("denton", result.wire)).toBe(true);
+  expect(isDurableSourceCursorTerminal("denton", result.midWire)).toBe(false);
   // Opening about, contact, makes, one slash menu, arrivals and five models;
   // closing about, contact and makes.
   expect(graph.calls).toHaveLength(13);

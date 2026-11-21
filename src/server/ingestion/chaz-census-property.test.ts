@@ -45,6 +45,8 @@ interface Outcome {
   rejected: number[];
   /** Accepted runs that followed a missed day (full `gap` reads). */
   acceptedAfterGap: number;
+  /** Faulted models a later accepted run carried instead of reading. */
+  stuckFaults: string[];
 }
 
 interface Pending {
@@ -68,7 +70,7 @@ interface Pending {
 function simulate(
   seed: number,
   rate: number,
-  options: { cut: boolean; missed: boolean },
+  options: { cut: boolean; missed: boolean; gapFault?: boolean },
 ): Outcome {
   const next = random(seed);
   const badges = graph.map((m) => m.badge);
@@ -86,12 +88,15 @@ function simulate(
       ? Math.min(healthy(i), 1)
       : healthy(i);
   let census: ModelCensusState<number> | null = null;
+  // Models faulted on the last accepted gap run, checked on the next run.
+  let stuck = new Set<number>();
   // Set once the outage path accepts the cut as a real drop, by design.
   let outage = false;
   const outcome: Outcome = {
     publishedCutEarly: [],
     rejected: [],
     acceptedAfterGap: 0,
+    stuckFaults: [],
   };
   for (let day = D; day <= D + 24; day++) {
     if (day > D) {
@@ -134,9 +139,29 @@ function simulate(
       day,
       { cards, triggers },
     );
+    // With `gapFault`, a fault confined to each gap run lists five models one
+    // card below their badge (small enough to pass both floors); closing
+    // repeats it. A drop to exactly a badge that hides a placeholder surplus
+    // looks healthy page by page; the replay floor bounds that in aggregate.
+    const gapRun = census !== null && day - census.day > 1;
+    const faulted = new Set<number>();
+    if (options.gapFault && gapRun)
+      while (faulted.size < 5) {
+        const i = Math.floor(next() * graph.length);
+        if (!graph[i]?.dead && Math.min(healthy(i), badges[i] ?? 0) >= 3)
+          faulted.add(i);
+      }
     const pages: number[] = decisions.map((d, i) =>
-      d.kind === "carry" ? d.evidence.page : listed(day, i),
+      d.kind === "carry"
+        ? d.evidence.page
+        : faulted.has(i)
+          ? Math.min(healthy(i), badges[i] ?? 0) - 1
+          : listed(day, i),
     );
+    // The run after a faulted gap run must read every faulted model again.
+    for (const i of stuck)
+      if (decisions[i]?.kind === "carry")
+        outcome.stuckFaults.push(`${graph[i]?.label ?? "?"} on ${day}`);
     const shortfall = ModelCensus.coverage(
       "Chaz",
       { controls: models, pages, previous: census, day, cards },
@@ -159,6 +184,7 @@ function simulate(
       )
         outcome.publishedCutEarly.push(day);
     }
+    stuck = faulted;
     census = ModelCensus.accept(
       "chaz-property",
       day,
@@ -199,5 +225,23 @@ describe("Chaz census on the real Nov 18 graph", () => {
       expect(rejected).toEqual([]);
       // The missed days really produced full reads after a gap.
       expect(afterGap).toBeGreaterThan(100);
+    });
+
+  for (const rate of [5, 10, 20])
+    test(`heals a fault confined to a gap run on the next run at ${rate} events a day`, () => {
+      const stuck: string[] = [];
+      let gapRuns = 0;
+      for (let seed = 1; seed <= 200; seed++) {
+        const outcome = simulate(seed, rate, {
+          cut: false,
+          missed: true,
+          gapFault: true,
+        });
+        gapRuns += outcome.acceptedAfterGap;
+        if (outcome.stuckFaults.length)
+          stuck.push(`seed ${seed}: ${outcome.stuckFaults.join(", ")}`);
+      }
+      expect(stuck).toEqual([]);
+      expect(gapRuns).toBeGreaterThan(100);
     });
 });

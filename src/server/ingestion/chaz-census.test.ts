@@ -430,12 +430,17 @@ test("Chaz fails a run whose model page reads empty but its closing re-read list
 
 test("Chaz confirms a persistently short model page at closing and carries it", async () => {
   // A dead route (like TOWN & COUNTRY: badge 8, explicit empty page) re-reads
-  // identically at closing, so the run passes and the page carries as
-  // confirmed until its sweep instead of costing a read every day.
+  // identically at closing, so the run passes. Only a normal incremental run
+  // confirms it: the cold run does not, so D + 1 reads it again (short) and
+  // re-reads it at closing, and from then on the page carries as confirmed
+  // until its sweep instead of costing a read every day.
   const native = yard();
   native.rows.set(12, donors(12, 8));
   native.outages.add(12);
   const thirteen = ids(13);
+  // The dead model is swept on D + 3 only, so its D + 1 read is not a sweep.
+  expect(sweep(D + 1, [12])).toEqual([]);
+  expect(sweep(D + 3, [12])).toEqual([12]);
   const dead = new Set(donors(12, 8).map((r) => r[0]));
   const live = () => allVins(native).filter((vin) => !dead.has(vin));
   const cold = await census(native, D, null);
@@ -444,9 +449,17 @@ test("Chaz confirms a persistently short model page at closing and carries it", 
   expect(cold.requests).toBe(20);
   expect(cold.models).toEqual([...thirteen, 12]);
   expect(cold.vins).toEqual(live());
-  let previous = cold.terminal;
+  // Day D + 1: the cold run confirmed nothing, so the short page is read
+  // again and its closing re-read confirms it.
+  const confirmed = await census(native, D + 1, cold.terminal);
+  const confirmedReads = reads(D + 1, thirteen, [[12, "short"]]);
+  expect(confirmed.models).toEqual([...confirmedReads.keys(), 12]);
+  expect(confirmed.requests).toBe(6 + confirmedReads.size + 1);
+  expect(confirmed.warnings.at(-1)).toBe(summary(13, confirmedReads));
+  expect(confirmed.vins).toEqual(live());
+  let previous = confirmed.terminal;
   let sweeps = 0;
-  for (let day = D + 1; day < D + MODEL_CENSUS_SWEEP_DAYS; day++) {
+  for (let day = D + 2; day < D + MODEL_CENSUS_SWEEP_DAYS; day++) {
     const run = await census(native, day, previous);
     const expected = reads(day, thirteen, []);
     const swept = expected.has(12);

@@ -334,38 +334,67 @@ test("OEM arrivals publish lagging donors without triggering model reads", async
 
 test("OEM reads a model once when a departing arrival is missing from its carried page", async () => {
   const native = yard();
-  // Model M stays out of the sweep on days 601 to 603, so only the trigger
-  // can read it.
+  // Model M stays out of the sweep on days 601 to 604, so only the short
+  // re-read and the trigger can read it.
   const m = pickModel((model) =>
-    [601, 602, 603].every((day) => !sweep(day).includes(model)),
+    [601, 602, 603, 604].every((day) => !sweep(day).includes(model)),
   );
-  // Day 600: the M badge already counts arrival X, but its page lags.
+  // Day 600: the M badge already counts arrival X, but its page lags. A cold
+  // run confirms no short page.
   const x = donor(m, 41);
   native.badges.set(m, 41);
   native.setArrivals([x]);
   const cold = await census(native, 600, null);
   expect(cold.vins).toEqual(allVins(native, [x]));
-  // Day 601: the page lists X with the badge unchanged, so M carries the
-  // day-600 page without X; the arrivals page still publishes X.
+  if (cold.terminal.state.phase !== "complete" || !cold.terminal.state.census)
+    throw new Error("Expected a terminal census");
+  expect(cold.terminal.state.census.models[m]).toMatchObject({
+    count: 41,
+    readDay: 600,
+    confirmed: false,
+  });
+  // Day 601: the first incremental run re-reads the short M page and its
+  // closing re-reads it identically, so this run confirms it.
+  const confirming = await census(native, 601, cold.wire);
+  expect(confirming.models).toEqual([...sorted([...sweep(601), m]), m]);
+  expect(confirming.vins).toEqual(allVins(native, [x]));
+  expect(confirming.warnings.at(-1)).toBe(
+    summary([
+      ["sweep", sweep(601)],
+      ["short", [m]],
+    ]),
+  );
+  if (
+    confirming.terminal.state.phase !== "complete" ||
+    !confirming.terminal.state.census
+  )
+    throw new Error("Expected a terminal census");
+  expect(confirming.terminal.state.census.models[m]).toMatchObject({
+    count: 41,
+    readDay: 601,
+    confirmed: true,
+  });
+  // Day 602: the page lists X with the badge unchanged, so M carries the
+  // day-601 page without X; the arrivals page still publishes X.
   native.rows.set(m, donors(m, 41));
-  const lagging = await census(native, 601, cold.wire);
-  expect(lagging.models).toEqual(sweep(601));
+  const lagging = await census(native, 602, confirming.wire);
+  expect(lagging.models).toEqual(sweep(602));
   expect(lagging.vins).toEqual(allVins(native));
-  // Day 602: X leaves the arrivals page. Its own destination binds M and the
+  // Day 603: X leaves the arrivals page. Its own destination binds M and the
   // carried page lacks it, so M is read and X stays published.
   native.setArrivals([donor(0, 1)]);
-  const departed = await census(native, 602, lagging.wire);
-  expect(departed.models).toEqual(sorted([...sweep(602), m]));
+  const departed = await census(native, 603, lagging.wire);
+  expect(departed.models).toEqual(sorted([...sweep(603), m]));
   expect(departed.vins).toEqual(allVins(native));
   expect(departed.warnings.at(-1)).toBe(
     summary([
-      ["sweep", sweep(602)],
+      ["sweep", sweep(603)],
       ["trigger", [m]],
     ]),
   );
-  // Day 603: the trigger fired once; M now carries its page with X.
-  const after = await census(native, 603, departed.wire);
-  expect(after.models).toEqual(sweep(603));
+  // Day 604: the trigger fired once; M now carries its page with X.
+  const after = await census(native, 604, departed.wire);
+  expect(after.models).toEqual(sweep(604));
   expect(after.vins).toEqual(allVins(native));
 });
 
@@ -531,10 +560,13 @@ test("OEM fails a run whose read and carried cards fall short of today's model b
 
 test("OEM confirms an explicit empty model under a nonzero badge and carries it", async () => {
   // Native explicit empties under nonzero badges are accepted (23 such models
-  // on November 15). Closing re-reads the empty page, so its evidence is
-  // confirmed and the next run carries it instead of reading it as short.
+  // on November 15). A cold run's closing re-reads the empty page but confirms
+  // nothing; the first incremental run reads it as short, its closing re-reads
+  // it, so its evidence is confirmed and the next run carries it.
   const native = yard();
-  const empty = pickModel((m) => !sweep(601).includes(m));
+  const empty = pickModel(
+    (m) => !sweep(601).includes(m) && !sweep(602).includes(m),
+  );
   native.rows.set(empty, []);
   native.badges.set(empty, 3);
   const cold = await census(native, 600, null);
@@ -542,17 +574,43 @@ test("OEM confirms an explicit empty model under a nonzero badge and carries it"
   expect(cold.vins).toEqual(allVins(native));
   if (cold.terminal.state.phase !== "complete" || !cold.terminal.state.census)
     throw new Error("Expected a terminal census");
-  const evidence = cold.terminal.state.census.models;
+  const coldEvidence = cold.terminal.state.census.models;
+  expect(coldEvidence[empty]).toMatchObject({
+    count: 3,
+    readDay: 600,
+    confirmed: false,
+    page: { nativeEmpty: true, records: [] },
+  });
+  expect(coldEvidence.filter((m) => m.confirmed)).toHaveLength(0);
+  const confirming = await census(native, 601, cold.wire);
+  expect(confirming.models).toEqual([...sorted([...sweep(601), empty]), empty]);
+  // Arrivals, makes, one menu, the swept and short pages, the closing re-read
+  // and the closing make directory.
+  expect(confirming.requests).toBe(6 + sweep(601).length);
+  expect(confirming.vins).toEqual(allVins(native));
+  expect(confirming.warnings.at(-1)).toBe(
+    summary([
+      ["sweep", sweep(601)],
+      ["short", [empty]],
+    ]),
+  );
+  if (
+    confirming.terminal.state.phase !== "complete" ||
+    !confirming.terminal.state.census
+  )
+    throw new Error("Expected a terminal census");
+  const evidence = confirming.terminal.state.census.models;
   expect(evidence[empty]).toMatchObject({
     count: 3,
+    readDay: 601,
     confirmed: true,
     page: { nativeEmpty: true, records: [] },
   });
   expect(evidence.filter((m) => m.confirmed)).toHaveLength(1);
-  const next = await census(native, 601, cold.wire);
-  expect(next.models).toEqual(sweep(601));
+  const next = await census(native, 602, confirming.wire);
+  expect(next.models).toEqual(sweep(602));
   expect(next.vins).toEqual(allVins(native));
-  expect(next.warnings.at(-1)).toBe(summary([["sweep", sweep(601)]]));
+  expect(next.warnings.at(-1)).toBe(summary([["sweep", sweep(602)]]));
 });
 
 /** Runs chunks seeded by `previousCursor` on `day` until the run completes or

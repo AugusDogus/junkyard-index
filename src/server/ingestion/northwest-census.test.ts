@@ -449,13 +449,40 @@ test("Northwest confirms a model read with fewer cards than its badge at closing
   expect(cold.models).toEqual([...Array.from({ length: 12 }, (_, i) => i), 3]);
   expect(cold.requests).toBe(18);
   expect(cold.vins).toEqual(allVins(native));
+  // A cold run confirms nothing, closing re-read or not.
+  const coldCensus = NorthwestCursor.parse(JSON.stringify(cold.terminal));
+  if (coldCensus.phase !== "complete" || !coldCensus.census)
+    throw new Error("Expected a terminal census");
+  expect(coldCensus.census.models.map((m) => m.confirmed)).toEqual(
+    Array.from({ length: 12 }, () => false),
+  );
+
+  // The next incremental run reads model 3 again off its sweep slice, re-reads
+  // it at closing and confirms it.
+  const reads = [...new Set([...swept(native, 601), 3])].sort((a, b) => a - b);
+  const confirming = await census(native, 601, cold.terminal);
+  expect(confirming.models).toEqual([...reads, 3]);
+  // Root, makes, one menu, the read models, closing root, makes and model 3.
+  expect(confirming.requests).toBe(6 + reads.length);
+  expect(confirming.vins).toEqual(allVins(native));
+  expect(confirming.warnings.at(-1)).toBe(
+    summary(
+      12,
+      reads.map((i) => (i === 3 ? "short" : "sweep")),
+    ),
+  );
+  const confirmed = NorthwestCursor.parse(JSON.stringify(confirming.terminal));
+  if (confirmed.phase !== "complete" || !confirmed.census)
+    throw new Error("Expected a terminal census");
+  expect(confirmed.census.models.map((m) => m.confirmed)).toEqual(
+    Array.from({ length: 12 }, (_, i) => i === 3),
+  );
 
   // A carried short page was confirmed on the run that read it.
-  const day = [601, 602, 603, 604, 605].find(
-    (candidate) => !swept(native, candidate).includes(3),
-  );
-  if (day === undefined) throw new Error("fixture needs a day without M3");
-  const carried = await census(native, day, cold.terminal);
+  const day = 602;
+  if (swept(native, day).includes(3))
+    throw new Error("fixture needs day 602 without M3");
+  const carried = await census(native, day, confirming.terminal);
   expect(carried.models).toEqual(swept(native, day));
   expect(carried.vins).toEqual(allVins(native));
 
@@ -506,21 +533,40 @@ test("Northwest marks only closing-confirmed short pages and re-reads unconfirme
   const parsed = NorthwestCursor.parse(JSON.stringify(cold.terminal));
   if (parsed.phase !== "complete" || !parsed.census)
     throw new Error("Expected a terminal census");
-  // Closing re-read model 3, so its short page is confirmed; full pages are not short.
+  // Closing re-read model 3, but a cold run confirms no short page.
   expect(parsed.census.models.map((m) => m.confirmed)).toEqual(
+    Array.from({ length: 12 }, () => false),
+  );
+  // The next incremental run reads the unconfirmed page off its sweep slice
+  // and confirms it at closing; full pages are not short.
+  const reads601 = [...new Set([...swept(native, 601), 3])].sort(
+    (a, b) => a - b,
+  );
+  const first = await census(native, 601, cold.terminal);
+  expect(first.models).toEqual([...reads601, 3]);
+  expect(first.vins).toEqual(allVins(native));
+  expect(first.warnings.at(-1)).toBe(
+    summary(
+      12,
+      reads601.map((i) => (i === 3 ? "short" : "sweep")),
+    ),
+  );
+  const confirmed = NorthwestCursor.parse(JSON.stringify(first.terminal));
+  if (confirmed.phase !== "complete" || !confirmed.census)
+    throw new Error("Expected a terminal census");
+  expect(confirmed.census.models.map((m) => m.confirmed)).toEqual(
     Array.from({ length: 12 }, (_, i) => i === 3),
   );
   // Evidence that lost its confirmation is never carried: model 3 is read off
   // its sweep slice and confirmed again at closing.
-  const day = [601, 602, 603, 604, 605].find(
-    (candidate) => !swept(native, candidate).includes(3),
-  );
-  if (day === undefined) throw new Error("fixture needs a day without M3");
+  const day = 602;
+  if (swept(native, day).includes(3))
+    throw new Error("fixture needs day 602 without M3");
   const unconfirmed = await census(native, day, {
-    ...parsed,
+    ...confirmed,
     census: {
-      ...parsed.census,
-      models: parsed.census.models.map((m) => ({ ...m, confirmed: false })),
+      ...confirmed.census,
+      models: confirmed.census.models.map((m) => ({ ...m, confirmed: false })),
     },
   });
   const reads = [...swept(native, day), 3].sort((a, b) => a - b);
