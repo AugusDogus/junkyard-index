@@ -5,7 +5,9 @@ import { SourceValidationPolicy } from "./source-validation";
 export const WHITEBRADSTREET_PAGE_SIZE = 25;
 export const WHITEBRADSTREET_MAX_PAGES = 400;
 /** Durable cooldowns after HTTP 429 outlasts the in-chunk retries. Each one
- * waits at least this long, or the host's longer Retry-After. */
+ * waits at least this long, or the host's longer Retry-After. The schedule
+ * restarts after a chunk makes progress; three cooldowns in a row without
+ * progress fail the crawl. */
 export const WHITEBRADSTREET_RATE_LIMIT_COOLDOWNS_MS = [
   2 * 60 * 1000,
   5 * 60 * 1000,
@@ -14,7 +16,9 @@ export const WHITEBRADSTREET_RATE_LIMIT_COOLDOWNS_MS = [
 /** Every cooldown in one crawl must end within an hour of the first. */
 export const WHITEBRADSTREET_MAX_DEFERRAL_MS = 60 * 60 * 1000;
 const timestamp = z.number().int().nonnegative().safe();
-/** Present once a crawl has deferred a rate limit; carried to later checkpoints. */
+/** Present once a crawl has deferred a rate limit; carried to later checkpoints.
+ * `since` is the crawl's first refusal and `deferrals` counts consecutive
+ * cooldowns without progress. */
 const rateLimit = z
   .object({
     since: timestamp,

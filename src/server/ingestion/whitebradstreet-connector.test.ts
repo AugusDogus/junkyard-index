@@ -493,7 +493,7 @@ test("White & Bradstreet checkpoints advanced pages before a rate-limit deferral
   expect(new Set(vehicles.map((vehicle) => vehicle.vin)).size).toBe(76);
 });
 
-test("White & Bradstreet carries the cooldown count past resumed progress", async () => {
+test("White & Bradstreet keeps the cooldown window past resumed progress and restarts the stall count", async () => {
   inventory({ total: 76 });
   const first = await run();
   if (first.cursor.phase !== "pages")
@@ -514,6 +514,21 @@ test("White & Bradstreet carries the cooldown count past resumed progress", asyn
     }),
   );
   expect("retryAt" in resumed.cursor).toBe(false);
+  // The prior chunk made progress, so a refusal now starts a new stall count
+  // inside the same one-hour window.
+  inventory({ total: 76, response: () => throttled("300") });
+  const refused = await run(resumed.cursor);
+  expect(refused.cursor).toMatchObject({
+    phase: "pages",
+    nextPage: 3,
+    rateLimit: { since, deferrals: 1 },
+  });
+  // A cooldown that ends in another refusal without progress still counts.
+  expect((await run(wake(refused.cursor))).cursor).toMatchObject({
+    phase: "pages",
+    nextPage: 3,
+    rateLimit: { deferrals: 2 },
+  });
 });
 
 test("White & Bradstreet waits out a wake that starts just before retryAt", async () => {
@@ -558,6 +573,87 @@ function blockAfter(allowed: number, total: number) {
     response: (body) => (++answered > allowed ? throttled("300") : html(body)),
   });
 }
+/** Wakes a deferred cursor at its retryAt. The recorded rate-limit start moves
+ * back by the same wait, so the one-hour window sees the real elapsed time. */
+function wake(cursor: WhitebradstreetCursor) {
+  const { rateLimit, retryAt } = deferred(cursor);
+  const now = Date.now();
+  return WhitebradstreetCursorSchema.parse(
+    JSON.parse(
+      JSON.stringify({
+        ...cursor,
+        rateLimit: { ...rateLimit, since: rateLimit.since - (retryAt - now) },
+        retryAt: now,
+      }),
+    ),
+  );
+}
+/** 16 native pages of 386 donors, the active-donor control and a 16-page
+ * terminal recheck. */
+const FULL_CRAWL_REQUESTS = 33;
+/** Drives default chunks to completion against a host that answers `initial`
+ * requests and then five after each cooldown, as production did. */
+async function crawlUnderRateLimit(
+  initial: number,
+  start?: WhitebradstreetCursor,
+) {
+  let allowed = initial;
+  const requests = inventory({
+    total: 386,
+    response: (body) => (allowed-- > 0 ? html(body) : throttled("300")),
+  });
+  const vehicles: WhitebradstreetCanonicalVehicle[] = [];
+  const yards: (typeof WHITEBRADSTREET_YARD)[] = [];
+  const deferrals: number[] = [];
+  let cursor = start;
+  for (let chunks = 0; chunks < 40; chunks++) {
+    const result = await Effect.runPromise(
+      streamWhitebradstreetInventoryWithRequestGate(
+        {
+          startCursor: cursor,
+          onBatch: (batch) =>
+            Effect.sync(() => {
+              vehicles.push(...batch);
+            }),
+          onYards: (batch) =>
+            Effect.sync(() => {
+              yards.push(...batch);
+            }),
+        },
+        gate,
+      ),
+    );
+    if (result.status === "complete")
+      return { result, requests, vehicles, yards, deferrals };
+    cursor = result.cursor;
+    if (cursor.phase !== "complete" && cursor.retryAt !== undefined) {
+      deferrals.push(deferred(cursor).rateLimit.deferrals);
+      allowed = 5;
+      cursor = wake(cursor);
+    }
+  }
+  throw new Error("White & Bradstreet crawl did not finish in 40 chunks");
+}
+
+test.each([22, 14, 5])(
+  "White & Bradstreet completes a fresh crawl when the host answers %i requests and then five per cooldown",
+  async (initial) => {
+    const crawl = await crawlUnderRateLimit(initial);
+    const cooldowns = Math.ceil((FULL_CRAWL_REQUESTS - initial) / 5);
+    expect(crawl.result).toMatchObject({
+      status: "complete",
+      cursor: { phase: "complete" },
+    });
+    // Every cooldown follows progress, so none of them grows the stall count.
+    expect(crawl.deferrals).toEqual(Array<number>(cooldowns).fill(1));
+    expect(crawl.requests).toHaveLength(FULL_CRAWL_REQUESTS + cooldowns);
+    expect(crawl.vehicles).toHaveLength(386);
+    expect(new Set(crawl.vehicles.map((vehicle) => vehicle.vin)).size).toBe(
+      386,
+    );
+    expect(crawl.yards).toEqual([WHITEBRADSTREET_YARD]);
+  },
+);
 
 test("White & Bradstreet resumes after a cooldown with new pages inside five requests", async () => {
   inventory({ total: 386 });
@@ -595,9 +691,18 @@ test("White & Bradstreet resumes after a cooldown with new pages inside five req
       phase: "recheck",
       nextRecheckPage: 2,
       total: 386,
-      rateLimit: { since, deferrals: 2 },
+      // The resume made progress, so its refusal starts a new stall count.
+      rateLimit: { since, deferrals: 1 },
     },
   });
+  // Recheck pages 2-16 then finish at five requests per cooldown.
+  const rest = await crawlUnderRateLimit(5, wake(resumed.cursor));
+  expect(rest.result).toMatchObject({ status: "complete", count: 0 });
+  expect(rest.deferrals).toEqual([1, 1]);
+  // 15 recheck pages and the two refused requests.
+  expect(rest.requests).toHaveLength(17);
+  expect(rest.requests[0]).toBe(pageUrl(2));
+  expect(rest.yards).toEqual([WHITEBRADSTREET_YARD]);
 });
 
 test("White & Bradstreet resumes a rate-limited terminal recheck where it stopped", async () => {
@@ -695,7 +800,12 @@ test("White & Bradstreet fails a resumed recheck that finds shifted rows", async
 });
 
 test.each([
-  ["three cooldowns are spent", 20, 3, "after all 3 cooldowns in this crawl"],
+  [
+    "three cooldowns in a row make no progress",
+    20,
+    3,
+    "after 3 cooldowns in a row without progress",
+  ],
   [
     "the wait ends after the one-hour window",
     50,

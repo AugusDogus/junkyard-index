@@ -159,15 +159,18 @@ function append(
   return vehicles;
 }
 
-/** Schedule the durable wait for a rate-limited request. Cooldowns are
- * bounded in count and in total time, so a source cannot defer forever. */
+/** Schedule the durable wait for a rate-limited request. `deferrals` counts
+ * consecutive cooldowns without progress, so a host that admits a few
+ * requests per cooldown can still finish the crawl. Every cooldown must end
+ * within an hour of the first refusal, so a source cannot defer forever. */
 function rateLimitCooldown(
   prior: WhitebradstreetRateLimit | undefined,
+  progressed: boolean,
   refusal: WhitebradstreetRateLimitedError,
 ) {
   return ingestionValidation({
     try: () => {
-      const deferrals = (prior?.deferrals ?? 0) + 1;
+      const deferrals = (progressed ? 0 : (prior?.deferrals ?? 0)) + 1;
       const cooldownMs = WHITEBRADSTREET_RATE_LIMIT_COOLDOWNS_MS[deferrals - 1];
       const now = Date.now();
       const since = prior?.since ?? now;
@@ -440,7 +443,19 @@ export function streamWhitebradstreetInventoryWithRequestGate<E, R>(
             hashes: rechecking.hashes,
           } as const);
     if (refusal !== null) {
-      const cooldown = yield* rateLimitCooldown(cursor.rateLimit, refusal);
+      // A cursor without retryAt was written by a chunk that finished after
+      // the last cooldown, so that cooldown already led to progress.
+      const progressed =
+        cursor.retryAt === undefined ||
+        pagesProcessed > 0 ||
+        (rechecking !== null &&
+          (cursor.phase !== "recheck" ||
+            rechecking.nextPage > cursor.nextRecheckPage));
+      const cooldown = yield* rateLimitCooldown(
+        cursor.rateLimit,
+        progressed,
+        refusal,
+      );
       const warnings = [
         refusal.message +
           " Cooldown " +
