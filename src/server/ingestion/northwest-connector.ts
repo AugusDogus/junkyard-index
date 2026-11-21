@@ -5,9 +5,11 @@ import type {
   ConnectorChunkStatus,
 } from "./connector-chunk";
 import {
+  NORTHWEST_NATIVE_TRANSPORT,
   NorthwestProviderError,
   acquireNorthwestBrowser,
   fetchNorthwestPage,
+  northwestHyperbrowser,
 } from "./northwest-client";
 import {
   NorthwestCursor,
@@ -40,10 +42,9 @@ import {
 } from "./northwest-yard-metadata";
 import type { NorthwestCandidate } from "./northwest-transform";
 import type { ProviderRequestGate } from "./provider-http-client";
-import {
-  DocumentTransport,
-  type BrowserSessions,
-  type LazyDocumentTransport,
+import type {
+  BrowserSessions,
+  LazyDocumentTransport,
 } from "./document-transport";
 import { Config } from "./context";
 import { ProviderChunkClock } from "./provider-chunk-clock";
@@ -187,7 +188,7 @@ function advance(state: NorthwestProgress, raw: string): NorthwestProgress {
 export function streamNorthwestInventoryWithRequestGate<E, R>(
   options: NorthwestOptions<E, R>,
   gate: ProviderRequestGate,
-  transport: LazyDocumentTransport = DocumentTransport.nativeLazy,
+  transport: LazyDocumentTransport = NORTHWEST_NATIVE_TRANSPORT,
 ) {
   return Effect.gen(function* () {
     const budget = options.maxPages ?? 8;
@@ -235,11 +236,18 @@ export function streamNorthwestInventoryWithRequestGate<E, R>(
           cause: "1600 native GET limit reached; preserve prior inventory",
         });
       const url = yield* attempt("next control", () => nextUrl(current));
-      // The transport resolves inside the turn, so a chunk still queued for
-      // the URG host holds no browser session.
-      const page = yield* transport.pipe(
-        Effect.flatMap((documents) => fetchNorthwestPage(url, gate, documents)),
-        sharedProviderHostTurn(url),
+      // Lock order: the session lease before the URG turn, so no URG turn
+      // holder waits for the lease. The session opens inside the turn, so a
+      // chunk still queued for the URG host holds no browser session.
+      const page = yield* transport.lease.pipe(
+        Effect.andThen(
+          transport.open.pipe(
+            Effect.flatMap((documents) =>
+              fetchNorthwestPage(url, gate, documents),
+            ),
+            sharedProviderHostTurn(url),
+          ),
+        ),
         ProviderChunkClock.unlessDeferred(summary.pagesProcessed > 0),
       );
       if (Option.isNone(page)) break;
@@ -301,8 +309,9 @@ export function streamNorthwestInventoryWithRequestGate<E, R>(
   );
 }
 /** At most one browser session per chunk, opened by the first request once
- * its URG host turn arrives and stopped when the chunk ends. `sessions`
- * defaults to Hyperbrowser. */
+ * the chunk holds the Hyperbrowser session lease and its URG host turn
+ * arrives, and stopped when the chunk ends. `sessions` defaults to
+ * Hyperbrowser. */
 export function streamNorthwestInventory<E, R>(
   options: NorthwestOptions<E, R>,
   sessions?: BrowserSessions,
@@ -312,8 +321,7 @@ export function streamNorthwestInventory<E, R>(
   return Effect.scoped(
     Effect.gen(function* () {
       const transport = yield* acquireNorthwestBrowser(
-        sessions ??
-          DocumentTransport.hyperbrowser((yield* Config).hyperbrowserApiKey),
+        sessions ?? northwestHyperbrowser((yield* Config).hyperbrowserApiKey),
       );
       return yield* streamNorthwestInventoryWithRequestGate(
         options,

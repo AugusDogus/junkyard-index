@@ -1,6 +1,7 @@
 import { Hyperbrowser } from "@hyperbrowser/sdk";
 import { chromium } from "playwright-core";
 import { Effect } from "effect";
+import { HyperbrowserSessions } from "./hyperbrowser-sessions";
 import {
   VANDERHAAGS_CATALOG_PATH,
   VANDERHAAGS_ORIGIN,
@@ -13,18 +14,30 @@ export interface VanderHaagsPageSource<E = Error> {
   fetchPage(path: string): Effect.Effect<string, E>;
 }
 
+/** One session for the enclosing scope, opened under the Hyperbrowser
+ * session lease and stopped before the lease is released. A busy lease or
+ * plan defers the chunk. */
 export function acquireVanderHaagsSession(apiKey: string) {
   return Effect.gen(function* () {
     const client = new Hyperbrowser({ apiKey });
+    yield* HyperbrowserSessions.lease("vanderhaags");
     const session = yield* Effect.acquireRelease(
-      Effect.tryPromise(() =>
-        client.sessions.create({
-          useStealth: true,
-          solveCaptchas: false,
-          acceptCookies: true,
-          region: "us-west",
-        }),
-      ),
+      Effect.tryPromise({
+        try: () =>
+          HyperbrowserSessions.create(client, {
+            useStealth: true,
+            solveCaptchas: false,
+            acceptCookies: true,
+            region: "us-west",
+          }),
+        catch: (cause) =>
+          HyperbrowserSessions.capacityDeferral(cause) ??
+          new Error(
+            "Vander Haags browser session create failed: " +
+              (cause instanceof Error ? cause.message : String(cause)),
+            { cause },
+          ),
+      }),
       (s) =>
         Effect.tryPromise(() => client.sessions.stop(s.id)).pipe(Effect.orDie),
     );

@@ -24,6 +24,8 @@ import {
  */
 interface ChunkClock {
   readonly startedAt: number;
+  /** Provider work the chunk may do, excluding queue time. */
+  readonly workLimitMs: number;
   /** Completed time during which at least one request waited for a turn. */
   queuedMs: number;
   queuedSince: number;
@@ -78,6 +80,30 @@ export class ProviderTurnDeferred extends Data.TaggedError(
   }
 }
 
+/**
+ * A provider account refused new work because its concurrency limit is in
+ * use, such as a browser service's concurrent session cap. Nothing from the
+ * chunk was accepted, so the source retries the same cursor after its usual
+ * deferral delay.
+ */
+export class ProviderCapacityDeferred extends Data.TaggedError(
+  "ProviderCapacityDeferred",
+)<{ provider: string; detail: string }> {
+  override get message() {
+    return `${this.provider} refused new work because the account's concurrency limit is in use: ${this.detail} Nothing from this chunk was accepted and the last validated checkpoint is preserved; the source retries this chunk after its deferral delay.`;
+  }
+}
+
+/** Why a chunk returned without work: no shared host turn in time, or no
+ * provider capacity. Either way its cursor is retried later. */
+export type ProviderChunkDeferral =
+  | ProviderTurnDeferred
+  | ProviderCapacityDeferred;
+
+const isDeferral = (error: unknown): error is ProviderChunkDeferral =>
+  error instanceof ProviderTurnDeferred ||
+  error instanceof ProviderCapacityDeferred;
+
 const queuedMs = (clock: ChunkClock, now: number) =>
   clock.queuedMs + (clock.waiters > 0 ? now - clock.queuedSince : 0);
 
@@ -99,6 +125,7 @@ export const ProviderChunkClock = {
         const wallLimit = Duration.toMillis(PROVIDER_CHUNK_WALL_LIMIT);
         const clock: ChunkClock = {
           startedAt: yield* Clock.currentTimeMillis,
+          workLimitMs: workLimit,
           queuedMs: 0,
           queuedSince: 0,
           waiters: 0,
@@ -161,6 +188,25 @@ export const ProviderChunkClock = {
         ),
   ),
 
+  /** The latest clock time at which the current chunk may take a lease it
+   * keeps until it ends: all of its remaining work allowance still ends by the
+   * turn horizon, so the lease never runs the chunk into its wall limit. Time
+   * spent waiting for the lease is queue time and leaves this unchanged. None
+   * outside a chunk deadline. */
+  leaseHorizon: Effect.flatMap(FiberRef.get(CurrentChunkClock), (clock) =>
+    clock === null
+      ? Effect.succeed(Option.none<number>())
+      : Effect.map(Clock.currentTimeMillis, (now) =>
+          Option.some(
+            clock.startedAt +
+              Duration.toMillis(PROVIDER_CHUNK_WALL_LIMIT) -
+              Duration.toMillis(TURN_HORIZON_MARGIN) -
+              (clock.workLimitMs -
+                (now - clock.startedAt - queuedMs(clock, now))),
+          ),
+        ),
+  ),
+
   /** Whether work taking up to `ms` from now ends by the chunk's turn
    * horizon. Requests outside a shared host turn that follow a late turn check
    * this first. Outside a chunk deadline everything fits. */
@@ -211,18 +257,20 @@ export const ProviderChunkClock = {
         ),
       ),
 
+  /** Whether `error` defers the chunk rather than failing it. Connectors that
+   * wrap their failures keep a deferral as it is. */
+  isDeferral,
+
   /**
    * The deferral that failed a chunk run with `Effect.runPromise`, if that is
    * why it failed. Only a deferral that is the chunk's own failure counts; one
    * wrapped inside a provider error is a provider failure.
    */
-  deferralOf: (error: unknown): ProviderTurnDeferred | null => {
-    if (error instanceof ProviderTurnDeferred) return error;
+  deferralOf: (error: unknown): ProviderChunkDeferral | null => {
+    if (isDeferral(error)) return error;
     if (!Runtime.isFiberFailure(error)) return null;
     const failures = [...Cause.failures(error[Runtime.FiberFailureCauseId])];
     const deferral = failures[0];
-    return failures.length === 1 && deferral instanceof ProviderTurnDeferred
-      ? deferral
-      : null;
+    return failures.length === 1 && isDeferral(deferral) ? deferral : null;
   },
 } as const;

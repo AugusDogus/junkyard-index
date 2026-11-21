@@ -9,17 +9,21 @@ import {
   TestContext,
 } from "effect";
 import {
+  ProviderCapacityDeferred,
   ProviderChunkClock,
   ProviderChunkWallTimeout,
   ProviderTurnDeferred,
 } from "./provider-chunk-clock";
 import {
+  providerHostLease,
   providerHostSlot,
   providerHostTurn,
+  withProviderHostLease,
   withProviderHostSlot,
   withProviderHostTurn,
   type ProviderHostPolicy,
   type ProviderHostStore,
+  type ProviderLeasePolicy,
 } from "./provider-host-slot";
 import { runWithQueuedHost } from "./provider-host-test-support";
 
@@ -272,6 +276,13 @@ test("only a deferral that failed the chunk itself defers it", async () => {
     ),
   ).toBeNull();
   expect(ProviderChunkClock.deferralOf(new Error("HTTP 500"))).toBeNull();
+  const capacity = new ProviderCapacityDeferred({
+    provider: "Hyperbrowser",
+    detail: "Maximum number of active sessions (1) reached.",
+  });
+  expect(
+    ProviderChunkClock.deferralOf(await failure(Effect.fail(capacity))),
+  ).toBe(capacity);
   // The chunk deadline races the chunk against its watch; the deferral is
   // still the run's only failure.
   expect(
@@ -323,3 +334,81 @@ test("a reservation still in flight when the turn's wait budget ends is never le
   expect(granted).toBe(true);
   expect(released).toBe(true);
 }, 60_000);
+
+/** What `work` alone settles to. */
+const settled = (work: Effect.Effect<void, Error>) =>
+  Effect.runSync(Effect.either(work));
+
+const leasePolicy: ProviderLeasePolicy = {
+  key: "browser",
+  label: "browser session",
+  leaseMs: 11 * 60_000,
+  waitMs: 5 * 60_000,
+  pollMs: 1000,
+};
+
+test("a scoped lease waits its turn without spending work time and is held until its scope closes, on success or failure", async () => {
+  for (const work of [Effect.void, Effect.fail(new Error("refused"))]) {
+    const run = await runWithQueuedHost(
+      deadline(
+        Effect.scoped(
+          providerHostLease(leasePolicy).pipe(
+            Effect.andThen(Effect.sleep("170 seconds")),
+            Effect.andThen(work),
+          ),
+        ),
+      ),
+      { turnWaitMs: 90_000 },
+    );
+    // 90 s queued plus 170 s of work fits the three-minute work deadline.
+    expect(run.result).toEqual(settled(work));
+    expect(run.turns).toHaveLength(1);
+    expect(run.turns[0]?.acquiredAt).toBe(90_000);
+    expect(run.turns[0]?.leaseMs).toBe(leasePolicy.leaseMs);
+    const releasedAt = run.turns[0]?.releasedAt ?? 0;
+    expect(releasedAt).toBeGreaterThanOrEqual(260_000);
+    expect(releasedAt).toBeLessThan(263_000);
+  }
+}, 60_000);
+
+test("a busy lease defers once the chunk's remaining work would no longer fit, and gives up its place", async () => {
+  const run = await runWithQueuedHost(
+    deadline(Effect.scoped(providerHostLease(leasePolicy))),
+    { turnWaitMs: 7 * 60_000 },
+  );
+  expect(Either.isLeft(run.result) && run.result.left).toBeInstanceOf(
+    ProviderTurnDeferred,
+  );
+  expect(run.turns).toHaveLength(0);
+  expect(run.cancelled).toBe(1);
+  // The horizon is 340 s; three minutes of work must still fit after it.
+  expect(run.elapsedMs).toBeGreaterThan(150_000);
+  expect(run.elapsedMs).toBeLessThanOrEqual(162_000);
+}, 60_000);
+
+test("a lease is never awaited inside a shared host turn, so a turn holder cannot wait on a lease holder", async () => {
+  const reserved: string[] = [];
+  const store: ProviderHostStore = {
+    reserve: async (token) => {
+      reserved.push(token);
+      return true;
+    },
+    release: async () => true,
+    cancel: async () => true,
+  };
+  const result = await Effect.runPromise(
+    Effect.either(
+      withProviderHostTurn(
+        { ...policy, gapMs: 0 },
+        store,
+        1,
+        Effect.scoped(withProviderHostLease(leasePolicy, store)),
+      ),
+    ),
+  );
+  expect(Either.isLeft(result) && result.left.message).toContain(
+    "inside a shared host turn",
+  );
+  // Only the turn reserved.
+  expect(reserved).toHaveLength(1);
+});

@@ -1,5 +1,5 @@
 import { afterEach, expect, spyOn, test } from "bun:test";
-import { Effect, Exit } from "effect";
+import { Effect, Either, Exit } from "effect";
 import { acquireBigdBrowser, fetchBigdPage } from "./bigd-client";
 import { streamBigdInventory } from "./bigd-connector";
 import { Config } from "./context";
@@ -13,6 +13,13 @@ import {
 import { BrowserSessionError } from "./errors";
 import { streamNorthwestInventory } from "./northwest-connector";
 import { NORTHWEST_ROOT } from "./northwest-yard-metadata";
+import {
+  ProviderCapacityDeferred,
+  ProviderChunkClock,
+  ProviderTurnDeferred,
+} from "./provider-chunk-clock";
+import { withProviderHostLease } from "./provider-host-slot";
+import { runWithQueuedHost } from "./provider-host-test-support";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { fetchSix03Page } from "./six03-client";
 import { streamSix03Inventory } from "./six03-connector";
@@ -369,15 +376,39 @@ test("a prepared page routes every request and drops only rendering subresources
   });
 });
 
-/** Remote sessions that record every lifecycle call. */
+const busy = new ProviderTurnDeferred({
+  host: "Hyperbrowser session for test",
+  stage: "wait",
+  elapsedMs: 0,
+  queuedMs: 0,
+});
+
+/** Remote sessions that record every lifecycle call, including the session
+ * lease, which `lease` replaces. */
 function fakeSessions(
   page: BrowserDocumentPage,
   connectFailure: Error | null = null,
+  options: {
+    lease?: BrowserSessions["lease"];
+    createFailure?: Error;
+  } = {},
 ) {
   const events: string[] = [];
   let created = 0;
   const sessions: BrowserSessions = {
+    lease:
+      options.lease ??
+      Effect.acquireRelease(
+        Effect.sync(() => {
+          events.push("lease");
+        }),
+        () =>
+          Effect.sync(() => {
+            events.push("release");
+          }),
+      ),
     create: async () => {
+      if (options.createFailure) throw options.createFailure;
       created++;
       events.push("create s" + created);
       return { id: "s" + created, wsEndpoint: "wss://browser/" + created };
@@ -412,6 +443,16 @@ const servingPage = (
     evaluate: () => Promise.reject(new Error("unexpected in-page fetch")),
   };
 };
+/** A session's whole life: the lease is taken before the session is created
+ * and released after it stops. */
+const lifecycle = [
+  "lease",
+  "create s1",
+  "connect",
+  "disconnect",
+  "stop s1",
+  "release",
+];
 const refused = (url: string) =>
   navigation({ status: 403, url, headers: { "content-type": "text/html" } });
 
@@ -428,16 +469,16 @@ test("a browser transport opens one session on first use, reuses it, and stops i
       Effect.gen(function* () {
         const transport = yield* acquireBigdBrowser(sessions);
         for (const path of ["/", "/inventory/"] as const)
-          yield* transport.pipe(
+          yield* transport.open.pipe(
             Effect.flatMap((documents) =>
               fetchBigdPage(path, { cookie: null }, direct, documents),
             ),
           );
-        expect(events).toEqual(["create s1", "connect"]);
+        expect(events).toEqual(["lease", "create s1", "connect"]);
       }),
     ),
   );
-  expect(events).toEqual(["create s1", "connect", "disconnect", "stop s1"]);
+  expect(events).toEqual(lifecycle);
 });
 
 test("a refused request still stops the session", async () => {
@@ -446,7 +487,7 @@ test("a refused request still stops the session", async () => {
     Effect.scoped(
       Effect.gen(function* () {
         const transport = yield* acquireBigdBrowser(sessions);
-        yield* transport.pipe(
+        yield* transport.open.pipe(
           Effect.flatMap((documents) =>
             fetchBigdPage("/inventory/", { cookie: null }, direct, documents),
           ),
@@ -455,7 +496,7 @@ test("a refused request still stops the session", async () => {
     ),
   );
   expect(Exit.isFailure(exit)).toBe(true);
-  expect(events).toEqual(["create s1", "connect", "disconnect", "stop s1"]);
+  expect(events).toEqual(lifecycle);
 });
 
 test("an interrupted request still stops the session", async () => {
@@ -468,7 +509,7 @@ test("an interrupted request still stops the session", async () => {
     Effect.scoped(
       Effect.gen(function* () {
         const transport = yield* acquireBigdBrowser(sessions);
-        yield* transport.pipe(
+        yield* transport.open.pipe(
           Effect.flatMap((documents) =>
             fetchBigdPage("/", { cookie: null }, direct, documents),
           ),
@@ -477,7 +518,7 @@ test("an interrupted request still stops the session", async () => {
     ).pipe(Effect.timeout("50 millis")),
   );
   expect(Exit.isFailure(exit)).toBe(true);
-  expect(events).toEqual(["create s1", "connect", "disconnect", "stop s1"]);
+  expect(events).toEqual(lifecycle);
 });
 
 test("a failed browser connection still stops the created session", async () => {
@@ -485,13 +526,15 @@ test("a failed browser connection still stops the created session", async () => 
   const { sessions, events } = fakeSessions(servingPage(), failure);
   const exit = await Effect.runPromiseExit(
     Effect.scoped(
-      acquireBigdBrowser(sessions).pipe(Effect.flatMap((open) => open)),
+      acquireBigdBrowser(sessions).pipe(
+        Effect.flatMap((transport) => transport.open),
+      ),
     ),
   );
   expect(exit).toEqual(
     Exit.fail(new BrowserSessionError({ phase: "open", cause: failure })),
   );
-  expect(events).toEqual(["create s1", "stop s1"]);
+  expect(events).toEqual(["lease", "create s1", "stop s1", "release"]);
 });
 
 const config = { betterStackHeartbeatUrl: undefined, hyperbrowserApiKey: "" };
@@ -554,5 +597,101 @@ test("a Northwest chunk whose first document is refused stops its session", asyn
     _tag: "Failure",
     cause: { error: { operation: NORTHWEST_ROOT } },
   });
-  expect(events).toEqual(["create s1", "connect", "disconnect", "stop s1"]);
+  expect(events).toEqual(lifecycle);
 });
+
+test.each([
+  [
+    "Big D",
+    (sessions: BrowserSessions) =>
+      streamBigdInventory({ onBatch: ignore }, sessions).pipe(Effect.asVoid),
+  ],
+  [
+    "Northwest",
+    (sessions: BrowserSessions) =>
+      streamNorthwestInventory({ onBatch: ignore }, sessions).pipe(
+        Effect.asVoid,
+      ),
+  ],
+  [
+    "603",
+    (sessions: BrowserSessions) =>
+      streamSix03Inventory({ onBatch: ignore }, sessions).pipe(Effect.asVoid),
+  ],
+] as const)(
+  "%s defers its chunk while the session lease is busy, without a session or request",
+  async (_name, run) => {
+    const { sessions, events } = fakeSessions(servingPage(), null, {
+      lease: Effect.fail(busy),
+    });
+    const failure = await Effect.runPromise(
+      run(sessions).pipe(Effect.provideService(Config, config)),
+    ).catch((error: unknown) => error);
+    expect(ProviderChunkClock.deferralOf(failure)).toBe(busy);
+    expect(events).toEqual([]);
+  },
+);
+
+test("the plan's concurrent session refusal defers the chunk and releases the lease", async () => {
+  // As @hyperbrowser/sdk 0.83 throws it.
+  const refusal = Object.assign(
+    new Error(
+      "[Hyperbrowser]: Maximum number of active sessions (1) reached. Please close some sessions before creating new ones.",
+    ),
+    { name: "HyperbrowserError", statusCode: 429 },
+  );
+  const { sessions, events } = fakeSessions(servingPage(), null, {
+    createFailure: refusal,
+  });
+  const failure = await Effect.runPromise(
+    streamSix03Inventory({ onBatch: ignore }, sessions).pipe(
+      Effect.provideService(Config, config),
+    ),
+  ).catch((error: unknown) => error);
+  expect(ProviderChunkClock.deferralOf(failure)).toBeInstanceOf(
+    ProviderCapacityDeferred,
+  );
+  expect(events).toEqual(["lease", "release"]);
+});
+
+test("Northwest takes the session lease before its URG turn and opens the session inside it", async () => {
+  // A real lease, which refuses to wait inside a held shared host turn.
+  const { sessions, events } = fakeSessions(servingPage(refused), null, {
+    lease: withProviderHostLease(
+      {
+        key: "hyperbrowser:northwest",
+        label: "Hyperbrowser session for northwest",
+        leaseMs: 11 * 60_000,
+        waitMs: 60_000,
+        pollMs: 1000,
+      },
+      {
+        reserve: async () => {
+          events.push("lease");
+          return true;
+        },
+        release: async () => {
+          events.push("release");
+          return true;
+        },
+        cancel: async () => true,
+      },
+    ).pipe(
+      Effect.mapError(
+        (cause) => new BrowserSessionError({ phase: "lease", cause }),
+      ),
+    ),
+  });
+  const run = await runWithQueuedHost(
+    streamNorthwestInventory({ onBatch: ignore }, sessions).pipe(
+      Effect.provideService(Config, config),
+    ),
+    { turnWaitMs: 60_000 },
+  );
+  // The refused root fails the chunk after one URG turn, not the lease.
+  expect(Either.isLeft(run.result) && run.result.left).toMatchObject({
+    operation: NORTHWEST_ROOT,
+  });
+  expect(run.turns).toHaveLength(1);
+  expect(events).toEqual(lifecycle);
+}, 60_000);

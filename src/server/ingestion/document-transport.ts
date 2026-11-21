@@ -2,7 +2,15 @@ import { Hyperbrowser } from "@hyperbrowser/sdk";
 import { chromium } from "playwright-core";
 import { Effect, Scope, SynchronizedRef } from "effect";
 import { BrowserSessionError } from "./errors";
+import {
+  HyperbrowserSessions,
+  type HyperbrowserSource,
+} from "./hyperbrowser-sessions";
 import { IPULLUPULL_MAX_RESPONSE_BYTES } from "./ipullupull-response-text";
+import type {
+  ProviderCapacityDeferred,
+  ProviderTurnDeferred,
+} from "./provider-chunk-clock";
 
 /** The part of a fetch Response that native HTML clients validate. Clients
  * keep owning status, redirect, URL, MIME, range and body checks. */
@@ -77,8 +85,6 @@ const BROWSER_REQUEST_TIMEOUT_MS = 30_000;
 // an oversized document; this only keeps the page from buffering without end.
 const IN_PAGE_MAX_BYTES = IPULLUPULL_MAX_RESPONSE_BYTES + 1;
 const CDP_CONNECT_TIMEOUT_MS = 45_000;
-// A backstop for a session whose stop call fails; chunks end within minutes.
-const SESSION_TIMEOUT_MINUTES = 10;
 
 const native: DocumentTransport = (url, init) =>
   fetch(url, {
@@ -232,12 +238,23 @@ function browser(
     });
 }
 
-/** A transport that a connector resolves at each request site, inside any
- * shared host turn. A browser transport opens its session on first use. */
-export type LazyDocumentTransport = Effect.Effect<
-  DocumentTransport,
-  BrowserSessionError
->;
+/** Why a browser transport has no session: the session lease or the plan's
+ * concurrent sessions are busy (the chunk is deferred), or opening failed. */
+export type BrowserOpenError =
+  | BrowserSessionError
+  | ProviderTurnDeferred
+  | ProviderCapacityDeferred;
+
+/** A transport that a connector resolves at each request site. A browser
+ * transport takes its session lease, then opens its session, on first use. */
+export interface LazyDocumentTransport {
+  /** Takes the session lease without opening a session; later calls are
+   * free. A connector that requests inside shared host turns takes it before
+   * its first turn, so no turn holder waits for the lease. */
+  readonly lease: Effect.Effect<void, BrowserOpenError>;
+  /** The transport, taking the lease and opening the session on first use. */
+  readonly open: Effect.Effect<DocumentTransport, BrowserOpenError>;
+}
 
 /** A connected session page and how to disconnect from it. */
 export interface BrowserConnection {
@@ -247,6 +264,13 @@ export interface BrowserConnection {
 
 /** The remote browser calls behind one session, replaceable in tests. */
 export interface BrowserSessions {
+  /** Holds a place among the account's concurrent sessions for the enclosing
+   * scope, without starting a session. */
+  readonly lease: Effect.Effect<
+    void,
+    ProviderTurnDeferred | BrowserSessionError,
+    Scope.Scope
+  >;
   /** Starts one billed remote session. */
   create(): Promise<{ readonly id: string; readonly wsEndpoint: string }>;
   /** Ends billing for a session. */
@@ -290,19 +314,22 @@ function preparePage(page: BrowserRoutablePage): Promise<void> {
   );
 }
 
-/** Hyperbrowser sessions with stealth and accepted cookies only: no proxy
- * and no CAPTCHA solving. */
-function hyperbrowser(apiKey: string): BrowserSessions {
+/** `source`'s Hyperbrowser sessions, under the cross-source session lease,
+ * with stealth and accepted cookies only: no proxy and no CAPTCHA solving. */
+function hyperbrowser(
+  apiKey: string,
+  source: HyperbrowserSource,
+): BrowserSessions {
   const client = new Hyperbrowser({ apiKey });
   return {
+    lease: HyperbrowserSessions.lease(source),
     create: () =>
-      client.sessions.create({
+      HyperbrowserSessions.create(client, {
         useStealth: true,
         useProxy: false,
         solveCaptchas: false,
         acceptCookies: true,
         region: "us-west",
-        timeoutMinutes: SESSION_TIMEOUT_MINUTES,
       }),
     stop: (id) => client.sessions.stop(id),
     connect: async (wsEndpoint) => {
@@ -323,61 +350,89 @@ function hyperbrowser(apiKey: string): BrowserSessions {
   };
 }
 
-/** One session page for the enclosing scope, stopped when it closes. */
-function acquirePage(sessions: BrowserSessions) {
+/** One session page for the enclosing scope, stopped when it closes. The
+ * plan's concurrent session refusal defers the chunk. */
+function acquirePage(
+  sessions: BrowserSessions,
+): Effect.Effect<
+  BrowserDocumentPage,
+  BrowserSessionError | ProviderCapacityDeferred,
+  Scope.Scope
+> {
   return Effect.gen(function* () {
     const session = yield* Effect.acquireRelease(
-      Effect.tryPromise(() => sessions.create()),
+      Effect.tryPromise({
+        try: () => sessions.create(),
+        catch: (cause) =>
+          HyperbrowserSessions.capacityDeferral(cause) ??
+          new BrowserSessionError({ phase: "open", cause }),
+      }),
       (s) =>
         Effect.tryPromise(() => sessions.stop(s.id)).pipe(
           Effect.catchAll((cause) =>
             Effect.logWarning(
-              `Hyperbrowser session ${s.id} did not stop: ${String(cause.error)}. It ends after its ${SESSION_TIMEOUT_MINUTES}-minute timeout; stop it in the Hyperbrowser dashboard to end billing sooner.`,
+              `Hyperbrowser session ${s.id} did not stop: ${String(cause.error)}. Hyperbrowser ends it at its session timeout; stop it in the Hyperbrowser dashboard to end billing sooner.`,
             ),
           ),
         ),
     );
     const connection = yield* Effect.acquireRelease(
-      Effect.tryPromise(() => sessions.connect(session.wsEndpoint)),
+      Effect.tryPromise({
+        try: () => sessions.connect(session.wsEndpoint),
+        catch: (cause) => new BrowserSessionError({ phase: "open", cause }),
+      }),
       (c) => Effect.promise(() => c.close().catch(() => undefined)),
     );
     return connection.page;
-  }).pipe(
-    Effect.mapError(
-      (cause) => new BrowserSessionError({ phase: "open", cause: cause.error }),
-    ),
-  );
+  });
 }
 
-/** A browser transport for the enclosing scope whose session opens on first
- * use, so a chunk that sends no request, or still waits for a shared host
- * turn, holds no billed session. A failed or interrupted open leaves the next
- * use to try again, and the scope still releases whatever it acquired. */
+/** A browser transport for the enclosing scope that takes its session lease,
+ * then opens its session, on first use. A chunk that sends no request holds
+ * neither, and one still waiting for the lease or a shared host turn holds no
+ * billed session. A failed or interrupted lease or open leaves the next use
+ * to try again, and the scope releases whatever it acquired: the session
+ * first, then the lease. */
 function acquireBrowser(
   sessions: BrowserSessions,
   mode: BrowserDocumentMode,
 ): Effect.Effect<LazyDocumentTransport, never, Scope.Scope> {
   return Effect.gen(function* () {
     const scope = yield* Effect.scope;
+    const leased = yield* SynchronizedRef.make(false);
+    const lease = SynchronizedRef.updateEffect(leased, (held) =>
+      held
+        ? Effect.succeed(true)
+        : sessions.lease.pipe(Scope.extend(scope), Effect.as(true)),
+    );
     const opened = yield* SynchronizedRef.make<DocumentTransport | null>(null);
     const keep = (
       transport: DocumentTransport,
     ): [DocumentTransport, DocumentTransport] => [transport, transport];
-    return SynchronizedRef.modifyEffect(opened, (current) =>
-      current
-        ? Effect.succeed(keep(current))
-        : acquirePage(sessions).pipe(
-            Scope.extend(scope),
-            Effect.map((page) => keep(browser(page, mode))),
-          ),
+    const open = lease.pipe(
+      Effect.zipRight(
+        SynchronizedRef.modifyEffect(opened, (current) =>
+          current
+            ? Effect.succeed(keep(current))
+            : acquirePage(sessions).pipe(
+                Scope.extend(scope),
+                Effect.map((page) => keep(browser(page, mode))),
+              ),
+        ),
+      ),
     );
+    return { lease, open };
   });
 }
 
 export const DocumentTransport = {
   native,
-  /** The native transport as a `LazyDocumentTransport`. */
-  nativeLazy: Effect.succeed(native) satisfies LazyDocumentTransport,
+  /** The native transport as a `LazyDocumentTransport`: no lease and no
+   * session. */
+  nativeLazy: {
+    lease: Effect.void,
+    open: Effect.succeed(native),
+  } satisfies LazyDocumentTransport,
   browser,
   preparePage,
   hyperbrowser,

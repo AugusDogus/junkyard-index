@@ -65,6 +65,9 @@ through the same checks below. A redirected navigation reports its first hop, so
 it fails as a redirect. A chunk is the bootstrap plus 1-4 pages, at most five
 document navigations in one session. The session opens with the chunk's first
 request, after cursor and budget validation, and is stopped when the chunk ends.
+It opens only under the cross-source
+[Hyperbrowser session lease](hyperbrowser-sessions.md); a busy lease defers the
+chunk.
 
 The page routes every request, which disables the browser HTTP cache. Big D
 sends `cache-control: max-age=7200`, so without this the closing `/contact/` and

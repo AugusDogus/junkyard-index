@@ -76,6 +76,7 @@ import { soakNvpapInventory } from "./soak-nvpap";
 import { streamPontiacInventory } from "../src/server/ingestion/pontiac-connector";
 import { soakPontiacInventory } from "./soak-pontiac";
 import { streamVanderHaagsInventory } from "../src/server/ingestion/vanderhaags-connector";
+import { HYPERBROWSER_SOURCES as HYPERBROWSER_SOURCE_LIST } from "../src/server/ingestion/hyperbrowser-sessions";
 import { soakVanderHaagsInventory } from "./soak-vanderhaags";
 import { streamAeroInventory } from "../src/server/ingestion/aero-connector";
 import { streamChesterfieldInventory } from "../src/server/ingestion/chesterfield-connector";
@@ -244,12 +245,10 @@ interface SourceResult {
   warnings: string[];
 }
 
-const HYPERBROWSER_SOURCES: ReadonlySet<IngestionSource> = new Set([
-  "upullitdavie",
-  "bigd",
-  "northwest",
-  "six03",
-]);
+// Local soaks take no session lease, so they run these one at a time.
+const HYPERBROWSER_SOURCES: ReadonlySet<IngestionSource> = new Set(
+  HYPERBROWSER_SOURCE_LIST,
+);
 const requestMetrics = new SourceSoakMetrics();
 
 function positiveInteger(value: string, flag: string): number {
