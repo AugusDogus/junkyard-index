@@ -5,6 +5,7 @@ import type { ProviderRequestGate } from "./provider-http-client";
 import { fetchHeavyTruckPartsPage } from "./heavytruckparts-client";
 import {
   HeavytruckpartsCursor,
+  htpNextFill,
   htpNextPage,
   type HtpCursor,
 } from "./heavytruckparts-cursor";
@@ -12,8 +13,15 @@ import {
   HTP_SUPPLIERS,
   htpStoreUrl,
   htpCatalogUrl,
+  HTP_MAKE_SLUG,
+  htpYearMakeUrl,
+  htpYearUrl,
 } from "./heavytruckparts-yard-metadata";
-import { parseHtpCatalog, parseHtpStore } from "./heavytruckparts-catalog";
+import {
+  parseHtpCatalog,
+  parseHtpStore,
+  parseHtpYearFill,
+} from "./heavytruckparts-catalog";
 import { htpSnapshot, type HtpVehicle } from "./heavytruckparts-snapshot";
 
 export class HeavytruckpartsProviderError extends Error {
@@ -35,13 +43,25 @@ const attempt = <A>(operation: string, run: () => A) =>
   });
 const pass: ProviderRequestGate = (request) => request;
 export function fetchHtpPage(url: string, gate: ProviderRequestGate = pass) {
+  const year = /[?&]year_start=(\d{4})&/.exec(url)?.[1];
+  const make =
+    /^https:\/\/www\.heavytruckparts\.net\/search\/([^/?]+)\/Any\//.exec(
+      url,
+    )?.[1];
   const allowed = HTP_SUPPLIERS.some(
     (s) =>
       url === htpStoreUrl(s) ||
-      (["DESC", "ASC"] as const).some((direction) =>
-        Array.from({ length: 80 }, (_, i) =>
-          htpCatalogUrl(s, direction, i + 1),
-        ).includes(url),
+      (year !== undefined &&
+        make !== undefined &&
+        make !== "Any" &&
+        HTP_MAKE_SLUG.test(make) &&
+        url === htpYearMakeUrl(s, year, make)) ||
+      (["DESC", "ASC"] as const).some(
+        (direction) =>
+          Array.from({ length: 80 }, (_, i) =>
+            htpCatalogUrl(s, direction, i + 1),
+          ).includes(url) ||
+          (year !== undefined && url === htpYearUrl(s, year, direction, 1)),
       ),
   );
   if (!allowed)
@@ -84,10 +104,27 @@ export function htpAdvance(cursor: HtpCursor, raw: string): HtpCursor {
         ...cursor.pages,
         parseHtpCatalog(raw, s, control.direction, control.page, cursor.total),
       ];
+      if (htpNextPage(pages, cursor.total))
+        return HeavytruckpartsCursor.checkpoint({ ...next, pages });
       return HeavytruckpartsCursor.checkpoint({
         ...next,
         pages,
-        phase: htpNextPage(pages, cursor.total) ? "catalog" : "store-closing",
+        fills: [],
+        phase: htpNextFill(s, pages, [], cursor.total)
+          ? "year-fill"
+          : "store-closing",
+      });
+    }
+    case "year-fill": {
+      const control = htpNextFill(s, cursor.pages, cursor.fills, cursor.total);
+      if (!control) throw new Error("HTP year-fill frontier exhausted");
+      const fills = [...cursor.fills, parseHtpYearFill(raw, s, control)];
+      return HeavytruckpartsCursor.checkpoint({
+        ...next,
+        fills,
+        phase: htpNextFill(s, cursor.pages, fills, cursor.total)
+          ? "year-fill"
+          : "store-closing",
       });
     }
     case "store-closing": {
@@ -95,7 +132,12 @@ export function htpAdvance(cursor: HtpCursor, raw: string): HtpCursor {
         throw new Error(`HTP ${s.code} closing store count changed`);
       const completed = [
         ...cursor.completed,
-        { code: s.code, total: cursor.total, pages: cursor.pages },
+        {
+          code: s.code,
+          total: cursor.total,
+          pages: cursor.pages,
+          fills: cursor.fills,
+        },
       ];
       const common = {
         source: next.source,

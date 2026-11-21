@@ -8,13 +8,24 @@ import {
   HTP_SUPPLIERS,
   htpCatalogUrl,
   htpStoreUrl,
+  htpYearMakeUrl,
+  htpYearUrl,
 } from "./heavytruckparts-yard-metadata";
 import {
   HTP_REJECTED_SUPPLIERS,
   HTP_RETAIL_SUPPLIER,
 } from "./heavytruckparts-qualification-fixtures";
-import { parseHtpCatalog, parseHtpStore } from "./heavytruckparts-catalog";
-import { htpRoster, type HtpPage } from "./heavytruckparts-census";
+import {
+  parseHtpCatalog,
+  parseHtpStore,
+  parseHtpYearFill,
+} from "./heavytruckparts-catalog";
+import {
+  htpRoster,
+  htpYearPlan,
+  type HtpPage,
+  type HtpYearFill,
+} from "./heavytruckparts-census";
 import {
   HeavytruckpartsCursor,
   type HtpCursor,
@@ -91,7 +102,7 @@ function census(s: HtpSupplier) {
         ),
       );
   expect(parseHtpStore(read(s.code + "-store-closing"), s)).toBe(total);
-  return { code: s.code, total, pages };
+  return { code: s.code, total, pages, fills: [] };
 }
 function response(url: string) {
   for (const s of HTP_SUPPLIERS) {
@@ -226,7 +237,10 @@ describe("HeavyTruckParts marketplace", () => {
       const c = census(s);
       return {
         s,
-        snapshot: htpSupplierSnapshot(s, htpRoster(s, c.pages, c.total)),
+        snapshot: htpSupplierSnapshot(
+          s,
+          htpRoster(s, c.pages, c.fills, c.total),
+        ),
       };
     });
     expect(
@@ -245,7 +259,7 @@ describe("HeavyTruckParts marketplace", () => {
   test("saved Please Call dealer stock and Crest running firetruck stay out", () => {
     const bw = HTP_RETAIL_SUPPLIER;
     const c = census(bw);
-    const rows = htpRoster(bw, c.pages, c.total);
+    const rows = htpRoster(bw, c.pages, c.fills, c.total);
     const sprinter = rows.find((r) => r.id === "9577");
     if (!sprinter) throw new Error("Saved B&W Sprinter missing");
     expect(sprinter.price).toBe("Please Call");
@@ -264,7 +278,7 @@ describe("HeavyTruckParts marketplace", () => {
     const crest = HTP_SUPPLIERS.find((s) => s.code === "crest");
     if (!crest) throw new Error("Crest fixture missing");
     const cc = census(crest);
-    const crestRows = htpRoster(crest, cc.pages, cc.total);
+    const crestRows = htpRoster(crest, cc.pages, cc.fills, cc.total);
     const firetruck = crestRows.find((r) =>
       /TEST DRVN RUNS GREAT/i.test(r.description),
     );
@@ -292,7 +306,7 @@ describe("HeavyTruckParts marketplace", () => {
       );
       if (!supplier) throw new Error("Saved supplier missing");
       const c = census(supplier);
-      const row = htpRoster(supplier, c.pages, c.total).find(
+      const row = htpRoster(supplier, c.pages, c.fills, c.total).find(
         (r) => r.make === native,
       );
       if (!row) throw new Error("Saved make missing: " + native);
@@ -305,7 +319,7 @@ describe("HeavyTruckParts marketplace", () => {
     (s) => {
       const c = census(s);
       expect(() =>
-        htpSupplierSnapshot(s, htpRoster(s, c.pages, c.total)),
+        htpSupplierSnapshot(s, htpRoster(s, c.pages, c.fills, c.total)),
       ).toThrow("supplier quality failed");
     },
   );
@@ -313,7 +327,7 @@ describe("HeavyTruckParts marketplace", () => {
     const s = HTP_SUPPLIERS.find((s) => s.code === "westside");
     if (!s) throw new Error("West Side fixture missing");
     const c = census(s),
-      rows = htpRoster(s, c.pages, c.total);
+      rows = htpRoster(s, c.pages, c.fills, c.total);
     const truck = rows.find((r) => r.make === "CAT" && r.model === "CT660");
     if (!truck) throw new Error("CAT road truck fixture missing");
     expect(htpExclusion(truck, s)).toBeNull();
@@ -359,7 +373,7 @@ describe("HeavyTruckParts marketplace", () => {
     const c = census(first),
       row = c.pages[0]?.records[0];
     if (!row) throw new Error("fixture row missing");
-    expect(() => htpRoster(first, c.pages.slice(1), c.total)).toThrow(
+    expect(() => htpRoster(first, c.pages.slice(1), c.fills, c.total)).toThrow(
       "year order",
     );
     const changed = c.pages.map((p) =>
@@ -372,8 +386,10 @@ describe("HeavyTruckParts marketplace", () => {
           }
         : p,
     );
-    expect(() => htpRoster(first, changed, c.total)).toThrow("changed between");
-    expect(() => htpRoster(first, c.pages, c.total + 1)).toThrow();
+    expect(() => htpRoster(first, changed, c.fills, c.total)).toThrow(
+      "changed between",
+    );
+    expect(() => htpRoster(first, c.pages, c.fills, c.total + 1)).toThrow();
   });
   test("owner, item category, store, pagination and truncation drift stop collection", () => {
     const raw = read(first.code + "-desc-1"),
@@ -517,6 +533,18 @@ describe("HeavyTruckParts marketplace", () => {
       htpStoreUrl(first) + "&page=1",
       htpCatalogUrl(first, "ASC", 1) + "&year_start=2000",
       htpCatalogUrl(first, "DESC", 1).replace("4594927", "254076"),
+      htpYearUrl(HTP_RETAIL_SUPPLIER, "2015", "DESC", 1),
+      htpYearUrl(first, "2015", "DESC", 2),
+      htpYearUrl(first, "2015", "ASC", 1).replace(
+        "year_end=2015",
+        "year_end=2016",
+      ),
+      htpYearMakeUrl(HTP_RETAIL_SUPPLIER, "2016", "Kenworth"),
+      htpYearMakeUrl(first, "2016", "Kenworth") + "&page=2",
+      htpYearMakeUrl(first, "2016", "Kenworth").replace(
+        "Kenworth",
+        "Kenworth%2F",
+      ),
     ]) {
       const result = await Effect.runPromiseExit(fetchHtpPage(url));
       expect(result._tag).toBe("Failure");
@@ -585,5 +613,245 @@ describe("HeavyTruckParts marketplace", () => {
       (raw: string) => raw.replace("Request Info", "Ask Seller"),
     ])
       expect(() => page(1, change)).toThrow("conflicting destination");
+  });
+  test("2026-11-21 West Side year-tie gap reconciles through single-year native fills", () => {
+    const live = z
+      .object({
+        note: z.string(),
+        receipts: z.array(
+          z
+            .object({
+              key: z.string(),
+              url: z.string(),
+              status: z.literal(200),
+              bytes: z.number(),
+              started: z.number(),
+              finished: z.number(),
+            })
+            .strict(),
+        ),
+        checkpoint: z
+          .object({
+            checksum: z.string(),
+            completed: z.array(
+              z
+                .object({
+                  code: z.string(),
+                  total: z.number(),
+                  pages: z.array(z.unknown()),
+                })
+                .strict(),
+            ),
+          })
+          .passthrough(),
+        pages: z.record(z.string()),
+      })
+      .strict()
+      .parse(
+        JSON.parse(
+          gunzipSync(
+            readFileSync(
+              new URL(
+                "./heavytruckparts-test-fixtures/year-gap-fill.json.gz",
+                import.meta.url,
+              ),
+            ),
+          ).toString(),
+        ),
+      );
+    for (const [index, r] of live.receipts.entries()) {
+      const prior = live.receipts[index - 1];
+      if (prior) expect(r.started - prior.finished).toBeGreaterThanOrEqual(4);
+    }
+    const raw = (key: string) => {
+      const body = live.pages[key];
+      if (body === undefined) throw new Error("Missing live page " + key);
+      return body;
+    };
+    const url = (key: string) => {
+      const receipt = live.receipts.find((r) => r.key === key);
+      if (!receipt) throw new Error("Missing live receipt " + key);
+      return receipt.url;
+    };
+    const westside = HTP_SUPPLIERS.find((s) => s.code === "westside");
+    if (!westside) throw new Error("West Side supplier missing");
+    // Saved production checkpoint, rebound to the current cursor shape.
+    const { checksum: _checksum, ...saved } = live.checkpoint;
+    void _checksum;
+    let cursor = HeavytruckpartsCursor.checkpoint({
+      ...saved,
+      scope: HeavytruckpartsCursor.initial().scope,
+      completed: saved.completed.map((c) => ({ ...c, fills: [] })),
+    });
+    if (cursor.phase !== "catalog") throw new Error("Saved catalog expected");
+    expect(cursor.total).toBe(624);
+    expect(HeavytruckpartsCursor.nextUrl(cursor)).toBe(url("westside-asc-25"));
+    const orders = [
+      ...cursor.pages,
+      parseHtpCatalog(raw("westside-asc-25"), westside, "ASC", 25, 624),
+    ];
+    // Both complete year orders together still miss one tied 2015 item.
+    const union = new Set(orders.flatMap((p) => p.records.map((r) => r.id)));
+    expect(union.size).toBe(623);
+    expect(union.has("129266")).toBe(false);
+    expect(() => htpRoster(westside, orders, [], 624)).toThrow();
+    expect(htpYearPlan(westside, orders, 624)).toEqual([
+      { kind: "year", year: "2015", direction: "DESC", count: 35 },
+      { kind: "year", year: "2015", direction: "ASC", count: 35 },
+    ]);
+    cursor = htpAdvance(cursor, raw("westside-asc-25"));
+    for (const key of ["westside-y2015-desc-1", "westside-y2015-asc-1"]) {
+      expect(cursor.phase).toBe("year-fill");
+      expect(HeavytruckpartsCursor.nextUrl(cursor)).toBe(url(key));
+      cursor = htpAdvance(cursor, raw(key));
+    }
+    expect(url("westside-y2015-asc-1")).toBe(
+      htpYearUrl(westside, "2015", "ASC", 1),
+    );
+    if (cursor.phase !== "store-closing")
+      throw new Error("Year fill should close the store");
+    expect(
+      HeavytruckpartsCursor.fromWire(HeavytruckpartsCursor.serialize(cursor)),
+    ).toEqual(cursor);
+    const { pages, fills, total } = cursor;
+    const rows = htpRoster(westside, pages, fills, total);
+    expect(rows).toHaveLength(624);
+    expect(rows.some((r) => r.id === "129266")).toBe(true);
+    const [desc, asc] = fills;
+    if (!desc || !asc) throw new Error("Both 2015 fills expected");
+    const repeated = desc.records.find((r) => union.has(r.id));
+    if (!repeated) throw new Error("Repeated 2015 item missing");
+    expect(() =>
+      htpRoster(
+        westside,
+        pages,
+        [
+          {
+            ...desc,
+            records: desc.records.map((r) =>
+              r.id === repeated.id ? { ...r, model: r.model + " CHANGED" } : r,
+            ),
+          },
+          asc,
+        ],
+        total,
+      ),
+    ).toThrow("changed between");
+    const withoutGap = fills.map((f) => {
+      const other = orders
+        .flatMap((p) => p.records)
+        .find(
+          (r) => r.year === "2015" && !f.records.some((o) => o.id === r.id),
+        );
+      if (!other) throw new Error("Spare 2015 item missing");
+      return {
+        ...f,
+        records: f.records.map((r) => (r.id === "129266" ? other : r)),
+      };
+    });
+    expect(() => htpRoster(westside, pages, withoutGap, total)).toThrow("2015");
+    expect(() => htpRoster(westside, pages, [desc], total)).toThrow();
+    const closed = htpAdvance(cursor, raw("westside-store"));
+    expect(closed.phase).toBe("store-opening");
+    expect(closed.completed[1]?.fills).toHaveLength(2);
+    // A tied year over two native pages (2016 has 58) splits by native make
+    // into single complete pages.
+    const all2016 = [
+      ...new Map(
+        orders
+          .flatMap((p) => p.records)
+          .filter((r) => r.year === "2016")
+          .map((r) => [r.id, r]),
+      ).values(),
+    ];
+    expect(all2016).toHaveLength(58);
+    const first2016 = all2016.find((r) => r.make === "KENWORTH"),
+      other2016 = all2016.find((r) => r.id !== first2016?.id);
+    if (!first2016 || !other2016) throw new Error("2016 items missing");
+    const gap2016 = orders.map((p) => ({
+      ...p,
+      records: p.records.map((r) => (r.id === first2016.id ? other2016 : r)),
+    }));
+    const slug = (r: { url: string }) =>
+      new URL(r.url).pathname.split("/")[2] ?? "";
+    const makes = [...new Set(all2016.map(slug))].sort();
+    expect(makes).toContain("Western-Star-Tr");
+    const split = htpYearPlan(westside, gap2016, 624);
+    expect(split).toEqual([
+      ...htpYearPlan(westside, orders, 624),
+      ...makes.map(
+        (make): HtpYearFill => ({
+          kind: "make",
+          year: "2016",
+          direction: "DESC",
+          make,
+        }),
+      ),
+    ]);
+    const kenworth = parseHtpYearFill(
+      gunzipSync(
+        readFileSync(
+          new URL(
+            "./heavytruckparts-test-fixtures/westside-kenworth-2016.html.gz",
+            import.meta.url,
+          ),
+        ),
+      ).toString(),
+      westside,
+      { kind: "make", year: "2016", direction: "DESC", make: "Kenworth" },
+    );
+    expect(kenworth.make).toBe("Kenworth");
+    expect(kenworth.records.map((r) => r.id).sort()).toEqual(
+      all2016
+        .filter((r) => r.make === "KENWORTH")
+        .map((r) => r.id)
+        .sort(),
+    );
+    const makeFills = makes.map((make) =>
+      make === "Kenworth"
+        ? kenworth
+        : {
+            year: "2016",
+            make,
+            direction: "DESC" as const,
+            records: all2016.filter((r) => slug(r) === make),
+          },
+    );
+    expect(
+      htpRoster(westside, gap2016, [...fills, ...makeFills], total),
+    ).toHaveLength(624);
+    const withMake = (records: (rows: typeof all2016) => typeof all2016) => [
+      ...fills,
+      ...makeFills.map((f) =>
+        f.make === "Kenworth" ? { ...f, records: records(f.records) } : f,
+      ),
+    ];
+    expect(() =>
+      htpRoster(
+        westside,
+        gap2016,
+        withMake((rows) => rows.filter((r) => r.id !== first2016.id)),
+        total,
+      ),
+    ).toThrow("2016");
+    const foreign = all2016.find((r) => r.make === "FREIGHTLINER");
+    if (!foreign) throw new Error("2016 Freightliner missing");
+    expect(() =>
+      htpRoster(
+        westside,
+        gap2016,
+        withMake((rows) => [...rows, foreign]),
+        total,
+      ),
+    ).toThrow("year fills do not match");
+    // A make page that paginates is not a single complete page.
+    expect(() =>
+      parseHtpYearFill(raw("westside-y2015-desc-1"), westside, {
+        kind: "make",
+        year: "2015",
+        direction: "DESC",
+        make: "Freightliner",
+      }),
+    ).toThrow("pagination");
   });
 });
