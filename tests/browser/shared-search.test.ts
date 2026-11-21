@@ -165,12 +165,11 @@ for (const scenario of [
               ),
             ),
         );
-        // The remount's search uses a key for the plan it now shows.
-        expect(
-          await page.evaluate(
-            () => document.documentElement.dataset.searchApiKey,
-          ),
-        ).toBe(
+        // Searches move to a key for the plan the page now shows. A search
+        // sent before the click may still land with the old key, so wait
+        // for the key rather than for any search.
+        await page.waitForFunction(
+          (key) => document.documentElement.dataset.searchApiKey === key,
           scenario.button === "Switch plan"
             ? "fixture-renewed-free-key"
             : "fixture-full-key",
