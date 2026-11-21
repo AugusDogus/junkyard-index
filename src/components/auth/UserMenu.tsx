@@ -188,7 +188,8 @@ function UserMenuContent({ user: initialUser }: UserMenuProps) {
   );
 }
 
-const siteLinkClassName = "text-muted-foreground py-1 text-xs";
+// Touch-sized like the footer links they stand in for, compact from sm up.
+const siteLinkClassName = "text-muted-foreground min-h-11 text-xs sm:min-h-8";
 
 /**
  * The footer links the header lacks. Paid users scroll /search without end
