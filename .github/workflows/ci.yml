@@ -75,11 +75,12 @@ jobs:
           path: test-timings-input
       # The first --timings path does not exist yet, so Bun writes only this
       # shard's files there for the exactly-once verifier and the cache.
+      # --parallel runs one isolated worker per core, slowest files first.
       - name: Run weighted shard
         run: |
           mkdir -p test-results
           inputs=$(find test-timings-input -name '*.json' -printf '--timings=%p ')
-          bun test src --shard=${{ matrix.shard }}/8 --timings=test-results/timings.json $inputs --update-timings --reporter=junit --reporter-outfile=test-results/junit.xml
+          bun test src --shard=${{ matrix.shard }}/8 --parallel --timings=test-results/timings.json $inputs --update-timings --reporter=junit --reporter-outfile=test-results/junit.xml
       - uses: actions/upload-artifact@v4
         if: always()
         with:
