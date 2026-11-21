@@ -73,7 +73,10 @@ export const SearchPublicationFlag = {
    * How a run publishes search now: decoupled when `ingestion-publication-mode`
    * says so, whatever the skip flag serves; otherwise the skip flag decides.
    * When the publication mode cannot be read, this throws
-   * `PublicationModeUnavailable` and the reconciliation step is retried.
+   * `PublicationModeUnavailable`. The reconcile entry point
+   * (`reconcileDurableIngestion`) catches it and returns `mode_unavailable`
+   * before writing anything; the workflow waits a minute and asks again,
+   * without counting a failure toward abandoning the run.
    */
   async publication(): Promise<SearchPublicationMode> {
     return SearchPublicationFlag.publicationFor(
