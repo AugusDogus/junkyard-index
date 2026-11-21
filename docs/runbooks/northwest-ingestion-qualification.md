@@ -17,7 +17,15 @@ The Central-style production request to ACURA MDX returned real HTTP 200 data.
 The Northwest client uses the same GET profile, `Mozilla/5.0`, `Accept: text/html`,
 manual redirects, combined 20-second deadline, 2 MiB response limit, and
 1.6-second post-completion gate. No alternate headers or browser workaround was
-needed. The earlier raw-request 403 is retained as historical evidence.
+needed then. The earlier raw-request 403 is retained as historical evidence.
+
+Since 2026-11-18 Cloudflare has refused every native request from Vercel with
+HTTP 403. Production chunks open one Hyperbrowser session (stealth, accepted
+cookies, `us-west`, no proxy, no CAPTCHA solving). The first document of a chunk
+loads by page navigation; later documents use same-origin in-page `fetch()`
+with manual redirects. The browser supplies its own headers; status, URL, MIME,
+range, size and UTF-8 checks are unchanged. The session is stopped when the
+chunk ends. Pacing and the request ceiling are unchanged.
 
 Runtime follows the published make directory, every make, and every model,
 without deriving model URLs. It validates AK01 ownership, native physical address,

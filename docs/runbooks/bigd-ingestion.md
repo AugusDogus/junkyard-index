@@ -54,6 +54,17 @@ qualify. Each chunk bootstraps the root once. Only that bootstrap may accept a
 It never supplies inventory or ownership evidence. The cookie remains in memory
 and is never persisted in checkpoints or fixtures. There are no automatic retries.
 
+Since 2026-11-18 Cloudflare has refused every native request from Vercel with
+HTTP 403. Production chunks now open one Hyperbrowser session (stealth, accepted
+cookies, `us-west`, no proxy, no CAPTCHA solving) and load every document by
+top-level page navigation. In-page `fetch()` still receives a 403
+`cf-mitigated: challenge`, so it is not used for this host. The browser owns
+cookies and headers; the header contract above applies only to the native
+transport. The navigation response status, headers and exact body bytes pass
+through the same checks below. A redirected navigation reports its first hop, so
+it fails as a redirect. A chunk is the bootstrap plus 1-4 pages, at most five
+navigations in one session, stopped when the chunk ends.
+
 A process-wide semaphore holds requests through response completion and a
 four-second gap, including failures. Each request/body has a combined 25-second
 deadline and 2 MiB limit. Inventory and ownership require unredirected, complete

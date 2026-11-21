@@ -5,7 +5,7 @@ export const IPULLUPULL_MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
  * Callers may lower the streaming byte limit without increasing the shared cap.
  */
 export async function readIPullUPullResponseText(
-  response: Response,
+  response: Pick<Response, "body" | "headers">,
   context: string,
   signal: AbortSignal,
   maximumBytes = IPULLUPULL_MAX_RESPONSE_BYTES,
@@ -23,7 +23,7 @@ export async function readIPullUPullResponseText(
 
 /** Complete UTF-8 reader with an explicit provider-owned streaming bound. */
 export async function readBoundedResponseText(
-  response: Response,
+  response: Pick<Response, "body" | "headers">,
   context: string,
   signal: AbortSignal,
   maximumBytes: number,

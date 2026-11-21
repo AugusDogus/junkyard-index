@@ -2,6 +2,7 @@ import { sharedProviderHostSlot } from "./shared-provider-host";
 import { Data, Effect } from "effect";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
+import { DocumentTransport } from "./document-transport";
 import {
   NORTHWEST_MAKES,
   NORTHWEST_ROOT,
@@ -24,10 +25,9 @@ export class NorthwestProviderError extends Data.TaggedError(
 async function readNorthwestDocument(
   url: string,
   signal: AbortSignal,
+  transport: DocumentTransport,
 ): Promise<string> {
-  const response = await fetch(url, {
-    method: "GET",
-    redirect: "manual",
+  const response = await transport(url, {
     signal,
     headers: { "User-Agent": "Mozilla/5.0", Accept: "text/html" },
   });
@@ -65,7 +65,11 @@ async function readNorthwestDocument(
   );
 }
 
-export function fetchNorthwestPage(url: string, gate: ProviderRequestGate) {
+export function fetchNorthwestPage(
+  url: string,
+  gate: ProviderRequestGate,
+  transport: DocumentTransport = DocumentTransport.native,
+) {
   return gate(
     Effect.suspend(() => {
       if (
@@ -84,6 +88,7 @@ export function fetchNorthwestPage(url: string, gate: ProviderRequestGate) {
           pending = readNorthwestDocument(
             url,
             AbortSignal.any([lifetime.signal, interruption, deadline]),
+            transport,
           );
           return pending;
         },
@@ -119,3 +124,8 @@ export function fetchNorthwestPage(url: string, gate: ProviderRequestGate) {
 // Match Central's post-completion URG pacing, with one request at a time.
 export const northwestRequestGate: ProviderRequestGate = (request) =>
   request.pipe(Effect.ensuring(Effect.sleep("1600 millis")));
+
+/** Cloudflare refuses native requests from Vercel, so a browser session
+ * navigates once and reads later documents by same-origin fetch. */
+export const acquireNorthwestBrowser = (apiKey: string) =>
+  DocumentTransport.acquireBrowser(apiKey, "fetch");

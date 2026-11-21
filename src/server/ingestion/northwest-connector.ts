@@ -4,7 +4,11 @@ import type {
   ConnectorChunkAccounting,
   ConnectorChunkStatus,
 } from "./connector-chunk";
-import { NorthwestProviderError, fetchNorthwestPage } from "./northwest-client";
+import {
+  NorthwestProviderError,
+  acquireNorthwestBrowser,
+  fetchNorthwestPage,
+} from "./northwest-client";
 import {
   NorthwestCursor,
   NorthwestCursorSchema,
@@ -36,6 +40,8 @@ import {
 } from "./northwest-yard-metadata";
 import type { NorthwestCandidate } from "./northwest-transform";
 import type { ProviderRequestGate } from "./provider-http-client";
+import type { DocumentTransport } from "./document-transport";
+import { Config } from "./context";
 import { ProviderChunkClock } from "./provider-chunk-clock";
 import { sharedProviderHostTurn } from "./shared-provider-host";
 
@@ -177,6 +183,7 @@ function advance(state: NorthwestProgress, raw: string): NorthwestProgress {
 export function streamNorthwestInventoryWithRequestGate<E, R>(
   options: NorthwestOptions<E, R>,
   gate: ProviderRequestGate,
+  transport?: DocumentTransport,
 ) {
   return Effect.gen(function* () {
     const budget = options.maxPages ?? 8;
@@ -224,7 +231,7 @@ export function streamNorthwestInventoryWithRequestGate<E, R>(
           cause: "1600 native GET limit reached; preserve prior inventory",
         });
       const url = yield* attempt("next control", () => nextUrl(current));
-      const page = yield* fetchNorthwestPage(url, gate).pipe(
+      const page = yield* fetchNorthwestPage(url, gate, transport).pipe(
         sharedProviderHostTurn(url),
         ProviderChunkClock.unlessDeferred(summary.pagesProcessed > 0),
       );
@@ -286,10 +293,25 @@ export function streamNorthwestInventoryWithRequestGate<E, R>(
     }),
   );
 }
+/** One browser session per chunk, stopped when the chunk ends. */
 export function streamNorthwestInventory<E, R>(
   options: NorthwestOptions<E, R>,
 ) {
   const gate: ProviderRequestGate = (request) =>
     request.pipe(Effect.ensuring(Effect.sleep("1600 millis")));
-  return streamNorthwestInventoryWithRequestGate(options, gate);
+  if (options.startCursor?.phase === "complete")
+    return streamNorthwestInventoryWithRequestGate(options, gate);
+  return Effect.scoped(
+    Effect.gen(function* () {
+      const config = yield* Config;
+      const transport = yield* acquireNorthwestBrowser(
+        config.hyperbrowserApiKey,
+      );
+      return yield* streamNorthwestInventoryWithRequestGate(
+        options,
+        gate,
+        transport,
+      );
+    }),
+  );
 }

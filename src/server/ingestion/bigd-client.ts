@@ -2,6 +2,7 @@ import { Data, Effect } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { BIGD_ORIGIN } from "./bigd-yard-metadata";
+import { DocumentTransport } from "./document-transport";
 
 export class BigdProviderError extends Data.TaggedError("BigdProviderError")<{
   operation: string;
@@ -21,12 +22,14 @@ export const bigdRequestGate: ProviderRequestGate = (request) =>
   );
 export const BIGD_MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 
-/** The public __cf_bm session and these headers are verified together. Never
+/** The public __cf_bm session and these headers are verified together for
+ * native HTTP. A browser transport owns its own cookies and headers. Never
  * persist the short-lived cookie in a checkpoint or fixture. */
 export function fetchBigdPage(
   path: "/" | "/contact/" | "/inventory/",
   session: BigdSession,
   gate: ProviderRequestGate,
+  transport: DocumentTransport = DocumentTransport.native,
 ) {
   const url = BIGD_ORIGIN + path;
   return gate(
@@ -42,9 +45,7 @@ export function fetchBigdPage(
             interrupted,
           ]);
           pending = (async () => {
-            const response = await fetch(url, {
-              method: "GET",
-              redirect: "manual",
+            const response = await transport(url, {
               signal,
               headers: {
                 "User-Agent": "JunkyardIndex/1.0",
@@ -108,3 +109,8 @@ export function fetchBigdPage(
     }),
   );
 }
+
+/** Cloudflare refuses native requests from Vercel and challenges in-page fetch
+ * on this host, so a browser session loads every document by navigation. */
+export const acquireBigdBrowser = (apiKey: string) =>
+  DocumentTransport.acquireBrowser(apiKey, "navigation");

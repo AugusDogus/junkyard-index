@@ -1,7 +1,11 @@
 import { ingestionValidation } from "./ingestion-validation";
 import { Effect, RateLimiter } from "effect";
 import type { ConnectorChunkAccounting } from "./connector-chunk";
-import { fetchSix03Page, Six03ProviderError } from "./six03-client";
+import {
+  acquireSix03Browser,
+  fetchSix03Page,
+  Six03ProviderError,
+} from "./six03-client";
 import {
   Six03Cursor,
   Six03CursorSchema,
@@ -27,6 +31,8 @@ import {
   type Six03Yard,
 } from "./six03-yard-metadata";
 import type { ProviderRequestGate } from "./provider-http-client";
+import type { DocumentTransport } from "./document-transport";
+import { Config } from "./context";
 
 interface Six03Options<E, R> {
   startCursor?: Six03Cursor;
@@ -64,6 +70,7 @@ const nativeDetailProjection = (record: ReturnType<typeof parseSix03Detail>) =>
 export function streamSix03InventoryWithRequestGate<E, R>(
   options: Six03Options<E, R>,
   gate: ProviderRequestGate,
+  transport?: DocumentTransport,
 ) {
   return Effect.gen(function* () {
     const validated = Six03CursorSchema.safeParse(
@@ -96,7 +103,7 @@ export function streamSix03InventoryWithRequestGate<E, R>(
       const state: Six03Progress = cursor;
       switch (state.phase) {
         case "contact": {
-          const html = yield* fetchSix03Page(SIX03_CONTACT, gate);
+          const html = yield* fetchSix03Page(SIX03_CONTACT, gate, transport);
           const contact = yield* parse("native contact", () =>
             parseSix03Contact(html),
           );
@@ -111,7 +118,7 @@ export function streamSix03InventoryWithRequestGate<E, R>(
           break;
         }
         case "catalog": {
-          const html = yield* fetchSix03Page(SIX03_CATALOG, gate);
+          const html = yield* fetchSix03Page(SIX03_CATALOG, gate, transport);
           const catalog = yield* parse("complete native catalog", () =>
             parseSix03Catalog(html),
           );
@@ -142,7 +149,11 @@ export function streamSix03InventoryWithRequestGate<E, R>(
                 cause: "Native donor control is missing",
               }),
             );
-          const html = yield* fetchSix03Page(SIX03_ORIGIN + post[0], gate);
+          const html = yield* fetchSix03Page(
+            SIX03_ORIGIN + post[0],
+            gate,
+            transport,
+          );
           const record = yield* parse("native donor " + post[0], () =>
             parseSix03Detail(html, post),
           );
@@ -167,7 +178,7 @@ export function streamSix03InventoryWithRequestGate<E, R>(
               }),
             );
           if (state.closing === 0) {
-            const html = yield* fetchSix03Page(SIX03_CONTACT, gate);
+            const html = yield* fetchSix03Page(SIX03_CONTACT, gate, transport);
             const actual = yield* parse("closing physical contact", () =>
               parseSix03Contact(html),
             );
@@ -179,7 +190,7 @@ export function streamSix03InventoryWithRequestGate<E, R>(
                 }),
               );
           } else if (state.closing === 1) {
-            const html = yield* fetchSix03Page(SIX03_CATALOG, gate);
+            const html = yield* fetchSix03Page(SIX03_CATALOG, gate, transport);
             const actual = yield* parse("closing complete native catalog", () =>
               parseSix03Catalog(html),
             );
@@ -208,7 +219,11 @@ export function streamSix03InventoryWithRequestGate<E, R>(
             const post = posts[index];
             const expected = state.details[index];
             if (post && expected) {
-              const html = yield* fetchSix03Page(SIX03_ORIGIN + post[0], gate);
+              const html = yield* fetchSix03Page(
+                SIX03_ORIGIN + post[0],
+                gate,
+                transport,
+              );
               const actual = yield* parse("closing native donor", () =>
                 parseSix03Detail(html, post),
               );
@@ -289,16 +304,26 @@ export function streamSix03InventoryWithRequestGate<E, R>(
   );
 }
 
+/** One browser session per chunk, stopped when the chunk ends. */
 export function streamSix03Inventory<E, R>(options: Six03Options<E, R>) {
   return Effect.scoped(
     Effect.gen(function* () {
+      const config = yield* Config;
+      const transport =
+        options.startCursor?.phase === "complete"
+          ? undefined
+          : yield* acquireSix03Browser(config.hyperbrowserApiKey);
       const limit = yield* RateLimiter.make({
         limit: 1,
         interval: "1600 millis",
       });
       const gate: ProviderRequestGate = (request) =>
         limit(request).pipe(Effect.ensuring(Effect.sleep("1600 millis")));
-      return yield* streamSix03InventoryWithRequestGate(options, gate);
+      return yield* streamSix03InventoryWithRequestGate(
+        options,
+        gate,
+        transport,
+      );
     }),
   );
 }
