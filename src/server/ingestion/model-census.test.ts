@@ -797,6 +797,117 @@ describe("ModelCensus", () => {
     });
   });
 
+  /** Badge 3, page 4 (a real placeholder); from day 102 an arrival is counted
+   * every day and its card appears a day later, so reads list exactly the
+   * badge and the twelve-day bound lowers the surplus with a ceiling of 1 on
+   * day 114. Returns the models and census after day 114. */
+  function laggedToCeiling(shortPages: "confirmed" | "unconfirmed") {
+    let models = controls(12, 3);
+    const at = (count: number, listed: number) => {
+      models = models.map((m, i) => (i === 2 ? { ...m, count } : m));
+      return { listed: new Map([["model-2", listed]]), shortPages };
+    };
+    const first = at(3, 4);
+    let census = run(models, null, 100, undefined, first).census;
+    census = run(models, census, 101, undefined, first).census;
+    for (let day = 102; day <= 114; day++) {
+      const count = 3 + (day - 101);
+      const options = at(count, count);
+      census = run(models, census, day, undefined, options).census;
+    }
+    return { models, census, at };
+  }
+
+  test("a ceiling outlives later reads below it until it expires", () => {
+    const { models, census: lowered, at } = laggedToCeiling("confirmed");
+    expect(lowered.models[2]).toMatchObject({ ceiling: 1, ceilingSince: 114 });
+    // Day 115: a read lists exactly the badge (below the ceiling) and closing
+    // repeats it. The ceiling stays.
+    const quiet = at(16, 16);
+    const below = run(models, lowered, 115, new Set(["model-2"]), quiet);
+    expect(below.census.models[2]).toMatchObject({
+      expected: 16,
+      ceiling: 1,
+      ceilingSince: 114,
+    });
+    // Day 116: a later one-off fault listing exactly the badge is still
+    // closing-read.
+    const fault = run(models, below.census, 116, new Set(["model-2"]), quiet);
+    expect(
+      ModelCensus.closingReads({
+        controls: models,
+        pages: fault.pages,
+        decisions: fault.decisions,
+        previous: below.census,
+        cards,
+      }),
+    ).toContain(2);
+  });
+
+  test("a ceiling for a placeholder that is really gone expires after twelve run days", () => {
+    // The placeholder is gone for good, but the badge keeps changing every day,
+    // so the page is read daily. Closing re-reads it while the ceiling stands,
+    // then stops once the ceiling expires.
+    const { models: start, census: lowered } = laggedToCeiling("confirmed");
+    let models = start;
+    let census = lowered;
+    const closingDays: number[] = [];
+    for (let day = 115; day <= 140; day++) {
+      const count = 16 + (day % 2);
+      models = models.map((m, i) => (i === 2 ? { ...m, count } : m));
+      const next = run(models, census, day, undefined, {
+        listed: new Map([["model-2", count]]),
+      });
+      expect(next.decisions[2]?.kind).toBe("read");
+      if (
+        ModelCensus.closingReads({
+          controls: models,
+          pages: next.pages,
+          decisions: next.decisions,
+          previous: census,
+          cards,
+        }).includes(2)
+      )
+        closingDays.push(day);
+      census = next.census;
+    }
+    // Set on day 114 and dropped by the day 126 acceptance; closing reads
+    // use the previous census, so twelve runs (115 to 126) re-read it.
+    expect(closingDays).toEqual(
+      Array.from({ length: 2 * MODEL_CENSUS_SWEEP_DAYS }, (_, i) => 115 + i),
+    );
+    expect(census.models[2]).toMatchObject({
+      ceiling: null,
+      ceilingSince: null,
+    });
+  });
+
+  test("without a closing pass, a read below the ceiling is read again until two reads agree", () => {
+    // The Calton mode: no closing re-read. The read that lowers the surplus is
+    // itself below the ceiling, so the next run reads the page again.
+    const { models, census: lowered, at } = laggedToCeiling("unconfirmed");
+    expect(lowered.models[2]).toMatchObject({ ceiling: 1, recheck: true });
+    const lag = at(16, 16);
+    const agreed = run(models, lowered, 115, undefined, lag);
+    expect(agreed.decisions[2]).toEqual({ kind: "read", reason: "short" });
+    expect(agreed.census.models[2]).toMatchObject({ recheck: false });
+    // Day 116: the lag drains (the page should list 17), but a one-off fault
+    // hides a real card and the page lists 16, below the ceiling.
+    const fault = run(models, agreed.census, 116, new Set(["model-2"]), lag);
+    expect(fault.census.models[2]).toMatchObject({ recheck: true });
+    // Day 117 reads it again; the healthy page restores the surplus.
+    const healed = run(models, fault.census, 117, undefined, at(16, 17));
+    expect(healed.decisions[2]).toEqual({ kind: "read", reason: "short" });
+    expect(healed.census.models[2]).toMatchObject({
+      expected: 17,
+      ceiling: null,
+      recheck: false,
+    });
+    // A re-read that disagrees (a fault on the re-read itself) asks again.
+    const disagree = run(models, lowered, 115, undefined, at(16, 15));
+    expect(disagree.census.models[2]).toMatchObject({ recheck: true });
+  });
+
   test("a surplus that grows on a gap or outage read is unconfirmed until an incremental run sees it", () => {
     // Badge 3, page 4, confirmed on day 101. Day 102 is missed; the day 103
     // gap read lists 5 (surplus 2). It must not inherit the earlier

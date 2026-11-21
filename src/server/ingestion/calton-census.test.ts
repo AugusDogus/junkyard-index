@@ -661,7 +661,9 @@ test("a surplus page that drops to its badge is read again on the next run", asy
     previous = run.terminal;
   }
   // Day D + 7 (lowSince + 6) is a normal incremental run: it reads the page
-  // again (short, ahead of its stale slice) and lowers the surplus.
+  // again (short, ahead of its stale slice) and lowers the surplus, keeping
+  // it as a ceiling. Calton has no closing pass, so this read, below the
+  // ceiling, is read again on the next run.
   const lowerSweep = sweepAt(site, D + 7);
   expect(lowerSweep).toEqual(sweep);
   const lowering = await runDay(site, D + 7, previous);
@@ -678,14 +680,42 @@ test("a surplus page that drops to its badge is read again on the next run", asy
     readDay: D + 7,
     expected: 4,
     lowSince: null,
+    ceiling: 1,
+    ceilingSince: D + 7,
+    recheck: true,
     surplusConfirmed: true,
     confirmed: false,
   });
+  // Day D + 8 reads it again (short); the re-read lists the same cards, which
+  // settles it.
+  const recheckSweep = sweepAt(site, D + 8);
+  expect(recheckSweep).not.toContain(surplus);
+  const recheck = await runDay(site, D + 8, lowering.terminal);
+  expect(recheck.modelReads).toEqual(
+    urlsAt(
+      site,
+      [...recheckSweep, surplus].sort((a, b) => a - b),
+    ),
+  );
+  expect([...recheck.published].sort()).toEqual(expectedVins(site));
+  expect(recheck.warnings).toContain(
+    `Calton Read ${recheckSweep.length + 1} of ${MODEL_COUNT} model pages (${sweepAndOne(recheckSweep, surplus, "short", "stale")}); carried ${MODEL_COUNT - recheckSweep.length - 1}.`,
+  );
+  if (recheck.cursor.phase !== "complete" || !recheck.cursor.census)
+    throw new Error("Expected a terminal census");
+  expect(recheck.cursor.census.models[surplus]).toMatchObject({
+    count: 4,
+    readDay: D + 8,
+    expected: 4,
+    ceiling: 1,
+    ceilingSince: D + 7,
+    recheck: false,
+  });
   // From then on the page agrees with its badge and lowered surplus, so it
   // carries outside its slice.
-  const settledSweep = sweepAt(site, D + 8);
+  const settledSweep = sweepAt(site, D + 9);
   expect(settledSweep).not.toContain(surplus);
-  const settled = await runDay(site, D + 8, lowering.terminal);
+  const settled = await runDay(site, D + 9, recheck.terminal);
   expect(settled.modelReads).toEqual(urlsAt(site, settledSweep));
   expect([...settled.published].sort()).toEqual(expectedVins(site));
   expect(settled.warnings).toContain(
@@ -695,9 +725,10 @@ test("a surplus page that drops to its badge is read again on the next run", asy
     throw new Error("Expected a terminal census");
   expect(settled.cursor.census.models[surplus]).toMatchObject({
     count: 4,
-    readDay: D + 7,
+    readDay: D + 8,
     expected: 4,
     lowSince: null,
+    recheck: false,
     surplusConfirmed: true,
   });
 });
@@ -726,4 +757,156 @@ test("a run fails when today's swept pages list one card each while their badges
     "that the last accepted census listed, less any drop in their counts, below the 97% coverage floor",
   );
   expect(published).toEqual([]);
+});
+
+test("a faulted read below a time-lowered surplus is read again on the next run, not carried", async () => {
+  // Badge 3, page 4 (a real placeholder). From D + 1 an arrival is counted
+  // every day and its card appears a day later, so every read lists exactly
+  // the badge and the twelve-day bound lowers the surplus on D + 13, keeping
+  // it as a ceiling of 1. Calton has no closing pass, so a read below the
+  // ceiling (including the one that lowers it) is read again on the next run.
+  const site = yard();
+  const [m] = sweepAt(site, D + 1);
+  const model = m === undefined ? undefined : site.models[m];
+  if (m === undefined || !model)
+    throw new Error("fixture needs a model swept on D + 1");
+  // Newest cards go first, so `short` (which omits the last donor) hides an
+  // old real donor rather than the root arrival, which is published anyway.
+  const dropped = `S${m}C`;
+  model.stocks = [`S${m}P`, ...model.stocks, dropped];
+  site.badges.set(m, 3);
+  type Run = Awaited<ReturnType<typeof runDay>>;
+  /** What a day read and published, its census evidence for model `m`, and
+   * (apart, so a helper without them still shows the read trace) the ceiling
+   * date and recheck marker. */
+  const observe = (run: Run) => {
+    if (run.cursor.phase !== "complete" || !run.cursor.census)
+      throw new Error("Expected a terminal census");
+    const e = run.cursor.census.models[m];
+    if (!e) throw new Error("Missing census evidence for model " + m);
+    return {
+      trace: {
+        reads: run.modelReads,
+        summary: run.warnings.find((w) => w.startsWith("Calton Read ")),
+        missing: expectedVins(site).filter((v) => !run.published.includes(v)),
+        evidence: {
+          readDay: e.readDay,
+          count: e.count,
+          expected: e.expected,
+          ceiling: e.ceiling,
+          cards: e.page.records.length,
+        },
+      },
+      marker: { ceilingSince: e.ceilingSince, recheck: e.recheck },
+    };
+  };
+  /** Model reads and summary of a day reading its slice and, unless
+   * `reason` is null, model `m` for that reason. */
+  const reading = (day: number, reason: string | null) => {
+    const slice = day - D >= MODEL_CENSUS_SWEEP_DAYS ? "stale" : "sweep";
+    const reads = [
+      ...sweepAt(site, day)
+        .filter((index) => index !== m)
+        .map((index) => ({ index, reason: slice })),
+      ...(reason === null ? [] : [{ index: m, reason }]),
+    ].sort((a, b) => a.index - b.index);
+    const counts = new Map<string, number>();
+    for (const read of reads)
+      counts.set(read.reason, (counts.get(read.reason) ?? 0) + 1);
+    const reasons = [...counts].map(([r, n]) => `${r} ${n}`).join(", ");
+    return {
+      reads: urlsAt(
+        site,
+        reads.map((read) => read.index),
+      ),
+      summary: `Calton Read ${reads.length} of ${MODEL_COUNT} model pages${reasons ? ` (${reasons})` : ""}; carried ${MODEL_COUNT - reads.length}.`,
+    };
+  };
+  /** The card of yesterday's arrival appears, first on the page and at root. */
+  const appear = (stock: string) => {
+    model.stocks.unshift(stock);
+    site.arrival.model = m;
+    site.arrival.stock = stock;
+  };
+
+  // D + 1 to D + 12: the badge rises every day and the page lists exactly the
+  // badge. L = D + 13: the last arrival is counted and the bound lowers the
+  // surplus. L + 1: the badge stops rising and the lag holds one more day.
+  // L + 2: the lag drains (the page should list badge + 1) and the root
+  // arrival triggers a read in which a one-off fault hides a real donor.
+  // L + 3: the fault is gone.
+  const L = D + 13;
+  const timeline: ReturnType<typeof observe>[] = [];
+  let previous: unknown = null;
+  for (let day = D; day <= L + 5; day++) {
+    const k = day - D;
+    if (k >= 1 && k <= 13) site.badges.set(m, 3 + k);
+    if (k >= 2 && k <= 13) appear(`S${m}N${k - 1}`);
+    if (day === L + 2) {
+      appear(`S${m}N13`);
+      site.short.add(m);
+    }
+    if (day === L + 3) site.short.delete(m);
+    const run = await runDay(site, day, previous);
+    timeline.push(observe(run));
+    previous = run.terminal;
+  }
+  const evidence = (readDay: number, count: number, expected: number) => ({
+    readDay,
+    count,
+    expected,
+    ceiling: null,
+    cards: count,
+  });
+  const lowered = (readDay: number) => ({
+    readDay,
+    count: 16,
+    expected: 16,
+    ceiling: 1,
+    cards: 16,
+  });
+  const healed = { ...evidence(L + 3, 16, 17), cards: 17 };
+  expect(timeline.map((day) => day.trace)).toEqual([
+    {
+      reads: urlsAt(site, [...Array(MODEL_COUNT).keys()]),
+      summary: `Calton Read ${MODEL_COUNT} of ${MODEL_COUNT} model pages (cold ${MODEL_COUNT}); carried 0.`,
+      missing: [],
+      evidence: { ...evidence(D, 3, 4), cards: 4 },
+    },
+    // The badge rises daily (a count read), so the surplus holds as lag.
+    ...Array.from({ length: 12 }, (_, i) => ({
+      ...reading(D + 1 + i, "count"),
+      missing: [],
+      evidence: evidence(D + 1 + i, 4 + i, 5 + i),
+    })),
+    // The twelve-day bound lowers the surplus, keeping it as a ceiling.
+    { ...reading(L, "count"), missing: [], evidence: lowered(L) },
+    // The read below the ceiling is read again and lists the same cards.
+    { ...reading(L + 1, "short"), missing: [], evidence: lowered(L + 1) },
+    // The faulted read lists exactly the badge, below the ceiling.
+    {
+      ...reading(L + 2, "trigger"),
+      missing: [vin(dropped)],
+      evidence: lowered(L + 2),
+    },
+    // The next run reads it again instead of carrying it, and the healthy
+    // re-read restores the surplus and clears the ceiling: the faulted page
+    // was published for that one run only.
+    { ...reading(L + 3, "short"), missing: [], evidence: healed },
+    { ...reading(L + 4, null), missing: [], evidence: healed },
+    { ...reading(L + 5, null), missing: [], evidence: healed },
+  ]);
+  const unmarked = { ceilingSince: null, recheck: false };
+  expect(timeline.map((day) => day.marker)).toEqual([
+    ...Array.from({ length: 13 }, () => unmarked),
+    // The read that lowers the surplus is below the ceiling: read again.
+    { ceilingSince: L, recheck: true },
+    // Two reads agree, which settles it.
+    { ceilingSince: L, recheck: false },
+    // The faulted read is below the ceiling again: read again.
+    { ceilingSince: L, recheck: true },
+    unmarked,
+    unmarked,
+    unmarked,
+  ]);
 });
