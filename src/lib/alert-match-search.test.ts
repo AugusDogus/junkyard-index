@@ -95,7 +95,8 @@ describe("alert match search", () => {
       requests: [
         {
           query: "civic",
-          filters: 'firstSeenAt > 1787616000 AND makeAliases:"Honda"',
+          filters:
+            'firstSeenAt > 1787616000 AND NOT firstSighting:"yard_backfill" AND makeAliases:"Honda"',
           hitsPerPage: 100,
           page: 0,
         },
@@ -157,7 +158,7 @@ test("expression alerts retain the time window outside Boolean alternatives", as
       {
         query: "",
         filters:
-          '(makeAliases:"Volvo" OR makeAliases:"Saab") AND year < 2000 AND firstSeenAt > 1787616000',
+          '(makeAliases:"Volvo" OR makeAliases:"Saab") AND year < 2000 AND firstSeenAt > 1787616000 AND NOT firstSighting:"yard_backfill"',
       },
     ],
   });
@@ -360,7 +361,7 @@ test("batched matches stop at the checked-through second", async () => {
       requests: [
         {
           filters:
-            'firstSeenAt > 1 AND firstSeenAt <= 5 AND makeAliases:"Ford"',
+            'firstSeenAt > 1 AND firstSeenAt <= 5 AND NOT firstSighting:"yard_backfill" AND makeAliases:"Ford"',
         },
       ],
     },

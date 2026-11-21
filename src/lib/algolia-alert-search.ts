@@ -1,4 +1,5 @@
 import { ArrivalWindow } from "./arrival-window";
+import { FirstSighting } from "./first-sighting";
 import type { SearchArea } from "./search-area";
 import { MakeFilter } from "./make-filter";
 import type { YardType } from "~/lib/yard-service";
@@ -95,7 +96,8 @@ function buildStringOrFilter(
 }
 
 /** Matches vehicles first seen after `lastCheckedAt` and, when given, at or
- * before `checkedThrough`. Algolia stores `firstSeenAt` in whole seconds.
+ * before `checkedThrough`, except their yard's first publication (see
+ * FirstSighting). Algolia stores `firstSeenAt` in whole seconds.
  * An arrival window ends at `checkedThrough` so a delayed check matches what
  * the search matched when the check was bounded. */
 export function compileAlertFilters(
@@ -129,6 +131,8 @@ export function compileAlertFilters(
     const checkedThroughSeconds = Math.floor(checkedThrough.getTime() / 1000);
     clauses.push(`firstSeenAt <= ${checkedThroughSeconds}`);
   }
+  // New vehicles exclude a new yard's existing inventory, first seen at once.
+  if (lastCheckedAt) clauses.push(FirstSighting.arrivalsFilter);
 
   const makesClause = buildStringOrFilter(
     makeAliasesReady ? "makeAliases" : "make",

@@ -31,6 +31,19 @@ describe("algolia alert search helpers", () => {
     expect(filters).toContain("year <= 2018");
   });
 
+  test("new-arrival scans skip vehicles from their yard's first publication", () => {
+    const filters = compileValidFilters(
+      {},
+      new Date("2026-11-21T05:40:23.000Z"),
+    );
+
+    // A negated facet also matches records projected before firstSighting
+    // existed, so they keep matching without a rebuild.
+    expect(filters).toBe(
+      'firstSeenAt > 1795239623 AND NOT firstSighting:"yard_backfill"',
+    );
+  });
+
   test("builds OR facets for multi-value filters", () => {
     const filters = compileValidFilters(
       {

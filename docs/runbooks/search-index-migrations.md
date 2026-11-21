@@ -291,3 +291,23 @@ It only executes SELECTs and calls public vPIC. Local reports and decode
 checkpoints go under `.scratchpad/vin-dry-run/`. Delete that directory for a new
 sample. See [the recorded sample](../reports/vin-canonicalization.md) for facet
 counts, mismatches, coverage and the cold-cache request estimate.
+
+## Alert first sightings (no schema version)
+
+Saved-search alerts skip vehicles first published with their yard's first
+publication: a new provider's or yard's existing inventory. Projection sets
+`firstSighting` on each record from the yard's `yard_arrival_baseline` row
+(`yard_backfill` when the vehicle was first seen no later than the run that
+established the yard, or the yard has no baseline yet; otherwise `arrival`),
+the same rule as the homepage's recent vehicles. Alert scans add
+`NOT firstSighting:"yard_backfill"`.
+
+There is no Turso migration and no schema version bump. Records projected
+before this change lack the attribute and still match the negated filter, so
+existing records keep alerting as before and no rebuild is needed. Newly
+projected records carry it as each run publishes them.
+
+Algolia filters facets only on attributes in `attributesForFaceting`, and the
+search-index migration applies settings only when the schema version
+advances. Run `bun run algolia:settings:apply` once after deploying, before
+the next daily alert check, so the indices include `filterOnly(firstSighting)`.

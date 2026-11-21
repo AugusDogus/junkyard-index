@@ -5,6 +5,7 @@ import {
   ALGOLIA_REPLICA_INDEX_NAMES,
   ALGOLIA_SEARCH_INDEX_NAMES,
 } from "~/lib/constants";
+import { FirstSighting } from "~/lib/first-sighting";
 import {
   buildAlgoliaSettingsPlan,
   applyAlgoliaSettingsPlan,
@@ -102,6 +103,16 @@ describe("Algolia settings plan", () => {
     expect(COMMON_ALGOLIA_INDEX_SETTINGS).toMatchObject({
       advancedSyntax: true,
       advancedSyntaxFeatures: ["exactPhrase", "excludeWords"],
+    });
+  });
+
+  test("alert scans can filter out a yard's first publication on every index", () => {
+    expect(COMMON_ALGOLIA_INDEX_SETTINGS.attributesForFaceting).toContain(
+      `filterOnly(${FirstSighting.attribute})`,
+    );
+    expect(buildAlgoliaSettingsPlan()[1]).toMatchObject({
+      indexSettings: COMMON_ALGOLIA_INDEX_SETTINGS,
+      forwardToReplicas: true,
     });
   });
 
