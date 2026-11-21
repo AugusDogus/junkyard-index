@@ -1,3 +1,4 @@
+import type { Requester } from "@algolia/client-common";
 import type { YardType } from "~/lib/yard-service";
 
 const selfServiceVehicles = [
@@ -78,6 +79,9 @@ type SearchRequest = { indexName: string; params?: SearchParams };
 /** Searches the server render ran. Production pays quota for each one. */
 export const serverSearches = { count: 0 };
 
+/** The requester the app built its client with, as the real client keeps it. */
+let transport: Requester | undefined;
+
 const client = {
   async search(
     input:
@@ -107,6 +111,21 @@ const client = {
           indexName,
           params,
         }));
+    // Send each search through the app's requester, as the real client's
+    // transporter does, so a meter wrapped around it sees the call. The
+    // answer still comes from this mock, so the send is not awaited.
+    if (typeof document !== "undefined" && transport) {
+      void transport
+        .send({
+          url: `${location.origin}/__algolia/1/indexes/*/queries`,
+          method: "POST",
+          headers: {},
+          connectTimeout: 2000,
+          responseTimeout: 5000,
+          data: JSON.stringify({ requests }),
+        })
+        .catch(() => undefined);
+    }
     if (typeof document !== "undefined") {
       const previous: unknown = JSON.parse(
         document.documentElement.dataset.searchQueryLog ?? "[]",
@@ -227,6 +246,11 @@ const client = {
     };
   },
 };
-export function liteClient() {
+export function liteClient(
+  _appId?: string,
+  _apiKey?: string,
+  options?: { requester?: Requester },
+) {
+  transport = options?.requester;
   return client;
 }

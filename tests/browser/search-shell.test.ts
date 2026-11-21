@@ -411,6 +411,43 @@ for (const [label, query, reason] of [
   }, 30_000);
 }
 
+test("the shipped client meters searches and page-view ends report them", async () => {
+  const { page } = await open("q=pagination");
+  try {
+    await page
+      .getByText("Showing 24 of 96 vehicles", { exact: true })
+      .waitFor();
+    await page.evaluate(() =>
+      window.scrollTo(0, document.body.scrollHeight - innerHeight),
+    );
+    await page
+      .getByText("Showing 48 of 96 vehicles", { exact: true })
+      .waitFor();
+    // A client navigation ends the page view through Next's hook.
+    await page.evaluate(() => {
+      const hook: unknown = Reflect.get(window, "fixtureRouterTransitionStart");
+      if (typeof hook === "function") hook();
+    });
+    const [navigation] = await analyticsEvents(page, "search_queries_metered");
+    expect(navigation?.properties).toMatchObject({ path: "/search" });
+    expect(Number(navigation?.properties.requests)).toBeGreaterThanOrEqual(1);
+    expect(Number(navigation?.properties.queries)).toBeGreaterThanOrEqual(1);
+    // Hiding the page ends the next page view.
+    await page.getByRole("searchbox").fill("pagination2");
+    await page.getByRole("searchbox").press("Enter");
+    await page.waitForFunction(
+      () => new URL(location.href).searchParams.get("q") === "pagination2",
+    );
+    await page.waitForTimeout(300);
+    await page.evaluate(() => window.dispatchEvent(new Event("pagehide")));
+    expect(await analyticsEvents(page, "search_queries_metered")).toHaveLength(
+      2,
+    );
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
+
 test("signed-in pagination survives sort switches and rows do not overlap after resizing", async () => {
   const { page, html } = await open("q=pagination");
   try {
