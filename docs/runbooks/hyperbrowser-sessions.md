@@ -36,7 +36,13 @@ these sources one at a time instead.
 ## Lock order
 
 A chunk takes its session lease before any shared host turn and keeps it until
-the chunk ends. Northwest takes the lease before its first URG turn and opens
-its session inside that turn; the other sources take no shared host turns. No
-shared host turn holder ever waits for the session lease, and waiting for a
-scoped lease inside a held turn fails, so the two cannot deadlock.
+the chunk ends. Northwest takes the lease before its one URG turn per chunk and
+opens its session inside that turn, so its session never waits for a turn; the
+other sources take no shared host turns. No shared host turn holder ever waits
+for the session lease, and waiting for a scoped lease inside a held turn fails,
+so the two cannot deadlock.
+
+While a Northwest chunk waits for its URG turn it holds the lease without a
+session. That wait is not billed, but under URG contention it keeps the other
+Hyperbrowser sources waiting for the lease, for at most the chunk's turn
+horizon.

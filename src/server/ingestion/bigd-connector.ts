@@ -175,6 +175,7 @@ export function streamBigdInventory<E, R>(
           DocumentTransport.hyperbrowser(
             (yield* Config).hyperbrowserApiKey,
             "bigd",
+            "page",
           ),
       );
       return yield* streamBigdInventoryWithRequestGate(

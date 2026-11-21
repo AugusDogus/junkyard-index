@@ -7,12 +7,19 @@ import {
   DocumentTransport,
   type BrowserDocumentMode,
   type BrowserDocumentPage,
+  type BrowserRoutablePage,
   type BrowserRoute,
   type BrowserSessions,
+  type LazyDocumentTransport,
 } from "./document-transport";
 import { BrowserSessionError } from "./errors";
+import { fetchNorthwestPage } from "./northwest-client";
 import { streamNorthwestInventory } from "./northwest-connector";
-import { NORTHWEST_ROOT } from "./northwest-yard-metadata";
+import {
+  NORTHWEST_MAKES,
+  NORTHWEST_ORIGIN,
+  NORTHWEST_ROOT,
+} from "./northwest-yard-metadata";
 import {
   ProviderCapacityDeferred,
   ProviderChunkClock,
@@ -331,15 +338,66 @@ test("in-page fetch carries exact body bytes, so the client still refuses invali
   ).rejects.toThrow("utf-8");
 });
 
-test("a prepared page routes every request and drops only rendering subresources", async () => {
+interface RoutedRequest {
+  type: string;
+  url?: string;
+  navigation?: boolean;
+  subframe?: boolean;
+}
+
+/** A routable page that reports what its route handler does with each
+ * request, including the in-page fetch it sends while reading a document. */
+function routedPage() {
   const routes: string[] = [];
-  const handlers: ((route: BrowserRoute) => Promise<void>)[] = [];
-  await DocumentTransport.preparePage({
-    route: async (url, handler) => {
-      routes.push(url);
-      handlers.push(handler);
+  let handler: ((route: BrowserRoute) => Promise<void>) | null = null;
+  const send = async ({
+    type,
+    url = NORTHWEST_ORIGIN + "/wp-content/plugins/urg/app.js",
+    navigation = false,
+    subframe = false,
+  }: RoutedRequest) => {
+    let outcome = "unrouted";
+    await handler?.({
+      request: () => ({
+        resourceType: () => type,
+        url: () => url,
+        isNavigationRequest: () => navigation,
+        frame: () => ({ parentFrame: () => (subframe ? {} : null) }),
+      }),
+      abort: async () => {
+        outcome = "abort";
+      },
+      continue: async () => {
+        outcome = "continue";
+      },
+    });
+    return outcome;
+  };
+  let read = "unread";
+  const page: BrowserRoutablePage = {
+    url: () => "about:blank",
+    goto: async () => null,
+    evaluate: async (_run, request) => {
+      read = await send({ type: "fetch", url: request.url });
+      return {
+        status: 200,
+        url: request.url,
+        redirected: false,
+        headers: [],
+        body: null,
+      };
     },
-  });
+    route: async (url, route) => {
+      routes.push(url);
+      handler = route;
+    },
+  };
+  return { page, routes, send, read: () => read };
+}
+
+test("a prepared page that keeps page subresources routes every request and drops only rendering ones", async () => {
+  const { page, routes, send } = routedPage();
+  await DocumentTransport.preparePage(page, "page");
   // Playwright disables the HTTP cache while any route is on, so routing
   // every URL is what keeps repeated navigations off the browser cache.
   expect(routes).toEqual(["**/*"]);
@@ -354,16 +412,7 @@ test("a prepared page routes every request and drops only rendering subresources
     "media",
     "font",
   ])
-    for (const handle of handlers)
-      await handle({
-        request: () => ({ resourceType: () => type }),
-        abort: async () => {
-          outcomes[type] = "abort";
-        },
-        continue: async () => {
-          outcomes[type] = "continue";
-        },
-      });
+    outcomes[type] = await send({ type, navigation: type === "document" });
   expect(outcomes).toEqual({
     document: "continue",
     script: "continue",
@@ -374,6 +423,55 @@ test("a prepared page routes every request and drops only rendering subresources
     media: "abort",
     font: "abort",
   });
+});
+
+test("a prepared page without subresources loads only the transport's documents and Cloudflare's edge resources", async () => {
+  const { page, routes, send, read } = routedPage();
+  const prepared = await DocumentTransport.preparePage(page, "none");
+  expect(routes).toEqual(["**/*"]);
+  expect({
+    navigation: await send({
+      type: "document",
+      url: NORTHWEST_ROOT,
+      navigation: true,
+    }),
+    frame: await send({
+      type: "document",
+      url: NORTHWEST_ORIGIN + "/embed/",
+      navigation: true,
+      subframe: true,
+    }),
+    script: await send({ type: "script" }),
+    stylesheet: await send({ type: "stylesheet" }),
+    xhr: await send({
+      type: "xhr",
+      url: NORTHWEST_ORIGIN + "/wp-admin/admin-ajax.php",
+    }),
+    pageFetch: await send({ type: "fetch", url: NORTHWEST_MAKES }),
+    image: await send({ type: "image" }),
+    challenge: await send({
+      type: "script",
+      url: NORTHWEST_ORIGIN + "/cdn-cgi/challenge-platform/scripts/jsd/main.js",
+    }),
+  }).toEqual({
+    navigation: "continue",
+    frame: "abort",
+    script: "abort",
+    stylesheet: "abort",
+    xhr: "abort",
+    pageFetch: "abort",
+    image: "abort",
+    challenge: "continue",
+  });
+  // The transport's own in-page fetch loads while it reads, and only then.
+  await prepared.evaluate(() => Promise.reject(new Error("not run")), {
+    url: NORTHWEST_MAKES,
+    accept: "text/html",
+    timeoutMs: 1000,
+    maximumBytes: 1,
+  });
+  expect(read()).toBe("continue");
+  expect(await send({ type: "fetch", url: NORTHWEST_MAKES })).toBe("abort");
 });
 
 const busy = new ProviderTurnDeferred({
@@ -695,3 +793,95 @@ test("Northwest takes the session lease before its URG turn and opens the sessio
   expect(run.turns).toHaveLength(1);
   expect(events).toEqual(lifecycle);
 }, 60_000);
+
+const northwestEnvelope = (content: string) =>
+  `<!doctype html><html><head><script>var urgid = 'AK01'; var iisHomeUrl = 'northwestautoparts.com';</script></head><body>${content}<footer>Northwest Auto Parts 5700 Camelot Drive Anchorage, AK 99504 907-333-6531</footer></body></html>`;
+const northwestDirectory = (controls: [path: string, label: string][]) =>
+  northwestEnvelope(
+    controls
+      .map(
+        ([path, label]) =>
+          `<a class="iis-center-block" href="${NORTHWEST_ORIGIN + path}">${label} <span class="badge">200</span></a>`,
+      )
+      .join(""),
+  );
+/** The root, the make directory and one make's model menu. */
+const northwestDocuments: Readonly<Record<string, string>> = {
+  [NORTHWEST_ROOT]: northwestEnvelope(`<a href="${NORTHWEST_MAKES}">Parts</a>`),
+  [NORTHWEST_MAKES]: northwestDirectory([["/parts/ACURA", "ACURA"]]),
+  [NORTHWEST_ORIGIN + "/parts/ACURA"]: northwestDirectory([
+    ["/parts/ACURA/MDX/", "MDX"],
+    ["/parts/ACURA/RDX/", "RDX"],
+  ]),
+};
+
+test("a Northwest chunk reads all its pages in one URG turn, so its session never waits in the URG queue", async () => {
+  // In-page fetches reach this through the simulated queue's passthrough.
+  globalThis.fetch = Object.assign(
+    async (input: Parameters<typeof fetch>[0]) => {
+      const url = input instanceof Request ? input.url : String(input);
+      const body = northwestDocuments[url];
+      if (body === undefined) throw new Error("Unexpected request " + url);
+      return new Response(body, {
+        headers: { "content-type": "text/html; charset=UTF-8" },
+      });
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  let current = "about:blank";
+  const page: BrowserDocumentPage = {
+    url: () => current,
+    goto: async (url) => {
+      current = url;
+      return navigation({
+        status: 200,
+        url,
+        headers: { "content-type": "text/html" },
+        body: northwestDocuments[url] ?? "",
+      });
+    },
+    evaluate: (run, request) => run(request),
+  };
+  const { sessions, events } = fakeSessions(page);
+  const run = await runWithQueuedHost(
+    streamNorthwestInventory({ maxPages: 3, onBatch: ignore }, sessions).pipe(
+      Effect.provideService(Config, config),
+    ),
+    // Every turn waits a minute, as under 07:00 URG contention.
+    { turnWaitMs: 60_000 },
+  );
+  expect(Either.isRight(run.result) && run.result.right).toMatchObject({
+    status: "paused",
+    pagesProcessed: 3,
+  });
+  expect(run.turns).toHaveLength(1);
+  expect(events).toEqual(lifecycle);
+}, 60_000);
+
+test("Northwest opens its transport inside the request gate and keeps open deferrals as they are", async () => {
+  const order: string[] = [];
+  const gate: ProviderRequestGate = (request) =>
+    Effect.sync(() => order.push("gate")).pipe(
+      Effect.andThen(request),
+      Effect.ensuring(Effect.sync(() => order.push("gate end"))),
+    );
+  const { transport } = fakePage("fetch", ok);
+  const lazy: LazyDocumentTransport = {
+    lease: Effect.void,
+    open: Effect.sync(() => {
+      order.push("open");
+      return transport;
+    }),
+  };
+  expect(
+    await Effect.runPromise(fetchNorthwestPage(NORTHWEST_ROOT, gate, lazy)),
+  ).toBe(html);
+  expect(order).toEqual(["gate", "open", "gate end"]);
+  const deferred = await Effect.runPromise(
+    fetchNorthwestPage(NORTHWEST_ROOT, gate, {
+      lease: Effect.void,
+      open: Effect.fail(busy),
+    }),
+  ).catch((error: unknown) => error);
+  expect(ProviderChunkClock.deferralOf(deferred)).toBe(busy);
+});

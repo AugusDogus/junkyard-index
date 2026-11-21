@@ -281,44 +281,95 @@ export interface BrowserSessions {
 
 /** The Playwright routing surface `preparePage` uses. */
 export interface BrowserRoute {
-  request(): { resourceType(): string };
+  request(): {
+    resourceType(): string;
+    url(): string;
+    isNavigationRequest(): boolean;
+    frame(): { parentFrame(): unknown };
+  };
   abort(): Promise<void>;
   continue(): Promise<void>;
 }
 
-export interface BrowserRoutablePage {
+export interface BrowserRoutablePage extends BrowserDocumentPage {
   route(
     url: string,
     handler: (route: BrowserRoute) => Promise<void>,
   ): Promise<void>;
 }
 
+/** What a session page loads besides the transport's own documents.
+ * `page`: the page's scripts, stylesheets and the requests they make, so it
+ * behaves as in a normal browser; images, media and fonts are aborted.
+ * `none`: nothing but Cloudflare's `/cdn-cgi/` resources, which its edge
+ * serves without reaching the site, so every request that reaches the site is
+ * a document the client reads inside its gate and host slot. */
+export type BrowserSubresources = "page" | "none";
+
 // Rendering-only subresources, which would otherwise load outside the client
-// gate and host slot. Documents, scripts, stylesheets and XHR still load, so a
-// page still behaves as it does in a normal browser.
-const BLOCKED_RESOURCE_TYPES: ReadonlySet<string> = new Set([
+// gate and host slot.
+const RENDERING_RESOURCE_TYPES: ReadonlySet<string> = new Set([
   "image",
   "media",
   "font",
 ]);
 
-/** Routes every request of the page. Playwright disables the browser HTTP
- * cache while routing is on, so every document request reaches the site as a
- * native fetch would, and a closing check never reads a cached copy of the
- * page it compares against. */
-function preparePage(page: BrowserRoutablePage): Promise<void> {
-  return page.route("**/*", (route) =>
-    BLOCKED_RESOURCE_TYPES.has(route.request().resourceType())
-      ? route.abort()
-      : route.continue(),
+const normalized = (url: string) => URL.parse(url)?.href ?? url;
+
+/**
+ * Routes every request of the page and returns the page the transport uses.
+ * Playwright disables the browser HTTP cache while routing is on, so every
+ * document request reaches the site as a native fetch would, and a closing
+ * check never reads a cached copy of the page it compares against. With
+ * `none`, a request loads only if it is a main-frame navigation, the in-page
+ * fetch the returned page is sending for a document, or a Cloudflare
+ * `/cdn-cgi/` resource.
+ */
+async function preparePage(
+  page: BrowserRoutablePage,
+  subresources: BrowserSubresources,
+): Promise<BrowserDocumentPage> {
+  // URLs the transport is reading by in-page fetch right now.
+  const reading = new Set<string>();
+  const loads = (request: ReturnType<BrowserRoute["request"]>) => {
+    switch (subresources) {
+      case "page":
+        return !RENDERING_RESOURCE_TYPES.has(request.resourceType());
+      case "none":
+        return (
+          (request.isNavigationRequest() &&
+            request.frame().parentFrame() === null) ||
+          (request.resourceType() === "fetch" &&
+            reading.has(normalized(request.url()))) ||
+          URL.parse(request.url())?.pathname.startsWith("/cdn-cgi/") === true
+        );
+    }
+  };
+  await page.route("**/*", (route) =>
+    loads(route.request()) ? route.continue() : route.abort(),
   );
+  return {
+    url: () => page.url(),
+    goto: (url, options) => page.goto(url, options),
+    evaluate: async (run, request) => {
+      const url = normalized(request.url);
+      reading.add(url);
+      try {
+        return await page.evaluate(run, request);
+      } finally {
+        reading.delete(url);
+      }
+    },
+  };
 }
 
 /** `source`'s Hyperbrowser sessions, under the cross-source session lease,
- * with stealth and accepted cookies only: no proxy and no CAPTCHA solving. */
+ * with stealth and accepted cookies only: no proxy and no CAPTCHA solving.
+ * Their pages load `subresources` besides the transport's documents. */
 function hyperbrowser(
   apiKey: string,
   source: HyperbrowserSource,
+  subresources: BrowserSubresources,
 ): BrowserSessions {
   const client = new Hyperbrowser({ apiKey });
   return {
@@ -340,8 +391,10 @@ function hyperbrowser(
         const context =
           connected.contexts()[0] ?? (await connected.newContext());
         const page = context.pages()[0] ?? (await context.newPage());
-        await preparePage(page);
-        return { page, close: () => connected.close() };
+        return {
+          page: await preparePage(page, subresources),
+          close: () => connected.close(),
+        };
       } catch (cause) {
         await connected.close().catch(() => undefined);
         throw cause;

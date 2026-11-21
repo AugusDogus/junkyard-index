@@ -1,5 +1,5 @@
 import { ingestionValidation } from "./ingestion-validation";
-import { Effect, Option } from "effect";
+import { Effect } from "effect";
 import type {
   ConnectorChunkAccounting,
   ConnectorChunkStatus,
@@ -47,7 +47,10 @@ import type {
   LazyDocumentTransport,
 } from "./document-transport";
 import { Config } from "./context";
-import { ProviderChunkClock } from "./provider-chunk-clock";
+import {
+  ProviderChunkClock,
+  ProviderTurnDeferred,
+} from "./provider-chunk-clock";
 import { sharedProviderHostTurn } from "./shared-provider-host";
 
 interface NorthwestOptions<E, R> {
@@ -108,6 +111,13 @@ function nextUrl(state: NorthwestProgress): string {
     }
   }
 }
+/** Whether every closing control has been read, so the census can close. */
+const closed = (state: NorthwestProgress) =>
+  state.phase === "closing" &&
+  state.closing === northwestClosingControls(state).length;
+/** The longest a page after a turn's first can take: the URG gap before it,
+ * its 20-second request deadline and the 1.6-second gate after it. */
+const NORTHWEST_PAGE_MS = 3_500 + 20_000 + 1_600;
 function advance(state: NorthwestProgress, raw: string): NorthwestProgress {
   const next = { ...state, requests: state.requests + 1 };
   switch (state.phase) {
@@ -228,69 +238,79 @@ export function streamNorthwestInventoryWithRequestGate<E, R>(
     cursor = begun.cursor;
     summary.cursor = cursor;
     if (begun.warning) summary.warnings.push(begun.warning);
-    while (summary.pagesProcessed < budget && cursor.phase !== "complete") {
-      const current: NorthwestProgress = cursor;
-      if (current.requests >= NORTHWEST_MAX_REQUESTS)
-        return yield* new NorthwestProviderError({
-          operation: "request ceiling",
-          cause: "1600 native GET limit reached; preserve prior inventory",
-        });
-      const url = yield* attempt("next control", () => nextUrl(current));
+    let progress: NorthwestProgress = begun.cursor;
+    // One URG turn reads every page of the chunk. The browser session opens
+    // with the first page inside it, so the session never waits in the URG
+    // queue and the chunk holds it only while it reads.
+    const pages = Effect.gen(function* () {
+      while (summary.pagesProcessed < budget && !closed(progress)) {
+        const current = progress;
+        if (current.requests >= NORTHWEST_MAX_REQUESTS)
+          return yield* new NorthwestProviderError({
+            operation: "request ceiling",
+            cause: "1600 native GET limit reached; preserve prior inventory",
+          });
+        // A later page starts only if it can end by the chunk's turn horizon.
+        if (
+          summary.pagesProcessed > 0 &&
+          !(yield* ProviderChunkClock.fits(NORTHWEST_PAGE_MS))
+        )
+          break;
+        const url = yield* attempt("next control", () => nextUrl(current));
+        const raw = yield* fetchNorthwestPage(url, gate, transport);
+        progress = yield* attempt(
+          url,
+          (): NorthwestProgress => advance(current, raw),
+        );
+        summary.pagesProcessed++;
+      }
+    });
+    if (!closed(progress))
       // Lock order: the session lease before the URG turn, so no URG turn
-      // holder waits for the lease. The session opens inside the turn, so a
-      // chunk still queued for the URG host holds no browser session.
-      const page = yield* transport.lease.pipe(
+      // holder waits for the lease.
+      yield* transport.lease.pipe(
         Effect.andThen(
-          transport.open.pipe(
-            Effect.flatMap((documents) =>
-              fetchNorthwestPage(url, gate, documents),
-            ),
-            sharedProviderHostTurn(url),
-          ),
+          pages.pipe(sharedProviderHostTurn(NORTHWEST_ORIGIN, budget)),
         ),
-        ProviderChunkClock.unlessDeferred(summary.pagesProcessed > 0),
+        // A turn cut off at the horizon keeps the pages it validated. Before
+        // any page a deferral defers the whole chunk.
+        Effect.catchIf(
+          (error): boolean =>
+            error instanceof ProviderTurnDeferred && summary.pagesProcessed > 0,
+          () => Effect.void,
+        ),
       );
-      if (Option.isNone(page)) break;
-      const raw = page.value;
-      const advanced: NorthwestProgress = yield* attempt(
-        url,
-        (): NorthwestProgress => advance(current, raw),
+    const advanced = progress;
+    if (closed(advanced)) {
+      const snapshot = yield* attempt("complete native graph", () => {
+        const shortfall = northwestCoverageError(advanced);
+        if (shortfall) throw new Error(shortfall);
+        const value = northwestSnapshot(advanced.makes, advanced.pages);
+        validateNorthwestSnapshot(value);
+        return value;
+      });
+      summary.accounting = { ...snapshot.accounting };
+      summary.count = snapshot.vehicles.length;
+      summary.observedVins = [...snapshot.observedVins];
+      const census = yield* attempt("close model census", () =>
+        northwestCensus(advanced),
       );
-      summary.pagesProcessed++;
-      if (
-        advanced.phase === "closing" &&
-        advanced.closing === northwestClosingControls(advanced).length
-      ) {
-        const snapshot = yield* attempt("complete native graph", () => {
-          const shortfall = northwestCoverageError(advanced);
-          if (shortfall) throw new Error(shortfall);
-          const value = northwestSnapshot(advanced.makes, advanced.pages);
-          validateNorthwestSnapshot(value);
-          return value;
-        });
-        summary.accounting = { ...snapshot.accounting };
-        summary.count = snapshot.vehicles.length;
-        summary.observedVins = [...snapshot.observedVins];
-        const census = yield* attempt("close model census", () =>
-          northwestCensus(advanced),
-        );
-        summary.warnings = [
-          ...summary.warnings,
-          ...snapshot.warnings,
-          "Northwest " + ModelCensus.summary(northwestCensusPlan(advanced)),
-        ];
-        if (options.onYards) yield* options.onYards([{ ...NORTHWEST_YARD }]);
-        yield* options.onBatch(
-          snapshot.vehicles.map((vehicle) => ({ ...vehicle })),
-        );
-        cursor = {
-          source: "northwest",
-          version: 1,
-          phase: "complete",
-          census,
-        };
-      } else cursor = advanced;
-    }
+      summary.warnings = [
+        ...summary.warnings,
+        ...snapshot.warnings,
+        "Northwest " + ModelCensus.summary(northwestCensusPlan(advanced)),
+      ];
+      if (options.onYards) yield* options.onYards([{ ...NORTHWEST_YARD }]);
+      yield* options.onBatch(
+        snapshot.vehicles.map((vehicle) => ({ ...vehicle })),
+      );
+      cursor = {
+        source: "northwest",
+        version: 1,
+        phase: "complete",
+        census,
+      };
+    } else cursor = advanced;
     return {
       ...summary,
       cursor,
@@ -309,7 +329,7 @@ export function streamNorthwestInventoryWithRequestGate<E, R>(
   );
 }
 /** At most one browser session per chunk, opened by the first request once
- * the chunk holds the Hyperbrowser session lease and its URG host turn
+ * the chunk holds the Hyperbrowser session lease and its one URG host turn
  * arrives, and stopped when the chunk ends. `sessions` defaults to
  * Hyperbrowser. */
 export function streamNorthwestInventory<E, R>(
