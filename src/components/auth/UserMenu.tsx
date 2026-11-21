@@ -2,12 +2,14 @@
 
 import { CreditCard, LogOut, Monitor, Moon, Settings, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -22,6 +24,9 @@ import { AnalyticsEvents } from "~/lib/analytics-events";
 import { signOut, useSession } from "~/lib/auth-client";
 import { PLANS } from "~/lib/plans";
 import { EnsureAppProviders } from "~/components/AppProviders";
+import { ACCOUNT_MENU_FOOTER_LINKS } from "~/components/FooterLinks";
+import { TrackedRequestYardLink } from "~/components/TrackedRequestYardLink";
+import { env } from "~/env";
 
 interface UserMenuProps {
   user?: { name: string; email: string; image?: string | null } | null;
@@ -176,7 +181,43 @@ function UserMenuContent({ user: initialUser }: UserMenuProps) {
           <LogOut className="mr-2 h-4 w-4" />
           <span>{isSigningOut ? "Signing out..." : "Sign out"}</span>
         </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <SiteLinks />
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+const siteLinkClassName = "text-muted-foreground py-1 text-xs";
+
+/**
+ * The footer links the header lacks. Paid users scroll /search without end
+ * and never reach its footer, so the menu carries them, as X and Facebook do.
+ */
+function SiteLinks() {
+  const statusPageUrl = env.NEXT_PUBLIC_STATUS_PAGE_URL;
+  return (
+    <DropdownMenuGroup aria-label="Site links">
+      {ACCOUNT_MENU_FOOTER_LINKS.map((link) => (
+        <DropdownMenuItem
+          key={link.kind === "static" ? link.href : link.kind}
+          asChild
+          className={siteLinkClassName}
+        >
+          {link.kind === "request-yard" ? (
+            <TrackedRequestYardLink />
+          ) : (
+            <Link href={link.href}>{link.label}</Link>
+          )}
+        </DropdownMenuItem>
+      ))}
+      {statusPageUrl && (
+        <DropdownMenuItem asChild className={siteLinkClassName}>
+          <a href={statusPageUrl} target="_blank" rel="noopener noreferrer">
+            System status
+          </a>
+        </DropdownMenuItem>
+      )}
+    </DropdownMenuGroup>
   );
 }

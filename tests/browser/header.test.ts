@@ -5,6 +5,9 @@ import { join } from "node:path";
 import tailwind from "@tailwindcss/postcss";
 import postcss from "postcss";
 import type { Browser } from "playwright-core";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { FooterLinks } from "~/components/FooterLinks";
 import { closePage, createPage, launchBrowser } from "./browser-page";
 
 let browser: Browser;
@@ -12,6 +15,7 @@ let directory: string;
 let server: string;
 let script: string;
 let stylesheet: string;
+const statusPageUrl = "https://status.example.test";
 
 beforeAll(async () => {
   directory = await mkdtemp(join(tmpdir(), "header-browser-"));
@@ -25,7 +29,7 @@ beforeAll(async () => {
           name: "header-services",
           setup(builder) {
             builder.onLoad({ filter: /src\/env\.js$/ }, () => ({
-              contents: "export const env = {};",
+              contents: `export const env = { NEXT_PUBLIC_STATUS_PAGE_URL: "${statusPageUrl}" };`,
               loader: "js",
             }));
             builder.onLoad({ filter: /src\/lib\/auth-client\.ts$/ }, () => ({
@@ -222,6 +226,73 @@ test("the phone nav row fits a 360px screen", async () => {
         () => document.documentElement.scrollWidth <= innerWidth,
       ),
     ).toBe(true);
+  } finally {
+    await closePage(page);
+  }
+}, 20_000);
+
+test("the account menu carries every footer link the header lacks, by keyboard", async () => {
+  const footerLinks = [
+    ...renderToStaticMarkup(createElement(FooterLinks)).matchAll(
+      /<a [^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/g,
+    ),
+  ].flatMap(([, href, name]) =>
+    href && name ? [{ href, name: name.trim() }] : [],
+  );
+  expect(footerLinks.length).toBeGreaterThan(0);
+  const page = await openHeader("/junkyards/texas?signed-in=1", 1440);
+  try {
+    const headerHrefs = await page
+      .locator("header a[href]")
+      .evaluateAll((links) => links.map((link) => link.getAttribute("href")));
+    const footerOnly = footerLinks.filter(
+      (link) => !headerHrefs.includes(link.href),
+    );
+    expect(footerOnly.map((link) => link.name)).toEqual(
+      expect.arrayContaining([
+        "Request a Yard",
+        "Contact",
+        "GitHub",
+        "Privacy Policy",
+        "Terms of Service",
+      ]),
+    );
+
+    const trigger = page.getByRole("button", { name: "HT", exact: true });
+    await trigger.focus();
+    await page.keyboard.press("Enter");
+    const menu = page.getByRole("menu");
+    await menu.waitFor();
+    const items = await menu.getByRole("menuitem").evaluateAll((elements) =>
+      elements.map((element) => ({
+        href: element.getAttribute("href"),
+        name: (element.textContent ?? "").trim(),
+      })),
+    );
+    for (const link of footerOnly) expect(items).toContainEqual(link);
+    expect(items).toContainEqual({
+      href: statusPageUrl,
+      name: "System status",
+    });
+
+    // Radix moves focus into the menu after it opens; End needs it there.
+    await page.waitForFunction(() =>
+      document.activeElement?.closest('[role="menu"]'),
+    );
+    await page.keyboard.press("End");
+    const status = menu.getByRole("menuitem", {
+      name: "System status",
+      exact: true,
+    });
+    await page.waitForFunction(
+      () => document.activeElement?.textContent?.trim() === "System status",
+    );
+    expect(await status.getAttribute("target")).toBe("_blank");
+    expect(
+      await menu
+        .getByRole("group", { name: "Site links", exact: true })
+        .count(),
+    ).toBe(1);
   } finally {
     await closePage(page);
   }
