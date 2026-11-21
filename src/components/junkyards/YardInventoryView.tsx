@@ -15,10 +15,11 @@ import { InventoryFormat } from "~/lib/inventory-format";
 import { MakeInventory } from "~/lib/make-inventory";
 import { StructuredData, type Crumb } from "~/lib/structured-data";
 import { cn } from "~/lib/utils";
-import type {
-  MakeCount,
-  YardInventoryPage,
-  YardNewArrivals,
+import {
+  YardInventory,
+  type MakeCount,
+  type YardInventoryPage,
+  type YardNewArrivals,
 } from "~/lib/yard-inventory";
 import { YardName } from "~/lib/yard-name";
 import {
@@ -94,8 +95,7 @@ export function YardInventoryView({
   const shownFrom = inventory.firstIndex + 1;
   const shownTo = inventory.firstIndex + inventory.vehicles.length;
   const showMakes = inventory.page === 1 && makes.length > 1;
-  // A newly tracked yard is all "new"; say nothing rather than that.
-  const newSince = newArrivals.kind === "counted" ? newArrivals.since : null;
+  const { headerCount, badgesSince } = YardInventory.newDisplay(newArrivals);
 
   return (
     <>
@@ -138,7 +138,7 @@ export function YardInventoryView({
               )}
             </span>{" "}
             in the yard in {yard.city}, {yard.state}
-            {newArrivals.kind === "counted" && newArrivals.count > 0 && (
+            {headerCount !== null && (
               <>
                 ,{" "}
                 <Link
@@ -150,7 +150,7 @@ export function YardInventoryView({
                     yardTypes: [],
                   })}
                 >
-                  {InventoryFormat.count(newArrivals.count)} new this week
+                  {InventoryFormat.count(headerCount)} new this week
                 </Link>
               </>
             )}
@@ -207,7 +207,7 @@ export function YardInventoryView({
                 key={vehicle.vin}
                 vehicle={vehicle}
                 source={yard.source}
-                publishedAt={newSince}
+                publishedAt={badgesSince}
                 layout="columns"
               />
             ))}

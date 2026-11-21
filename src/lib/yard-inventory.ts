@@ -199,6 +199,25 @@ export const YardInventory = {
     };
   },
 
+  /**
+   * What a yard page shows of `newArrivals`: the header's "N new this week"
+   * count, or null to say nothing, and the week's end for row badges, or null
+   * for none. Both come from `since`, the render's clock, never the snapshot's
+   * publication time, so the badges match the count. A newly tracked yard is
+   * all "new"; it shows neither.
+   */
+  newDisplay(newArrivals: YardNewArrivals): {
+    headerCount: number | null;
+    badgesSince: string | null;
+  } {
+    if (newArrivals.kind === "quiet")
+      return { headerCount: null, badgesSince: null };
+    return {
+      headerCount: newArrivals.count > 0 ? newArrivals.count : null,
+      badgesSince: newArrivals.since,
+    };
+  },
+
   /** Newest first; VIN breaks ties so pages are stable between renders. */
   sort<Vehicle extends YardVehicle>(vehicles: readonly Vehicle[]): Vehicle[] {
     return [...vehicles].sort(
