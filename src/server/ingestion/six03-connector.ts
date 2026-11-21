@@ -320,6 +320,7 @@ export function streamSix03Inventory<E, R>(
           DocumentTransport.hyperbrowser(
             (yield* Config).hyperbrowserApiKey,
             "six03",
+            "page",
           ),
       );
       const limit = yield* RateLimiter.make({

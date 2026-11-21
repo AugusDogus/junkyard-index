@@ -61,8 +61,8 @@ const policy = (source: HyperbrowserSource): ProviderLeasePolicy => ({
  *
  * Lock order: a chunk takes its session lease before any shared host turn and
  * keeps it until the chunk ends, and opens its session only after taking it.
- * Northwest takes the lease before its first URG turn and opens the session
- * inside that turn; the other sources take no shared host turns. No turn
+ * Northwest takes the lease before its one URG turn per chunk and opens the
+ * session inside that turn; the other sources take no shared host turns. No turn
  * holder ever waits for this lease (`withProviderHostLease` refuses), so a
  * lease holder waiting for a turn cannot deadlock.
  */

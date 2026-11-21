@@ -24,16 +24,27 @@ HTTP 403. Production chunks open one Hyperbrowser session (stealth, accepted
 cookies, `us-west`, no proxy, no CAPTCHA solving). The first document of a chunk
 loads by page navigation; later documents use same-origin in-page `fetch()`
 with manual redirects. The browser supplies its own headers; status, URL, MIME,
-range, size and UTF-8 checks are unchanged. The session opens with the chunk's
-first request, after its URG host turn is granted, so a chunk still queued for
-the URG lane holds no session. The chunk takes the
-[Hyperbrowser session lease](hyperbrowser-sessions.md) before its first URG
-turn, never inside one. It is stopped when the chunk ends. Pacing and the
-request ceiling are unchanged. The page routes every request, which disables the
-browser HTTP cache, and aborts images, media and fonts. The first navigation of
-a chunk still loads the page's scripts, stylesheets and their XHR requests,
-outside the host slot and the 1.6-second gate; in-page `fetch()` loads only the
-document.
+range, size and UTF-8 checks are unchanged.
+
+A chunk reads all of its pages (up to eight) in one URG host turn. It takes the
+[Hyperbrowser session lease](hyperbrowser-sessions.md) first, never inside the
+turn, then waits for the turn without a session. The session opens with the
+first request inside the turn, inside its host slot, and is stopped when the
+chunk ends, so the session never waits in the URG queue. Each request still
+takes its host slot, with the 3.5-second URG gap before it and the 1.6-second
+gate after it. A page after the first starts only if it can finish by the
+chunk's turn horizon. The turn holds one of the URG group's places for the whole
+chunk, typically about a minute, instead of one place per page. While the chunk
+waits for its turn it holds the session lease without a session, which is not
+billed but keeps the other Hyperbrowser sources waiting.
+
+The page routes every request, which disables the browser HTTP cache. It loads
+only the chunk's own documents (the main-frame navigation and the in-page
+`fetch()` being read) and Cloudflare's `/cdn-cgi/` resources, which Cloudflare's
+edge serves without reaching the site. Every other request, including the page's
+scripts, stylesheets, XHR, frames, images and fonts, is aborted, so every request
+that reaches the site is a document read inside the host slot and the
+1.6-second gate. Pacing and the request ceiling are unchanged.
 
 Runtime follows the published make directory, every make, and every model,
 without deriving model URLs. It validates AK01 ownership, native physical address,

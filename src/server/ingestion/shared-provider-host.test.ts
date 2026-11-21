@@ -151,6 +151,9 @@ function declarations(source: string): ReadonlyMap<string, string> {
 const RAW_REQUEST =
   /(?<![.\w])(?:globalThis\.)?(?:fetch|fetcher|fetchImpl|fetchProviderResponse|fetchProviderText|fetchProviderJson)\(/;
 const HOST_SLOT = /\bsharedProviderHost(?:Slot|Request)\(/;
+/** Resolving a `LazyDocumentTransport` (its `open` effect, never called),
+ * which hands the caller a raw document transport. */
+const LAZY_TRANSPORT_OPEN = /\.open\b(?!\s*\()/;
 
 /** Whether declaration `name`, or a declaration of the same module it uses,
  * makes a raw request that no host slot on the way wraps. */
@@ -181,7 +184,8 @@ test("every raw request that can share a shared host turn takes a host slot", ()
   // requests therefore never opens a turn itself (sharedProviderHostRequest
   // gives one request its own slotted turn), and a turn's module may use
   // another module's declaration only if every raw request it reaches is
-  // inside a host slot.
+  // inside a host slot. Nor does it resolve a lazy document transport, whose
+  // raw transport it could then call: the client resolves it inside its slot.
   const sources = new Map(
     readdirSync(import.meta.dir)
       .filter((file) => file.endsWith(".ts") && !file.endsWith(".test.ts"))
@@ -197,7 +201,8 @@ test("every raw request that can share a shared host turn takes a host slot", ()
   const unslotted: string[] = [];
   for (const [file, source] of sources) {
     if (!source.includes("sharedProviderHostTurn(")) continue;
-    if (RAW_REQUEST.test(source)) rawTurns.push(file);
+    if (RAW_REQUEST.test(source) || LAZY_TRANSPORT_OPEN.test(source))
+      rawTurns.push(file);
     for (const [, names = "", from = ""] of source.matchAll(
       /import \{([^}]*)\} from "\.\/([\w-]+)"/g,
     )) {
