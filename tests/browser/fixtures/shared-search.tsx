@@ -183,6 +183,10 @@ if (typeof document === "undefined") {
 } else {
   const root = document.getElementById("root");
   if (!root) throw new Error("Missing shared search fixture root.");
+  // The app's real client instrumentation, so tests can end a page view the
+  // way a client navigation does.
+  const { onRouterTransitionStart } = await import("~/instrumentation-client");
+  Reflect.set(window, "fixtureRouterTransitionStart", onRouterTransitionStart);
   hydrateRoot(root, <Fixture />);
   // Page load in browser tests means the streamed search has hydrated.
   await hydrated;
