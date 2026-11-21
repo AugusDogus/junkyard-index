@@ -217,3 +217,36 @@ test("weekly entry counts include dated and observed arrivals, excluding unknown
   ].map(YardInventory.vehicle);
   expect(YardInventory.newCount(rows, now)).toBe(2);
 });
+
+test("yard pages count and badge new arrivals from one reference time", () => {
+  const now = "2026-11-19T12:00:00Z";
+  const recent = YardInventory.vehicle(row({ availableDate: "2026-11-18" }));
+  // New by the week before an older publication, but not by the clock.
+  const stale = YardInventory.vehicle(row({ availableDate: "2026-11-05" }));
+  const old = YardInventory.vehicle(row({ availableDate: "2026-10-01" }));
+  const yard = [recent, stale, old, old, old];
+  expect(YardInventory.newArrivals([recent, stale], yard, now)).toEqual({
+    kind: "counted",
+    count: 1,
+    since: now,
+  });
+});
+
+test("a yard whose vehicles are mostly new does not count new arrivals", () => {
+  const now = "2026-11-19T12:00:00Z";
+  const recent = YardInventory.vehicle(row({ availableDate: "2026-11-18" }));
+  const old = YardInventory.vehicle(row({ availableDate: "2026-10-01" }));
+  // Judged from the whole yard, even on a page for one make.
+  expect(
+    YardInventory.newArrivals(
+      [old],
+      [recent, recent, recent, recent, recent],
+      now,
+    ),
+  ).toEqual({ kind: "quiet" });
+  expect(YardInventory.newArrivals([recent], [recent, old, old], now)).toEqual({
+    kind: "counted",
+    count: 1,
+    since: now,
+  });
+});

@@ -85,12 +85,10 @@ export default async function YardModelPage({
         yard={data.yard}
         inventory={{ page: 1, pageCount: 1, firstIndex: 0, vehicles }}
         total={vehicles.length}
-        newCount={YardInventory.newCount(vehicles, new Date().toISOString())}
-        // Judged from the whole yard: one new Honda at a long-tracked yard
-        // is news, even though it's all of this page.
-        newIsMeaningful={YardInventory.newIsMeaningful(
-          YardInventory.newCount(data.vehicles, new Date().toISOString()),
-          data.vehicles.length,
+        newArrivals={YardInventory.newArrivals(
+          vehicles,
+          data.vehicles,
+          new Date().toISOString(),
         )}
         makes={data.makes}
         makeSlugs={await getMakeSlugs()}
