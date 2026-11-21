@@ -79,17 +79,18 @@ one started here never run at once.
 `search-alerts-enabled` pauses alerts (`status: "paused"`). Otherwise it
 returns 503 when:
 
-- the expected day's alert check has not completed. Yesterday's is expected
-  if it was opened. From 20:00 UTC today's is expected if it or yesterday's
-  was opened, with at least 2 hours from its own start to finish. Days on
-  which alerts were paused have no check, so switching alerts back on (even
-  after 20:00 UTC) does not turn the monitor red for the gap. One blind spot:
-  if the search-alerts cron never opens a check after alerts are switched on,
-  this monitor shows no expected day rather than red;
+- the expected day's alert check has not completed. A check is expected only
+  once it was opened and has had 2 hours from its own start, even across the
+  07:00 UTC day boundary; today's is not expected before 20:00 UTC either.
+  Days on which alerts were paused have no check, so switching alerts back on
+  (after a pause of any length, even after 20:00 UTC) does not turn the
+  monitor red. Blind spot: a day whose check the search-alerts cron never
+  opens is not flagged here;
 - a notification has been deliverable for more than 2 hours. Each intent is
   dated by its own release: the latest of its creation, retry time, expired
-  claim, its owner finishing, today's hold lifting, and the day start for a
-  recipient who already got that day's digest.
+  claim, its owner finishing, today's hold lifting, its recipient's queued
+  group or in-flight claim being cancelled or delivered, and the day start for
+  a recipient who already got that day's digest.
 
 ## Pausing a consumer
 

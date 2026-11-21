@@ -149,8 +149,10 @@ export async function hasDeliverableNotificationIntent(params: {
  * latest of its creation, its retry time, its expired claim, its owner
  * finishing (its alert check completing, or its run being released), today's
  * hold lifting (today's check finishing or going stale, or the missing-check
- * grace), and, for a pending intent whose recipient already got a digest
- * since it was created, the start of today. A delivery worker should send it
+ * grace), for an ungrouped intent its recipient's queued group or in-flight
+ * claim on the channel being cancelled or delivered, and, for a pending
+ * intent whose recipient already got a digest since it was created, the start
+ * of today. A delivery worker should send it
  * within one notification-delivery cron interval.
  */
 export async function oldestDeliverableNotificationIntentAt(params: {
@@ -162,6 +164,18 @@ export async function oldestDeliverableNotificationIntentAt(params: {
   const dayStart = IngestionDay.start(params.now).getTime();
   const graceAt = SearchAlertSchedule.missingCheckGraceAt(params.now).getTime();
   const intent = searchNotificationIntent;
+  // Drizzle leaves columns unqualified in a single-table select, so inside a
+  // subquery over another table (or an aliased copy of this one) a column like
+  // "user_id" would bind to the inner table. Qualify outer references there.
+  const outer = (
+    column:
+      | "id"
+      | "user_id"
+      | "channel"
+      | "created_at"
+      | "alert_check_id"
+      | "run_id",
+  ) => sql.raw(`"search_notification_intent"."${column}"`);
   const [row] = await params.database
     .select({
       dueAt: sql<number | null>`min(max(
@@ -172,21 +186,30 @@ export async function oldestDeliverableNotificationIntentAt(params: {
           else 0 end,
         coalesce((
           select owner.completed_at from search_alert_check owner
-          where owner.id = ${intent.alertCheckId}
+          where owner.id = ${outer("alert_check_id")}
         ), 0),
         coalesce((
           select run.released_at from ingestion_run run
-          where run.id = ${intent.runId}
+          where run.id = ${outer("run_id")}
         ), 0),
         case when ${intent.deliveryGroupId} is null then coalesce((
           select case when today.status <> 'running' then today.completed_at
             else today.last_progress_at + ${SearchAlertSchedule.staleAfterMs} end
           from search_alert_check today where today.day = ${today}
         ), ${graceAt}) else 0 end,
+        case when ${intent.deliveryGroupId} is null then coalesce((
+          select max(coalesce(sibling.cancelled_at, sibling.delivered_at))
+          from search_notification_intent sibling
+          where sibling.user_id = ${outer("user_id")}
+            and sibling.channel = ${outer("channel")}
+            and sibling.id <> ${outer("id")}
+            and sibling.status in ('cancelled', 'delivered')
+        ), 0) else 0 end,
         case when ${intent.status} = 'pending' and exists (
           select 1 from search_notification_delivery d
-          where d.user_id = ${intent.userId} and d.channel = ${intent.channel}
-            and d.delivered_at >= ${intent.createdAt}
+          where d.user_id = ${outer("user_id")}
+            and d.channel = ${outer("channel")}
+            and d.delivered_at >= ${outer("created_at")}
         ) then ${dayStart} else 0 end
       ))`,
     })
