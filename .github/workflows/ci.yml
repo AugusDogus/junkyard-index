@@ -26,8 +26,38 @@ jobs:
       - run: bun run typecheck
       - run: bun test scripts/verify-test-shards.test.ts
 
+  timings:
+    # Every shard must read the same timings, or the weighted slices stop
+    # covering each file exactly once. Restore them once and hand them out.
+    name: Test timings
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/test-timings.json
+          sparse-checkout-cone-mode: false
+      # The latest main run's shard timings; PR runs never save this cache.
+      - uses: actions/cache/restore@v4
+        with:
+          path: .bun-test-timings
+          key: bun-test-timings-${{ github.run_id }}
+          restore-keys: bun-test-timings-
+      - name: Fall back to committed timings
+        run: |
+          if [ -z "$(find .bun-test-timings -name '*.json' 2>/dev/null)" ]; then
+            mkdir -p .bun-test-timings/committed
+            cp .github/test-timings.json .bun-test-timings/committed/timings.json
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: test-timings-input
+          path: .bun-test-timings/
+          if-no-files-found: error
+          retention-days: 1
+
   test:
     name: Test shard ${{ matrix.shard }}/8
+    needs: timings
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -39,17 +69,45 @@ jobs:
         with:
           bun-version: "1.4.1"
       - run: bun install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: test-timings-input
+          path: test-timings-input
+      # The first --timings path does not exist yet, so Bun writes only this
+      # shard's files there for the exactly-once verifier and the cache.
       - name: Run weighted shard
         run: |
           mkdir -p test-results
-          cp .github/test-timings.json test-results/timings.json
-          bun test src --shard=${{ matrix.shard }}/8 --timings=test-results/timings.json --update-timings --reporter=junit --reporter-outfile=test-results/junit.xml
+          inputs=$(find test-timings-input -name '*.json' -printf '--timings=%p ')
+          bun test src --shard=${{ matrix.shard }}/8 --timings=test-results/timings.json $inputs --update-timings --reporter=junit --reporter-outfile=test-results/junit.xml
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: test-shard-${{ matrix.shard }}
           path: test-results/
           if-no-files-found: error
+
+  save-timings:
+    # Only a fully green main run refreshes the timings that later runs read.
+    name: Save test timings
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: test-shard-*
+          path: test-results
+      - name: Collect shard timings
+        run: |
+          for shard in test-results/test-shard-*; do
+            mkdir -p ".bun-test-timings/${shard##*/}"
+            cp "$shard/timings.json" ".bun-test-timings/${shard##*/}/timings.json"
+          done
+      - uses: actions/cache/save@v4
+        with:
+          path: .bun-test-timings
+          key: bun-test-timings-${{ github.run_id }}
 
   browser:
     name: Browser shard ${{ matrix.shard }}/2
