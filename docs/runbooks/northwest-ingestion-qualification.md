@@ -24,8 +24,14 @@ HTTP 403. Production chunks open one Hyperbrowser session (stealth, accepted
 cookies, `us-west`, no proxy, no CAPTCHA solving). The first document of a chunk
 loads by page navigation; later documents use same-origin in-page `fetch()`
 with manual redirects. The browser supplies its own headers; status, URL, MIME,
-range, size and UTF-8 checks are unchanged. The session is stopped when the
-chunk ends. Pacing and the request ceiling are unchanged.
+range, size and UTF-8 checks are unchanged. The session opens with the chunk's
+first request, after its URG host turn is granted, so a chunk still queued for
+the URG lane holds no session. It is stopped when the chunk ends. Pacing and the
+request ceiling are unchanged. The page routes every request, which disables the
+browser HTTP cache, and aborts images, media and fonts. The first navigation of
+a chunk still loads the page's scripts, stylesheets and their XHR requests,
+outside the host slot and the 1.6-second gate; in-page `fetch()` loads only the
+document.
 
 Runtime follows the published make directory, every make, and every model,
 without deriving model URLs. It validates AK01 ownership, native physical address,

@@ -69,7 +69,12 @@ HTTP 403. Production chunks open one Hyperbrowser session (stealth, accepted
 cookies, `us-west`, no proxy, no CAPTCHA solving). The first document of a chunk
 loads by page navigation; later documents use same-origin in-page `fetch()`
 with manual redirects. The browser response status, headers and exact body bytes
-pass through the same checks. The session is stopped when the chunk ends.
+pass through the same checks. The session opens with the chunk's first request,
+after checkpoint and budget validation, and is stopped when the chunk ends. The
+page routes every request, which disables the browser HTTP cache, and aborts
+images, media and fonts. The first navigation of a chunk still loads the page's
+scripts, stylesheets and their XHR requests, outside the request gate; in-page
+`fetch()` loads only the document.
 
 | Bound                          | Limit                  |
 | ------------------------------ | ---------------------- |

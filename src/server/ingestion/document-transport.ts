@@ -1,6 +1,6 @@
 import { Hyperbrowser } from "@hyperbrowser/sdk";
 import { chromium } from "playwright-core";
-import { Effect } from "effect";
+import { Effect, Scope, SynchronizedRef } from "effect";
 import { BrowserSessionError } from "./errors";
 import { IPULLUPULL_MAX_RESPONSE_BYTES } from "./ipullupull-response-text";
 
@@ -232,24 +232,104 @@ function browser(
     });
 }
 
-/** One Hyperbrowser session page for the enclosing scope, stopped when it
- * closes. Stealth and accepted cookies only: no proxy and no CAPTCHA solving. */
-function acquirePage(apiKey: string) {
+/** A transport that a connector resolves at each request site, inside any
+ * shared host turn. A browser transport opens its session on first use. */
+export type LazyDocumentTransport = Effect.Effect<
+  DocumentTransport,
+  BrowserSessionError
+>;
+
+/** A connected session page and how to disconnect from it. */
+export interface BrowserConnection {
+  readonly page: BrowserDocumentPage;
+  close(): Promise<void>;
+}
+
+/** The remote browser calls behind one session, replaceable in tests. */
+export interface BrowserSessions {
+  /** Starts one billed remote session. */
+  create(): Promise<{ readonly id: string; readonly wsEndpoint: string }>;
+  /** Ends billing for a session. */
+  stop(id: string): Promise<unknown>;
+  /** Connects to a session and returns its prepared page. */
+  connect(wsEndpoint: string): Promise<BrowserConnection>;
+}
+
+/** The Playwright routing surface `preparePage` uses. */
+export interface BrowserRoute {
+  request(): { resourceType(): string };
+  abort(): Promise<void>;
+  continue(): Promise<void>;
+}
+
+export interface BrowserRoutablePage {
+  route(
+    url: string,
+    handler: (route: BrowserRoute) => Promise<void>,
+  ): Promise<void>;
+}
+
+// Rendering-only subresources, which would otherwise load outside the client
+// gate and host slot. Documents, scripts, stylesheets and XHR still load, so a
+// page still behaves as it does in a normal browser.
+const BLOCKED_RESOURCE_TYPES: ReadonlySet<string> = new Set([
+  "image",
+  "media",
+  "font",
+]);
+
+/** Routes every request of the page. Playwright disables the browser HTTP
+ * cache while routing is on, so every document request reaches the site as a
+ * native fetch would, and a closing check never reads a cached copy of the
+ * page it compares against. */
+function preparePage(page: BrowserRoutablePage): Promise<void> {
+  return page.route("**/*", (route) =>
+    BLOCKED_RESOURCE_TYPES.has(route.request().resourceType())
+      ? route.abort()
+      : route.continue(),
+  );
+}
+
+/** Hyperbrowser sessions with stealth and accepted cookies only: no proxy
+ * and no CAPTCHA solving. */
+function hyperbrowser(apiKey: string): BrowserSessions {
+  const client = new Hyperbrowser({ apiKey });
+  return {
+    create: () =>
+      client.sessions.create({
+        useStealth: true,
+        useProxy: false,
+        solveCaptchas: false,
+        acceptCookies: true,
+        region: "us-west",
+        timeoutMinutes: SESSION_TIMEOUT_MINUTES,
+      }),
+    stop: (id) => client.sessions.stop(id),
+    connect: async (wsEndpoint) => {
+      const connected = await chromium.connectOverCDP(wsEndpoint, {
+        timeout: CDP_CONNECT_TIMEOUT_MS,
+      });
+      try {
+        const context =
+          connected.contexts()[0] ?? (await connected.newContext());
+        const page = context.pages()[0] ?? (await context.newPage());
+        await preparePage(page);
+        return { page, close: () => connected.close() };
+      } catch (cause) {
+        await connected.close().catch(() => undefined);
+        throw cause;
+      }
+    },
+  };
+}
+
+/** One session page for the enclosing scope, stopped when it closes. */
+function acquirePage(sessions: BrowserSessions) {
   return Effect.gen(function* () {
-    const client = new Hyperbrowser({ apiKey });
     const session = yield* Effect.acquireRelease(
-      Effect.tryPromise(() =>
-        client.sessions.create({
-          useStealth: true,
-          useProxy: false,
-          solveCaptchas: false,
-          acceptCookies: true,
-          region: "us-west",
-          timeoutMinutes: SESSION_TIMEOUT_MINUTES,
-        }),
-      ),
+      Effect.tryPromise(() => sessions.create()),
       (s) =>
-        Effect.tryPromise(() => client.sessions.stop(s.id)).pipe(
+        Effect.tryPromise(() => sessions.stop(s.id)).pipe(
           Effect.catchAll((cause) =>
             Effect.logWarning(
               `Hyperbrowser session ${s.id} did not stop: ${String(cause.error)}. It ends after its ${SESSION_TIMEOUT_MINUTES}-minute timeout; stop it in the Hyperbrowser dashboard to end billing sooner.`,
@@ -257,21 +337,11 @@ function acquirePage(apiKey: string) {
           ),
         ),
     );
-    const connected = yield* Effect.acquireRelease(
-      Effect.tryPromise(() =>
-        chromium.connectOverCDP(session.wsEndpoint, {
-          timeout: CDP_CONNECT_TIMEOUT_MS,
-        }),
-      ),
-      (b) => Effect.promise(() => b.close().catch(() => undefined)),
+    const connection = yield* Effect.acquireRelease(
+      Effect.tryPromise(() => sessions.connect(session.wsEndpoint)),
+      (c) => Effect.promise(() => c.close().catch(() => undefined)),
     );
-    const context =
-      connected.contexts()[0] ??
-      (yield* Effect.tryPromise(() => connected.newContext()));
-    const page =
-      context.pages()[0] ?? (yield* Effect.tryPromise(() => context.newPage()));
-    const documentPage: BrowserDocumentPage = page;
-    return documentPage;
+    return connection.page;
   }).pipe(
     Effect.mapError(
       (cause) => new BrowserSessionError({ phase: "open", cause: cause.error }),
@@ -279,13 +349,37 @@ function acquirePage(apiKey: string) {
   );
 }
 
-/** A browser transport over one session for the enclosing scope. */
-const acquireBrowser = (apiKey: string, mode: BrowserDocumentMode) =>
-  acquirePage(apiKey).pipe(Effect.map((page) => browser(page, mode)));
+/** A browser transport for the enclosing scope whose session opens on first
+ * use, so a chunk that sends no request, or still waits for a shared host
+ * turn, holds no billed session. A failed or interrupted open leaves the next
+ * use to try again, and the scope still releases whatever it acquired. */
+function acquireBrowser(
+  sessions: BrowserSessions,
+  mode: BrowserDocumentMode,
+): Effect.Effect<LazyDocumentTransport, never, Scope.Scope> {
+  return Effect.gen(function* () {
+    const scope = yield* Effect.scope;
+    const opened = yield* SynchronizedRef.make<DocumentTransport | null>(null);
+    const keep = (
+      transport: DocumentTransport,
+    ): [DocumentTransport, DocumentTransport] => [transport, transport];
+    return SynchronizedRef.modifyEffect(opened, (current) =>
+      current
+        ? Effect.succeed(keep(current))
+        : acquirePage(sessions).pipe(
+            Scope.extend(scope),
+            Effect.map((page) => keep(browser(page, mode))),
+          ),
+    );
+  });
+}
 
 export const DocumentTransport = {
   native,
+  /** The native transport as a `LazyDocumentTransport`. */
+  nativeLazy: Effect.succeed(native) satisfies LazyDocumentTransport,
   browser,
-  acquirePage,
+  preparePage,
+  hyperbrowser,
   acquireBrowser,
 } as const;

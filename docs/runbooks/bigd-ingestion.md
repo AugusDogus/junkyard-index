@@ -63,7 +63,16 @@ cookies and headers; the header contract above applies only to the native
 transport. The navigation response status, headers and exact body bytes pass
 through the same checks below. A redirected navigation reports its first hop, so
 it fails as a redirect. A chunk is the bootstrap plus 1-4 pages, at most five
-navigations in one session, stopped when the chunk ends.
+document navigations in one session. The session opens with the chunk's first
+request, after cursor and budget validation, and is stopped when the chunk ends.
+
+The page routes every request, which disables the browser HTTP cache. Big D
+sends `cache-control: max-age=7200`, so without this the closing `/contact/` and
+`/inventory/` navigations could reuse the copy read earlier in the same chunk and
+the closing comparison would check a page against itself. Images, media and
+fonts are aborted. Each navigation still loads the page's scripts, stylesheets
+and their XHR requests, so a chunk sends more requests to the host than its five
+documents, outside the semaphore and the four-second gap.
 
 A process-wide semaphore holds requests through response completion and a
 four-second gap, including failures. Each request/body has a combined 25-second
