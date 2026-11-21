@@ -314,3 +314,30 @@ test("the account menu carries every footer link the header lacks, by keyboard",
     await closePage(page);
   }
 }, 20_000);
+
+for (const width of [390, 1440]) {
+  test(`the account menu's site links are touch-sized on phones only: ${width}px`, async () => {
+    const page = await openHeader("/junkyards/texas?signed-in=1", width);
+    try {
+      await page.getByRole("button", { name: "HT", exact: true }).click();
+      const links = page
+        .getByRole("group", { name: "Site links", exact: true })
+        .getByRole("menuitem");
+      await links.first().waitFor();
+      // Layout heights: the menu's open animation scales its boxes.
+      const heights = await links.evaluateAll((items) =>
+        items.map((item) =>
+          item instanceof HTMLElement ? item.offsetHeight : 0,
+        ),
+      );
+      expect(heights.length).toBeGreaterThan(0);
+      for (const height of heights) {
+        // The footer's own links are 44px on phones, 36px from sm up.
+        if (width < 640) expect(height).toBeGreaterThanOrEqual(44);
+        else expect(height).toBeLessThanOrEqual(32);
+      }
+    } finally {
+      await closePage(page);
+    }
+  }, 20_000);
+}
