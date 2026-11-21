@@ -55,9 +55,10 @@ pages. Counted from the saved graph, a cold or gap full read is about 629 GETs:
 make menus and about 89 sweep pages, then closing reads of the root, the
 directory and the roughly 7 sweep pages that list surplus cards. Each new,
 changed, short or stale model adds a read. A surplus model listing less than
-its sticky surplus adds about two GETs a day for up to six days, and after a
-cold or gap read each of the 44 surplus models costs one extra read (and its
-closing re-read) to confirm its surplus. The census contract is
+its sticky surplus adds about two GETs a day for 6 to 12 run days, and after a
+cold or gap read each surplus first seen or grown on that read (up to the 44
+surplus models after a cold read) costs two GETs, its read and closing
+re-read, to confirm. The census contract is
 `DD15/literal-premium-model-graph/all-required-destination-conflicts-quarantined/incremental-model-census-v3`;
 a contract change starts a cold census. It requests only owned HTTPS
 browse URLs. It does not construct aliases or request donor details, components,
@@ -74,8 +75,7 @@ Closing controls repeat ownership, the make directory and every model read this
 run whose card count differs from its badge or falls below its expected count
 (`ModelCensus.closingReads`), and the run fails if a re-read differs. A model's
 expected count is its badge plus a sticky surplus (44 saved models list
-surplus cards): it is lowered only after six run days of lower reads under an
-unchanged badge, see [Incremental model census](model-census.md). A page below its
+surplus cards): it is lowered only after six run days of lower reads (twelve when the badge has risen by at least the missing cards, which looks like arrival lag), see [Incremental model census](model-census.md). A page below its
 badge that repeats is stored as confirmed evidence only by a normal
 incremental run (not a cold, gap or outage full read). Any other page below its expected count, including a surplus
 page that only fell toward its badge, is read again next run. Other per-model
