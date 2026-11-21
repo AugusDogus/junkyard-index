@@ -11,7 +11,10 @@ import {
 } from "./hollanderstores-yard-metadata";
 import { hollanderstoresVin } from "./hollanderstores-vin";
 // Pure JS corruption checksum so workflow-side cursor imports need no Node modules.
-import { inventoryCheckpointFingerprint as checksum } from "./inventory-checkpoint-fingerprint";
+import {
+  inventoryCheckpointFingerprint as checksum,
+  inventoryCheckpointJsonFingerprint,
+} from "./inventory-checkpoint-fingerprint";
 
 import {
   HOLLANDERSTORES_MAX_CURSOR_BYTES,
@@ -97,7 +100,13 @@ export function hollanderstoresMissing(
     ),
   ];
 }
-function checkpoint(value: unknown): HollanderstoresCursor {
+/** A checked cursor with its wire JSON. The census is about 19 MiB, so each
+ * operation serializes it once and reuses that text. */
+interface CheckedCursor {
+  cursor: HollanderstoresCursor;
+  wire: string;
+}
+function check(value: unknown): CheckedCursor {
   const state = schema.parse(value);
   const needed = hollanderstoresMissing(state),
     decoded = Object.keys(state.decoded);
@@ -155,30 +164,41 @@ function checkpoint(value: unknown): HollanderstoresCursor {
     throw new Error(
       "Hollander Stores checkpoint lost ordered complete yards, decode batches or closing evidence",
     );
-  const result = { ...state, checksum: checksum(state) };
-  if (
-    Buffer.byteLength(JSON.stringify(result)) > HOLLANDERSTORES_MAX_CURSOR_BYTES
-  )
+  const json = JSON.stringify(state);
+  const sum = inventoryCheckpointJsonFingerprint(json);
+  // The strict schema has no checksum key, so this equals
+  // JSON.stringify({ ...state, checksum: sum }).
+  const wire = `${json.slice(0, -1)},"checksum":"${sum}"}`;
+  if (Buffer.byteLength(wire) > HOLLANDERSTORES_MAX_CURSOR_BYTES)
     throw new Error("Hollander Stores checkpoint exceeds 32 MiB");
-  return result;
+  return { cursor: { ...state, checksum: sum }, wire };
 }
-function parse(value: unknown): HollanderstoresCursor {
+function checkpoint(value: unknown): HollanderstoresCursor {
+  return check(value).cursor;
+}
+function verify(value: unknown): CheckedCursor {
+  const { checksum: expected, ...state } = z
+    .object({ checksum: z.string() })
+    .passthrough()
+    .parse(value);
+  const checked = check(state);
+  if (expected !== checked.cursor.checksum)
+    throw new Error(
+      "Hollander Stores checkpoint checksum changed; retain the last validated checkpoint",
+    );
+  return checked;
+}
+function verifySized(value: unknown): CheckedCursor {
   const raw = JSON.stringify(value);
   if (
     raw === undefined ||
     Buffer.byteLength(raw) > HOLLANDERSTORES_MAX_CURSOR_BYTES
   )
     throw new Error("Hollander Stores checkpoint absent or exceeds 32 MiB");
-  const { checksum: expected, ...state } = z
-    .object({ checksum: z.string() })
-    .passthrough()
-    .parse(value);
-  const checked = checkpoint(state);
-  if (expected !== checked.checksum)
-    throw new Error(
-      "Hollander Stores checkpoint checksum changed; retain the last validated checkpoint",
-    );
-  return checked;
+  return verify(value);
+}
+function parse(value: unknown): HollanderstoresCursor {
+  return verifySized(value).cursor;
 }
 export const HollanderstoresCursor = {
   initial(previousAcceptedCount: number | null = null): HollanderstoresCursor {
@@ -200,9 +220,10 @@ export const HollanderstoresCursor = {
   fromWire(raw: string): HollanderstoresCursor {
     if (Buffer.byteLength(raw) > HOLLANDERSTORES_MAX_CURSOR_BYTES)
       throw new Error("Hollander Stores wire checkpoint exceeds 32 MiB");
-    return parse(JSON.parse(raw));
+    // The raw size is checked above and check() bounds the re-serialized wire.
+    return verify(JSON.parse(raw)).cursor;
   },
   serialize(cursor: HollanderstoresCursor): string {
-    return JSON.stringify(parse(cursor));
+    return verifySized(cursor).wire;
   },
 } as const;
