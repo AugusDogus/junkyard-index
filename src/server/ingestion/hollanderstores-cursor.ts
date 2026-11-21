@@ -10,6 +10,8 @@ import {
   hollanderstoresDestination,
 } from "./hollanderstores-yard-metadata";
 import { hollanderstoresVin } from "./hollanderstores-vin";
+// Pure JS corruption checksum so workflow-side cursor imports need no Node modules.
+import { inventoryCheckpointFingerprint as checksum } from "./inventory-checkpoint-fingerprint";
 
 import {
   HOLLANDERSTORES_MAX_CURSOR_BYTES,
@@ -18,13 +20,6 @@ import {
 } from "./hollanderstores-limits";
 export { HOLLANDERSTORES_MAX_CURSOR_BYTES } from "./hollanderstores-limits";
 const yardCount = HOLLANDERSTORES_YARDS.length;
-// Pure JS corruption checksum so workflow-side cursor imports need no Node modules.
-function checksum(value: unknown): string {
-  let hash = 2166136261;
-  for (const char of JSON.stringify(value))
-    hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
-  return (hash >>> 0).toString(16).padStart(8, "0");
-}
 const scope = checksum([
   HOLLANDERSTORES_YARDS,
   "card-or-paged-list/blank-make-vpic/check-digit/bounded-census-v3",

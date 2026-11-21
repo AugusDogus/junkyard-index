@@ -16,15 +16,10 @@ import {
   type HtpPage,
   type HtpYearPage,
 } from "./heavytruckparts-census";
+// Pure corruption check, safe for Workflow cursor imports.
+import { inventoryCheckpointFingerprint as hash } from "./inventory-checkpoint-fingerprint";
 
 export const HTP_MAX_CURSOR_BYTES = 8 * 1024 * 1024;
-// Pure corruption check, safe for Workflow cursor imports.
-function hash(value: unknown): string {
-  let result = 2166136261;
-  for (const char of JSON.stringify(value))
-    result = Math.imul(result ^ char.charCodeAt(0), 16777619);
-  return (result >>> 0).toString(16).padStart(8, "0");
-}
 const scope = hash([HTP_SUPPLIERS, "salvage-only-dual-sort-year-make-fill-v3"]);
 const totalSchema = z.number().int().min(1).max(2000);
 const censusSchema = z
