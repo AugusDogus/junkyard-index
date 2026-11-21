@@ -58,9 +58,10 @@ const PICKAPARTVA_MAX_REQUESTS =
  * reads take longer: about 14 s per catalog page at November 19, 2026 latency
  * (11 s on November 12), 10 s per search and 5 s per edge-cached closing read,
  * about 286 s for this census. A date set in bulk past the 500-card search cap
- * (2026-11-18, about 580 donors) costs two more yard searches, about 20 s.
- * A turn that waited long reaches the chunk horizon first and the chunk is
- * deferred whole. A turn that waited under 40 s reaches the five-minute work
+ * (2026-11-18, about 580 donors) needs two yard searches. The catalog already
+ * shows over 500 of its donors, so its capped unfiltered search is skipped and
+ * the date costs one search more than a small date, about 10 s. A turn that
+ * waited long reaches the chunk horizon first and the chunk is deferred whole. A turn that waited under 40 s reaches the five-minute work
  * limit first, which fails the chunk once a census needs more than about 7
  * searches (12 at November 12 latency). Neither advances a checkpoint. */
 const PICKAPARTVA_TURN_REQUESTS = PICKAPARTVA_MAX_PAGES + 6 + 3;
@@ -167,11 +168,16 @@ export function streamPickapartvaInventoryWithRequestGate<E, R>(
           );
           return { url, result };
         });
-      for (const date of dates) {
-        const all = yield* search(date, "ANY");
-        if (all.result.status === "complete") {
-          searches.push({ url: all.url, page: all.result.page });
-          continue;
+      for (const { date, shown } of dates) {
+        // A catalog that already showed a full search page of this date's
+        // donors would get a capped unfiltered search, so that search is
+        // skipped to keep the census inside the five-minute work limit.
+        if (shown < PICKAPARTVA_PAGE_SIZE) {
+          const all = yield* search(date, "ANY");
+          if (all.result.status === "complete") {
+            searches.push({ url: all.url, page: all.result.page });
+            continue;
+          }
         }
         // One search page holds at most 500 cards, so a date set in bulk is
         // read one physical yard at a time.

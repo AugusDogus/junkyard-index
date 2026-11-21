@@ -132,12 +132,23 @@ function pickapartvaRepeatSlots(
   return repeats;
 }
 
-/** The Set Dates whose donors the page chain repeated, in catalog order. Each
- * needs one set-date search to recover the donors it hid. */
+/** The Set Dates whose donors the page chain repeated, in catalog order, each
+ * with how many distinct donors of that date the catalog showed. Each needs
+ * set-date searches to recover the donors it hid. */
 export function pickapartvaTieDates(
   pages: Array<{ url: string; page: PickapartvaPage }>,
-): string[] {
-  return [...new Set(pickapartvaRepeatSlots(pages).map((slot) => slot.date))];
+): Array<{ date: string; shown: number }> {
+  const dates = new Set(pickapartvaRepeatSlots(pages).map((slot) => slot.date));
+  return [...dates].map((date) => ({
+    date,
+    shown: new Set(
+      pages.flatMap((entry) =>
+        entry.page.records
+          .filter((record) => record.setDate === date)
+          .map(cardKey),
+      ),
+    ).size,
+  }));
 }
 
 export function buildPickapartvaSnapshot(

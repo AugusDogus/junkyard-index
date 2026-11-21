@@ -112,10 +112,14 @@ function searchPage(date: string, cards: string[]) {
 /** The captured 2026-10-16 search narrowed to one yard the way the live
  * 2026-11-18 yard searches are: only that yard's cards, `id` in the form and
  * that yard selected. */
-function yardPage(cards: string[], id: PickapartvaYardCode) {
+function yardPage(
+  cards: string[],
+  id: PickapartvaYardCode,
+  date = "2026-10-16",
+) {
   const location = id === "TT87" ? "Fredericksburg" : "Stafford";
   return searchPage(
-    "2026-10-16",
+    date,
     cards.filter((card) => card.includes(`<b>Location: </b> ${location}<`)),
   )
     .replaceAll('name="id" value="ANY"', `name="id" value="${id}"`)
@@ -220,6 +224,7 @@ afterEach(() => {
 });
 function serve(
   rewrite: (url: string, body: string) => string = (_, body) => body,
+  extra = new Map<string, string>(),
 ) {
   const calls: string[] = [];
   const reads = new Map<string, number>();
@@ -234,6 +239,7 @@ function serve(
         read > 1
           ? closings.get(url)
           : (catalog.find((response) => response.url === url)?.body ??
+            extra.get(url) ??
             searches.get(url));
       if (body === undefined)
         throw new Error("Unexpected unsaved request " + url);
@@ -472,6 +478,68 @@ test("Pick-A-Part VA splits a capped set-date search by physical yard", async ()
     detailsUrl:
       "https://pickapartva.com/inventory/ANY/ANY/?k=1&id=UU81&search=2026-10-16#STK126182",
   });
+}, 60_000);
+
+test("Pick-A-Part VA searches by yard without the unfiltered search when the catalog already shows a full search page of a date", async () => {
+  // Page 1 recast so every card is set on 2026-11-07, as the live catalog
+  // showed 578 donors set on 2026-11-18 across pages 1 and 2. The 2026-11-09
+  // donors move to Stafford so each yard stays under one search page.
+  const recast = (card: string) =>
+    (card.includes("<b>Set Date: </b> 2026-11-09<")
+      ? card.replace(
+          "<b>Location: </b> Fredericksburg<",
+          "<b>Location: </b> Stafford<",
+        )
+      : card
+    ).replace(
+      /<b>Set Date: <\/b> 2026-11-(?:08|09|10|11)<br\/>/,
+      "<b>Set Date: </b> 2026-11-07<br/>",
+    );
+  const bulk = (url: string, body: string) =>
+    url === catalog[0]?.url
+      ? wrapped(body).reduce(
+          (html, card) => html.replace(card, recast(card)),
+          body,
+        )
+      : body;
+  const shown = [
+    ...new Set(
+      catalog
+        .slice(0, 2)
+        .flatMap((response) => wrapped(bulk(response.url, response.body)))
+        .filter((card) => card.includes("<b>Set Date: </b> 2026-11-07<")),
+    ),
+  ];
+  expect(shown.length).toBeGreaterThanOrEqual(500);
+  const cards = [...shown, ...(hidden["2026-11-07"] ?? []).map(hiddenCard)];
+  const calls = serve(
+    bulk,
+    new Map([
+      [searchUrl("2026-11-07"), searchPage("2026-11-07", cards.slice(0, 500))],
+      [searchUrl("2026-11-07", "TT87"), yardPage(cards, "TT87", "2026-11-07")],
+      [searchUrl("2026-11-07", "UU81"), yardPage(cards, "UU81", "2026-11-07")],
+    ]),
+  );
+  const emitted: string[] = [];
+  const result = await run((batch) =>
+    Effect.sync(() => {
+      emitted.push(...batch.map((vehicle) => vehicle.vin));
+    }),
+  );
+  // The unfiltered search would be capped, so the census spends one extra
+  // search on this date instead of two.
+  expect(calls).toEqual([
+    ...catalog.map((response) => response.url),
+    searchUrl("2026-11-07", "TT87"),
+    searchUrl("2026-11-07", "UU81"),
+    ...tieDates.slice(1).map((date) => searchUrl(date)),
+    ...[1, 2, 15].map(
+      (page) =>
+        `https://pickapartva.com/inventory/ANY/ANY/?k=1&id=ANY&pagenum=${page}`,
+    ),
+  ]);
+  expect(result.status).toBe("complete");
+  expect(new Set(emitted).size).toBe(7440);
 }, 60_000);
 
 test("Pick-A-Part VA fails closed when a yard search for a capped date is still capped", async () => {
