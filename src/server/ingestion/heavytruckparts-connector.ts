@@ -13,6 +13,8 @@ import {
   HTP_SUPPLIERS,
   htpStoreUrl,
   htpCatalogUrl,
+  HTP_MAKE_SLUG,
+  htpYearMakeUrl,
   htpYearUrl,
 } from "./heavytruckparts-yard-metadata";
 import {
@@ -42,9 +44,18 @@ const attempt = <A>(operation: string, run: () => A) =>
 const pass: ProviderRequestGate = (request) => request;
 export function fetchHtpPage(url: string, gate: ProviderRequestGate = pass) {
   const year = /[?&]year_start=(\d{4})&/.exec(url)?.[1];
+  const make =
+    /^https:\/\/www\.heavytruckparts\.net\/search\/([^/?]+)\/Any\//.exec(
+      url,
+    )?.[1];
   const allowed = HTP_SUPPLIERS.some(
     (s) =>
       url === htpStoreUrl(s) ||
+      (year !== undefined &&
+        make !== undefined &&
+        make !== "Any" &&
+        HTP_MAKE_SLUG.test(make) &&
+        url === htpYearMakeUrl(s, year, make)) ||
       (["DESC", "ASC"] as const).some(
         (direction) =>
           Array.from({ length: 80 }, (_, i) =>
