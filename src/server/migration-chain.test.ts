@@ -593,3 +593,117 @@ test("0024 generalizes consumer checkpoints, keeps live rows and drops dead ones
     await rm(folder, { recursive: true, force: true });
   }
 });
+
+// Previews and development share one database. It applied an earlier draft
+// of the VIN schema as 0025 and 0026 (whens 1795449600000 and 1795536000000)
+// before main took 0025, so 0026_vin_canonical_models uses the draft 0026's
+// when: production (last 1795449600000) applies it, and the shared database,
+// which already has every object in it, skips it.
+const PREVIEW_VIN_DRAFT_MIGRATIONS = [
+  {
+    hash: "preview-0025-vin-canonical-models",
+    when: 1795449600000,
+    sql: `
+      CREATE TABLE vehicle_model_redirect (from_path text PRIMARY KEY NOT NULL, to_path text NOT NULL);
+      CREATE TABLE vin_decode_cache (pattern text PRIMARY KEY NOT NULL, data text, retry_after integer, updated_at integer NOT NULL);
+      ALTER TABLE vehicle ADD source_make text;
+      ALTER TABLE vehicle ADD source_model text;
+    `,
+  },
+  {
+    hash: "preview-0026-search-index-schema",
+    when: 1795536000000,
+    sql: "CREATE TABLE IF NOT EXISTS search_index_schema (index_name text PRIMARY KEY NOT NULL, version integer NOT NULL, updated_at integer NOT NULL);",
+  },
+];
+
+async function migrateThroughMain(client: Client, folder: string) {
+  const journal = z
+    .object({
+      entries: z.array(
+        z.object({ tag: z.string(), when: z.number() }).passthrough(),
+      ),
+    })
+    .passthrough()
+    .parse(
+      JSON.parse(
+        await readFile(join(MIGRATIONS_FOLDER, "meta/_journal.json"), "utf8"),
+      ),
+    );
+  const vin = journal.entries.findIndex(
+    (entry) => entry.tag === "0026_vin_canonical_models",
+  );
+  expect(vin).toBeGreaterThan(0);
+  expect(journal.entries[vin]?.when).toBe(1795536000000);
+  await cp(MIGRATIONS_FOLDER, folder, { recursive: true });
+  await writeFile(
+    join(folder, "meta/_journal.json"),
+    JSON.stringify({ ...journal, entries: journal.entries.slice(0, vin) }),
+  );
+  await client.executeMultiple(LEGACY_SCHEMA);
+  await migrate(drizzle(client), { migrationsFolder: folder });
+}
+
+async function vinSchema(client: Client) {
+  const tables = await client.execute(
+    "select name from sqlite_master where type = 'table' and name in ('search_index_schema', 'vehicle_model_redirect', 'vin_decode_cache') order by name",
+  );
+  const columns = await client.execute(
+    "select name from pragma_table_info('vehicle') where name in ('source_make', 'source_model') order by name",
+  );
+  return {
+    tables: tables.rows.map((row) => row.name),
+    columns: columns.rows.map((row) => row.name),
+  };
+}
+
+async function appliedMigrations(client: Client) {
+  return (
+    await client.execute(
+      "select hash, created_at from __drizzle_migrations order by id",
+    )
+  ).rows.map((row) => [row.hash, Number(row.created_at)]);
+}
+
+const VIN_SCHEMA = {
+  tables: ["search_index_schema", "vehicle_model_redirect", "vin_decode_cache"],
+  columns: ["source_make", "source_model"],
+};
+
+test.each(["production", "preview"])(
+  "0026 leaves a %s database with the VIN schema",
+  async (database) => {
+    const root = await mkdtemp(join(tmpdir(), "junkyard-migrations-"));
+    const client = createClient({ url: `file:${join(root, "db.sqlite")}` });
+    try {
+      await migrateThroughMain(client, join(root, "main"));
+      if (database === "preview") {
+        for (const draft of PREVIEW_VIN_DRAFT_MIGRATIONS) {
+          await client.executeMultiple(draft.sql);
+          await client.execute({
+            sql: "insert into __drizzle_migrations (hash, created_at) values (?, ?)",
+            args: [draft.hash, draft.when],
+          });
+        }
+      } else {
+        expect(await vinSchema(client)).toEqual({ tables: [], columns: [] });
+      }
+      const before = await appliedMigrations(client);
+
+      await migrate(drizzle(client), { migrationsFolder: MIGRATIONS_FOLDER });
+
+      expect(await vinSchema(client)).toEqual(VIN_SCHEMA);
+      const after = await appliedMigrations(client);
+      expect(after.slice(0, before.length)).toEqual(before);
+      expect(after.slice(before.length).map(([, when]) => when)).toEqual(
+        database === "production" ? [1795536000000] : [],
+      );
+      await client.execute(
+        "insert into search_index_schema (index_name, version, updated_at) values ('vehicles', 12, 0)",
+      );
+    } finally {
+      client.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);
