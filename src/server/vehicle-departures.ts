@@ -31,10 +31,10 @@ export async function captureVehicleDepartures(
   const inserted = await database.run(sql`
     insert into vehicle_departure (
       vin, source, location_code, year, make, model, available_date,
-      first_seen_at, departed_at, recorded_at
+      first_seen_at, first_sighting, departed_at, recorded_at
     )
     select vin, source, location_code, year, make, model, available_date,
-      first_seen_at, missing_since_at, ${now.getTime()}
+      first_seen_at, first_sighting, missing_since_at, ${now.getTime()}
     from vehicle
     where missing_since_at > 0
     on conflict do nothing

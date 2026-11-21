@@ -206,6 +206,53 @@ test("a VIN relisted at its yard within 30 days keeps its first sighting and wit
   }
 });
 
+test("a departure records its listing's first sighting", async () => {
+  const missingSinceAt = commitStartedAt.getTime() - 4 * DAY;
+  const { client, reconcile } = await setup({
+    stage: "reconcile_missing",
+    vehicles: [],
+  });
+  try {
+    await addVehicle(client, "VIN-GONE", missingSinceAt);
+    await client.execute(
+      "update vehicle set first_sighting = 'yard_backfill' where vin = 'VIN-GONE'",
+    );
+
+    expect((await reconcile()).status).toBe("complete");
+
+    const recorded = await client.execute(
+      "select vin, first_sighting from vehicle_departure",
+    );
+    expect(recorded.rows.map((row) => [row.vin, row.first_sighting])).toEqual([
+      ["VIN-GONE", "yard_backfill"],
+    ]);
+  } finally {
+    client.close();
+  }
+});
+
+test("a relist keeps its departed listing's first sighting", async () => {
+  const { client, reconcile } = await setup({
+    stage: "reconcile_upsert",
+    vehicles: [listing("VIN-BACK")],
+  });
+  try {
+    await addDeparture(client, "VIN-BACK", commitStartedAt.getTime() - DAY);
+    await client.execute(
+      "update vehicle_departure set first_sighting = 'yard_backfill'",
+    );
+
+    expect((await reconcile()).status).toBe("complete");
+
+    const relisted = await client.execute(
+      "select first_sighting from vehicle where vin = 'VIN-BACK'",
+    );
+    expect(relisted.rows[0]?.first_sighting).toBe("yard_backfill");
+  } finally {
+    client.close();
+  }
+});
+
 test("a missing vehicle listed again withdraws the departure recorded while it was missing", async () => {
   const missingSinceAt = commitStartedAt.getTime() - DAY;
   const { client, reconcile } = await setup({

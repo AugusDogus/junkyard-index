@@ -9,6 +9,7 @@ import {
   text,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
+import { FirstSighting } from "./src/lib/first-sighting";
 
 export const user = sqliteTable("user", {
   id: text("id").primaryKey(),
@@ -380,6 +381,10 @@ export const vehicle = sqliteTable(
     trim: text("trim"),
     transmission: text("transmission"),
     firstSeenAt: integer("first_seen_at", { mode: "timestamp_ms" }).notNull(),
+    // Decided when the VIN is first planned; see FirstSighting.
+    firstSighting: text("first_sighting", { enum: FirstSighting.values })
+      .default("arrival")
+      .notNull(),
     lastSeenAt: integer("last_seen_at", { mode: "timestamp_ms" }).notNull(),
     missingSinceAt: integer("missing_since_at", { mode: "timestamp_ms" }),
     missingRunCount: integer("missing_run_count"),
@@ -533,6 +538,10 @@ export const vehicleDeparture = sqliteTable(
     model: text("model").notNull(),
     availableDate: text("available_date"),
     firstSeenAt: integer("first_seen_at", { mode: "timestamp_ms" }).notNull(),
+    // The departed listing's, which a relist keeps.
+    firstSighting: text("first_sighting", { enum: FirstSighting.values })
+      .default("arrival")
+      .notNull(),
     departedAt: integer("departed_at", { mode: "timestamp_ms" }).notNull(),
     recordedAt: integer("recorded_at", { mode: "timestamp_ms" }).notNull(),
   },

@@ -1,4 +1,5 @@
 import { ArrivalDate } from "~/lib/arrival-date";
+import { FirstSighting } from "~/lib/first-sighting";
 import { vehicle } from "~/schema";
 import type { CanonicalVehicle } from "./types";
 
@@ -194,6 +195,7 @@ export interface RecentDeparture {
   source: string;
   locationCode: string;
   firstSeenAt: Date;
+  firstSighting: FirstSighting;
   departedAt: Date;
 }
 
@@ -237,6 +239,7 @@ export function planChangedVehicleUpserts(params: {
   const changed: Array<{
     vehicle: CanonicalVehicle;
     firstSeenAt: Date;
+    firstSighting: FirstSighting;
     observedArrivalAt: Date | null;
   }> = [];
   for (const [vin, next] of params.inventory) {
@@ -245,9 +248,11 @@ export function planChangedVehicleUpserts(params: {
       continue;
     if (!vehicleNeedsUpsert(existing, next)) continue;
     if (existing) {
+      // A handoff to another source or yard keeps how the VIN was first seen.
       changed.push({
         vehicle: next,
         firstSeenAt: existing.firstSeenAt,
+        firstSighting: existing.firstSighting,
         observedArrivalAt: existing.observedArrivalAt,
       });
       continue;
@@ -257,24 +262,30 @@ export function planChangedVehicleUpserts(params: {
       params.recentDepartures,
       params.runTimestamp,
     );
-    changed.push(
-      relisted
-        ? // A relist keeps its listing's first sighting and is no arrival.
-          {
-            vehicle: next,
-            firstSeenAt: relisted.firstSeenAt,
-            observedArrivalAt: null,
-          }
-        : {
-            vehicle: next,
-            firstSeenAt: params.runTimestamp,
-            observedArrivalAt:
-              ArrivalDate.from(next.availableDate, null).kind === "unknown" &&
-              params.publishedYards.get(next.source)?.has(next.locationCode)
-                ? params.runTimestamp
-                : null,
-          },
-    );
+    if (relisted) {
+      // A relist keeps its listing's first sighting and is no arrival.
+      changed.push({
+        vehicle: next,
+        firstSeenAt: relisted.firstSeenAt,
+        firstSighting: relisted.firstSighting,
+        observedArrivalAt: null,
+      });
+      continue;
+    }
+    const yardPublished =
+      params.publishedYards.get(next.source)?.has(next.locationCode) === true
+        ? "published"
+        : "unpublished";
+    changed.push({
+      vehicle: next,
+      firstSeenAt: params.runTimestamp,
+      firstSighting: FirstSighting.ofNewVin(yardPublished),
+      observedArrivalAt:
+        ArrivalDate.from(next.availableDate, null).kind === "unknown" &&
+        yardPublished === "published"
+          ? params.runTimestamp
+          : null,
+    });
   }
   return changed;
 }

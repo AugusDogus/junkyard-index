@@ -294,20 +294,52 @@ counts, mismatches, coverage and the cold-cache request estimate.
 
 ## Alert first sightings (no schema version)
 
-Saved-search alerts skip vehicles first published with their yard's first
-publication: a new provider's or yard's existing inventory. Projection sets
-`firstSighting` on each record from the yard's `yard_arrival_baseline` row
-(`yard_backfill` when the vehicle was first seen no later than the run that
-established the yard, or the yard has no baseline yet; otherwise `arrival`),
-the same rule as the homepage's recent vehicles. Alert scans add
-`NOT firstSighting:"yard_backfill"`.
+Saved-search alerts skip yard backfill: the inventory a new provider or yard
+already had when its first crawl was published. Reconciliation decides
+`vehicle.first_sighting` once, when it first plans a VIN: `arrival` when the
+VIN's yard already has a `yard_arrival_baseline` row, otherwise
+`yard_backfill`. A handoff to another source or yard keeps it, and so does a
+relist, through `vehicle_departure.first_sighting`, the same way both keep
+`first_seen_at`. Projection copies it to the record's `firstSighting`, and
+alert scans add `NOT firstSighting:"yard_backfill"`.
 
-There is no Turso migration and no schema version bump. Records projected
-before this change lack the attribute and still match the negated filter, so
-existing records keep alerting as before and no rebuild is needed. Newly
-projected records carry it as each run publishes them.
+Migration 0027 adds both columns and classifies existing rows by their yard's
+baseline: `yard_backfill` when first seen no later than the yard's
+`established_at`, or when the yard has no baseline yet. There is no schema
+version bump. Records projected before this change lack the attribute and
+still match the negated filter, so they alert as before and no rebuild is
+needed. Each run's published records carry it from then on.
 
-Algolia filters facets only on attributes in `attributesForFaceting`, and the
-search-index migration applies settings only when the schema version
-advances. Run `bun run algolia:settings:apply` once after deploying, before
-the next daily alert check, so the indices include `filterOnly(firstSighting)`.
+A yard keeps its baseline after its last vehicle is deleted (the "Retiring
+every car" reconciliation test). If a yard is published again after every
+listing left, VINs older than the 30-day relist window count as arrivals,
+the same as the homepage's recent vehicles and observed arrival dates do.
+
+### Before merging: apply the facet
+
+Nothing in the deploy applies Algolia settings. The Vercel build does not.
+The search-index migration does so only when the schema version advances.
+Ingestion does so only with `ALGOLIA_CONFIGURE_ON_INGEST=1`. Without
+`filterOnly(firstSighting)`, how Algolia treats the alert filter is
+unverified. It may exclude nothing, or it may reject every alert scan. So
+apply the settings from this branch before it merges. The new attribute is
+filter-only, and the current code never filters on it, so the settings change
+nothing for the deployed code. Settings calls are not search requests.
+
+From a checkout of this branch whose `.env` holds the production Algolia keys
+(the admin client refuses the production app unless `VERCEL_ENV` is
+`production`):
+
+```sh
+VERCEL_ENV=production bun run algolia:settings:apply
+```
+
+Check that `vehicles` lists the facet. This prints `true`:
+
+```sh
+set -a; . ./.env; set +a
+curl -s "https://$NEXT_PUBLIC_ALGOLIA_APP_ID.algolia.net/1/indexes/vehicles/settings" \
+  -H "X-Algolia-Application-Id: $NEXT_PUBLIC_ALGOLIA_APP_ID" \
+  -H "X-Algolia-API-Key: $ALGOLIA_WRITE_API_KEY" |
+  jq '.attributesForFaceting | index("filterOnly(firstSighting)") != null'
+```

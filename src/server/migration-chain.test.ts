@@ -213,6 +213,73 @@ describe("migration chain", () => {
     }
   });
 
+  test("classifies existing listings' first sightings by their yard's baseline", async () => {
+    const client = createClient({ url: ":memory:" });
+    const folder = await mkdtemp(join(tmpdir(), "junkyard-migrations-"));
+    try {
+      const journal = z
+        .object({
+          entries: z.array(z.object({ tag: z.string() }).passthrough()),
+        })
+        .passthrough()
+        .parse(
+          JSON.parse(
+            await readFile(
+              join(MIGRATIONS_FOLDER, "meta/_journal.json"),
+              "utf8",
+            ),
+          ),
+        );
+      const through = journal.entries.findIndex(
+        (entry) => entry.tag === "0027_vehicle_first_sighting",
+      );
+      expect(through).toBeGreaterThan(0);
+      await cp(MIGRATIONS_FOLDER, folder, { recursive: true });
+      await writeFile(
+        join(folder, "meta/_journal.json"),
+        JSON.stringify({
+          ...journal,
+          entries: journal.entries.slice(0, through),
+        }),
+      );
+      await client.executeMultiple(LEGACY_SCHEMA);
+      await migrate(drizzle(client), { migrationsFolder: folder });
+      await client.executeMultiple(`
+        insert into yard_arrival_baseline values
+          ('pyp', 'old', 0), ('calton', 'calton', 5000);
+        insert into vehicle (vin, source, location_code, first_seen_at) values
+          ('legacy', 'pyp', 'old', 100),
+          ('backfill', 'calton', 'calton', 5000),
+          ('arrival', 'calton', 'calton', 6000),
+          ('unpublished', 'jimsimport', 'jims', 7000);
+        insert into vehicle_departure (vin, source, location_code, year, make,
+          model, first_seen_at, departed_at, recorded_at) values
+          ('gone-backfill', 'calton', 'calton', 2000, 'Volvo', '240', 5000, 8000, 8000),
+          ('gone-arrival', 'calton', 'calton', 2000, 'Volvo', '240', 5500, 8000, 8000);
+      `);
+      await migrate(drizzle(client), { migrationsFolder: MIGRATIONS_FOLDER });
+      const sightings = async (table: string) =>
+        (
+          await client.execute(
+            `select vin, first_sighting from ${table} order by vin`,
+          )
+        ).rows.map((row) => [row.vin, row.first_sighting]);
+      expect(await sightings("vehicle")).toEqual([
+        ["arrival", "arrival"],
+        ["backfill", "yard_backfill"],
+        ["legacy", "arrival"],
+        ["unpublished", "yard_backfill"],
+      ]);
+      expect(await sightings("vehicle_departure")).toEqual([
+        ["gone-arrival", "arrival"],
+        ["gone-backfill", "yard_backfill"],
+      ]);
+    } finally {
+      client.close();
+      await rm(folder, { recursive: true, force: true });
+    }
+  });
+
   test("deletes account-linked yard requests but preserves anonymous requests", async () => {
     const client = await createMigratedClient();
     try {
@@ -695,9 +762,13 @@ test.each(["production", "preview"])(
       expect(await vinSchema(client)).toEqual(VIN_SCHEMA);
       const after = await appliedMigrations(client);
       expect(after.slice(0, before.length)).toEqual(before);
-      expect(after.slice(before.length).map(([, when]) => when)).toEqual(
-        database === "production" ? [1795536000000] : [],
-      );
+      // Migrations after 0026 apply to both databases.
+      expect(
+        after
+          .slice(before.length)
+          .map(([, when]) => Number(when))
+          .filter((when) => when <= 1795536000000),
+      ).toEqual(database === "production" ? [1795536000000] : []);
       await client.execute(
         "insert into search_index_schema (index_name, version, updated_at) values ('vehicles', 12, 0)",
       );

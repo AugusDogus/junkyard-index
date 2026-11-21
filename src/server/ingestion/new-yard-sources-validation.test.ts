@@ -62,7 +62,9 @@ const schema = `${TEST_SCHEMA}
     state_abbr text not null, lat real not null, lng real not null,
     section text, row text, space text, details_url text, parts_url text,
     prices_url text, engine text, trim text, transmission text,
-    first_seen_at integer not null, last_seen_at integer not null,
+    first_seen_at integer not null,
+    first_sighting text default 'arrival' not null,
+    last_seen_at integer not null,
     missing_since_at integer, missing_run_count integer
   );
 `;

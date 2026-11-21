@@ -1,25 +1,23 @@
 /**
- * How a vehicle was first seen, relative to its yard's arrival baseline (the
- * run that first published the yard). `yard_backfill` vehicles were first
- * seen no later than that run: the inventory a new yard or provider already
- * had, never an arrival. `arrival` vehicles were first seen by a later run,
- * dated or not. A relist keeps its listing's first sighting, and so its kind.
+ * How a VIN was first seen. `yard_backfill` VINs came with their yard's
+ * first published crawl (its `yard_arrival_baseline` did not exist yet): the
+ * inventory a new yard or provider already had, never an arrival. `arrival`
+ * VINs were first seen at a yard that was already published, dated or not.
+ *
+ * Reconciliation decides it once, when it first plans the VIN, and stores it
+ * on the vehicle row. A handoff to another source or yard and a relist keep
+ * it, the same way they keep `firstSeenAt`.
  */
-export type FirstSighting = "yard_backfill" | "arrival";
+export type FirstSighting = (typeof values)[number];
+
+const values = ["yard_backfill", "arrival"] as const;
 
 /** The search record attribute, a filter-only facet. */
 const attribute = "firstSighting";
 
-/**
- * `yardEstablishedAt` is the yard's `yard_arrival_baseline.established_at`,
- * or null when no run has published the yard yet. Matches the homepage's
- * recent-vehicle rule (first seen after the baseline).
- */
-function of(firstSeenAt: Date, yardEstablishedAt: Date | null): FirstSighting {
-  return yardEstablishedAt === null ||
-    firstSeenAt.getTime() <= yardEstablishedAt.getTime()
-    ? "yard_backfill"
-    : "arrival";
+/** A VIN no row or recent departure has seen before. */
+function ofNewVin(yardPublished: "published" | "unpublished"): FirstSighting {
+  return yardPublished === "published" ? "arrival" : "yard_backfill";
 }
 
 /**
@@ -28,4 +26,9 @@ function of(firstSeenAt: Date, yardEstablishedAt: Date | null): FirstSighting {
  */
 const arrivalsFilter = `NOT ${attribute}:"yard_backfill"`;
 
-export const FirstSighting = { attribute, of, arrivalsFilter } as const;
+export const FirstSighting = {
+  values,
+  attribute,
+  ofNewVin,
+  arrivalsFilter,
+} as const;

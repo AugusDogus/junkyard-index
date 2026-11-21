@@ -32,9 +32,16 @@ async function database() {
       "utf8",
     ).replaceAll("--> statement-breakpoint", ""),
   );
+  // 0027's columns; its backfill reads tables this fixture does not have.
+  await client.executeMultiple(`
+    alter table vehicle add first_sighting text default 'arrival' not null;
+    alter table vehicle_departure add first_sighting text default 'arrival' not null;
+  `);
   const add = (vin: string, missingSinceAt: number | null) =>
     client.execute({
-      sql: `insert into vehicle values (?, 'pyp', '1190', 2004, 'Honda', 'Civic', '2026-10-01', ?, ?, ?)`,
+      sql: `insert into vehicle (vin, source, location_code, year, make, model,
+        available_date, first_seen_at, last_seen_at, missing_since_at)
+        values (?, 'pyp', '1190', 2004, 'Honda', 'Civic', '2026-10-01', ?, ?, ?)`,
       args: [vin, listedAt, missingSinceAt ?? listedAt, missingSinceAt],
     });
   // What reconciliation does when a missing vehicle is listed again.
@@ -73,6 +80,23 @@ test("records missing vehicles once and leaves live ones", async () => {
       withdrawn: 0,
     });
     expect(await departures()).toEqual([["GONE", left]]);
+  } finally {
+    client.close();
+  }
+});
+
+test("records the departed listing's first sighting for a relist to keep", async () => {
+  const { db, add, client } = await database();
+  try {
+    await add("GONE", now.getTime() - DAY);
+    await client.execute(
+      "update vehicle set first_sighting = 'yard_backfill' where vin = 'GONE'",
+    );
+    await captureVehicleDepartures(db, now);
+    const recorded = await client.execute(
+      "select first_sighting from vehicle_departure where vin = 'GONE'",
+    );
+    expect(recorded.rows[0]?.first_sighting).toBe("yard_backfill");
   } finally {
     client.close();
   }
@@ -216,7 +240,9 @@ test("keeps a departure when the VIN is listed anew after deletion", async () =>
     // Ingestion deleted the old listing; the VIN appears again as a new one.
     await client.execute("delete from vehicle where vin = 'RELISTED'");
     await client.execute({
-      sql: `insert into vehicle values ('RELISTED', 'pyp', '1190', 2004, 'Honda', 'Civic', null, ?, ?, null)`,
+      sql: `insert into vehicle (vin, source, location_code, year, make, model,
+        available_date, first_seen_at, last_seen_at, missing_since_at)
+        values ('RELISTED', 'pyp', '1190', 2004, 'Honda', 'Civic', null, ?, ?, null)`,
       args: [now.getTime() - HOUR, now.getTime() - HOUR],
     });
     expect(await captureVehicleDepartures(db, now)).toEqual({

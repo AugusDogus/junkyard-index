@@ -72,7 +72,7 @@ await database.insert(vinDecodeCache).values({
   data: { make: "GMC", model: "Sonoma", year: 1995, trim: null },
   updatedAt: new Date(),
 });
-const records = new Map(
+const records = new Map<string, AlgoliaVehicleRecord>(
   (await database.select().from(vehicle)).map((row) => {
     const record = mapDbVehicleToAlgolia(row);
     record.makeAliases = [];

@@ -259,6 +259,19 @@ describe("bounded durable reconciliation", () => {
         { vin: "C-new-yard", observed_arrival_at: null },
         { vin: "D-dated", observed_arrival_at: null },
       ]);
+      // Saved-search alerts skip each yard's first publication, dated or not.
+      expect(
+        (
+          await client.execute(
+            "select vin, first_sighting from vehicle where vin = 'A-0000' or vin >= 'B' order by vin",
+          )
+        ).rows.map((row) => [row.vin, row.first_sighting]),
+      ).toEqual([
+        ["A-0000", "yard_backfill"],
+        ["B-new", "arrival"],
+        ["C-new-yard", "yard_backfill"],
+        ["D-dated", "arrival"],
+      ]);
       // Each yard keeps the run timestamp of its first published crawl.
       expect(
         (
