@@ -46,6 +46,7 @@ import {
   runAlgoliaProjectorStep,
   runDurableSourceChunkStep,
   runSearchAlertCheckBatchStep,
+  touchSearchAlertCheckStep,
   validateDurableIngestionSourcesStep,
 } from "./vehicle-steps";
 import { IngestionTokens } from "./ingestion-tokens";
@@ -347,9 +348,14 @@ export async function searchAlertCheckWorkflow(day: string) {
   const result = await runSearchAlertCheck({
     // Each batch scans its searches' pages and writes their checkpoints under
     // the shared writer lock, so a search index rewrite cannot reorder
-    // matches between pages. Retry waits and delivery run outside it.
+    // matches between pages. Retry waits and delivery run outside it. While
+    // a migration holds the lock, each lock retry heartbeats the check so
+    // delivery keeps holding earlier intents for today's digest.
     runBatch: () =>
-      withSearchWriteLock(() => runSearchAlertCheckBatchStep(day)),
+      withSearchWriteLock(
+        () => runSearchAlertCheckBatchStep(day),
+        () => touchSearchAlertCheckStep(day),
+      ),
     waitForRetry: () => sleep(ALERT_CHECK_RETRY_DELAY),
     startDelivery: startNotificationDeliveryStep,
   });

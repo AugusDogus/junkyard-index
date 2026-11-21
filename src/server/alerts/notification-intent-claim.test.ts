@@ -7,6 +7,7 @@ import {
   hasDeliverableNotificationIntent,
   markNotificationGroupDelivered,
 } from "./notification-intent-claim";
+import { touchSearchAlertCheck } from "./search-alert-check";
 
 const TEST_SCHEMA = `
   create table user (id text primary key);
@@ -690,6 +691,53 @@ describe("notification intent claims", () => {
         cleanup();
       }
     });
+
+    test.each([false, true])(
+      "a check waiting for the search writer keeps holding earlier intents (heartbeat=%j)",
+      async (heartbeat) => {
+        const { client, cleanup } = createTestClient();
+        try {
+          await client.executeMultiple(`${SETUP}
+            update search_alert_check set status = 'complete' where id = 'day-1';
+            insert into search_alert_check (id, day, status, last_progress_at)
+            values ('day-2', '2026-11-21', 'running', ${Date.parse("2026-11-21T15:00:00Z")});
+          `);
+          const database = drizzle(client);
+          // Its next batch waits behind a search index migration; each lock
+          // retry is a heartbeat.
+          if (heartbeat)
+            for (const at of ["15:30", "15:59", "16:30"])
+              await touchSearchAlertCheck(
+                database,
+                "2026-11-21",
+                new Date(`2026-11-21T${at}:00Z`),
+              );
+          expect(
+            await deliver(database, "2026-11-21T16:31:00Z", "waiting"),
+          ).toEqual(heartbeat ? [] : ["day-1-match"]);
+          // A finished check never moves back to running.
+          await client.execute(
+            "update search_alert_check set status = 'complete', last_progress_at = 0 where id = 'day-2'",
+          );
+          await touchSearchAlertCheck(
+            database,
+            "2026-11-21",
+            new Date("2026-11-21T16:32:00Z"),
+          );
+          const [row] = (
+            await client.execute(
+              "select status, last_progress_at from search_alert_check where id = 'day-2'",
+            )
+          ).rows;
+          expect(row).toMatchObject({
+            status: "complete",
+            last_progress_at: 0,
+          });
+        } finally {
+          cleanup();
+        }
+      },
+    );
 
     test("a digest already grouped retries while today's check progresses", async () => {
       const { client, cleanup } = createTestClient();

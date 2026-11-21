@@ -7,15 +7,19 @@ const LOCK_RETRY_DELAY = "30s";
 /**
  * Runs `run` under the shared Algolia writer lock: search projection, schema
  * migrations, and each saved-search alert check batch (all its pages and
- * checkpoints), so one stable index serves a whole alert scan.
+ * checkpoints), so one stable index serves a whole alert scan. `whileWaiting`
+ * runs before each retry delay while another run holds the lock, for callers
+ * that must report liveness while they wait.
  */
 export function withSearchWriteLock<Result>(
   run: () => Promise<Result>,
+  whileWaiting?: () => Promise<void>,
 ): Promise<Result> {
   return withAlgoliaWriterLock({
     acquire: () => createHook({ token: IngestionTokens.algoliaWrites }),
     waitForWriter: async (activeRunId) => {
       console.info(`[Workflow] Waiting for Algolia writer ${activeRunId}`);
+      await whileWaiting?.();
       await sleep(LOCK_RETRY_DELAY);
     },
     write: run,
