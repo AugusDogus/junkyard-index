@@ -118,6 +118,73 @@ describe("search results state", () => {
     expect(markup).not.toContain("Try nearby years");
   });
 
+  test("the full-service hint sits in the header row beside the count", () => {
+    const markup = renderToStaticMarkup(
+      createElement(SearchResultsPanel, {
+        model: resolve({ searchResult: { ...emptyResult, totalCount: 3 } }),
+        fullServiceSuggestion: {
+          kind: "hint",
+          selfServiceCount: 3,
+          extraCount: 84925,
+          showThem: () => undefined,
+        },
+      }),
+    );
+    // The h2 column closes before the hint starts.
+    expect(markup).toMatch(
+      /<h2[^>]*>3 vehicles at self-service yards<\/h2><span[^>]*>Results in 10 ms<\/span><\/div><div[^>]*><p[^>]*>\+84,925 more vehicles at full-service yards\.<span class="hidden sm:inline"> They pull the parts for you, so call first\.<\/span><\/p><button[^>]*>Show full-service results<\/button><\/div>/,
+    );
+    expect(markup).not.toContain("py-12");
+  });
+
+  test("the full-service fallback keeps its tall block above the results", () => {
+    const markup = renderToStaticMarkup(
+      createElement(SearchResultsPanel, {
+        model: resolve({ searchResult: { ...emptyResult, totalCount: 1 } }),
+        fullServiceSuggestion: {
+          kind: "fallback",
+          selfServiceCount: 1,
+          extraCount: 5,
+          showThem: () => undefined,
+        },
+      }),
+    );
+    expect(markup).toContain("border-b py-12 sm:py-16");
+    expect(markup).toContain("Only a few self-service matches");
+    expect(markup).toContain(
+      "+5 more vehicles at full-service yards. They pull the parts for you, so call first.",
+    );
+    expect(markup.match(/Show full-service results/g)?.length).toBe(1);
+  });
+
+  test("the timing reads inline after the count, capped or not", () => {
+    const uncapped = renderToStaticMarkup(
+      createElement(SearchResultsPanel, {
+        model: resolve({ searchResult: { ...emptyResult, totalCount: 2 } }),
+      }),
+    );
+    expect(uncapped).toMatch(
+      /<h2[^>]*>2 vehicles<\/h2><span[^>]*>Results in 10 ms<\/span>/,
+    );
+    const model = resolve({ searchResult: { ...emptyResult, totalCount: 96 } });
+    if (model.kind !== "results" || model.header.status.kind !== "ready")
+      throw new Error("Expected a ready result model");
+    const capped = renderToStaticMarkup(
+      createElement(SearchResultsPanel, {
+        model: {
+          ...model,
+          header: {
+            ...model.header,
+            status: { ...model.header.status, visibleCount: 24 },
+          },
+        },
+      }),
+    );
+    expect(capped).toMatch(
+      /<h2[^>]*>96 vehicles<\/h2><span[^>]*>Showing 24 · 10 ms<\/span>/,
+    );
+  });
+
   test("distinguishes loading, error, empty, and result states", () => {
     expect(resolve({ searchResult: null, isSearching: true }).kind).toBe(
       "loading",

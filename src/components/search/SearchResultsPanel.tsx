@@ -27,7 +27,6 @@ import type { PlanAccessState } from "~/lib/plan-access";
 import type { SearchFailure } from "~/lib/search-failure";
 import { trackRequestYardClick } from "~/lib/track-request-yard-click";
 import type { SearchResult } from "~/lib/types";
-import { cn } from "~/lib/utils";
 
 export type SearchResultsHeaderModel = {
   status:
@@ -146,37 +145,41 @@ function SearchResultsHeader({
   headingRef: RefObject<HTMLHeadingElement | null>;
   fullServiceSuggestion?: FullServiceSuggestion;
 }) {
+  // One row: the count and timing on the left, the full-service hint or the
+  // header actions on the right. The h2's grandparent is this row.
   return (
-    <div className="mb-5 flex min-h-12 items-end justify-between gap-4 border-b pb-4">
-      <div className="min-w-0">
+    <div className="mb-4 flex flex-col gap-2 border-b pb-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-6">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
         {model.status.kind === "loading" ? (
-          <div className="flex flex-col gap-2">
+          <>
             <Skeleton className="h-6 w-40" />
             <Skeleton className="h-4 w-28" />
-          </div>
+          </>
         ) : (
-          <div>
+          <>
             <h2
               ref={headingRef}
               tabIndex={-1}
-              className="text-xl font-semibold text-balance tabular-nums"
+              className="text-base font-semibold tabular-nums sm:text-xl"
             >
               {model.status.totalCount.toLocaleString()}{" "}
               {model.status.totalCount === 1 ? "vehicle" : "vehicles"}
               {fullServiceSuggestion && " at self-service yards"}
             </h2>
-            <p className="text-muted-foreground mt-1 text-sm tabular-nums">
+            <span className="text-muted-foreground text-sm tabular-nums">
               {model.status.visibleCount === null
                 ? `Results in ${model.status.processingTimeMS} ms`
                 : `Showing ${model.status.visibleCount.toLocaleString()} · ${model.status.processingTimeMS} ms`}
-            </p>
-            {fullServiceSuggestion?.kind === "hint" && (
-              <FullServiceMessage suggestion={fullServiceSuggestion} />
-            )}
-          </div>
+            </span>
+          </>
         )}
       </div>
-      {model.actions}
+      {fullServiceSuggestion?.kind === "hint" &&
+      model.status.kind === "ready" ? (
+        <FullServiceHint suggestion={fullServiceSuggestion} />
+      ) : (
+        model.actions
+      )}
     </div>
   );
 }
@@ -188,35 +191,54 @@ export type FullServiceSuggestion = {
   showThem(): void;
 };
 
-function FullServiceMessage({
+function extraVehiclesText(extraCount: number) {
+  return `+${extraCount.toLocaleString()} more ${extraCount === 1 ? "vehicle" : "vehicles"} at full-service yards.`;
+}
+
+/** Beside the count when some self-service vehicles matched. */
+function FullServiceHint({
   suggestion,
 }: {
   suggestion: FullServiceSuggestion;
 }) {
-  const fallback = suggestion.kind === "fallback";
   return (
-    <div
-      className={cn(
-        "flex flex-col items-start",
-        fallback ? "border-b py-12 sm:py-16" : "mt-3",
-      )}
-    >
-      {fallback && (
-        <h2 className="text-xl font-semibold text-balance">
-          {suggestion.selfServiceCount === 0
-            ? "No self-service matches"
-            : "Only a few self-service matches"}
-        </h2>
-      )}
-      <p
-        className={cn(
-          "text-muted-foreground max-w-md text-sm text-pretty tabular-nums",
-          fallback && "mt-2",
-        )}
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <p className="text-muted-foreground text-sm text-pretty tabular-nums">
+        {extraVehiclesText(suggestion.extraCount)}
+        <span className="hidden sm:inline">
+          {" "}
+          They pull the parts for you, so call first.
+        </span>
+      </p>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="min-h-11 self-start sm:min-h-9 sm:self-auto"
+        onClick={suggestion.showThem}
       >
-        +{suggestion.extraCount.toLocaleString()} more{" "}
-        {suggestion.extraCount === 1 ? "vehicle" : "vehicles"} at full-service
-        yards. They pull the parts for you, so call first.
+        Show full-service results
+      </Button>
+    </div>
+  );
+}
+
+/** In place of the header when no or only a few self-service vehicles matched. */
+function FullServiceFallback({
+  suggestion,
+}: {
+  suggestion: FullServiceSuggestion;
+}) {
+  return (
+    <div className="flex flex-col items-start border-b py-12 sm:py-16">
+      <h2 className="text-xl font-semibold text-balance">
+        {suggestion.selfServiceCount === 0
+          ? "No self-service matches"
+          : "Only a few self-service matches"}
+      </h2>
+      <p className="text-muted-foreground mt-2 max-w-md text-sm text-pretty tabular-nums">
+        {extraVehiclesText(suggestion.extraCount)} They pull the parts for you,
+        so call first.
       </p>
       <Button
         type="button"
@@ -359,7 +381,7 @@ function SearchResultsPanelContent({
       );
     case "empty":
       if (fullServiceSuggestion)
-        return <FullServiceMessage suggestion={fullServiceSuggestion} />;
+        return <FullServiceFallback suggestion={fullServiceSuggestion} />;
       return (
         <div className="flex flex-col items-start border-b py-12 sm:py-16">
           <h2 className="text-xl font-semibold text-balance">
@@ -456,7 +478,7 @@ function SearchResultsPanelContent({
       return (
         <>
           {fullServiceSuggestion?.kind === "fallback" && (
-            <FullServiceMessage suggestion={fullServiceSuggestion} />
+            <FullServiceFallback suggestion={fullServiceSuggestion} />
           )}
           <SearchResultsHeader
             model={model.header}
