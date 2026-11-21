@@ -14,7 +14,7 @@ export async function bundleSharedSearchFixture(target: "bun" | "browser") {
         setup(builder) {
           builder.onLoad({ filter: /src\/env\.js$/ }, () => ({
             contents:
-              'export const env = {NEXT_PUBLIC_APP_URL:"http://shared-search.test"};',
+              'export const env = {NEXT_PUBLIC_APP_URL:"http://shared-search.test",NEXT_PUBLIC_ALGOLIA_APP_ID:"FIXTURE",ALGOLIA_SEARCH_API_KEY:"fixture-server-key"};',
             loader: "js",
           }));
           // Record analytics events on the page instead of loading PostHog.

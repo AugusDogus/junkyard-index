@@ -78,6 +78,19 @@ async function open(query: string, width = 1440, height = 900) {
   const html = await renderSharedSearchFixture(query);
   await page.route("http://shared-search.test/**", async (route) => {
     const url = new URL(route.request().url());
+    if (url.pathname === "/api/search-key")
+      return route.fulfill({
+        json: {
+          apiKey: "fixture-fetched-key",
+          validUntil: 4_102_444_800,
+          // fixtureKeyTier=free: the server still cannot confirm the plan.
+          tier:
+            query.includes("fixtureGuest=1") ||
+            query.includes("fixtureKeyTier=free")
+              ? "free"
+              : "full",
+        },
+      });
     return route.fulfill({
       contentType: url.pathname === "/app.js" ? "text/javascript" : "text/html",
       body:
@@ -471,6 +484,47 @@ for (const [label, query, key] of [
     }
   }, 30_000);
 }
+
+test("a paid page whose key the server minted free stays on the first page", async () => {
+  const { page } = await open("q=pagination&fixtureKeyTier=free");
+  try {
+    await page
+      .getByText("Showing 24 of 96 vehicles", { exact: true })
+      .waitFor();
+    await scrollToEnd(page);
+    await page
+      .getByRole("heading", { name: "Your plan could not be confirmed." })
+      .waitFor();
+    expect(
+      (await requestLog(page)).filter(({ params }) => (params.page ?? 0) > 0),
+    ).toEqual([]);
+    expect(
+      await page.locator("h3").filter({ hasText: "Pagination Car" }).count(),
+    ).toBe(24);
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
+
+test("search loads and searches when the page arrives without a usable key", async () => {
+  const errors: string[] = [];
+  const { page } = await open("q=pagination&fixtureGuest=1&fixtureKey=expired");
+  page.on("pageerror", (error) => errors.push(error.message));
+  try {
+    await page.getByRole("searchbox").fill("pagination2");
+    await page.getByRole("searchbox").press("Enter");
+    await page.waitForFunction(
+      () =>
+        document.documentElement.dataset.searchApiKey === "fixture-fetched-key",
+    );
+    await page
+      .getByText("Showing 24 of 96 vehicles", { exact: true })
+      .waitFor();
+    expect(errors).toEqual([]);
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
 
 test("signed-in pagination survives sort switches and rows do not overlap after resizing", async () => {
   const { page, html } = await open("q=pagination");

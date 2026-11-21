@@ -251,11 +251,17 @@ const client = {
     };
   },
 };
+/** Like algoliasearch's, this refuses to build a client without a key. */
 export function liteClient(
-  _appId?: string,
-  _apiKey?: string,
+  appId: unknown,
+  apiKey: unknown,
   options?: { requester?: Requester },
 ) {
+  if (!appId || typeof appId !== "string")
+    throw new Error("`appId` is missing.");
+  if (!apiKey || typeof apiKey !== "string")
+    throw new Error("`apiKey` is missing.");
   transport = options?.requester;
+  client.setClientApiKey({ apiKey });
   return client;
 }

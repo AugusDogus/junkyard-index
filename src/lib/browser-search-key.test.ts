@@ -39,17 +39,30 @@ describe("BrowserSearchKey", () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
-  test("a re-render cannot restore a key the plan change dropped", async () => {
+  test("renews a key once after the plan changes, and a re-render cannot restore it", async () => {
     const fetcher = serving(grant("paid", NOW_S + 3600, "lite"));
     const key = BrowserSearchKey.create(fetcher);
     const rendered = grant("free", NOW_S + 3600);
     key.prime(rendered);
-    expect(key.isStaleFor("lite")).toBe(true);
-    expect(key.isStaleFor("free")).toBe(false);
-    key.invalidate();
+    key.renewFor("free");
+    expect(key.tier()).toBe("free");
+    key.renewFor("lite");
+    expect(key.tier()).toBeNull();
     key.prime(rendered);
     expect(await key.current(NOW_MS)).toBe("paid");
-    expect(key.isStaleFor("full")).toBe(false);
+    key.renewFor("full");
+    expect(key.tier()).toBe("lite");
+  });
+
+  test("keeps the server's answer when it mints the same kind of key again", async () => {
+    const fetcher = serving(grant("still-free", NOW_S + 3600));
+    const key = BrowserSearchKey.create(fetcher);
+    key.prime(grant("free", NOW_S + 3600));
+    key.renewFor("lite");
+    expect(await key.current(NOW_MS)).toBe("still-free");
+    key.renewFor("lite");
+    expect(await key.current(NOW_MS)).toBe("still-free");
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
   test("reports a refused key as a tagged error and retries on the next search", async () => {
@@ -62,5 +75,21 @@ describe("BrowserSearchKey", () => {
     expect(failure).toBeInstanceOf(SearchKeyUnavailable);
     expect(failure).toMatchObject({ status: 503 });
     expect(await key.current(NOW_MS)).toBe("later");
+  });
+
+  test("reports its key's tier and tells readers when a fetched key lands", async () => {
+    const key = BrowserSearchKey.create(
+      serving(grant("paid", NOW_S + 3600, "lite")),
+    );
+    const listener = mock(() => undefined);
+    key.subscribe(listener);
+    key.prime(grant("free", NOW_S + 3600));
+    expect(key.tier()).toBe("free");
+    key.renewFor("lite");
+    expect(key.tier()).toBeNull();
+    expect(listener).not.toHaveBeenCalled();
+    await key.current(NOW_MS);
+    expect(key.tier()).toBe("lite");
+    expect(listener).toHaveBeenCalledTimes(1);
   });
 });

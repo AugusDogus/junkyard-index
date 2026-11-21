@@ -11,7 +11,14 @@ import { Filter, LocateFixed, MapPin } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import { Analytics } from "~/lib/analytics";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { toast } from "sonner";
 import {
   useClearRefinements,
@@ -73,7 +80,7 @@ import {
 import { AnalyticsEvents, buildSearchContext } from "~/lib/analytics-events";
 import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access";
 import type { PlanAccessState } from "~/lib/plan-access";
-import { PLANS } from "~/lib/plans";
+import { PLANS, type PlanTier } from "~/lib/plans";
 import { SEARCHABLE_VEHICLE_YEAR_RANGE } from "~/lib/saved-search-filters";
 import {
   hasFiniteCoordinates,
@@ -90,6 +97,7 @@ import {
 import { primeSearchCounts } from "~/lib/algolia-search";
 import { SearchFailure } from "~/lib/search-failure";
 import { SearchHitsCache } from "~/lib/search-hits-cache";
+import { browserSearchKey } from "~/lib/browser-search-key";
 import { SearchResultCap } from "~/lib/search-result-cap";
 import { cn } from "~/lib/utils";
 import type { DataSource, SearchResult as SearchResultType } from "~/lib/types";
@@ -121,6 +129,8 @@ interface AlgoliaSearchInnerProps {
   isLoggedIn: boolean;
   initialIsMobile?: boolean;
   planAccess: PlanAccessState;
+  /** The tier the server minted the page's search key for. */
+  serverSearchKeyTier: PlanTier;
   userLocation?: { lat: number; lng: number };
   vinPatternIndexReady: boolean;
   booleanOrSearchReady: boolean;
@@ -298,6 +308,7 @@ function DistancePreferenceDialog({
 function AlgoliaSearchInner({
   isLoggedIn,
   planAccess,
+  serverSearchKeyTier,
   userLocation: _userLocation,
   vinPatternIndexReady,
   booleanOrSearchReady,
@@ -796,7 +807,16 @@ function AlgoliaSearchInner({
     hasActiveSearch && (status === "loading" || status === "stalled");
 
   // Gate on the resolved plan, not on login: free accounts see one page too.
-  const resultCap = SearchResultCap.resolve({ isLoggedIn, planAccess });
+  const searchKeyTier = useSyncExternalStore(
+    browserSearchKey.subscribe,
+    browserSearchKey.tier,
+    () => serverSearchKeyTier,
+  );
+  const resultCap = SearchResultCap.resolve({
+    isLoggedIn,
+    planAccess,
+    searchKeyTier,
+  });
   const visibleLimit = resultCap.kind === "capped" ? resultCap.limit : null;
   const capReason = resultCap.kind === "capped" ? resultCap.reason : null;
   const isPlanLimit = SearchResultCap.isPlanLimit(resultCap);
@@ -1587,6 +1607,7 @@ export function SearchPageContent({
       }) => (
         <AlgoliaSearchInner
           isLoggedIn={isLoggedIn}
+          serverSearchKeyTier={searchKey.tier}
           initialIsMobile={initialIsMobile}
           planAccess={planAccess}
           userLocation={userLocation}

@@ -23,7 +23,10 @@ type Fetch = (input: string, init: RequestInit) => Promise<Response>;
 function create(fetcher: Fetch) {
   let grant: SearchKeyGrant | null = null;
   let lastPrimed: string | null = null;
+  // The kind of plan (paid or not) the key was last renewed for.
+  let renewedForPaid: boolean | null = null;
   let pending: Promise<SearchKeyGrant> | null = null;
+  const listeners = new Set<() => void>();
 
   async function request(): Promise<SearchKeyGrant> {
     let response: Response;
@@ -42,7 +45,7 @@ function create(fetcher: Fetch) {
   return {
     /**
      * Uses a key the server rendered into the page. Each key primes once, so
-     * a re-render cannot restore a key that `invalidate` or a newer fetch
+     * a re-render cannot restore a key that `renewFor` or a newer fetch
      * replaced.
      */
     prime(next: SearchKeyGrant): void {
@@ -50,15 +53,32 @@ function create(fetcher: Fetch) {
       lastPrimed = next.apiKey;
       if (!grant || next.validUntil > grant.validUntil) grant = next;
     },
-    /** Drops the key, for example after the plan changed. */
-    invalidate(): void {
+    /**
+     * Drops a key minted for a different kind of plan than the page now
+     * shows (such as after a checkout), so the next search fetches one. It
+     * renews once per change: if the server mints the same kind again, its
+     * answer stands, rather than every search fetching a new key.
+     */
+    renewFor(tier: PlanTier): void {
+      const paid = isPaidPlanTier(tier);
+      if (
+        grant === null ||
+        isPaidPlanTier(grant.tier) === paid ||
+        renewedForPaid === paid
+      )
+        return;
+      renewedForPaid = paid;
       grant = null;
     },
-    /** Whether the key was minted for a different kind of plan. */
-    isStaleFor(tier: PlanTier): boolean {
-      return (
-        grant !== null && isPaidPlanTier(grant.tier) !== isPaidPlanTier(tier)
-      );
+    /** The tier of the key searches use now; null while one is fetched. */
+    tier(): PlanTier | null {
+      return grant?.tier ?? null;
+    },
+    subscribe(listener: () => void): () => void {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
     },
     async current(nowMs: number): Promise<string> {
       if (grant && !SearchKeyGrant.isExpiring(grant, nowMs))
@@ -66,6 +86,9 @@ function create(fetcher: Fetch) {
       pending ??= request()
         .then((fetched) => {
           grant = fetched;
+          // Only fetches notify: prime and renewFor run while rendering,
+          // and readers see their result through `tier` in the same render.
+          for (const listener of listeners) listener();
           return fetched;
         })
         .finally(() => {

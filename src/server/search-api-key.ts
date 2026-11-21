@@ -9,8 +9,9 @@ export const SEARCH_KEY_LIFETIME_SECONDS = 60 * 60;
 /**
  * The restrictions a browser's secured key carries. Algolia applies embedded
  * search parameters to every request and the query cannot override them, so
- * free keys (visitors and free accounts) can only ever read the first page of
- * 24 results, whatever the page asks for. Every key:
+ * free keys (visitors and free accounts) can only ever read the first 24
+ * results, whether a request pages by page/hitsPerPage or offset/length.
+ * Every key:
  * - reads only this deployment's search indices (the env namespace);
  * - expires after an hour;
  * - carries a per-visitor `userToken`, so the parent key's
@@ -35,12 +36,16 @@ function restrictions(input: {
       .digest("hex")
       .slice(0, 32),
     // Search parameters sit beside the other restrictions in the signed
-    // query string, as Algolia's generateSecuredApiKey writes them.
+    // query string, as Algolia's generateSecuredApiKey writes them. Offset
+    // pagination is an alternative to page/hitsPerPage, so free keys pin
+    // both forms; otherwise `offset: 24` would read past the first page.
     ...(isPaidPlanTier(input.tier)
       ? {}
       : {
-          hitsPerPage: SEARCH_CONFIG.ANONYMOUS_VISIBLE_RESULTS_LIMIT,
+          hitsPerPage: SEARCH_CONFIG.FREE_VISIBLE_RESULTS_LIMIT,
           page: 0,
+          offset: 0,
+          length: SEARCH_CONFIG.FREE_VISIBLE_RESULTS_LIMIT,
         }),
   };
 }

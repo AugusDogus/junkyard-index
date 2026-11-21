@@ -34,10 +34,19 @@ const serverSearch: SearchServerRender =
         ),
       });
 // The server mints this per plan; the browser must search with it.
+// fixtureKeyTier=free mints a free key for a paid page, as when the server
+// could not confirm the plan; fixtureKey=expired renders an expired key, so
+// the browser must fetch one before it can search.
+const keyTier =
+  !isLoggedIn ||
+  params.get("fixturePlan") === "free" ||
+  params.get("fixtureKeyTier") === "free"
+    ? "free"
+    : "full";
 const searchKey: SearchKeyGrant = {
-  apiKey: isLoggedIn ? "fixture-full-key" : "fixture-free-key",
-  validUntil: 4_102_444_800,
-  tier: isLoggedIn ? "full" : "free",
+  apiKey: `fixture-${keyTier}-key`,
+  validUntil: params.get("fixtureKey") === "expired" ? 1 : 4_102_444_800,
+  tier: keyTier,
 };
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: Infinity, retry: false } },
