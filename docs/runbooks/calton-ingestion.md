@@ -41,9 +41,9 @@ the next run instead of being carried. In the November 13 capture, 22 models
 list one row above their badge, and that surplus counts toward their expected
 cards. The surplus is lowered only after six run days of lower reads, or twelve when
 the badge rose by at least the missing cards during that window, which looks
-like arrival lag (see [Incremental model census](model-census.md)). Calton has no closing pass, so a surplus
-lowered by time keeps no effective ceiling there; its pages are still re-read
-whenever they fall below their expected cards.
+like arrival lag (see [Incremental model census](model-census.md)). Calton has no closing pass, so a read below a
+surplus's ceiling (including the read that lowers it) is read again on the next
+run instead, until two reads agree; this costs about one GET per such read.
 
 Before the snapshot, read and carried model cards, each model capped at its own
 badge, must cover at least 95% of today's model badges
