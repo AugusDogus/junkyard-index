@@ -15,23 +15,29 @@ export class SearchKeyUnavailable extends Error {
 type Fetch = (input: string, init: RequestInit) => Promise<Response>;
 
 /**
- * The browser's current search key. Pages prime it with the key their server
- * render minted, and each search reads it through `current`, which fetches a
- * new one when the key is missing or about to expire. One instance per tab;
- * server renders never use this (they search with their own key).
- */
-/**
  * Where the held key came from. A rendered key reflects the server's cached
  * tier lookup and can lag a plan change. A fetched key comes from
  * `/api/search-key`, which asks the billing provider directly; `forPaid` is
  * the kind of plan the page showed when it asked.
  */
-type HeldKey =
-  | { source: "rendered"; grant: SearchKeyGrant }
-  | { source: "fetched"; grant: SearchKeyGrant; forPaid: boolean | null };
+type HeldKey = { grant: SearchKeyGrant; renewAtMs: number } & (
+  | { source: "rendered" }
+  | { source: "fetched"; forPaid: boolean | null }
+);
 
-function create(fetcher: Fetch) {
+/** A key Algolia refused is fetched again at most this often. */
+const REJECTION_REFETCH_MS = 60_000;
+
+/**
+ * The browser's current search key. Pages prime it with the key their server
+ * render minted, and each search reads it through `current`, which fetches a
+ * new one when the key is missing or about to expire. Expiry is measured on
+ * the browser's clock from when each key arrived. One instance per tab;
+ * server renders never use this (they search with their own key).
+ */
+function create(fetcher: Fetch, now: () => number = () => Date.now()) {
   let held: HeldKey | null = null;
+  let lastRejectionMs: number | null = null;
   let lastPrimed: string | null = null;
   // The kind of plan the page last showed, passed to `renewFor`.
   let shownPaid: boolean | null = null;
@@ -61,8 +67,28 @@ function create(fetcher: Fetch) {
     prime(next: SearchKeyGrant): void {
       if (next.apiKey === lastPrimed) return;
       lastPrimed = next.apiKey;
-      if (!held || next.validUntil > held.grant.validUntil)
-        held = { source: "rendered", grant: next };
+      const renewAtMs = SearchKeyGrant.renewAtMs(next, now());
+      if (!held || renewAtMs > held.renewAtMs)
+        held = { source: "rendered", grant: next, renewAtMs };
+    },
+    /**
+     * Called when Algolia refused `apiKey`. Returns whether retrying the
+     * search is worthwhile: the key was already replaced, or it is dropped
+     * now so the retry fetches another. A key refused again within a minute
+     * is not refetched, so a server minting bad keys cannot turn every
+     * search into a key fetch.
+     */
+    reject(apiKey: string): boolean {
+      if (held?.grant.apiKey !== apiKey) return true;
+      const nowMs = now();
+      if (
+        lastRejectionMs !== null &&
+        nowMs - lastRejectionMs < REJECTION_REFETCH_MS
+      )
+        return false;
+      lastRejectionMs = nowMs;
+      held = null;
+      return true;
     },
     /**
      * Drops a key minted for a different kind of plan than the page shows,
@@ -89,14 +115,18 @@ function create(fetcher: Fetch) {
         listeners.delete(listener);
       };
     },
-    async current(nowMs: number): Promise<string> {
-      if (held && !SearchKeyGrant.isExpiring(held.grant, nowMs))
-        return held.grant.apiKey;
+    async current(): Promise<string> {
+      if (held && now() < held.renewAtMs) return held.grant.apiKey;
       if (!pending) {
         const forPaid = shownPaid;
         pending = request()
           .then((fetched) => {
-            held = { source: "fetched", grant: fetched, forPaid };
+            held = {
+              source: "fetched",
+              grant: fetched,
+              forPaid,
+              renewAtMs: SearchKeyGrant.renewAtMs(fetched, now()),
+            };
             // Only fetches notify: prime and renewFor run while rendering,
             // and readers see their result through `tier` in the same render.
             for (const listener of listeners) listener();

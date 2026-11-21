@@ -1,5 +1,6 @@
 import { auth } from "~/lib/auth";
-import { grantRenewedSearchKey } from "~/server/search-key-grant";
+import { searchKeyGrants } from "~/server/search-key-grant";
+import { SearchKeyGranter } from "~/server/search-key-granter";
 
 export const dynamic = "force-dynamic";
 
@@ -11,12 +12,9 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(request: Request) {
   const session = await auth.api.getSession({ headers: request.headers });
-  const grant = await grantRenewedSearchKey({
+  return SearchKeyGranter.respond(searchKeyGrants.forRenewal, {
     userId: session?.user.id ?? null,
     headers: request.headers,
     nowMs: Date.now(),
-  });
-  return Response.json(grant, {
-    headers: { "Cache-Control": "private, no-store" },
   });
 }

@@ -71,9 +71,75 @@ describe("SearchKeyGranter", () => {
     await grant({ userId: null, headers, nowMs: NOW_MS });
     expect(first).toEqual({
       apiKey: "server-search-key",
-      validUntil: NOW_MS / 1000 + 3600,
+      expiresInSeconds: 3600,
       tier: "lite",
     });
     expect(warn).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("SearchKeyGranter.pair", () => {
+  function grants(input: { direct: () => Promise<PlanTier> }) {
+    const cachedTier = mock(async (): Promise<PlanTier> => "free");
+    const directTier = mock(input.direct);
+    const pair = SearchKeyGranter.pair({
+      parentApiKey: "parent",
+      serverApiKey: "server-search-key",
+      cachedTier,
+      directTier,
+      clientIp: () => "203.0.113.7",
+      warn: () => undefined,
+    });
+    return { ...pair, cachedTier, directTier };
+  }
+
+  test("renewals ask the billing provider directly, never the tier cache", async () => {
+    // The cache still says free right after a checkout; Polar says lite.
+    const { forRender, forRenewal, cachedTier, directTier } = grants({
+      direct: async () => "lite",
+    });
+    const renewed = await forRenewal({
+      userId: "user-1",
+      headers,
+      nowMs: NOW_MS,
+    });
+    expect(renewed.tier).toBe("lite");
+    expect(directTier).toHaveBeenCalledWith("user-1");
+    expect(cachedTier).not.toHaveBeenCalled();
+    const rendered = await forRender({
+      userId: "user-1",
+      headers,
+      nowMs: NOW_MS,
+    });
+    expect(rendered.tier).toBe("free");
+    expect(cachedTier).toHaveBeenCalledTimes(1);
+    expect(directTier).toHaveBeenCalledTimes(1);
+  });
+
+  test("a billing outage renews with a free key and a 200, not an error", async () => {
+    const { forRenewal } = grants({
+      direct: async () => {
+        throw new Error("Polar is down");
+      },
+    });
+    const response = await SearchKeyGranter.respond(forRenewal, {
+      userId: "user-1",
+      headers,
+      nowMs: NOW_MS,
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+    const body: unknown = await response.json();
+    expect(body).toMatchObject({ tier: "free", expiresInSeconds: 3600 });
+  });
+
+  test("anonymous renewals never call the billing provider", async () => {
+    const { forRenewal, cachedTier, directTier } = grants({
+      direct: async () => "full",
+    });
+    const key = await forRenewal({ userId: null, headers, nowMs: NOW_MS });
+    expect(key.tier).toBe("free");
+    expect(directTier).not.toHaveBeenCalled();
+    expect(cachedTier).not.toHaveBeenCalled();
   });
 });

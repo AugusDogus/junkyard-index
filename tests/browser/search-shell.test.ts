@@ -82,7 +82,7 @@ async function open(query: string, width = 1440, height = 900) {
       return route.fulfill({
         json: {
           apiKey: "fixture-fetched-key",
-          validUntil: 4_102_444_800,
+          expiresInSeconds: 3600,
           // fixtureKeyTier=free: the server still cannot confirm the plan,
           // unless fixtureRenewedTier=full says the direct lookup now does.
           tier:
@@ -531,6 +531,45 @@ test("a just-paid page replaces its rendered free key and browses every page", a
         .getByRole("heading", { name: "Your plan could not be confirmed." })
         .count(),
     ).toBe(0);
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
+
+test("a key Algolia refuses is replaced once and the search retried", async () => {
+  const { page } = await open(
+    "q=pagination&fixtureGuest=1&fixtureKey=rejected",
+  );
+  try {
+    // Record if the search ever shows its error state, even briefly.
+    await page.evaluate(() => {
+      new MutationObserver(() => {
+        if (
+          document.body.innerText.includes("Search is temporarily unavailable")
+        )
+          document.documentElement.dataset.sawSearchError = "1";
+      }).observe(document.body, { childList: true, subtree: true });
+    });
+    await page.getByRole("searchbox").fill("pagination2");
+    await page.getByRole("searchbox").press("Enter");
+    await page.waitForFunction(
+      () =>
+        document.documentElement.dataset.searchApiKey === "fixture-fetched-key",
+    );
+    await page
+      .getByText("Showing 24 of 96 vehicles", { exact: true })
+      .waitFor();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.dataset.rejectedSearches,
+      ),
+    ).toBe("1");
+    await page.waitForTimeout(300);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.dataset.sawSearchError ?? null,
+      ),
+    ).toBeNull();
   } finally {
     await closePage(page);
   }

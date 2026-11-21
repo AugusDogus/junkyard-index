@@ -22,7 +22,7 @@ import { createSearchRouteSync } from "~/lib/search-route-sync";
 
 browserSearchKey.prime({
   apiKey: "fixture-key",
-  validUntil: 4_102_444_800,
+  expiresInSeconds: 3600,
   tier: "full",
 });
 

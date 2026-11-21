@@ -36,7 +36,8 @@ const serverSearch: SearchServerRender =
 // The server mints this per plan; the browser must search with it.
 // fixtureKeyTier=free mints a free key for a paid page, as when the server
 // could not confirm the plan; fixtureKey=expired renders an expired key, so
-// the browser must fetch one before it can search.
+// the browser must fetch one before it can search; fixtureKey=rejected
+// renders a key Algolia refuses, as when it expired early on Algolia's clock.
 const keyTier =
   !isLoggedIn ||
   params.get("fixturePlan") === "free" ||
@@ -44,8 +45,11 @@ const keyTier =
     ? "free"
     : "full";
 const searchKey: SearchKeyGrant = {
-  apiKey: `fixture-${keyTier}-key`,
-  validUntil: params.get("fixtureKey") === "expired" ? 1 : 4_102_444_800,
+  apiKey:
+    params.get("fixtureKey") === "rejected"
+      ? "fixture-rejected-key"
+      : `fixture-${keyTier}-key`,
+  expiresInSeconds: params.get("fixtureKey") === "expired" ? 0 : 3600,
   tier: keyTier,
 };
 const queryClient = new QueryClient({

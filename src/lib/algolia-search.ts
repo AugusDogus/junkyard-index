@@ -21,6 +21,7 @@ import { env } from "~/env";
 import { withDistanceSort } from "~/lib/algolia-distance-sort";
 import { SearchQueryMeter, searchQueryMeter } from "~/lib/search-query-meter";
 import { browserSearchKey } from "~/lib/browser-search-key";
+import { SearchKeyGrant } from "~/lib/search-key-grant";
 import {
   buildAdvancedSearchFilters,
   parseAdvancedSearchQuery,
@@ -39,9 +40,12 @@ const serverSearchClient =
     ? algoliasearch(env.NEXT_PUBLIC_ALGOLIA_APP_ID, env.ALGOLIA_SEARCH_API_KEY)
     : null;
 let browserSearchClient: LiteClient | null = null;
-async function liteSearchClient(): Promise<LiteClient> {
-  if (serverSearchClient) return serverSearchClient;
-  const apiKey = await browserSearchKey.current(Date.now());
+async function liteSearchClient(): Promise<{
+  client: LiteClient;
+  apiKey: string | null;
+}> {
+  if (serverSearchClient) return { client: serverSearchClient, apiKey: null };
+  const apiKey = await browserSearchKey.current();
   if (!browserSearchClient) {
     // Meter browser calls for analytics. Server renders keep the default
     // requester; their searches are not a page view's.
@@ -53,14 +57,25 @@ async function liteSearchClient(): Promise<LiteClient> {
   } else {
     browserSearchClient.setClientApiKey({ apiKey });
   }
-  return browserSearchClient;
+  return { client: browserSearchClient, apiKey };
 }
 const keyedSearchClient: Pick<LiteClient, "search"> = {
   async search(searchMethodParams, requestOptions) {
-    return (await liteSearchClient()).search(
-      searchMethodParams,
-      requestOptions,
-    );
+    const { client, apiKey } = await liteSearchClient();
+    try {
+      return await client.search(searchMethodParams, requestOptions);
+    } catch (error) {
+      // Algolia refused the key (for example, it expired early against
+      // Algolia's clock): get another key and retry once.
+      if (
+        apiKey === null ||
+        !SearchKeyGrant.isKeyRejection(error) ||
+        !browserSearchKey.reject(apiKey)
+      )
+        throw error;
+      const retry = await liteSearchClient();
+      return retry.client.search(searchMethodParams, requestOptions);
+    }
   },
 };
 const baseSearchClient = withFullServiceCount(

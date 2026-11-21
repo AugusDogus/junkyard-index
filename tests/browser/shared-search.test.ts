@@ -129,7 +129,7 @@ for (const scenario of [
           return route.fulfill({
             json: {
               apiKey: "fixture-renewed-free-key",
-              validUntil: 4_102_444_800,
+              expiresInSeconds: 3600,
               tier: "free",
             },
           });
