@@ -1,6 +1,7 @@
 import { Data, Effect } from "effect";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
+import { DocumentTransport } from "./document-transport";
 import {
   SIX03_CATALOG,
   SIX03_CONTACT,
@@ -21,10 +22,9 @@ export class Six03ProviderError extends Data.TaggedError("Six03ProviderError")<{
 async function readSix03Document(
   url: string,
   signal: AbortSignal,
+  transport: DocumentTransport,
 ): Promise<string> {
-  const response = await fetch(url, {
-    method: "GET",
-    redirect: "manual",
+  const response = await transport(url, {
     signal,
     headers: { "User-Agent": "Mozilla/5.0", Accept: "text/html" },
   });
@@ -62,7 +62,11 @@ async function readSix03Document(
   );
 }
 
-export function fetchSix03Page(url: string, gate: ProviderRequestGate) {
+export function fetchSix03Page(
+  url: string,
+  gate: ProviderRequestGate,
+  transport: DocumentTransport = DocumentTransport.native,
+) {
   return gate(
     Effect.suspend(() => {
       if (![SIX03_CATALOG, SIX03_CONTACT].includes(url) && !six03DonorPath(url))
@@ -77,6 +81,7 @@ export function fetchSix03Page(url: string, gate: ProviderRequestGate) {
           pending = readSix03Document(
             url,
             AbortSignal.any([lifetime.signal, interruption, deadline]),
+            transport,
           );
           return pending;
         },
@@ -107,3 +112,8 @@ export function fetchSix03Page(url: string, gate: ProviderRequestGate) {
     ),
   );
 }
+
+/** Cloudflare refuses native requests from Vercel, so a browser session
+ * navigates once and reads later documents by same-origin fetch. */
+export const acquireSix03Browser = (apiKey: string) =>
+  DocumentTransport.acquireBrowser(apiKey, "fetch");

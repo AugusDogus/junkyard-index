@@ -4,6 +4,7 @@ import type { ConnectorChunkResult } from "./connector-chunk";
 import {
   fetchBigdPage,
   BigdProviderError,
+  acquireBigdBrowser,
   bigdRequestGate,
   type BigdSession,
 } from "./bigd-client";
@@ -17,6 +18,8 @@ import { parseBigdInventory, parseBigdYard } from "./bigd-parser";
 import { bigdSnapshot, type BigdVehicle } from "./bigd-snapshot";
 import { BIGD_YARD, type BigdYard } from "./bigd-yard-metadata";
 import type { ProviderRequestGate } from "./provider-http-client";
+import type { DocumentTransport } from "./document-transport";
+import { Config } from "./context";
 
 interface BigdOptions<E, R> {
   startCursor?: BigdCursor;
@@ -34,6 +37,7 @@ const attempt = <A>(operation: string, run: () => A) =>
 export function streamBigdInventoryWithRequestGate<E, R>(
   options: BigdOptions<E, R>,
   gate: ProviderRequestGate,
+  transport?: DocumentTransport,
 ): Effect.Effect<BigdStreamResult, E | BigdProviderError, R> {
   return Effect.gen(function* () {
     let cursor = yield* attempt("checkpoint", () =>
@@ -70,14 +74,14 @@ export function streamBigdInventoryWithRequestGate<E, R>(
     const session: BigdSession = { cookie: null };
     // One bounded public session bootstrap per chunk, with no automatic retry.
     // Its 403 challenge may supply a cookie but is never inventory evidence.
-    yield* fetchBigdPage("/", session, gate);
+    yield* fetchBigdPage("/", session, gate, transport);
     while (pagesProcessed < budget) {
       const current: BigdProgress = cursor;
       const path =
         current.phase === "owner" || current.phase === "closing-owner"
           ? "/contact/"
           : "/inventory/";
-      const body = yield* fetchBigdPage(path, session, gate);
+      const body = yield* fetchBigdPage(path, session, gate, transport);
       pagesProcessed++;
       if (current.phase === "closing") {
         yield* attempt("closing table", () => {
@@ -135,6 +139,19 @@ export function streamBigdInventoryWithRequestGate<E, R>(
     }),
   );
 }
+/** One browser session per chunk, stopped when the chunk ends. */
 export function streamBigdInventory<E, R>(options: BigdOptions<E, R>) {
-  return streamBigdInventoryWithRequestGate(options, bigdRequestGate);
+  if (options.startCursor?.phase === "complete")
+    return streamBigdInventoryWithRequestGate(options, bigdRequestGate);
+  return Effect.scoped(
+    Effect.gen(function* () {
+      const config = yield* Config;
+      const transport = yield* acquireBigdBrowser(config.hyperbrowserApiKey);
+      return yield* streamBigdInventoryWithRequestGate(
+        options,
+        bigdRequestGate,
+        transport,
+      );
+    }),
+  );
 }

@@ -64,6 +64,13 @@ each completion, including failure. A request owns its transport and body
 lifetime. Interruption, deadline, refusal and body overflow abort/cancel and
 release the reader before returning. There are no retries or redirect follows.
 
+Since 2026-11-18 Cloudflare has refused every native request from Vercel with
+HTTP 403. Production chunks open one Hyperbrowser session (stealth, accepted
+cookies, `us-west`, no proxy, no CAPTCHA solving). The first document of a chunk
+loads by page navigation; later documents use same-origin in-page `fetch()`
+with manual redirects. The browser response status, headers and exact body bytes
+pass through the same checks. The session is stopped when the chunk ends.
+
 | Bound                          | Limit                  |
 | ------------------------------ | ---------------------- |
 | Combined request/body deadline | 20 seconds             |
