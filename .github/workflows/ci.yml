@@ -17,14 +17,22 @@ jobs:
     name: Lint and typecheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@v4.4.0
+      - uses: oven-sh/setup-bun@v2.2.0
         with:
           bun-version: "1.4.1"
       - run: bun install --frozen-lockfile
       - run: bun run lint
       - run: bun run typecheck
       - run: bun test scripts/verify-test-shards.test.ts
+      # actions.lock pins every action to a commit; rerun gh actions-lock
+      # after changing any uses: line.
+      - name: Verify the actions lockfile
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh extension install github/gh-actions-lock --pin v0.4.1
+          gh actions-lock --verify
 
   timings:
     # Every shard must read the same timings, or the weighted slices stop
@@ -32,12 +40,12 @@ jobs:
     name: Test timings
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.4.0
         with:
           sparse-checkout: .github/test-timings.json
           sparse-checkout-cone-mode: false
       # The latest main run's shard timings; PR runs never save this cache.
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v4.3.0
         with:
           path: .bun-test-timings
           key: bun-test-timings-${{ github.run_id }}
@@ -48,7 +56,7 @@ jobs:
             mkdir -p .bun-test-timings/committed
             cp .github/test-timings.json .bun-test-timings/committed/timings.json
           fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4.6.2
         with:
           name: test-timings-input
           path: .bun-test-timings/
@@ -64,12 +72,12 @@ jobs:
       matrix:
         shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@v4.4.0
+      - uses: oven-sh/setup-bun@v2.2.0
         with:
           bun-version: "1.4.1"
       - run: bun install --frozen-lockfile
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4.3.0
         with:
           name: test-timings-input
           path: test-timings-input
@@ -81,7 +89,7 @@ jobs:
           mkdir -p test-results
           inputs=$(find test-timings-input -name '*.json' -printf '--timings=%p ')
           bun test src --shard=${{ matrix.shard }}/8 --parallel --timings=test-results/timings.json $inputs --update-timings --reporter=junit --reporter-outfile=test-results/junit.xml
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4.6.2
         if: always()
         with:
           name: test-shard-${{ matrix.shard }}
@@ -95,7 +103,7 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4.3.0
         with:
           pattern: test-shard-*
           path: test-results
@@ -105,7 +113,7 @@ jobs:
             mkdir -p ".bun-test-timings/${shard##*/}"
             cp "$shard/timings.json" ".bun-test-timings/${shard##*/}/timings.json"
           done
-      - uses: actions/cache/save@v4
+      - uses: actions/cache/save@v4.3.0
         with:
           path: .bun-test-timings
           key: bun-test-timings-${{ github.run_id }}
@@ -121,15 +129,15 @@ jobs:
     env:
       BROWSER_TEST_ARTIFACTS: test-results/browser
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@v4.4.0
+      - uses: oven-sh/setup-bun@v2.2.0
         with:
           bun-version: "1.4.1"
       - run: bun install --frozen-lockfile
       - name: Read installed Playwright version
         id: playwright
         run: echo "version=$(bun -p 'require("playwright-core/package.json").version')" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v4
+      - uses: actions/cache@v4.3.0
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-${{ runner.arch }}-playwright-${{ steps.playwright.outputs.version }}
@@ -139,7 +147,7 @@ jobs:
       - run: bun node_modules/playwright-core/cli.js install --only-shell chromium
       - name: Run browser fixtures
         run: bun test tests/browser --shard=${{ matrix.shard }}/2 --reporter=junit --reporter-outfile=test-results/browser/junit.xml
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4.6.2
         if: failure()
         with:
           name: browser-shard-${{ matrix.shard }}
@@ -161,12 +169,12 @@ jobs:
           TEST_RESULT: ${{ needs.test.result }}
           BROWSER_RESULT: ${{ needs.browser.result }}
         run: test "$STATIC_RESULT" = success && test "$TEST_RESULT" = success && test "$BROWSER_RESULT" = success
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@v4.4.0
+      - uses: oven-sh/setup-bun@v2.2.0
         with:
           bun-version: "1.4.1"
       # The verifier imports only Bun, so it needs no bun install.
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4.3.0
         with:
           pattern: test-shard-*
           path: test-results
