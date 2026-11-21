@@ -38,14 +38,22 @@ shared rules.
   placeholder or surplus rows its pages have listed above their count (for
   example Scotts' VIN-less NOF cards, or real rows on a badge that
   undercounts). The surplus carries across count changes and grows with any
-  read that lists more.
+  read that lists more. A surplus first seen, or grown, on a cold, gap or
+  outage full read is unconfirmed: the next normal incremental run reads that
+  page again (reason `short`) and confirms it at closing, about one extra GET
+  per surplus model after such a read. A fault on that read that leaves a page
+  at exactly its badge has no signal and is an accepted cold-start limit.
 - A read that lists less than the surplus allows does not lower it: badge lag
   after a sale looks exactly like a lost card. The page counts as short and is
-  read again every run. The surplus is lowered only once such reads have lasted
-  6 run days and a normal incremental run confirms the lower count; cold, gap
-  and outage full reads never lower it. So a real card lost behind a
-  placeholder is read again and healed on the next run, while a placeholder
-  that is really gone costs about two GETs a day for six days.
+  read again every run, and evidence records when the window began
+  (`lowSince`). The surplus is lowered only once such reads have lasted 6 run
+  days (`MODEL_CENSUS_SWEEP_DAYS`) under an unchanged count and a normal
+  incremental run confirms the lower count. A count change restarts the
+  window, because badges that count arrivals before their cards appear make
+  the surplus look smaller for days. Cold, gap and outage full reads never
+  lower it. So a real card lost behind a placeholder is read again and healed
+  on the next run, while a placeholder that is really gone costs about two GETs
+  a day (the read and its closing re-read) for six days, about 12 once.
 - Counting only VIN-bearing cards instead would need per-source placeholder
   detection. Only Scotts' NOF rows are known to be VIN-less, and real surplus
   rows from badge undercounts (Calton, Central, Aviation) erode the same way, so
@@ -83,7 +91,9 @@ on its own.
 ## Request cost
 
 - **Steady state:** opening pages, every make menu, about a sixth of the model
-  pages plus changes and triggers, and the closing pass.
+  pages plus changes and triggers, and the closing pass. A surplus model whose
+  page lists less than its sticky surplus adds about two GETs a day while its
+  window lasts.
 - **The day after a missed, failed or rejected run:** one full read, the same
   as that source's cold census. The run after that re-reads every short page
   the full read found (reason `short`) and re-confirms each at closing, about
