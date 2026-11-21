@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
-import { createClient } from "@libsql/client";
+import { createClient, type Client } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { readFileSync } from "node:fs";
-import { yard, vehicle } from "~/schema";
+import { yard, vehicle, yardArrivalBaseline } from "~/schema";
 import { projectSearchVehicles } from "./vehicle-search-projection";
 import {
   CURRENT_SEARCH_SCHEMA_VERSION,
@@ -10,6 +10,29 @@ import {
   YARD_SERVICE_SEARCH_SCHEMA_VERSION,
   NUMERIC_PRECISION_SEARCH_SCHEMA_VERSION,
 } from "~/lib/search-index-schema";
+
+/** The yard metadata and arrival baseline tables projection reads. */
+async function createProjectionTables(client: Client) {
+  await client.executeMultiple(
+    readFileSync(
+      new URL("../../../drizzle/0007_yard_metadata.sql", import.meta.url),
+      "utf8",
+    ),
+  );
+  await client.executeMultiple(`
+    create table vehicle (vin text primary key, source text not null,
+      location_code text not null);
+  `);
+  await client.executeMultiple(
+    readFileSync(
+      new URL(
+        "../../../drizzle/0017_observed_vehicle_arrival.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  );
+}
 
 const legacy: typeof vehicle.$inferSelect = {
   vin: "YV1LS55A9X1567408",
@@ -49,12 +72,7 @@ const legacy: typeof vehicle.$inferSelect = {
 test("source cleanup reprojects stored rows and search tokens without changing identity or dates", async () => {
   const client = createClient({ url: ":memory:" });
   try {
-    await client.executeMultiple(
-      readFileSync(
-        new URL("../../../drizzle/0007_yard_metadata.sql", import.meta.url),
-        "utf8",
-      ),
-    );
+    await createProjectionTables(client);
     const rows = [
       {
         ...legacy,
@@ -113,12 +131,7 @@ test("source cleanup reprojects stored rows and search tokens without changing i
 test("existing rows are reprojected with the yard page's authoritative operator name", async () => {
   const client = createClient({ url: ":memory:" });
   try {
-    await client.executeMultiple(
-      readFileSync(
-        new URL("../../../drizzle/0007_yard_metadata.sql", import.meta.url),
-        "utf8",
-      ),
-    );
+    await createProjectionTables(client);
     const database = drizzle(client);
     await database.insert(yard).values([
       {
@@ -184,12 +197,7 @@ test("existing rows are reprojected with the yard page's authoritative operator 
 test("schema 7 projects each yard service type and the matching filter options", async () => {
   const client = createClient({ url: ":memory:" });
   try {
-    await client.executeMultiple(
-      readFileSync(
-        new URL("../../../drizzle/0007_yard_metadata.sql", import.meta.url),
-        "utf8",
-      ),
-    );
+    await createProjectionTables(client);
     const records = await projectSearchVehicles(drizzle(client), [
       { ...legacy, source: "pyp" },
       { ...legacy, source: "importapart" },
@@ -209,6 +217,53 @@ test("schema 7 projects each yard service type and the matching filter options",
       { yardServiceType: "full_service", yardTypes: ["full_service"] },
       { yardServiceType: "both", yardTypes: ["self_service", "full_service"] },
       { yardServiceType: "unknown", yardTypes: [] },
+    ]);
+  } finally {
+    client.close();
+  }
+});
+
+test("projects whether each vehicle arrived or came with its yard's first publication", async () => {
+  const client = createClient({ url: ":memory:" });
+  try {
+    await createProjectionTables(client);
+    const firstPublication = new Date("2026-11-21T12:00:00Z");
+    await drizzle(client)
+      .insert(yardArrivalBaseline)
+      .values([
+        // 0017 established yards that had inventory before baselines at 0.
+        { source: "pullapart", locationCode: "5", establishedAt: new Date(0) },
+        {
+          source: "calton",
+          locationCode: "calton",
+          establishedAt: firstPublication,
+        },
+      ]);
+    const calton = { ...legacy, source: "calton", locationCode: "calton" };
+    const records = await projectSearchVehicles(drizzle(client), [
+      { ...legacy, firstSeenAt: new Date("2026-11-21T08:00:00Z") },
+      { ...calton, vin: "BACKFILL", firstSeenAt: firstPublication },
+      {
+        ...calton,
+        vin: "ARRIVAL",
+        firstSeenAt: new Date("2026-11-22T07:00:00Z"),
+        availableDate: "2026-11-21",
+      },
+      // A yard whose first run has not published yet.
+      {
+        ...legacy,
+        vin: "UNPUBLISHED",
+        source: "jimsimport",
+        locationCode: "jims",
+      },
+    ]);
+    expect(
+      records.map(({ objectID, firstSighting }) => [objectID, firstSighting]),
+    ).toEqual([
+      [legacy.vin, "arrival"],
+      ["BACKFILL", "yard_backfill"],
+      ["ARRIVAL", "arrival"],
+      ["UNPUBLISHED", "yard_backfill"],
     ]);
   } finally {
     client.close();

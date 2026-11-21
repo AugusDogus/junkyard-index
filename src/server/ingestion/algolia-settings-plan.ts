@@ -42,6 +42,8 @@ export const COMMON_ALGOLIA_INDEX_SETTINGS = {
     "searchable(locationName)",
     "filterOnly(vinPositionTokens)",
     "filterOnly(searchTokens)",
+    // Alert scans exclude a yard's first publication (FirstSighting).
+    "filterOnly(firstSighting)",
     "year",
   ],
   numericAttributesForFiltering: ["year", "availableDateTs", "firstSeenAt"],
