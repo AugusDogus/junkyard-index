@@ -1,5 +1,27 @@
 import { expect, test } from "bun:test";
-import { verifyTestShards } from "./verify-test-shards";
+import { shardTimingsFiles, verifyTestShards } from "./verify-test-shards";
+
+test("shard timings parsing returns recorded files and rejects other shapes", () => {
+  expect(
+    shardTimingsFiles(
+      { version: 1, files: { "a.test.ts": 12, "b.test.ts": 0 } },
+      "s1/timings.json",
+    ),
+  ).toEqual(["a.test.ts", "b.test.ts"]);
+  for (const value of [
+    null,
+    [],
+    { files: {} },
+    { version: 2, files: {} },
+    { version: 1, files: [] },
+    { version: 1, files: { "a.test.ts": -1 } },
+    { version: 1, files: { "a.test.ts": "12" } },
+    { version: 1, files: { "a.test.ts": Number.POSITIVE_INFINITY } },
+  ])
+    expect(() => shardTimingsFiles(value, "s1/timings.json")).toThrow(
+      "s1/timings.json is not a Bun version 1 timings manifest",
+    );
+});
 
 test("shard verification accepts an exact partition including newly discovered files", () => {
   expect(() =>

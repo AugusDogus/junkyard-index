@@ -165,7 +165,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.4.1"
-      - run: bun install --frozen-lockfile
+      # The verifier imports only Bun, so it needs no bun install.
       - uses: actions/download-artifact@v4
         with:
           pattern: test-shard-*
