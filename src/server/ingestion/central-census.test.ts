@@ -556,33 +556,26 @@ test("Central re-reads a surplus page that drops to its badge instead of carryin
     confirmed: false,
   });
 
-  // A transient drop to exactly its badge is re-read at closing and stops
-  // emission instead of passing as a healthy page for six days.
+  // A transient drop to exactly its badge is re-read at closing, and the
+  // complete closing read replaces it instead of passing as a healthy page
+  // for six days.
   native.once.set(surplus, kept);
-  let published = 0;
-  await expect(
-    (async () => {
-      let cursor: CentralCursor = CentralCursor.initial;
-      while (cursor.phase !== "complete") {
-        const result: CentralStreamResult = await Effect.runPromise(
-          streamCentralInventoryWithRequestGate(
-            {
-              startCursor: cursor,
-              previousCursor: cold.terminal,
-              now: () => day * MODEL_CENSUS_DAY_MS,
-              onBatch: (batch) =>
-                Effect.sync(() => {
-                  published += batch.length;
-                }),
-            },
-            gate,
-          ),
-        );
-        cursor = result.cursor;
-      }
-    })(),
-  ).rejects.toThrow("model cards changed");
-  expect(published).toBe(0);
+  const recovered = await census(native, day, cold.terminal);
+  expect(recovered.models).toEqual([...sweep(native, day), surplus]);
+  expect(recovered.vins).toEqual(allVins(native));
+  expect(
+    terminalCensus(recovered.terminal).models.find(
+      (m) => m.key === censusKey(surplus, label),
+    )?.page.records,
+  ).toEqual(donors(surplus, label));
+
+  // A closing read that gains cards but only reaches its badge still stops
+  // emission: only an exact repeat confirms a page at or below its badge.
+  native.once.set(surplus, kept.slice(1));
+  native.rows.set(surplus, kept);
+  await expect(census(native, day, cold.terminal)).rejects.toThrow(
+    "model cards changed",
+  );
 
   // A drop that repeats at closing publishes, but is never confirmed, so the
   // next run reads the page again although its badge did not change.
@@ -717,6 +710,75 @@ test("Central publishes donors that arrive on a surplus page before its closing 
       (m) => m.key === censusKey(surplus, "M" + surplus),
     )?.page.records,
   ).toEqual(native.rows.get(surplus) ?? []);
+});
+
+/** A cold run stores a closing arrival as surplus: badge 160, 170 cards at
+ * the first read and 171 at closing, so expected 171. On day 601 the badge
+ * catches up to `badge` while the page lists the same 171 cards, below its
+ * expected count, so the first read counts as short; `closing` sets the cards
+ * its closing re-read lists. */
+async function arrivalSurplus(
+  badge: number,
+  closing: (listed: CentralRecord[]) => CentralRecord[],
+) {
+  const { native, surplus, run } = surplusClosing((records) => [
+    ...records,
+    centralFixtureRecord(3171, "M3"),
+  ]);
+  const cold = await run();
+  expect(
+    terminalCensus(cold.terminal).models.find(
+      (m) => m.key === censusKey(surplus, "M" + surplus),
+    )?.expected,
+  ).toBe(171);
+  const listed = native.rows.get(surplus) ?? [];
+  native.badges.set(surplus, badge);
+  native.once.set(surplus, listed);
+  native.rows.set(surplus, closing(listed));
+  return { native, surplus, run: () => census(native, 601, cold.terminal) };
+}
+
+test("Central publishes an arrival on a page short of a surplus its badge caught up with", async () => {
+  // The badge now counts one or two of the stored surplus cards, so the
+  // first read is one or two cards short of its expected count.
+  for (const badge of [161, 162]) {
+    const arrival = centralFixtureRecord(3172, "M3");
+    const { native, surplus, run } = await arrivalSurplus(badge, (listed) => [
+      ...listed,
+      arrival,
+    ]);
+    const closed = await run();
+    // The sweep slice plus the count change, then the closing re-read of the
+    // short page.
+    expect(closed.models).toEqual([
+      ...inListOrder(native, sweep(native, 601), surplus),
+      surplus,
+    ]);
+    expect(closed.vins).toContain(arrival[0]);
+    expect(closed.vins).toEqual(allVins(native));
+    expect(
+      terminalCensus(closed.terminal).models.find(
+        (m) => m.key === censusKey(surplus, "M" + surplus),
+      ),
+    ).toMatchObject({
+      count: badge,
+      confirmed: false,
+      page: { records: native.rows.get(surplus) ?? [] },
+    });
+  }
+});
+
+test("Central fails a closing re-read that gains cards but stays at or below its badge", async () => {
+  for (const closing of [160, 170]) {
+    const native = yard();
+    const short = 3;
+    const listed = donors(short, "M" + short);
+    native.once.set(short, listed.slice(0, 150));
+    native.rows.set(short, listed.slice(0, closing));
+    await expect(census(native, 600, null)).rejects.toThrow(
+      "Closing Central model cards changed",
+    );
+  }
 });
 
 test("Central fails a closing re-read that drops a donor even when another arrives", async () => {
