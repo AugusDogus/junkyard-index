@@ -266,6 +266,24 @@ function expected<Page>(
   });
 }
 
+/** Cards a read of each published model must list for closing to treat it as
+ * complete rather than short: today's count plus the larger of its sticky
+ * surplus and any ceiling. A read at or above its floor is closing-read only
+ * because it lists more than its count. */
+function closingFloors<Page>(
+  controls: readonly ModelCensusControl[],
+  previous: ModelCensus<Page> | null,
+): number[] {
+  const evidence = new Map((previous?.models ?? []).map((m) => [m.key, m]));
+  return controls.map((control) => {
+    const before = evidence.get(control.key);
+    return (
+      control.count +
+      Math.max(before ? surplusOf(before) : 0, before?.ceiling ?? 0)
+    );
+  });
+}
+
 /** Inputs shared by the closing, acceptance and coverage steps of one run. */
 export interface ModelCensusRun<Page> {
   controls: readonly ModelCensusControl[];
@@ -376,9 +394,11 @@ export const ModelCensus = {
 
   expected,
 
+  closingFloors,
+
   /** Indices of pages read this run that closing must re-read and compare:
    * every read page whose cards differ from its published count or fall below
-   * its expected count. Carried pages were confirmed by the run that read them. */
+   * its closing floor. Carried pages were confirmed by the run that read them. */
   closingReads<Page>({
     controls,
     pages,
@@ -386,17 +406,13 @@ export const ModelCensus = {
     previous,
     cards,
   }: ModelCensusRun<Page>): number[] {
-    const wanted = expected(controls, previous);
-    const evidence = new Map((previous?.models ?? []).map((m) => [m.key, m]));
+    const floors = closingFloors(controls, previous);
     return controls.flatMap((control, index) => {
       const page = pages[index];
       const listed = page === undefined ? null : cards(page);
-      const ceiling = evidence.get(control.key)?.ceiling ?? 0;
       return decisions[index]?.kind === "read" &&
         listed !== null &&
-        (listed !== control.count ||
-          listed < (wanted[index] ?? control.count) ||
-          listed < control.count + ceiling)
+        (listed !== control.count || listed < (floors[index] ?? control.count))
         ? [index]
         : [];
     });

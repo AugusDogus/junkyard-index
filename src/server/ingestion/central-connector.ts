@@ -18,6 +18,8 @@ import {
 import { ModelCensus } from "./model-census";
 import {
   centralHash,
+  type CentralPage,
+  type CentralRecord,
   parseCentralDirectory,
   parseCentralModel,
   parseCentralRoot,
@@ -73,6 +75,43 @@ const same = (expected: unknown, actual: unknown, label: string) => {
         " changed; preserve prior inventory and inspect the native graph",
     );
 };
+/** Native identity of a donor card: VIN, year, title and destination. Stock
+ * and photo are optional metadata. */
+const identity = ([vin, year, title, , destination]: CentralRecord) =>
+  JSON.stringify([vin, year, title, destination]);
+
+/** The page a model's closing re-read leaves in the run. A first read below
+ * its floor (short) must repeat exactly. A complete first read lists more
+ * cards than its badge, so the yard keeps adding donors during a run of
+ * hours: closing may list arrivals and new stock or photo metadata, but must
+ * still list every first-read card with the same identity. The closing read
+ * then holds the union of both reads, with closing metadata, and still lists
+ * more cards than its badge, so the closing pass keeps its order. */
+function closingPage(
+  first: CentralPage,
+  closing: CentralPage,
+  floor: number,
+): CentralPage {
+  if (first.records.length < floor) {
+    same(first.hash, closing.hash, "model cards");
+    return first;
+  }
+  const listed = new Map<string, number>();
+  for (const record of closing.records)
+    listed.set(identity(record), (listed.get(identity(record)) ?? 0) + 1);
+  for (const record of first.records) {
+    const remaining = listed.get(identity(record)) ?? 0;
+    const [vin, , , , destination] = record;
+    if (remaining === 0)
+      throw new Error(
+        closing.records.some(([other]) => other === vin)
+          ? `Closing Central model card for VIN ${vin || "(blank)"} changed its year, title or destination (${destination}); preserve prior inventory and inspect the native graph`
+          : `Closing Central model cards lost VIN ${vin || "(blank)"} (${destination}) listed at the first read; preserve prior inventory and inspect the native graph`,
+      );
+    listed.set(identity(record), remaining - 1);
+  }
+  return closing;
+}
 function nextUrl(state: CentralProgress): string {
   switch (state.phase) {
     case "root":
@@ -158,13 +197,19 @@ function advance(state: CentralProgress, raw: string): CentralProgress {
             "make graph",
           );
           break;
-        case "model":
-          same(
-            state.pages[entry.index]?.hash,
-            parseCentralModel(raw, entry.make, entry.model).hash,
-            "model cards",
+        case "model": {
+          const first = state.pages[entry.index];
+          if (!first) throw new Error("Central closing model page is missing");
+          const page = closingPage(
+            first,
+            parseCentralModel(raw, entry.make, entry.model),
+            entry.floor,
+          );
+          next.pages = state.pages.map((value, index) =>
+            index === entry.index ? page : value,
           );
           break;
+        }
       }
       next.closing++;
       break;

@@ -73,7 +73,15 @@ the original HTTP refusal and the cleanup error.
 
 Closing controls repeat ownership, the make directory and every model read this
 run whose card count differs from its badge or falls below its expected count
-(`ModelCensus.closingReads`), and the run fails if a re-read differs. A model's
+(`ModelCensus.closingReads`). A short re-read (below its badge, expected count
+or ceiling) must repeat exactly. Any other re-read lists more cards than its
+badge, and runs take hours at a yard that adds donors daily, so it may add
+cards and change optional stock or photo metadata. Every first-read card must
+still be listed with the same VIN, year, title and destination, or the run
+fails. The closing read, which then holds the union of both reads, is
+published. The make directory must repeat exactly. On November 21, 2026 two
+runs failed closing on pure arrivals (S10.S15.SONOMA went from 20 to 21 cards
+with no VIN removed). A model's
 expected count is its badge plus a sticky surplus (44 saved models list
 surplus cards): it is lowered only after six run days of lower reads, or twelve when the badge rose by at least the missing cards during that window, which looks like arrival lag; a surplus lowered by time while the page still lists less stays as a ceiling, so closing still re-reads any read below it, see [Incremental model census](model-census.md). A page below its
 badge that repeats is stored as confirmed evidence only by a normal
