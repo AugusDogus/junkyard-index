@@ -61,7 +61,12 @@ export function VehicleSearchInput({
     });
     if (sync.kind === "wait") return;
     if (sync.clearPending) pendingCommitRef.current = null;
-    if (sync.inputValue !== null) setInputValue(sync.inputValue);
+    if (sync.inputValue !== null) {
+      // An outside query change (such as a Year filter edit taking over typed
+      // years) replaces the draft, so its pending commit must not restore it.
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      setInputValue(sync.inputValue);
+    }
   }, [committedValue]);
 
   const searchParams = useSearchParams();
