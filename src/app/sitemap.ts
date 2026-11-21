@@ -20,6 +20,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.9,
     },
     {
+      url: `${APP_URL}/map`,
+      changeFrequency: "daily",
+      priority: 0.7,
+    },
+    {
       url: `${APP_URL}/cars`,
       changeFrequency: "daily",
       priority: 0.8,

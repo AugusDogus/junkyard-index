@@ -1,21 +1,19 @@
-import { geolocation } from "@vercel/functions";
-import { headers } from "next/headers";
-import { userAgent } from "next/server";
 import { Suspense } from "react";
 import { Footer } from "~/components/Footer";
 import { Header } from "~/components/Header";
 import { HomeSearchHero } from "~/components/home/HomeSearchHero";
 import { RecentVehicles } from "~/components/home/RecentVehicles";
-import { YardMap } from "~/components/home/YardMap";
+import {
+  loadYardMapSection,
+  YardMapSection,
+} from "~/components/home/YardMapSection";
 import { HomePricing } from "~/components/home/HomePricing";
 import { HomeFaq } from "~/components/home/HomeFaq";
 import { HomeClosingCta } from "~/components/home/HomeClosingCta";
 import { getHomepageInventory } from "~/lib/homepage-inventory";
 import { JsonLd } from "~/components/JsonLd";
 import { env } from "~/env";
-import { hasFiniteCoordinates } from "~/lib/location-preferences";
 import { homeMetadata } from "./home-metadata";
-import { MapYard } from "./yard-map-data";
 
 export async function generateHomeMetadata() {
   const inventory = await getHomepageInventory();
@@ -23,22 +21,7 @@ export async function generateHomeMetadata() {
 }
 
 export async function HomeLandingPage() {
-  const requestHeaders = await headers();
-  const geo = geolocation({ headers: requestHeaders });
-  const compactMap =
-    userAgent({ headers: requestHeaders }).device.type === "mobile";
-  const coordinates = {
-    lat: geo.latitude ? Number(geo.latitude) : null,
-    lng: geo.longitude ? Number(geo.longitude) : null,
-  };
-  const approximateLocation = hasFiniteCoordinates(coordinates)
-    ? coordinates
-    : null;
-  const inventory = await getHomepageInventory();
-  const vehicleCount = inventory.yards.reduce(
-    (total, yard) => total + yard.vehicleCount,
-    0,
-  );
+  const { inventory, section } = await loadYardMapSection();
 
   return (
     <div className="bg-background flex min-h-dvh flex-col">
@@ -89,27 +72,7 @@ export async function HomeLandingPage() {
           </div>
           <HomeSearchHero />
           <div className="mt-4">
-            <Suspense
-              fallback={
-                <div aria-hidden="true" className="border-ink border-2">
-                  <div className="bg-board h-16" />
-                  <div className="homepage-map-layout bg-paper-2 border-ink border-t-2">
-                    <div className="homepage-map-canvas" />
-                    <div className="bg-paper-3 border-ink h-[54px] border-t-2 lg:hidden" />
-                  </div>
-                </div>
-              }
-            >
-              <YardMap
-                compactMap={compactMap}
-                yards={inventory.yards.map(MapYard.from)}
-                vehicleCount={vehicleCount}
-                approximateLocation={approximateLocation}
-              />
-            </Suspense>
-            <p className="text-ink-2 mt-3 text-sm text-pretty">
-              Confirm vehicle availability with the yard before visiting.
-            </p>
+            <YardMapSection {...section} />
           </div>
         </section>
         <Suspense
