@@ -23,6 +23,7 @@ import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { AnalyticsEvents } from "~/lib/analytics-events";
+import { cn } from "~/lib/utils";
 import type { PlanAccessState } from "~/lib/plan-access";
 import type { SearchFailure } from "~/lib/search-failure";
 import { trackRequestYardClick } from "~/lib/track-request-yard-click";
@@ -146,7 +147,11 @@ function SearchResultsHeader({
   fullServiceSuggestion?: FullServiceSuggestion;
 }) {
   // One row: the count and timing on the left, the full-service hint or the
-  // header actions on the right. The h2's grandparent is this row.
+  // header actions on the right. The h2's grandparent is this row. On phones
+  // the hint takes the space the timing would, so the row stays at most
+  // three lines (count, hint, button) even for a five-digit count at 360px.
+  const showsHint =
+    fullServiceSuggestion?.kind === "hint" && model.status.kind === "ready";
   return (
     <div className="mb-4 flex flex-col gap-2 border-b pb-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-6">
       <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
@@ -164,9 +169,19 @@ function SearchResultsHeader({
             >
               {model.status.totalCount.toLocaleString()}{" "}
               {model.status.totalCount === 1 ? "vehicle" : "vehicles"}
-              {fullServiceSuggestion && " at self-service yards"}
+              {fullServiceSuggestion && (
+                <>
+                  {" at self-service"}
+                  <WideOnly> yards</WideOnly>
+                </>
+              )}
             </h2>
-            <span className="text-muted-foreground text-sm tabular-nums">
+            <span
+              className={cn(
+                "text-muted-foreground text-sm tabular-nums",
+                showsHint && "hidden sm:inline",
+              )}
+            >
               {model.status.visibleCount === null
                 ? `Results in ${model.status.processingTimeMS} ms`
                 : `Showing ${model.status.visibleCount.toLocaleString()} · ${model.status.processingTimeMS} ms`}
@@ -174,8 +189,7 @@ function SearchResultsHeader({
           </>
         )}
       </div>
-      {fullServiceSuggestion?.kind === "hint" &&
-      model.status.kind === "ready" ? (
+      {showsHint && fullServiceSuggestion ? (
         <FullServiceHint suggestion={fullServiceSuggestion} />
       ) : (
         model.actions
@@ -195,17 +209,30 @@ function extraVehiclesText(extraCount: number) {
   return `+${extraCount.toLocaleString()} more ${extraCount === 1 ? "vehicle" : "vehicles"} at full-service yards.`;
 }
 
+/**
+ * Shown from sm up. On phones only screen readers read it, so the accessible
+ * text is the same at every width and a long count still fits one line.
+ */
+function WideOnly({ children }: { children: string }) {
+  return <span className="sr-only sm:not-sr-only">{children}</span>;
+}
+
 /** Beside the count when some self-service vehicles matched. */
 function FullServiceHint({
   suggestion,
 }: {
   suggestion: FullServiceSuggestion;
 }) {
+  const { extraCount } = suggestion;
+  // From sm up the second sentence takes its own line, so the hint is two
+  // short lines beside the button rather than one line too wide for the row.
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       <p className="text-muted-foreground text-sm text-pretty tabular-nums">
-        {extraVehiclesText(suggestion.extraCount)}
-        <span className="hidden sm:inline">
+        +{extraCount.toLocaleString()} more{" "}
+        {extraCount === 1 ? "vehicle" : "vehicles"} at full-service
+        <WideOnly> yards</WideOnly>.
+        <span className="hidden sm:block">
           {" "}
           They pull the parts for you, so call first.
         </span>

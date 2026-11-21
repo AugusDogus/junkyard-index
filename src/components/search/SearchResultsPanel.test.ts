@@ -132,7 +132,7 @@ describe("search results state", () => {
     );
     // The h2 column closes before the hint starts.
     expect(markup).toMatch(
-      /<h2[^>]*>3 vehicles at self-service yards<\/h2><span[^>]*>Results in 10 ms<\/span><\/div><div[^>]*><p[^>]*>\+84,925 more vehicles at full-service yards\.<span class="hidden sm:inline"> They pull the parts for you, so call first\.<\/span><\/p><button[^>]*>Show full-service results<\/button><\/div>/,
+      /<h2[^>]*>3 vehicles at self-service<span class="sr-only sm:not-sr-only"> yards<\/span><\/h2><span class="[^"]* hidden sm:inline">Results in 10 ms<\/span><\/div><div[^>]*><p[^>]*>\+84,925 more vehicles at full-service<span class="sr-only sm:not-sr-only"> yards<\/span>\.<span class="hidden sm:block"> They pull the parts for you, so call first\.<\/span><\/p><button[^>]*>Show full-service results<\/button><\/div>/,
     );
     expect(markup).not.toContain("py-12");
   });
