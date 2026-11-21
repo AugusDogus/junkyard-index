@@ -15,7 +15,11 @@ import { InventoryFormat } from "~/lib/inventory-format";
 import { MakeInventory } from "~/lib/make-inventory";
 import { StructuredData, type Crumb } from "~/lib/structured-data";
 import { cn } from "~/lib/utils";
-import type { MakeCount, YardInventoryPage } from "~/lib/yard-inventory";
+import type {
+  MakeCount,
+  YardInventoryPage,
+  YardNewArrivals,
+} from "~/lib/yard-inventory";
 import { YardName } from "~/lib/yard-name";
 import {
   filterName,
@@ -46,8 +50,7 @@ export function YardInventoryView({
   yard,
   inventory,
   total,
-  newCount,
-  newIsMeaningful,
+  newArrivals,
   makes,
   makeSlugs,
   publishedAt,
@@ -59,13 +62,8 @@ export function YardInventoryView({
   inventory: YardInventoryPage;
   /** Vehicles in the yard, or of the filtered make. */
   total: number;
-  /** Of those, how many have a known arrival in the current seven-day window. */
-  newCount: number;
-  /**
-   * Whether "new" means anything at this yard, judged from the whole yard
-   * (see `YardInventory.newIsMeaningful`), even on a page for one make.
-   */
-  newIsMeaningful: boolean;
+  /** Of those, the known arrivals this week, for the header and row badges. */
+  newArrivals: YardNewArrivals;
   /** Every make in the yard, for narrowing. */
   makes: MakeCount[];
   /** Each make's national URL slug, by make key. */
@@ -97,7 +95,7 @@ export function YardInventoryView({
   const shownTo = inventory.firstIndex + inventory.vehicles.length;
   const showMakes = inventory.page === 1 && makes.length > 1;
   // A newly tracked yard is all "new"; say nothing rather than that.
-  const newSince = newIsMeaningful ? publishedAt : null;
+  const newSince = newArrivals.kind === "counted" ? newArrivals.since : null;
 
   return (
     <>
@@ -139,18 +137,23 @@ export function YardInventoryView({
                 filter ? `${filterName(filter)} vehicles` : "vehicles",
               )}
             </span>{" "}
-            in the yard in {yard.city}, {yard.state},{" "}
-            <Link
-              className="text-signal font-extrabold tabular-nums underline underline-offset-4"
-              href={buildSearchUrl(filter ? filterName(filter) : "", {
-                arrivalWindow: "7d",
-                salvageYards: [yard.name],
-                sources: [yard.source],
-                yardTypes: [],
-              })}
-            >
-              {InventoryFormat.count(newCount)} new this week
-            </Link>
+            in the yard in {yard.city}, {yard.state}
+            {newArrivals.kind === "counted" && newArrivals.count > 0 && (
+              <>
+                ,{" "}
+                <Link
+                  className="text-signal font-extrabold tabular-nums underline underline-offset-4"
+                  href={buildSearchUrl(filter ? filterName(filter) : "", {
+                    arrivalWindow: "7d",
+                    salvageYards: [yard.name],
+                    sources: [yard.source],
+                    yardTypes: [],
+                  })}
+                >
+                  {InventoryFormat.count(newArrivals.count)} new this week
+                </Link>
+              </>
+            )}
             .
           </p>
         </div>

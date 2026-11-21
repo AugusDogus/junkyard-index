@@ -31,6 +31,14 @@ export type YardInventoryPage = {
   vehicles: YardVehicle[];
 };
 
+/**
+ * "New this week" on a yard page. `since` ends the week for both the header
+ * count and the row badges. A yard that is mostly new stays `quiet`.
+ */
+export type YardNewArrivals =
+  | { kind: "quiet" }
+  | { kind: "counted"; count: number; since: string };
+
 /** A make at one yard; `key` matches the national make page's. */
 export type MakeCount = { key: string; make: string; count: number };
 
@@ -164,6 +172,31 @@ export const YardInventory = {
    */
   newIsMeaningful(newCount: number, total: number): boolean {
     return newCount <= total * MOSTLY_NEW;
+  },
+
+  /**
+   * New arrivals among `vehicles` in the week ending at `referenceTime`, the
+   * render's clock, as the linked arrival search measures. Whether "new"
+   * means anything is judged from `yardVehicles`, the whole yard, so one new
+   * Honda at a long-tracked yard is news even on its Honda page.
+   */
+  newArrivals(
+    vehicles: readonly Pick<YardVehicle, "addedAt" | "addedBy">[],
+    yardVehicles: readonly Pick<YardVehicle, "addedAt" | "addedBy">[],
+    referenceTime: string,
+  ): YardNewArrivals {
+    if (
+      !YardInventory.newIsMeaningful(
+        YardInventory.newCount(yardVehicles, referenceTime),
+        yardVehicles.length,
+      )
+    )
+      return { kind: "quiet" };
+    return {
+      kind: "counted",
+      count: YardInventory.newCount(vehicles, referenceTime),
+      since: referenceTime,
+    };
   },
 
   /** Newest first; VIN breaks ties so pages are stable between renders. */
