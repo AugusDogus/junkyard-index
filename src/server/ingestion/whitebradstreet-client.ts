@@ -100,9 +100,9 @@ export class WhitebradstreetRateLimitExhaustedError extends Data.TaggedError(
       wait +
       ") " +
       (this.bound === "cooldowns"
-        ? "after all " +
+        ? "after " +
           WHITEBRADSTREET_RATE_LIMIT_COOLDOWNS_MS.length +
-          " cooldowns in this crawl"
+          " cooldowns in a row without progress"
         : "and the next cooldown would end more than an hour after the first one at " +
           new Date(this.since).toISOString()) +
       ", so the run stops without publishing. Previously published inventory is preserved. The next scheduled crawl starts from the beginning; if it is rate-limited again, check whether white-bradstreet.com now blocks this client."
