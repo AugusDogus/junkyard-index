@@ -195,6 +195,9 @@ or a single-character mutation must not match through either VIN field.
 ## Schema 12: VIN make/model identities
 
 Deployment applies `0026_vin_canonical_models` through the normal Drizzle chain.
+Its journal `when` (1795536000000) equals the last migration applied by the
+shared preview and development database, which got this schema from an earlier
+draft, so previews skip what they already have and production applies it.
 Before acquiring the shared Algolia writer lock, the scheduled workflow fills
 only the VIN pattern cache in bounded 100-vehicle steps. It stops the decode
 pass when a vPIC batch exhausts its retries, returns an invalid service body
@@ -204,9 +207,13 @@ is held during network enrichment. Cache errors also defer the optional phase.
 The migration then acquires the writer, reads only cached decodes, and walks
 existing vehicles in 100-row steps. It updates make/model/source-name/trim,
 rewrites the same object IDs, refreshes snapshots and advances readiness to 12.
-Daily ingestion and index projection never call vPIC. Until readiness is
-confirmed, ingestion still applies existing string normalization and defers
-VIN enrichment. Search filters bridge the existing make facet with exact
+Finalization records version 12 for the index in the Turso
+`search_index_schema` table before writing the Algolia marker. Reconciliation
+reads only that Turso row, never Algolia, so a blocked or frozen index cannot
+change the identities it writes. Daily ingestion and index projection never
+call vPIC. Until the Turso row reaches 12, ingestion applies existing string
+normalization, except that vehicles the backfill already canonicalized keep
+their cached VIN identities. Search filters bridge the existing make facet with exact
 make tokens in the already-filterable searchTokens field. Each rewritten
 record includes those tokens with its changed make, so saved filters and
 alerts keep matching throughout the in-place migration, even with cached
@@ -217,7 +224,15 @@ writes. This prevents in-place schema migrations from reordering results
 between alert pages. The lock scope explicitly awaits its action before
 disposal, including errors and stopped batches. An uncontended batch makes
 no additional search requests and takes no lock-retry delay. The check's
-retry waits and notification delivery remain outside the writer lock.
+retry waits and notification delivery remain outside the writer lock. A
+batch waits while a migration rewrites the index; each 30-second lock retry
+updates the check's `last_progress_at`, so delivery keeps holding earlier
+intents for that day's digest instead of treating the check as stuck.
+
+While `ingestion-skip-search-publication` is on, the scheduled workflow may
+still warm the VIN cache, then exits without an Algolia request or the writer
+lock, including `?force=true`. The first inline ingestion run after the
+freeze rebuilds the index from Turso.
 No owner-run step is needed for the initial backfill or outage recovery.
 
 Keys include VIN positions 1-8, 10-11 and the explicit vehicle year. Low-volume
