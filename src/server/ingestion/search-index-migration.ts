@@ -13,6 +13,7 @@ import {
 } from "~/lib/search-index-schema";
 import { VinPattern } from "~/lib/vin-pattern";
 import { vehicle, vehicleModelRedirect } from "~/schema";
+import { SearchIndexSchemaMarker } from "./search-index-schema-marker";
 import { projectSearchVehicles } from "./vehicle-search-projection";
 import {
   buildVinFilterValidationRequests,
@@ -122,6 +123,12 @@ export async function initializeSearchIndexMigration(
       },
     );
   if (!force && currentVersion >= CURRENT_SEARCH_SCHEMA_VERSION) {
+    // Repairs a Turso marker missed when finalization stopped after Algolia.
+    await SearchIndexSchemaMarker.record(
+      db,
+      ALGOLIA_INDEX_NAME,
+      currentVersion,
+    );
     return {
       status: "ready",
       result: {
@@ -201,6 +208,13 @@ export async function finalizeSearchIndexMigration(
   const redirects = retainedUrls.filter(
     (row) => !livePaths.has(row.fromPath),
   ).length;
+  // Turso first: every vehicle row now has its identities, so ingestion may
+  // canonicalize even if the Algolia marker below fails and is retried.
+  await SearchIndexSchemaMarker.record(
+    db,
+    ALGOLIA_INDEX_NAME,
+    CURRENT_SEARCH_SCHEMA_VERSION,
+  );
   await markSchemaReady(latestSettings.userData);
 
   return {
