@@ -14,8 +14,11 @@ import graph).
 ## inventory-downstream
 
 When `max(ingestion_run.publication_sequence)` is newer than the
-`inventory-downstream` checkpoint and that checkpoint's `updated_at` is at
-least 3 hours old, the cron starts `inventoryDownstreamWorkflow`. It:
+`inventory-downstream` checkpoint and its `last_success_at` is at least
+3 hours old (with 10 minutes of slack for cron jitter), the cron starts
+`inventoryDownstreamWorkflow` with its check time. The workflow re-checks at
+that same time and stamps it on success, so an hourly cron refreshes every
+3 hours, not 4. It:
 
 1. stores the homepage snapshot (`inventory-snapshot:<version>`) and
    revalidates the `daily-inventory` cache tag (`inventory-cache-refresh`),
@@ -25,12 +28,18 @@ least 3 hours old, the cron starts `inventoryDownstreamWorkflow`. It:
    (`indexnow-announcement`, production only);
 3. advances its checkpoint.
 
-A failed refresh leaves the checkpoint behind, so the next hourly tick
-retries. The announcement is best effort: IndexNow keeps its own checkpoint,
-so the next publication's announcement includes anything that failed.
+A failed refresh, returned or thrown, is never retried within a tick. It
+leaves the checkpoint behind, increments `failure_count`, sets
+`last_error_tag` (`refresh_project`, `refresh_revalidate` or
+`refresh_unexpected`) and blocks the consumer until `blocked_until`: 3 hours,
+then 6, 12 and at most 24. While blocked, each hourly tick reports
+`backing_off` as a failed tick (heartbeat `/fail` and the Sentry issue), so a
+stuck consumer stays red. A success clears the backoff. The announcement is
+best effort: IndexNow keeps its own checkpoint, so the next publication's
+announcement includes anything that failed.
 
-The "last refresh" gate keeps the snapshot (which reads every live vehicle) to
-at most one read per 3 hours while publications keep landing.
+Together the gate and the backoff keep the snapshot, which reads every live
+vehicle, to at most one read per 3 hours, whether refreshes succeed or fail.
 
 ## Pausing a consumer
 
