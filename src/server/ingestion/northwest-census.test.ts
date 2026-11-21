@@ -690,27 +690,74 @@ test("Northwest re-reads a surplus page that lost cards down to exactly its badg
   // closing re-reads the page.
   expect(cut.models).toEqual([...swept(native, day), 3]);
   expect(cut.vins).toEqual(allVins(native));
-  const parsed = NorthwestCursor.parse(JSON.stringify(cut.terminal));
-  if (parsed.phase !== "complete" || !parsed.census)
-    throw new Error("Expected a terminal census");
-  expect(parsed.census.models[3]).toMatchObject({
+  const model3 = (terminal: unknown) => {
+    const parsed = NorthwestCursor.parse(JSON.stringify(terminal));
+    if (parsed.phase !== "complete" || !parsed.census)
+      throw new Error("Expected a terminal census");
+    return parsed.census.models[3];
+  };
+  // The surplus is sticky: the drop keeps the 200 expectation and opens a low
+  // window on the cut day instead of accepting 190 as the new truth.
+  expect(model3(cut.terminal)).toEqual({
     key: censusKey(3),
     count: 190,
     readDay: day,
     expected: 200,
+    lowSince: day,
     confirmed: false,
+    page: expect.anything(),
   });
-  // The page is never carried: the next run reads it again off its slice and,
-  // listing the same 190 cards against an expectation of 190, accepts it
-  // without another closing read.
-  const next = await census(native, day + 1, cut.terminal);
-  const reads = [...swept(native, day + 1), 3].sort((a, b) => a - b);
-  expect(next.models).toEqual(reads);
-  expect(next.vins).toEqual(allVins(native));
-  expect(next.warnings.at(-1)).toBe(
+  // The page is never carried while it lists fewer than 200: every following
+  // daily run reads it again as short and closing re-reads it. One lagging
+  // re-read cannot lower the surplus; only a normal incremental run six run
+  // days after the low window opened lowers it to what the page lists.
+  // Other models in a day's slice were last read six days earlier (daily runs
+  // since the cold census on 600), so from 606 on they read as stale.
+  const due = (daily: number) => (daily - 600 >= 6 ? "stale" : "sweep");
+  let terminal = cut.terminal;
+  for (let daily = day + 1; daily <= day + 6; daily++) {
+    const run = await census(native, daily, terminal);
+    const reads = [...new Set([...swept(native, daily), 3])].sort(
+      (a, b) => a - b,
+    );
+    expect(run.models).toEqual([...reads, 3]);
+    expect(run.vins).toEqual(allVins(native));
+    expect(run.warnings.at(-1)).toBe(
+      summary(
+        12,
+        reads.map((i) => (i === 3 ? "short" : due(daily))),
+      ),
+    );
+    const lowered = daily - day >= 6;
+    expect(model3(run.terminal)).toEqual({
+      key: censusKey(3),
+      count: 190,
+      readDay: daily,
+      expected: lowered ? 190 : 200,
+      lowSince: lowered ? null : day,
+      confirmed: false,
+      page: expect.anything(),
+    });
+    terminal = run.terminal;
+  }
+  // Once lowered, the page lists its full expectation and carries.
+  const after = await census(native, day + 7, terminal);
+  expect(after.models).toEqual(swept(native, day + 7));
+  expect(after.models).not.toContain(3);
+  expect(after.vins).toEqual(allVins(native));
+  expect(after.warnings.at(-1)).toBe(
     summary(
       12,
-      reads.map((i) => (i === 3 ? "short" : "sweep")),
+      swept(native, day + 7).map(() => due(day + 7)),
     ),
   );
+  expect(model3(after.terminal)).toEqual({
+    key: censusKey(3),
+    count: 190,
+    readDay: day + 6,
+    expected: 190,
+    lowSince: null,
+    confirmed: false,
+    page: expect.anything(),
+  });
 }, 120_000);

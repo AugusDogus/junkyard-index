@@ -432,7 +432,8 @@ describe("ModelCensus", () => {
     const models = controls(12, 3);
     const label = new Map([["model-2", 4]]);
     const cold = run(models, null, 100, undefined, { listed: label });
-    expect(cold.census.models[2]?.expected).toBe(3);
+    // The surplus it lists is part of what it is expected to list.
+    expect(cold.census.models[2]?.expected).toBe(4);
     const day = [101, 102, 103, 104, 105].find(
       (d) => ModelCensus.slice("model-2") === d % MODEL_CENSUS_SWEEP_DAYS,
     );
@@ -454,12 +455,21 @@ describe("ModelCensus", () => {
     ).toContain(2);
     expect(dropped.census.models[2]).toMatchObject({
       expected: 4,
+      lowSince: day,
       confirmed: false,
     });
-    // The next run re-reads it rather than carrying the drop.
-    const next = run(models, dropped.census, day + 1);
+    // The next run re-reads it rather than carrying the drop; the page lists
+    // its placeholder again.
+    const next = run(models, dropped.census, day + 1, undefined, {
+      listed: label,
+    });
     expect(next.decisions[2]).toEqual({ kind: "read", reason: "short" });
-    // Healthy surplus pages and pages matching their badge need no closing read.
+    expect(next.census.models[2]).toMatchObject({
+      expected: 4,
+      lowSince: null,
+    });
+    // Pages matching their badge need no closing read; the recovered surplus
+    // page differs from its badge, so closing re-reads only it.
     expect(
       ModelCensus.closingReads({
         controls: models,
@@ -468,7 +478,70 @@ describe("ModelCensus", () => {
         previous: dropped.census,
         cards,
       }),
-    ).toEqual([]);
+    ).toEqual([2]);
+  });
+
+  test("one lagging read never erases a placeholder surplus", () => {
+    // Badge 3, healthy page 4 (a placeholder). A sale removes a real card on
+    // day 101 while the badge still says 3, so that read lists exactly 3. The
+    // badge drops to 2 the next day. Later a fault loses a different real card
+    // while the placeholder stays, listing exactly the badge again: it must
+    // still be read again on the next run, not carried.
+    const models = controls(12, 3);
+    const placeholder = new Map([["model-2", 4]]);
+    let census = run(models, null, 100, undefined, {
+      listed: placeholder,
+    }).census;
+    // Day 101: model-2 is due (short-listed by a forced trigger) and lags.
+    census = run(models, census, 101, new Set(["model-2"]), {
+      listed: new Map([["model-2", 3]]),
+    }).census;
+    expect(census.models[2]).toMatchObject({ expected: 4, lowSince: 101 });
+    // Day 102: the badge catches up to 2, so 2 donors plus the placeholder
+    // list 3 again: the surplus is back.
+    const sold = models.map((m, i) => (i === 2 ? { ...m, count: 2 } : m));
+    census = run(sold, census, 102, undefined, {
+      listed: new Map([["model-2", 3]]),
+    }).census;
+    expect(census.models[2]).toMatchObject({ expected: 3, lowSince: null });
+    // Day 103: a fault drops a real card; the page lists exactly its badge.
+    const fault = run(sold, census, 103, new Set(["model-2"]), {
+      listed: new Map([["model-2", 2]]),
+    });
+    expect(
+      ModelCensus.closingReads({
+        controls: sold,
+        pages: fault.pages,
+        decisions: fault.decisions,
+        previous: census,
+        cards,
+      }),
+    ).toContain(2);
+    expect(run(sold, fault.census, 104).decisions[2]).toEqual({
+      kind: "read",
+      reason: "short",
+    });
+  });
+
+  test("a surplus that really went away is lowered after six run days of reads", () => {
+    // Badge 3, page 4 until its placeholder is removed for good on day 101.
+    const models = controls(12, 3);
+    let census = run(models, null, 100, undefined, {
+      listed: new Map([["model-2", 4]]),
+    }).census;
+    const reads: number[] = [];
+    for (let day = 101; day <= 108; day++) {
+      const next = run(models, census, day, new Set(["model-2"]));
+      if (next.decisions[2]?.kind === "read") reads.push(day);
+      census = next.census;
+    }
+    // Read every run while the lower count lasted under six days, then the
+    // surplus is lowered and the page is carried like any other.
+    expect(census.models[2]).toMatchObject({ expected: 3, lowSince: null });
+    const after = run(models, census, 109);
+    expect(
+      after.decisions[2]?.kind === "read" && after.decisions[2].reason,
+    ).not.toBe("short");
   });
 
   test("a surplus page that loses a donor on the day its count changes is still re-read", () => {
@@ -479,7 +552,7 @@ describe("ModelCensus", () => {
       listed: new Map([["model-2", 4]]),
     });
     const grown = models.map((m, i) => (i === 2 ? { ...m, count: 4 } : m));
-    expect(ModelCensus.expected(grown, cold.census, cards)[2]).toBe(5);
+    expect(ModelCensus.expected(grown, cold.census)[2]).toBe(5);
     const day = run(grown, cold.census, 101, undefined, {
       listed: new Map([["model-2", 4]]),
     });

@@ -551,8 +551,9 @@ test("Jim's Import fails an incremental run whose sweep slice lists one card per
 test("Jim's Import re-reads a surplus page that lost donors down to its badge", async () => {
   // Some model pages list more cards than their badge. One that loses real
   // donors down to exactly its badge passes the cards-versus-badge closing
-  // comparison, so closing re-reads it and the next run reads it again
-  // instead of carrying the loss for up to six days.
+  // comparison, so closing re-reads it against its sticky surplus. The lower
+  // page is not taken as the new truth: it stays short and is read every run
+  // until a normal incremental run reads it six days after the drop.
   const native = yard();
   const cold = await census(native, 600, null);
   const published = new Set(cold.vins);
@@ -575,6 +576,7 @@ test("Jim's Import re-reads a surplus page that lost donors down to its badge", 
   const { day, model } = target;
   const badge = BADGES[model] ?? 0;
   const before = native.page(model);
+  const surplus = before.records.length;
   native.setPage(
     model,
     { ...before, records: before.records.slice(before.records.length - badge) },
@@ -587,7 +589,7 @@ test("Jim's Import re-reads a surplus page that lost donors down to its badge", 
   const read = [...slice(day), ...SHORT].sort((a, b) => a - b);
   const dropped = await census(native, day, cold.terminal);
   expect(dropped.models).toEqual(read);
-  // The page now matches its badge but fell below its last accepted cards.
+  // The page now matches its badge but fell below its sticky surplus.
   expect(dropped.rereads).toContain(model);
   expect(dropped.rereads).toEqual(mismatched(read));
   expect(dropped.rereads).toEqual(expect.arrayContaining(SHORT));
@@ -598,29 +600,88 @@ test("Jim's Import re-reads a surplus page that lost donors down to its badge", 
   expect(confirmed(dropped.terminal)).toEqual(SHORT);
   expect(dropped.vins).toEqual(native.vins());
   for (const vin of target.lost) expect(dropped.vins).not.toContain(vin);
-  const accepted = JimsimportCursor.parse(dropped.terminal);
-  if (accepted.phase !== "complete" || !accepted.census)
-    throw new Error("Expected a terminal census");
-  const evidence = accepted.census.models[model];
-  expect({
-    readDay: evidence?.readDay,
-    expected: evidence?.expected,
-    confirmed: evidence?.confirmed,
-  }).toEqual({
+  const evidence = (terminal: unknown) => {
+    const accepted = JimsimportCursor.parse(terminal);
+    if (accepted.phase !== "complete" || !accepted.census)
+      throw new Error("Expected a terminal census");
+    const m = accepted.census.models[model];
+    return {
+      readDay: m?.readDay,
+      expected: m?.expected,
+      lowSince: m?.lowSince,
+      confirmed: m?.confirmed,
+    };
+  };
+  // One re-read at the badge does not erase the surplus.
+  expect(evidence(dropped.terminal)).toEqual({
     readDay: day,
-    expected: before.records.length,
+    expected: surplus,
+    lowSince: day,
     confirmed: false,
   });
 
-  // The next run reads it again although it is outside that day's slice.
-  const next = await census(native, day + 1, dropped.terminal);
-  expect(next.models).toEqual([...slice(day + 1), model].sort((a, b) => a - b));
-  expect(next.warnings.at(-1)).toContain("short 1");
-  expect(next.vins).toEqual(native.vins());
-  const settled = JimsimportCursor.parse(next.terminal);
-  if (settled.phase !== "complete" || !settled.census)
-    throw new Error("Expected a terminal census");
-  // Once re-read, the badge-sized page is its own expectation and carries.
-  expect(settled.census.models[model]?.expected).toBe(badge);
-  expect(settled.census.models[model]?.readDay).toBe(day + 1);
-}, 240_000);
+  // Daily normal incremental runs. The page is read every run (reason
+  // "short") and re-read at closing until the sixth day after the drop lowers
+  // its surplus to the badge; from then on it carries. The other models
+  // follow the sweep, or are stale six days after their last read.
+  const lastRead = new Map<number, number>();
+  for (let i = 0; i < MODELS; i++) lastRead.set(i, 600);
+  for (const i of dropped.models) lastRead.set(i, day);
+  const summary = (reasons: readonly (string | null)[]) => {
+    const counts = new Map<string, number>();
+    for (const reason of reasons)
+      if (reason) counts.set(reason, (counts.get(reason) ?? 0) + 1);
+    const total = [...counts.values()].reduce((sum, n) => sum + n, 0);
+    const listed = [...counts].map(([reason, n]) => `${reason} ${n}`);
+    return `Jim's Import Read ${total} of ${MODELS} model pages (${listed.join(", ")}); carried ${MODELS - total}.`;
+  };
+  let previous = dropped.terminal;
+  for (let today = day + 1; today <= day + 7; today++) {
+    const reasons = Array.from({ length: MODELS }, (_, i) => {
+      if (i === model && today <= day + 6) return "short";
+      if (today - (lastRead.get(i) ?? 600) >= 6) return "stale";
+      if (slice(today).includes(i)) return "sweep";
+      return null;
+    });
+    const reads = reasons.flatMap((reason, i) => (reason ? [i] : []));
+    const run = await census(native, today, previous);
+    expect(run.models).toEqual(reads);
+    expect(run.rereads).toEqual(mismatched(reads));
+    expect(run.requests).toBe(
+      2 + 33 + reads.length + 2 + mismatched(reads).length,
+    );
+    expect(run.warnings.at(-1)).toBe(summary(reasons));
+    expect(run.vins).toEqual(native.vins());
+    for (const vin of target.lost) expect(run.vins).not.toContain(vin);
+    expect(confirmed(run.terminal)).toEqual(SHORT);
+    if (today < day + 6) {
+      expect(run.rereads).toContain(model);
+      expect(evidence(run.terminal)).toEqual({
+        readDay: today,
+        expected: surplus,
+        lowSince: day,
+        confirmed: false,
+      });
+    } else if (today === day + 6) {
+      // lowSince + 6: the normal incremental run lowers the surplus.
+      expect(run.rereads).toContain(model);
+      expect(evidence(run.terminal)).toEqual({
+        readDay: today,
+        expected: badge,
+        lowSince: null,
+        confirmed: false,
+      });
+    } else {
+      // The badge-sized page is now its own expectation and carries.
+      expect(run.models).not.toContain(model);
+      expect(evidence(run.terminal)).toEqual({
+        readDay: day + 6,
+        expected: badge,
+        lowSince: null,
+        confirmed: false,
+      });
+    }
+    for (const i of reads) lastRead.set(i, today);
+    previous = run.terminal;
+  }
+}, 600_000);

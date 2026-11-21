@@ -697,25 +697,25 @@ test("OEM fails a steady-state run whose routine sweep page, read at age six, li
 test("OEM re-reads a surplus page that lost donors down to its unchanged badge", async () => {
   // A model page lists 40 cards under a badge of 38 (placeholder or surplus
   // rows). On its sweep day it loses two real donors and lists exactly 38, so
-  // its cards match its badge. Its expected count stays 40: closing re-reads
-  // it, its evidence is not confirmed, and the next run reads it again instead
-  // of carrying the shrunken page for up to six days.
+  // its cards match its badge. Its surplus is sticky: it stays expected at 40,
+  // closing re-reads it, its evidence is not confirmed, and every following
+  // daily run reads it again (and closing re-reads it) instead of carrying the
+  // shrunken page. Only a normal incremental run six days after the first low
+  // read lowers the surplus to what the page lists; after that it carries.
   const native = yard();
-  const day = dayAfterCold(
-    (d) =>
-      sweep(d).some((m) => m !== 0) &&
-      d + 1 < 600 + MODEL_CENSUS_SWEEP_DAYS &&
-      sweep(d + 1).length > 0,
-  );
-  const m = pickModel(
-    (model) => sweep(day).includes(model) && !sweep(day + 1).includes(model),
-  );
+  const day = dayAfterCold((d) => sweep(d).some((m) => m !== 0));
+  const m = pickModel((model) => sweep(day).includes(model));
   native.badges.set(m, 38);
   const cold = await census(native, 600, null);
   expect(cold.vins).toEqual(allVins(native));
   native.rows.set(m, donors(m, 38));
   const shrunk = await census(native, day, cold.wire);
   expect(shrunk.models).toEqual([...sweep(day), m]);
+  // Arrivals, makes, one menu, the swept pages, the closing re-read and the
+  // closing make directory.
+  expect(shrunk.requests).toBe(5 + sweep(day).length);
+  expect(shrunk.vins).toEqual(allVins(native));
+  expect(shrunk.warnings.at(-1)).toBe(summary([["sweep", sweep(day)]]));
   if (
     shrunk.terminal.state.phase !== "complete" ||
     !shrunk.terminal.state.census
@@ -725,16 +725,64 @@ test("OEM re-reads a surplus page that lost donors down to its unchanged badge",
     count: 38,
     readDay: day,
     expected: 40,
+    lowSince: day,
     confirmed: false,
   });
-  // The re-read matches its badge and the 38 cards the previous run read, so
-  // closing does not repeat it.
-  const next = await census(native, day + 1, shrunk.wire);
-  expect(next.models).toEqual(sorted([...sweep(day + 1), m]));
-  expect(next.warnings.at(-1)).toBe(
-    summary([
-      ["sweep", sweep(day + 1)],
-      ["short", [m]],
-    ]),
-  );
-});
+  const lastRead = new Map(MODELS.map((model) => [model, 600]));
+  for (const model of shrunk.models) lastRead.set(model, day);
+  let previous = shrunk.wire;
+  const lowered = day + MODEL_CENSUS_SWEEP_DAYS;
+  for (let today = day + 1; today <= lowered + 2; today++) {
+    // M is short through the lowering day; the other models follow the sweep
+    // and the age ceiling.
+    const short = today <= lowered ? [m] : [];
+    const stale = MODELS.filter(
+      (x) =>
+        !short.includes(x) &&
+        today - (lastRead.get(x) ?? today) >= MODEL_CENSUS_SWEEP_DAYS,
+    );
+    const swept = sweep(today).filter(
+      (x) => !short.includes(x) && !stale.includes(x),
+    );
+    const run = await census(native, today, previous);
+    // Closing re-reads M whenever it lists fewer cards than the 40 expected.
+    expect(run.models).toEqual([
+      ...sorted([...short, ...stale, ...swept]),
+      ...short,
+    ]);
+    expect(run.requests).toBe(
+      4 + 2 * short.length + stale.length + swept.length,
+    );
+    expect(run.vins).toEqual(allVins(native));
+    expect(run.warnings.at(-1)).toBe(
+      summary([
+        ["short", short],
+        ["stale", stale],
+        ["sweep", swept],
+      ]),
+    );
+    if (run.terminal.state.phase !== "complete" || !run.terminal.state.census)
+      throw new Error("Expected a terminal census");
+    expect(run.terminal.state.census.models[m]).toMatchObject(
+      today < lowered
+        ? // One re-read at the badge is not accepted as the new truth.
+          {
+            count: 38,
+            readDay: today,
+            expected: 40,
+            lowSince: day,
+            confirmed: false,
+          }
+        : // Lowered on the lowering day, then carried.
+          {
+            count: 38,
+            readDay: lowered,
+            expected: 38,
+            lowSince: null,
+            confirmed: false,
+          },
+    );
+    for (const model of run.models) lastRead.set(model, today);
+    previous = run.wire;
+  }
+}, 60_000);

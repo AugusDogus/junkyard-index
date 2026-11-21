@@ -63,8 +63,13 @@ export interface ModelCensusEvidence<Page> {
   /** Published count when the page was read. */
   count: number;
   readDay: number;
-  /** Cards the page was expected to list when read (see `expected`). */
+  /** Cards the page is expected to list: its count plus a sticky surplus of
+   * placeholder or surplus rows (see `expected`). */
   expected: number;
+  /** First run day since which reads have listed fewer cards than `expected`
+   * allows above the count, or null. The surplus is lowered only after six
+   * run days of such reads. */
+  lowSince: number | null;
   /** True only for a page with fewer cards than `count` that an identical
    * re-read confirmed in the run that read it. */
   confirmed: boolean;
@@ -140,6 +145,7 @@ function schema<Page>(page: z.ZodType<Page>, maxModels: number) {
               count: z.number().int().nonnegative().safe(),
               readDay: day,
               expected: z.number().int().nonnegative().safe(),
+              lowSince: day.nullable(),
               confirmed: z.boolean(),
               page,
             })
@@ -156,10 +162,18 @@ function schema<Page>(page: z.ZodType<Page>, maxModels: number) {
           code: z.ZodIssueCode.custom,
           message: "Model census repeats a published model",
         });
-      if (census.models.some((m) => m.expected < m.count))
+      if (
+        census.models.some(
+          (m) =>
+            m.expected < m.count ||
+            (m.lowSince !== null &&
+              (m.lowSince > m.readDay || m.expected === m.count)),
+        )
+      )
         context.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "Model census expects fewer cards than a published count",
+          message:
+            "Model census expects fewer cards than a published count or holds an inconsistent surplus window",
         });
       if (
         census.models.some(
@@ -176,21 +190,23 @@ function schema<Page>(page: z.ZodType<Page>, maxModels: number) {
     });
 }
 
-/** Expected cards per published model: today's count plus any surplus the
- * previous accepted page listed above its own count (placeholder or surplus
- * rows). The surplus carries across a count change, so a placeholder page that
- * loses a donor on the same day its count moves is still caught. */
+/** Sticky surplus of a model's last accepted evidence: the placeholder or
+ * surplus rows it is expected to list above its count. */
+const surplusOf = (evidence: { expected: number; count: number }) =>
+  evidence.expected - evidence.count;
+
+/** Expected cards per published model: today's count plus the sticky surplus
+ * of its last accepted evidence. The surplus grows with any read that lists
+ * more, carries across count changes, and is lowered only after six run days
+ * of reads listing less (see `accept`), so one lagging read cannot erase it. */
 function expected<Page>(
   controls: readonly ModelCensusControl[],
   previous: ModelCensus<Page> | null,
-  cards: (page: Page) => number,
 ): number[] {
   const evidence = new Map((previous?.models ?? []).map((m) => [m.key, m]));
   return controls.map((control) => {
     const before = evidence.get(control.key);
-    return before
-      ? control.count + Math.max(0, cards(before.page) - before.count)
-      : control.count;
+    return control.count + (before ? surplusOf(before) : 0);
   });
 }
 
@@ -310,7 +326,7 @@ export const ModelCensus = {
     previous,
     cards,
   }: ModelCensusRun<Page>): number[] {
-    const wanted = expected(controls, previous, cards);
+    const wanted = expected(controls, previous);
     return controls.flatMap((control, index) => {
       const page = pages[index];
       const listed = page === undefined ? null : cards(page);
@@ -344,16 +360,14 @@ export const ModelCensus = {
       throw new Error(
         `Model census cannot close: ${pages.length} pages and ${decisions.length} decisions for ${controls.length} published models`,
       );
-    const wanted = expected(controls, previous, cards);
+    const evidence = new Map((previous?.models ?? []).map((m) => [m.key, m]));
     // Only a normal incremental run (an accepted census from today or the
     // previous run day) confirms short pages. Cold, gap and outage runs read
     // every page, so a fault confined to that one day would otherwise pass
     // both floors, be stored as confirmed and be carried for days, past the
     // 72-hour delete window. Their short pages are read again the next run.
-    const confirming =
-      shortPages === "confirmed" &&
-      previous !== null &&
-      today - previous.day <= 1;
+    const incremental = previous !== null && today - previous.day <= 1;
+    const confirming = shortPages === "confirmed" && incremental;
     return {
       contract,
       day: today,
@@ -362,16 +376,34 @@ export const ModelCensus = {
         const page = pages[index];
         if (!decision || page === undefined)
           throw new Error("Model census evidence is missing a published model");
-        return decision.kind === "carry"
-          ? { ...decision.evidence, key: control.key, count: control.count }
-          : {
-              key: control.key,
-              count: control.count,
-              readDay: today,
-              expected: wanted[index] ?? control.count,
-              confirmed: confirming && cards(page) < control.count,
-              page,
-            };
+        if (decision.kind === "carry")
+          return {
+            ...decision.evidence,
+            key: control.key,
+            count: control.count,
+          };
+        // The surplus follows a read that lists at least as much. A read that
+        // lists less keeps it (badge lag after a sale looks exactly like a
+        // lost card) until such reads have lasted six run days and a normal
+        // incremental run confirms the lower count; meanwhile the page counts
+        // as short and is read again every run. Like confirmation, a cold, gap
+        // or outage full read never lowers it.
+        const before = evidence.get(control.key);
+        const held = before ? surplusOf(before) : 0;
+        const observed = Math.max(0, cards(page) - control.count);
+        const lowSince = before?.lowSince ?? today;
+        const lowered =
+          observed >= held ||
+          (incremental && today - lowSince >= MODEL_CENSUS_SWEEP_DAYS);
+        return {
+          key: control.key,
+          count: control.count,
+          readDay: today,
+          expected: control.count + (lowered ? observed : held),
+          lowSince: lowered ? null : lowSince,
+          confirmed: confirming && cards(page) < control.count,
+          page,
+        };
       }),
     };
   },
