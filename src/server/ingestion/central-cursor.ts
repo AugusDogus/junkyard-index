@@ -79,9 +79,6 @@ export type CentralClosingControl =
       make: CentralMake;
       model: CentralControl;
       index: number;
-      /** Cards the first read must list to count as complete rather than
-       * short (ModelCensus.closingFloors). */
-      floor: number;
     };
 
 /** Closing re-reads ownership, the make directory and every model read this
@@ -95,24 +92,18 @@ export function centralClosingControls(
   const models = centralModels(state.makes);
   if (state.pages.length > models.length)
     throw new Error("Central closing model is outside the published graph");
-  const floors = ModelCensus.closingFloors(
-    centralCensusControls(state.makes),
-    state.previous,
-  );
   return [
     { kind: "root", url: CENTRAL_ROOT },
     { kind: "directory", url: CENTRAL_MAKES },
     ...ModelCensus.closingReads(centralCensusRun(state)).flatMap((index) => {
       const entry = models[index];
-      const floor = floors[index];
-      return entry && floor !== undefined
+      return entry
         ? [
             {
               kind: "model",
               url: CENTRAL_ORIGIN + entry.model.path,
               ...entry,
               index,
-              floor,
             } satisfies CentralClosingControl,
           ]
         : [];
@@ -199,9 +190,9 @@ export function centralCensus(state: CentralProgress): CentralCensus {
     scope,
     state.day,
     centralCensusRun(state),
-    // Closing re-reads every page closingReads names. A short page must repeat
-    // exactly; any other page may only gain cards (see the connector's
-    // closing), so every short page it stores was confirmed.
+    // Closing re-reads every page closingReads names. It may only gain cards,
+    // and only on a page that then lists more than its badge (see the
+    // connector's closing), so every short page it stores was confirmed.
     "confirmed",
   );
 }

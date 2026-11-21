@@ -80,22 +80,22 @@ const same = (expected: unknown, actual: unknown, label: string) => {
 const identity = ([vin, year, title, , destination]: CentralRecord) =>
   JSON.stringify([vin, year, title, destination]);
 
-/** The page a model's closing re-read leaves in the run. A first read below
- * its floor (short) must repeat exactly. A complete first read lists more
- * cards than its badge, so the yard keeps adding donors during a run of
- * hours: closing may list arrivals and new stock or photo metadata, but must
- * still list every first-read card with the same identity. The closing read
- * then holds the union of both reads, with closing metadata, and still lists
- * more cards than its badge, so the closing pass keeps its order. */
+/** The page a model's closing re-read leaves in the run. The yard keeps
+ * adding donors during a run of hours, so closing may list arrivals and new
+ * stock or photo metadata, but must still list every first-read card with the
+ * same identity. A closing read listing more cards than its badge then holds
+ * the union of both reads, with closing metadata, even when the first read
+ * fell short of the page's sticky surplus: Central lists cards before its
+ * badges count them, so that surplus can hold earlier arrivals the badge has
+ * since caught up with. Such a page is never stored as confirmed (see
+ * `ModelCensus.accept`) and still lists more than its badge, so the closing
+ * pass keeps its order. A closing read at or below its badge must repeat the
+ * first read exactly, so every short page the run confirms repeated. */
 function closingPage(
   first: CentralPage,
   closing: CentralPage,
-  floor: number,
+  badge: number,
 ): CentralPage {
-  if (first.records.length < floor) {
-    same(first.hash, closing.hash, "model cards");
-    return first;
-  }
   const listed = new Map<string, number>();
   for (const record of closing.records)
     listed.set(identity(record), (listed.get(identity(record)) ?? 0) + 1);
@@ -110,6 +110,8 @@ function closingPage(
       );
     listed.set(identity(record), remaining - 1);
   }
+  if (closing.records.length <= badge)
+    same(first.hash, closing.hash, "model cards");
   return closing;
 }
 function nextUrl(state: CentralProgress): string {
@@ -203,7 +205,7 @@ function advance(state: CentralProgress, raw: string): CentralProgress {
           const page = closingPage(
             first,
             parseCentralModel(raw, entry.make, entry.model),
-            entry.floor,
+            entry.model.count,
           );
           next.pages = state.pages.map((value, index) =>
             index === entry.index ? page : value,

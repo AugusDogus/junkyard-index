@@ -73,13 +73,18 @@ the original HTTP refusal and the cleanup error.
 
 Closing controls repeat ownership, the make directory and every model read this
 run whose card count differs from its badge or falls below its expected count
-(`ModelCensus.closingReads`). A short re-read (below its badge, expected count
-or ceiling) must repeat exactly. Any other re-read lists more cards than its
-badge, and runs take hours at a yard that adds donors daily, so it may add
-cards and change optional stock or photo metadata. Every first-read card must
-still be listed with the same VIN, year, title and destination, or the run
-fails. The closing read, which then holds the union of both reads, is
-published. The make directory must repeat exactly. On November 21, 2026 two
+(`ModelCensus.closingReads`). Runs take hours at a yard that adds donors daily,
+so a re-read may add cards and change optional stock or photo metadata, but
+every first-read card must still be listed with the same VIN, year, title and
+destination, or the run fails. A re-read that lists more cards than its badge
+is then published as the union of both reads, even when the first read fell
+short of the expected count: Central lists cards before its badges count them
+(G6 listed 15 cards under a badge of 14), so a surplus stored from one run's
+arrivals can count cards the badge has since caught up with. Such a page is
+never stored as confirmed and is read again next run while it lists less than
+its expected count. A re-read at or below its badge must repeat exactly, so a
+short page is confirmed only by an identical re-read. The make directory must
+repeat exactly. On November 21, 2026 two
 runs failed closing on pure arrivals (S10.S15.SONOMA went from 20 to 21 cards
 with no VIN removed). A model's
 expected count is its badge plus a sticky surplus (44 saved models list

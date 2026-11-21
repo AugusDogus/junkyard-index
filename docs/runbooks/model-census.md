@@ -69,7 +69,9 @@ shared rules.
   ceiling clears early once a read lists it again. While it stands, any read
   listing fewer than its count plus that ceiling is checked again:
   - **connectors with a closing pass:** closing re-reads the page, so a
-    one-off fault behind a real placeholder fails the run;
+    one-off fault behind a real placeholder fails the run (on Central, a
+    re-read that lists every first-read card and more than its badge
+    replaces the faulty read instead);
   - **Calton (no closing pass):** the read sets `recheck` and the next run
     reads the page again (reason `short`), including after the read that
     lowered the surplus. The re-read settles it only when it lists the same
@@ -101,8 +103,9 @@ shared rules.
 - Closing re-reads every page read this run whose cards differ from its count
   or fall below its closing floor (its expected cards, or count plus ceiling,
   `ModelCensus.closingFloors`), and fails the run if a re-read differs. Central
-  lets a re-read of a page at or above its floor add cards (see its runbook);
-  a short page must still repeat exactly. Calton has no closing pass, so its short pages are
+  lets a re-read that lists more cards than its badge add cards, and
+  publishes it in place of the first read (see its runbook); a re-read at or
+  below its badge must still repeat exactly. Calton has no closing pass, so its short pages are
   never confirmed and are re-read on the next run.
 - A page below its count is stored as `confirmed` only when that closing
   re-read matched in a normal incremental run (an accepted census from the same
