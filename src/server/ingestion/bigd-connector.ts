@@ -20,11 +20,15 @@ import { BIGD_YARD, type BigdYard } from "./bigd-yard-metadata";
 import type { ProviderRequestGate } from "./provider-http-client";
 import {
   DocumentTransport,
+  type BrowserOpenError,
   type BrowserSessions,
   type LazyDocumentTransport,
 } from "./document-transport";
 import { Config } from "./context";
-import type { BrowserSessionError } from "./errors";
+import {
+  ProviderChunkClock,
+  type ProviderChunkWallTimeout,
+} from "./provider-chunk-clock";
 
 interface BigdOptions<E, R> {
   startCursor?: BigdCursor;
@@ -45,7 +49,7 @@ export function streamBigdInventoryWithRequestGate<E, R>(
   transport: LazyDocumentTransport = DocumentTransport.nativeLazy,
 ): Effect.Effect<
   BigdStreamResult,
-  E | BigdProviderError | BrowserSessionError,
+  E | BigdProviderError | BrowserOpenError | ProviderChunkWallTimeout,
   R
 > {
   return Effect.gen(function* () {
@@ -83,7 +87,7 @@ export function streamBigdInventoryWithRequestGate<E, R>(
     const session: BigdSession = { cookie: null };
     // One bounded public session bootstrap per chunk, with no automatic retry.
     // Its 403 challenge may supply a cookie but is never inventory evidence.
-    yield* transport.pipe(
+    yield* transport.open.pipe(
       Effect.flatMap((documents) =>
         fetchBigdPage("/", session, gate, documents),
       ),
@@ -94,7 +98,7 @@ export function streamBigdInventoryWithRequestGate<E, R>(
         current.phase === "owner" || current.phase === "closing-owner"
           ? "/contact/"
           : "/inventory/";
-      const body = yield* transport.pipe(
+      const body = yield* transport.open.pipe(
         Effect.flatMap((documents) =>
           fetchBigdPage(path, session, gate, documents),
         ),
@@ -146,7 +150,8 @@ export function streamBigdInventoryWithRequestGate<E, R>(
       pagesProcessed,
     } satisfies BigdStreamResult;
   }).pipe(
-    Effect.timeoutFail({
+    // Waiting for the browser session lease is not provider work.
+    ProviderChunkClock.deadline({
       duration: "3 minutes",
       onTimeout: () =>
         new BigdProviderError({
@@ -156,8 +161,9 @@ export function streamBigdInventoryWithRequestGate<E, R>(
     }),
   );
 }
-/** At most one browser session per chunk, opened by the first request and
- * stopped when the chunk ends. `sessions` defaults to Hyperbrowser. */
+/** At most one browser session per chunk, opened by the first request under
+ * the Hyperbrowser session lease and stopped when the chunk ends. `sessions`
+ * defaults to Hyperbrowser. */
 export function streamBigdInventory<E, R>(
   options: BigdOptions<E, R>,
   sessions?: BrowserSessions,
@@ -166,7 +172,10 @@ export function streamBigdInventory<E, R>(
     Effect.gen(function* () {
       const transport = yield* acquireBigdBrowser(
         sessions ??
-          DocumentTransport.hyperbrowser((yield* Config).hyperbrowserApiKey),
+          DocumentTransport.hyperbrowser(
+            (yield* Config).hyperbrowserApiKey,
+            "bigd",
+          ),
       );
       return yield* streamBigdInventoryWithRequestGate(
         options,

@@ -97,7 +97,7 @@ export class TapInventoryProviderError extends Data.TaggedError(
 export class BrowserSessionError extends Data.TaggedError(
   "BrowserSessionError",
 )<{
-  phase: "open" | "fetch" | "rotate" | "close";
+  phase: "lease" | "open" | "fetch" | "rotate" | "close";
   cause: unknown;
 }> {
   override get message() {

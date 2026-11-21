@@ -7,6 +7,11 @@ import {
 } from "playwright-core";
 import { Effect, Schema, Scope } from "effect";
 import { BrowserSessionError } from "./errors";
+import { HyperbrowserSessions } from "./hyperbrowser-sessions";
+import type {
+  ProviderCapacityDeferred,
+  ProviderTurnDeferred,
+} from "./provider-chunk-clock";
 import {
   UPULLIT_DAVIE_ORIGIN,
   type UpullitDaviePage,
@@ -40,17 +45,32 @@ function toError(cause: unknown): Error {
   return cause instanceof Error ? cause : new Error(String(cause));
 }
 
+/** One session for the enclosing scope, opened under the Hyperbrowser
+ * session lease. The session closes before the lease is released. A busy
+ * lease or plan defers the chunk. */
 export function acquireUpullitDavieSession(
   apiKey: string,
-): Effect.Effect<UpullitDavieBrowserSession, BrowserSessionError, Scope.Scope> {
-  return Effect.acquireRelease(openSession(apiKey), (managed) =>
-    managed.close.pipe(Effect.catchAll(() => Effect.void)),
-  ).pipe(Effect.map((managed) => managed.session));
+): Effect.Effect<
+  UpullitDavieBrowserSession,
+  BrowserSessionError | ProviderTurnDeferred | ProviderCapacityDeferred,
+  Scope.Scope
+> {
+  return HyperbrowserSessions.lease("upullitdavie").pipe(
+    Effect.andThen(
+      Effect.acquireRelease(openSession(apiKey), (managed) =>
+        managed.close.pipe(Effect.catchAll(() => Effect.void)),
+      ),
+    ),
+    Effect.map((managed) => managed.session),
+  );
 }
 
 function openSession(
   apiKey: string,
-): Effect.Effect<ManagedUpullitDavieSession, BrowserSessionError> {
+): Effect.Effect<
+  ManagedUpullitDavieSession,
+  BrowserSessionError | ProviderCapacityDeferred
+> {
   return Effect.gen(function* () {
     const state: MutableSessionState = {
       client: new Hyperbrowser({ apiKey }),
@@ -65,7 +85,9 @@ function openSession(
         doClose(state).pipe(Effect.catchAll(() => Effect.void)),
       ),
       Effect.mapError(
-        (cause) => new BrowserSessionError({ phase: "open", cause }),
+        (cause) =>
+          HyperbrowserSessions.capacityDeferral(cause) ??
+          new BrowserSessionError({ phase: "open", cause }),
       ),
     );
 
@@ -91,11 +113,12 @@ function doOpen(state: MutableSessionState): Effect.Effect<void, unknown> {
   return Effect.gen(function* () {
     const session = yield* Effect.tryPromise({
       try: () =>
-        state.client.sessions.create({
+        HyperbrowserSessions.create(state.client, {
           useStealth: true,
           acceptCookies: true,
           region: HYPERBROWSER_REGION,
         }),
+      // Keep the SDK error, which `capacityDeferral` recognizes.
       catch: toError,
     });
     state.sessionId = session.id;

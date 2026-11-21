@@ -103,7 +103,9 @@ Plain HTTP encounters AWS WAF 202. A normal Hyperbrowser browser navigation
 loads its JavaScript cookie, using stealth, accepted cookies and `us-west`.
 CAPTCHA solving is explicitly disabled. A 403 or 429 stops the session's host
 requests. The first rendered catalog is reused; later documents use same-origin
-browser fetch. Requests are serial with a 1.6-second gap.
+browser fetch. Requests are serial with a 1.6-second gap. Each checkpoint opens
+its session under the cross-source
+[Hyperbrowser session lease](hyperbrowser-sessions.md); a busy lease defers it.
 
 Each checkpoint permits 12 detail requests by default (maximum 24), plus a fresh
 five-page national catalog enumeration, within four minutes. Carried records do

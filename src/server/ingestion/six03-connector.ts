@@ -37,6 +37,7 @@ import {
   type LazyDocumentTransport,
 } from "./document-transport";
 import { Config } from "./context";
+import { ProviderChunkClock } from "./provider-chunk-clock";
 
 interface Six03Options<E, R> {
   startCursor?: Six03Cursor;
@@ -77,7 +78,7 @@ export function streamSix03InventoryWithRequestGate<E, R>(
   transport: LazyDocumentTransport = DocumentTransport.nativeLazy,
 ) {
   const load = (url: string) =>
-    transport.pipe(
+    transport.open.pipe(
       Effect.flatMap((documents) => fetchSix03Page(url, gate, documents)),
     );
   return Effect.gen(function* () {
@@ -293,7 +294,8 @@ export function streamSix03InventoryWithRequestGate<E, R>(
         : [],
     } satisfies Six03StreamResult;
   }).pipe(
-    Effect.timeoutFail({
+    // Waiting for the browser session lease is not provider work.
+    ProviderChunkClock.deadline({
       duration: "3 minutes",
       onTimeout: () =>
         new Six03ProviderError({
@@ -304,8 +306,9 @@ export function streamSix03InventoryWithRequestGate<E, R>(
   );
 }
 
-/** At most one browser session per chunk, opened by the first request and
- * stopped when the chunk ends. `sessions` defaults to Hyperbrowser. */
+/** At most one browser session per chunk, opened by the first request under
+ * the Hyperbrowser session lease and stopped when the chunk ends. `sessions`
+ * defaults to Hyperbrowser. */
 export function streamSix03Inventory<E, R>(
   options: Six03Options<E, R>,
   sessions?: BrowserSessions,
@@ -314,7 +317,10 @@ export function streamSix03Inventory<E, R>(
     Effect.gen(function* () {
       const transport = yield* acquireSix03Browser(
         sessions ??
-          DocumentTransport.hyperbrowser((yield* Config).hyperbrowserApiKey),
+          DocumentTransport.hyperbrowser(
+            (yield* Config).hyperbrowserApiKey,
+            "six03",
+          ),
       );
       const limit = yield* RateLimiter.make({
         limit: 1,

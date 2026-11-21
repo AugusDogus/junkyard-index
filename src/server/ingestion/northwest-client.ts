@@ -2,7 +2,11 @@ import { sharedProviderHostSlot } from "./shared-provider-host";
 import { Data, Effect } from "effect";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
-import { DocumentTransport, type BrowserSessions } from "./document-transport";
+import {
+  DocumentTransport,
+  type BrowserSessions,
+  type LazyDocumentTransport,
+} from "./document-transport";
 import {
   NORTHWEST_MAKES,
   NORTHWEST_ROOT,
@@ -126,6 +130,16 @@ export const northwestRequestGate: ProviderRequestGate = (request) =>
   request.pipe(Effect.ensuring(Effect.sleep("1600 millis")));
 
 /** Cloudflare refuses native requests from Vercel, so a browser session
- * navigates once and reads later documents by same-origin fetch. */
+ * navigates once and reads later documents by same-origin fetch. The
+ * transports live here, beside the host slot every Northwest request takes,
+ * so the connector's URG turns only reach them through `fetchNorthwestPage`. */
 export const acquireNorthwestBrowser = (sessions: BrowserSessions) =>
   DocumentTransport.acquireBrowser(sessions, "fetch");
+
+/** Northwest's Hyperbrowser sessions, under the session lease. */
+export const northwestHyperbrowser = (apiKey: string) =>
+  DocumentTransport.hyperbrowser(apiKey, "northwest");
+
+/** Native requests, with no lease or session. */
+export const NORTHWEST_NATIVE_TRANSPORT: LazyDocumentTransport =
+  DocumentTransport.nativeLazy;

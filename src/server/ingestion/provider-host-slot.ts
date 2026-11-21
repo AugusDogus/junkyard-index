@@ -1,5 +1,5 @@
 import { Redis } from "@upstash/redis";
-import { Clock, Effect, FiberRef, Option } from "effect";
+import { Clock, Effect, FiberRef, Option, type Scope } from "effect";
 import {
   ProviderChunkClock,
   type ProviderTurnDeferred,
@@ -27,9 +27,15 @@ export interface ProviderHostPolicy {
   gapMs: number;
   group?: ProviderHostGroup;
 }
+/** What a lease held for a whole scope needs from a policy: no per-request
+ * time or gap, since the holder paces its own requests. */
+export type ProviderLeasePolicy = Pick<
+  ProviderHostPolicy,
+  "key" | "label" | "leaseMs" | "waitMs" | "pollMs" | "group"
+>;
 
 const slotError = (
-  policy: ProviderHostPolicy,
+  policy: ProviderLeasePolicy,
   operation: string,
   cause: unknown,
 ) =>
@@ -129,7 +135,7 @@ export const ProviderHostKeyspace = {
  * every key still shares one cluster slot.
  */
 export function providerHostKeys(
-  policy: ProviderHostPolicy,
+  policy: ProviderLeasePolicy,
   keyspace: ProviderHostKeyspace,
 ) {
   const base =
@@ -160,7 +166,7 @@ export function providerHostKeys(
 }
 
 export function redisProviderHostStore(
-  policy: ProviderHostPolicy,
+  policy: ProviderLeasePolicy,
   redis: Pick<Redis, "eval">,
   keyspace: ProviderHostKeyspace,
 ): ProviderHostStore {
@@ -194,6 +200,22 @@ export function redisProviderHostStore(
   };
 }
 
+/** One store call, bounded so a stalled Redis fails instead of hanging. */
+const storeCall = (
+  policy: ProviderLeasePolicy,
+  operation: string,
+  run: () => Promise<boolean>,
+) =>
+  Effect.tryPromise({
+    try: run,
+    catch: (cause) => slotError(policy, operation, cause),
+  }).pipe(
+    Effect.timeoutFail({
+      duration: "5 seconds",
+      onTimeout: () => slotError(policy, operation, "Redis deadline exceeded"),
+    }),
+  );
+
 /** How long a lease holder may wait and then hold the lease. */
 interface LeaseTerms<W, T> {
   /** Held after the request, inside the lease. */
@@ -211,16 +233,7 @@ function withHostLease<A, E, R, W, T>(
   terms: LeaseTerms<W, T>,
 ): Effect.Effect<A, E | Error | W | T, R> {
   const call = (operation: string, run: () => Promise<boolean>) =>
-    Effect.tryPromise({
-      try: run,
-      catch: (cause) => slotError(policy, operation, cause),
-    }).pipe(
-      Effect.timeoutFail({
-        duration: "5 seconds",
-        onTimeout: () =>
-          slotError(policy, operation, "Redis deadline exceeded"),
-      }),
-    );
+    storeCall(policy, operation, run);
   // The lease outlives the request by the policy's usual margin.
   const leaseMargin = policy.leaseMs - policy.requestMs;
   return Effect.uninterruptibleMask((restore) =>
@@ -386,8 +399,88 @@ export function withProviderHostTurn<A, E, R>(
   );
 }
 
+/**
+ * Holds the policy's lease for the enclosing scope, which releases it when it
+ * closes, on success, failure or interruption. A holder that dies without
+ * releasing loses the lease after `leaseMs`. Waiting is FIFO, polls every
+ * `pollMs` and counts as queue time. It lasts at most `waitMs` and, inside a
+ * chunk deadline, only while the chunk's remaining work allowance still fits
+ * before its turn horizon (`ProviderChunkClock.leaseHorizon`). After that it
+ * fails with `ProviderTurnDeferred` and gives up its place.
+ *
+ * Lock order: a scoped lease is taken before any shared host turn, never
+ * inside one. A turn holder therefore never waits for a lease holder, so a
+ * lease holder may wait for turns without deadlock. Waiting for a lease inside
+ * a held turn fails.
+ */
+export function withProviderHostLease(
+  policy: ProviderLeasePolicy,
+  store: ProviderHostStore,
+): Effect.Effect<void, Error | ProviderTurnDeferred, Scope.Scope> {
+  return Effect.uninterruptibleMask((restore) =>
+    Effect.gen(function* () {
+      const turns = yield* FiberRef.get(HeldHostTurns);
+      if (turns.size > 0)
+        return yield* Effect.fail(
+          new Error(
+            `${policy.label} lease was requested inside a shared host turn (${[...turns.keys()].join(", ")}), which could deadlock with a lease holder waiting for that turn. Nothing was requested and prior inventory is preserved. Take the lease before the turn.`,
+          ),
+        );
+      const token = crypto.randomUUID();
+      const now = yield* Clock.currentTimeMillis;
+      const waitUntil = Option.match(yield* ProviderChunkClock.leaseHorizon, {
+        onNone: () => now + policy.waitMs,
+        onSome: (latest) => Math.min(now + policy.waitMs, latest),
+      });
+      const acquired = yield* Effect.exit(
+        restore(
+          Effect.gen(function* () {
+            while (true) {
+              if (
+                yield* storeCall(policy, "reservation", () =>
+                  store.reserve(token, policy.leaseMs),
+                )
+              )
+                return;
+              // As in a turn, the wait ends between polls, never during a
+              // reservation Redis may still grant.
+              if ((yield* Clock.currentTimeMillis) + policy.pollMs > waitUntil)
+                return yield* Effect.flip(
+                  ProviderChunkClock.deferred(policy.label, "wait"),
+                );
+              yield* Effect.sleep(policy.pollMs);
+            }
+          }).pipe(ProviderChunkClock.queued),
+        ),
+      );
+      if (acquired._tag === "Failure") {
+        yield* storeCall(policy, "queue cancellation", () =>
+          store.cancel(token),
+        );
+        return yield* Effect.failCause(acquired.cause);
+      }
+      yield* Effect.addFinalizer(() =>
+        storeCall(policy, "release", () => store.release(token)).pipe(
+          Effect.flatMap((released) =>
+            released
+              ? Effect.void
+              : Effect.logWarning(
+                  `${policy.label} lease had already expired when its holder released it, so another holder may have overlapped it. Leases last ${policy.leaseMs} ms; look for a holder that ran longer.`,
+                ),
+          ),
+          Effect.catchAll((error) =>
+            Effect.logWarning(
+              `${error.message} The lease expires ${policy.leaseMs} ms after it was granted.`,
+            ),
+          ),
+        ),
+      );
+    }),
+  );
+}
+
 function onHostStore<A, E, R>(
-  policy: ProviderHostPolicy,
+  policy: ProviderLeasePolicy,
   use: (store: ProviderHostStore) => Effect.Effect<A, E | Error, R>,
   bypass: Effect.Effect<A, E, R>,
 ): Effect.Effect<A, E | Error, R> {
@@ -451,8 +544,22 @@ export function providerHostTurn<A, E, R>(
   );
 }
 
+/** `withProviderHostLease` on the deployment's Redis store, or no lease for
+ * a local process, like every shared host gate. */
+export function providerHostLease(
+  policy: ProviderLeasePolicy,
+): Effect.Effect<void, Error | ProviderTurnDeferred, Scope.Scope> {
+  return Effect.suspend(() =>
+    onHostStore(
+      policy,
+      (store) => withProviderHostLease(policy, store),
+      Effect.void,
+    ),
+  );
+}
+
 function withRedisProviderHostStore<A, E, R>(
-  policy: ProviderHostPolicy,
+  policy: ProviderLeasePolicy,
   use: (store: ProviderHostStore) => Effect.Effect<A, E, R>,
 ) {
   return Effect.try({

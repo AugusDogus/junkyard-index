@@ -3,6 +3,7 @@ import { Effect } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import { UpullitDavieCursorState } from "./durable-cursor";
 import { Config } from "./context";
+import { ProviderChunkClock } from "./provider-chunk-clock";
 import {
   UpullitDavieCatalog,
   UPULLIT_DAVIE_MAX_CATALOG_PAGES,
@@ -43,7 +44,17 @@ export function streamUpullitDavieInventory<E, R>(options: {
         return yield* streamUpullitDavieInventoryFromSource(options, source);
       }),
     );
-  });
+  }).pipe(
+    // Waiting for the session lease is not provider work, and the chunk
+    // deadline lets a busy lease defer the chunk instead of failing it.
+    ProviderChunkClock.deadline({
+      duration: "4 minutes",
+      onTimeout: () =>
+        new Error(
+          "U Pull It Davie chunk exceeded four minutes of provider work. No checkpoint from this chunk was accepted; prior inventory is preserved and the step retries from the last checkpoint.",
+        ),
+    }),
+  );
 }
 
 export function streamUpullitDavieInventoryFromSource<E, R, PageError>(

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { Effect } from "effect";
 import { Config } from "./context";
+import { ProviderChunkClock } from "./provider-chunk-clock";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import { ingestionValidation } from "./ingestion-validation";
 import { SourceValidationPolicy } from "./source-validation";
@@ -426,18 +427,21 @@ export function streamVanderHaagsInventory<E, R>(options: Options<E, R>) {
       return yield* streamVanderHaagsInventoryFromSource(options, source);
     }),
   ).pipe(
-    Effect.timeoutFail({
+    // Waiting for the session lease is not provider work.
+    ProviderChunkClock.deadline({
       duration: "4 minutes",
       onTimeout: () =>
         new Error("Vander Haags checkpoint exceeded four minutes"),
     }),
-    Effect.mapError(
-      (cause) =>
-        new Error(
-          "Vander Haags ingestion failed: " +
-            String(cause) +
-            ". Reconciliation is blocked and previous inventory is preserved. Inspect the native catalog, then restart enumeration.",
-        ),
+    Effect.mapError((cause) =>
+      // A busy session lease or plan defers the chunk instead.
+      ProviderChunkClock.isDeferral(cause)
+        ? cause
+        : new Error(
+            "Vander Haags ingestion failed: " +
+              String(cause) +
+              ". Reconciliation is blocked and previous inventory is preserved. Inspect the native catalog, then restart enumeration.",
+          ),
     ),
   );
 }
