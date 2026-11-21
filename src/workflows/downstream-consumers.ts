@@ -7,6 +7,7 @@ import { IngestionTokens } from "./ingestion-tokens";
 import {
   announceInventoryStep,
   inventoryDownstreamDueStep,
+  recordInventoryDownstreamFailureStep,
   recordInventoryDownstreamStep,
   refreshInventoryCachesStep,
   reportConsumerTickStep,
@@ -23,7 +24,7 @@ const PAGE_REGENERATION_DELAY = "2m";
  * the changed pages and announces them to IndexNow. It never depends on an
  * ingestion pass completing or on search.
  */
-export async function inventoryDownstreamWorkflow() {
+export async function inventoryDownstreamWorkflow(checkedAt: string) {
   "use workflow";
 
   using consumer = createHook({
@@ -39,12 +40,14 @@ export async function inventoryDownstreamWorkflow() {
   let result: InventoryDownstreamResult;
   try {
     result = await runInventoryDownstream({
-      due: inventoryDownstreamDueStep,
+      // Re-check at the route's time, so the checkpoint is stamped with it.
+      due: () => inventoryDownstreamDueStep(checkedAt),
       refresh: refreshInventoryCachesStep,
       warm: warmInventoryAnnouncementStep,
       waitForPages: () => sleep(PAGE_REGENERATION_DELAY),
       announce: announceInventoryStep,
       record: recordInventoryDownstreamStep,
+      recordFailure: recordInventoryDownstreamFailureStep,
     });
   } catch (error) {
     await reportConsumerTickStep("inventory-downstream", "failed", {

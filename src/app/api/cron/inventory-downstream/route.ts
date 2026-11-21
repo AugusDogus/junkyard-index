@@ -29,7 +29,7 @@ export async function GET(request: Request) {
     );
     if (due.status === "due") {
       const run = await pRetry(
-        () => start(inventoryDownstreamWorkflow),
+        () => start(inventoryDownstreamWorkflow, [due.checkedAt]),
         workflowStartRetryOptions,
       );
       return Response.json(
@@ -37,7 +37,13 @@ export async function GET(request: Request) {
         { status: 202 },
       );
     }
-    await reportConsumerTickNow("inventory-downstream", "succeeded", due);
+    // Backing off after failed refreshes is a failure every hour until a
+    // refresh succeeds, so a stuck consumer stays red and keeps its issue.
+    await reportConsumerTickNow(
+      "inventory-downstream",
+      due.status === "backing_off" ? "failed" : "succeeded",
+      due,
+    );
     return Response.json({ consumer: "inventory-downstream", due });
   } catch (error) {
     await reportConsumerTickNow("inventory-downstream", "failed", {

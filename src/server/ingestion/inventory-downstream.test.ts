@@ -66,7 +66,7 @@ async function publish(sequence: number, publishedAt = start) {
 
 async function checkpoint(name: string = InventoryDownstream.checkpointName) {
   const result = await client.execute({
-    sql: "select last_processed_change_id as through, updated_at as at from ingestion_projector_checkpoint where name = ?",
+    sql: "select last_processed_change_id as through, last_success_at as at from ingestion_projector_checkpoint where name = ?",
     args: [name],
   });
   const row = result.rows[0];
@@ -110,6 +110,14 @@ async function tick(
       await InventoryDownstream.record(
         database,
         publicationSequence,
+        new Date(checkedAt),
+      );
+    },
+    recordFailure: async (failure, checkedAt) => {
+      calls.push(`failure:${failure.stage}`);
+      return InventoryDownstream.recordFailure(
+        database,
+        failure,
         new Date(checkedAt),
       );
     },
@@ -184,30 +192,95 @@ describe("inventory-downstream consumer", () => {
     expect(await checkpoint()).toEqual({ through: 5, at: at(11).getTime() });
   });
 
-  test("a failed refresh leaves the checkpoint behind, so the next tick retries", async () => {
+  test("a failed refresh leaves the checkpoint behind and backs off before reading every vehicle again", async () => {
     await publish(7);
-    const failed = await tick(at(0), {
-      refresh: async () => ({
-        status: "failed",
-        stage: "project",
-        message: "snapshot write failed",
-      }),
-    });
+    const failing = {
+      refresh: async () =>
+        ({
+          status: "failed",
+          stage: "project",
+          message: "snapshot write failed",
+        }) as const,
+    };
+    const failed = await tick(at(0), failing);
     expect(failed.result).toEqual({
       status: "refresh_failed",
       publicationSequence: 7,
       stage: "project",
       message: "snapshot write failed",
+      failureCount: 1,
+      retryAt: at(3).toISOString(),
     });
-    expect(failed.calls).toEqual(["refresh"]);
-    expect(await checkpoint()).toBeNull();
+    expect(failed.calls).toEqual(["refresh", "failure:project"]);
+    expect(await checkpoint()).toMatchObject({ through: 0 });
 
-    const retried = await tick(at(1));
+    // No refresh, so no full vehicle read, until the backoff passes.
+    const waiting = await tick(at(1), failing);
+    expect(waiting.result).toEqual({
+      status: "backing_off",
+      publicationSequence: 7,
+      refreshedThrough: 0,
+      failureCount: 1,
+      lastErrorTag: "refresh_project",
+      retryAt: at(3).toISOString(),
+    });
+    expect(waiting.calls).toEqual([]);
+
+    // A second failure doubles the backoff.
+    expect((await tick(at(3), failing)).result).toMatchObject({
+      status: "refresh_failed",
+      failureCount: 2,
+      retryAt: at(9).toISOString(),
+    });
+    expect((await tick(at(8), failing)).result).toMatchObject({
+      status: "backing_off",
+    });
+
+    // Success advances the checkpoint and clears the backoff.
+    const retried = await tick(at(9));
     expect(retried.result).toMatchObject({
       status: "refreshed",
       publicationSequence: 7,
     });
-    expect(await checkpoint()).toEqual({ through: 7, at: at(1).getTime() });
+    expect(await checkpoint()).toEqual({ through: 7, at: at(9).getTime() });
+    const row = await client.execute(
+      "select failure_count, last_error_tag, blocked_until from ingestion_projector_checkpoint where name = 'inventory-downstream'",
+    );
+    expect(row.rows[0]).toMatchObject({
+      failure_count: 0,
+      last_error_tag: null,
+      blocked_until: null,
+    });
+  });
+
+  test("a refresh that throws counts as one failed attempt and backs off", async () => {
+    await publish(4);
+    const thrown = await tick(at(0), {
+      refresh: async () => {
+        throw new Error("step timed out");
+      },
+    });
+    expect(thrown.result).toMatchObject({
+      status: "refresh_failed",
+      stage: "unexpected",
+      message: "step timed out",
+      failureCount: 1,
+    });
+    expect((await tick(at(1))).result).toMatchObject({
+      status: "backing_off",
+      lastErrorTag: "refresh_unexpected",
+    });
+  });
+
+  test("an hourly tick that fires a little earlier 3 hours later is still due", async () => {
+    await publish(1);
+    // The first tick checked at 10:10:30, the next fires at 13:10:00.
+    await tick(new Date(at(0).getTime() + 30_000));
+    await publish(2, at(1));
+    expect((await tick(at(3))).result).toMatchObject({
+      status: "refreshed",
+      publicationSequence: 2,
+    });
   });
 
   test("a failed announcement does not hold back the refresh checkpoint", async () => {

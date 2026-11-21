@@ -14,6 +14,20 @@ export type InventoryDownstreamDue =
       /** ISO time; step results stay plain data. */
       nextRefreshAt: string;
     }
+  /**
+   * Refreshing failed recently; it is retried at retryAt, backing off from
+   * 3 hours to at most a day, so a persistent failure does not read every
+   * vehicle each hour.
+   */
+  | {
+      status: "backing_off";
+      publicationSequence: number;
+      refreshedThrough: number;
+      failureCount: number;
+      lastErrorTag: string | null;
+      /** ISO time. */
+      retryAt: string;
+    }
   | {
       status: "due";
       publicationSequence: number;
@@ -28,8 +42,16 @@ export type AnnouncementStatus = "submitted" | "skipped" | "failed";
 /** Storing the homepage snapshot or revalidating the caches failed. */
 export type InventoryRefreshFailure = {
   status: "failed";
-  stage: "project" | "revalidate";
+  /** unexpected: the refresh threw instead of returning a failure. */
+  stage: "project" | "revalidate" | "unexpected";
   message: string;
+};
+
+/** A recorded refresh failure and when the consumer retries. */
+export type InventoryRefreshBackoff = {
+  failureCount: number;
+  /** ISO time. */
+  retryAt: string;
 };
 
 export type InventoryDownstreamResult =
@@ -39,6 +61,8 @@ export type InventoryDownstreamResult =
       publicationSequence: number;
       stage: InventoryRefreshFailure["stage"];
       message: string;
+      failureCount: number;
+      retryAt: string;
     }
   | {
       status: "refreshed";
@@ -54,7 +78,8 @@ export type InventoryDownstreamResult =
  * consumer's checkpoint and the last refresh is old enough, it stores the
  * homepage snapshot and revalidates the inventory caches, then requests the
  * changed pages and announces them to IndexNow, then advances the checkpoint.
- * A failed refresh leaves the checkpoint behind, so the next tick retries.
+ * A failed refresh leaves the checkpoint behind and records the failure, so a
+ * later tick retries after a backoff.
  * The announcement is best effort, as it was at the end of a pass: IndexNow
  * keeps its own checkpoint, so a failed one is retried with the next
  * publication's. Nothing here reads or writes search.
@@ -76,19 +101,37 @@ export async function runInventoryDownstream(operations: {
    * its end, so the 3-hour gate does not drift by each tick's runtime.
    */
   record(publicationSequence: number, checkedAt: string): Promise<void>;
+  /** Records a failed refresh and returns when to retry. */
+  recordFailure(
+    failure: InventoryRefreshFailure,
+    checkedAt: string,
+  ): Promise<InventoryRefreshBackoff>;
 }): Promise<InventoryDownstreamResult> {
   // Invoke step callbacks without serializing the operations object as `this`.
-  const { due, refresh, warm, waitForPages, announce, record } = operations;
+  const { due, refresh, warm, waitForPages, announce, record, recordFailure } =
+    operations;
   const state = await due();
   if (state.status !== "due") return state;
   const { publicationSequence } = state;
-  const refreshed = await refresh();
+  let refreshed: Awaited<ReturnType<typeof refresh>>;
+  try {
+    refreshed = await refresh();
+  } catch (error) {
+    // A step that died or threw still counts as one attempt, so it backs off.
+    refreshed = {
+      status: "failed",
+      stage: "unexpected",
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
   if (refreshed.status === "failed") {
+    const backoff = await recordFailure(refreshed, state.checkedAt);
     return {
       status: "refresh_failed",
       publicationSequence,
       stage: refreshed.stage,
       message: refreshed.message,
+      ...backoff,
     };
   }
   let announcement: AnnouncementStatus;

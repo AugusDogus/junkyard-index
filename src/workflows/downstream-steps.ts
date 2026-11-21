@@ -15,6 +15,7 @@ import { InventoryCacheRefresh } from "~/server/ingestion/inventory-cache-refres
 import { InventoryDownstream } from "~/server/ingestion/inventory-downstream";
 import type {
   InventoryDownstreamDue,
+  InventoryRefreshBackoff,
   InventoryRefreshFailure,
 } from "~/server/ingestion/inventory-downstream-consumer";
 import {
@@ -26,10 +27,10 @@ import { formatError, throwRetryableStepError } from "./step-errors";
 
 /**
  * Stores the inventory snapshot the homepage and inventory pages read, then
- * revalidates them, each only when behind the latest publication. Not
- * retried on a failed refresh: storing the snapshot reads every vehicle, so a
- * failure costs one attempt per consumer tick. The consumer's checkpoint
- * stays behind, so its next tick retries.
+ * revalidates them, each only when behind the latest publication. Never
+ * retried here: storing the snapshot reads every vehicle, so every failure,
+ * thrown or returned, is one attempt that the consumer records and backs off
+ * from (3 hours, doubling to a day).
  */
 export async function refreshInventoryCachesStep(): Promise<
   { status: "ok" } | InventoryRefreshFailure
@@ -47,26 +48,36 @@ export async function refreshInventoryCachesStep(): Promise<
       revalidate: () => revalidateTag(INVENTORY_CACHE_TAG, "max"),
     });
   } catch (error) {
-    throwRetryableStepError("Refresh the inventory caches", error);
+    // Not retried: a retry would read every vehicle again. The consumer
+    // records the failure and backs off.
+    const message = `Could not refresh the inventory caches; the homepage and inventory pages keep the previous inventory until the inventory-downstream consumer retries after its backoff: ${formatError(error)}`;
+    console.error(`[Workflow] ${message}`, error);
+    return { status: "failed", stage: "unexpected", message };
   }
   if (refresh.status !== "failed") return { status: "ok" };
   const message =
     refresh.stage === "project"
-      ? `Could not store the inventory snapshot for publication ${refresh.publicationSequence}; the homepage and inventory pages keep the previous inventory until the inventory-downstream consumer's next tick retries; vehicle data is unaffected: ${formatError(refresh.error)}`
-      : `Could not revalidate the "${INVENTORY_CACHE_TAG}" cache tag for publication ${refresh.publicationSequence}; the snapshot is stored, and the homepage and inventory pages keep the previous inventory until the inventory-downstream consumer's next tick retries the revalidation: ${formatError(refresh.error)}`;
+      ? `Could not store the inventory snapshot for publication ${refresh.publicationSequence}; the homepage and inventory pages keep the previous inventory until the inventory-downstream consumer retries after its backoff; vehicle data is unaffected: ${formatError(refresh.error)}`
+      : `Could not revalidate the "${INVENTORY_CACHE_TAG}" cache tag for publication ${refresh.publicationSequence}; the snapshot is stored, and the homepage and inventory pages keep the previous inventory until the inventory-downstream consumer retries the revalidation after its backoff: ${formatError(refresh.error)}`;
   console.error(`[Workflow] ${message}`);
   return { status: "failed", stage: refresh.stage, message };
 }
-refreshInventoryCachesStep.maxRetries = 2;
+refreshInventoryCachesStep.maxRetries = 0;
 
-/** Whether the inventory-downstream consumer has a publication to refresh. */
-export async function inventoryDownstreamDueStep(): Promise<InventoryDownstreamDue> {
+/**
+ * Whether the inventory-downstream consumer has a publication to refresh, as
+ * of the cron route's check time, so the checkpoint is stamped with the time
+ * the route's 3-hour gate compares against.
+ */
+export async function inventoryDownstreamDueStep(
+  checkedAt: string,
+): Promise<InventoryDownstreamDue> {
   "use step";
 
   try {
     return await InventoryDownstream.due(
       db,
-      new Date(),
+      new Date(checkedAt),
       await ConsumerFlags.mode("inventory-downstream"),
     );
   } catch (error) {
@@ -96,6 +107,28 @@ export async function recordInventoryDownstreamStep(
   }
 }
 recordInventoryDownstreamStep.maxRetries = 2;
+
+/** Records a failed refresh and blocks the consumer for its backoff. */
+export async function recordInventoryDownstreamFailureStep(
+  failure: InventoryRefreshFailure,
+  checkedAt: string,
+): Promise<InventoryRefreshBackoff> {
+  "use step";
+
+  try {
+    return await InventoryDownstream.recordFailure(
+      db,
+      failure,
+      new Date(checkedAt),
+    );
+  } catch (error) {
+    throwRetryableStepError(
+      "Record an inventory-downstream refresh failure",
+      error,
+    );
+  }
+}
+recordInventoryDownstreamFailureStep.maxRetries = 2;
 
 /** Reports a downstream consumer tick to Sentry and Better Stack. */
 export async function reportConsumerTickStep(
