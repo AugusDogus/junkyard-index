@@ -83,15 +83,16 @@ jobs:
           path: test-timings-input
       # The first --timings path does not exist yet, so Bun writes only this
       # shard's files there for the exactly-once verifier and the cache.
-      # --parallel runs one worker per core, slowest files first. --no-isolate
-      # keeps one global per worker, as serial bun test does: replay files
-      # reuse parsed fixtures, and Bun 1.4.1 does not lose spawnSync child
-      # exits as it can in isolated workers (oven-sh/bun#43697).
+      # Two workers run the slowest files first. Four workers on the 4 vCPU
+      # runner slowed CPU-bound replays up to 1.6x and pushed them past their
+      # timeouts. --no-isolate keeps one global per worker, as serial bun test
+      # does: replay files reuse parsed fixtures, and Bun 1.4.1 does not lose
+      # spawnSync child exits as it can in isolated workers (oven-sh/bun#43697).
       - name: Run weighted shard
         run: |
           mkdir -p test-results
           inputs=$(find test-timings-input -name '*.json' -printf '--timings=%p ')
-          bun test src --shard=${{ matrix.shard }}/8 --parallel --no-isolate --timings=test-results/timings.json $inputs --update-timings --reporter=junit --reporter-outfile=test-results/junit.xml
+          bun test src --shard=${{ matrix.shard }}/8 --parallel=2 --no-isolate --timings=test-results/timings.json $inputs --update-timings --reporter=junit --reporter-outfile=test-results/junit.xml
       - uses: actions/upload-artifact@v4.6.2
         if: always()
         with:
