@@ -580,11 +580,71 @@ test("Central re-reads a surplus page that drops to its badge instead of carryin
     (m) => m.key === censusKey(surplus, label),
   );
   expect(evidence?.expected).toBe(170);
+  expect(evidence?.lowSince).toBe(day);
   expect(evidence?.confirmed).toBe(false);
   expect(evidence?.page.records).toHaveLength(160);
-  const next = await census(native, day + 1, dropped.terminal);
-  expect(next.models).toEqual(
-    inListOrder(native, sweep(native, day + 1), surplus),
-  );
-  expect(next.warnings.at(-1)).toContain("short 1");
+
+  // The surplus is sticky: the lower count is not accepted after one re-read.
+  // Every daily run reads the page again as short and re-reads it at closing,
+  // until a normal incremental run reads it six days after the drop began.
+  const lastRead = new Map([...native.rows.keys()].map((i) => [i, 600]));
+  for (const i of [...sweep(native, day), surplus]) lastRead.set(i, day);
+  let previous = dropped.terminal;
+  for (let today = day + 1; today <= day + MODEL_CENSUS_SWEEP_DAYS; today++) {
+    const run = await census(native, today, previous);
+    const read = inListOrder(native, sweep(native, today), surplus);
+    expect(run.models).toEqual([...read, surplus]);
+    // root, makes, one menu, the read models, the closing re-read of the
+    // surplus page, closing root and makes.
+    expect(run.requests).toBe(5 + read.length + 1);
+    expect(run.vins).toEqual(allVins(native));
+    const reasons = new Map<string, number>();
+    for (const i of read) {
+      const reason =
+        i === surplus
+          ? "short"
+          : today - (lastRead.get(i) ?? 600) >= MODEL_CENSUS_SWEEP_DAYS
+            ? "stale"
+            : "sweep";
+      reasons.set(reason, (reasons.get(reason) ?? 0) + 1);
+      lastRead.set(i, today);
+    }
+    expect(reasons.get("short")).toBe(1);
+    expect(run.warnings.at(-1)).toBe(
+      `Central Read ${read.length} of 12 model pages (${[...reasons]
+        .map(([reason, n]) => `${reason} ${n}`)
+        .join(", ")}); carried ${12 - read.length}.`,
+    );
+    const held = terminalCensus(run.terminal).models.find(
+      (m) => m.key === censusKey(surplus, label),
+    );
+    const lowered = today - day >= MODEL_CENSUS_SWEEP_DAYS;
+    expect(held?.readDay).toBe(today);
+    expect(held?.count).toBe(160);
+    expect(held?.expected).toBe(lowered ? 160 : 170);
+    expect(held?.lowSince).toBe(lowered ? null : day);
+    expect(held?.confirmed).toBe(false);
+    expect(held?.page.records).toHaveLength(160);
+    previous = run.terminal;
+  }
+
+  // Once lowered, the page lists its expected count and carries.
+  const after = day + MODEL_CENSUS_SWEEP_DAYS + 1;
+  const carried = await census(native, after, previous);
+  expect(carried.models).toEqual(sweep(native, after));
+  expect(carried.models).not.toContain(surplus);
+  expect(carried.requests).toBe(5 + sweep(native, after).length);
+  expect(carried.vins).toEqual(allVins(native));
+  expect(carried.warnings.at(-1)).not.toContain("short");
+  expect(
+    terminalCensus(carried.terminal).models.find(
+      (m) => m.key === censusKey(surplus, label),
+    ),
+  ).toMatchObject({
+    readDay: day + MODEL_CENSUS_SWEEP_DAYS,
+    count: 160,
+    expected: 160,
+    lowSince: null,
+    confirmed: false,
+  });
 });

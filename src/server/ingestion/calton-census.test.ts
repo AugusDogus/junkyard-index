@@ -198,10 +198,15 @@ const sweepAt = (site: Yard, day: number) =>
       : [],
   );
 /** Census summary reasons appear in the published order of their first model. */
-const sweepAndOne = (sweep: readonly number[], index: number, reason: string) =>
+const sweepAndOne = (
+  sweep: readonly number[],
+  index: number,
+  reason: string,
+  sweepReason = "sweep",
+) =>
   (sweep[0] ?? Infinity) < index
-    ? `sweep ${sweep.length}, ${reason} 1`
-    : `${reason} 1, sweep ${sweep.length}`;
+    ? `${sweepReason} ${sweep.length}, ${reason} 1`
+    : `${reason} 1, ${sweepReason} ${sweep.length}`;
 const urlsAt = (site: Yard, indices: readonly number[]) =>
   indices.map((index) => {
     const model = site.models[index];
@@ -539,8 +544,9 @@ test("a run fails when today's swept model pages render empty while their badges
 test("a surplus page that drops to its badge is read again on the next run", async () => {
   // 22 live models list one row above their badge. A swept page that loses
   // that row lists exactly its badge, which neither the badge nor the badge
-  // coverage can see. It falls below its previous card count, so the next run
-  // reads it again instead of carrying it for up to six days.
+  // coverage can see. Its surplus is sticky, so it stays short of what it is
+  // expected to list and every run reads it again, until reads at the badge
+  // have lasted six run days and a normal incremental run lowers the surplus.
   const site = yard();
   // Four donors per model keep the one lost row above the replay floor.
   site.models.forEach((model, index) =>
@@ -562,26 +568,78 @@ test("a surplus page that drops to its badge is read again on the next run", asy
   expect(dropped.cursor.census.models[surplus]).toMatchObject({
     count: 4,
     expected: 5,
+    lowSince: D + 1,
     confirmed: false,
   });
   expect(dropped.cursor.census.models[surplus]?.page.records).toHaveLength(4);
-  // Day D + 2: the badge is unchanged, but the page is read again (short).
-  const nextSweep = sweepAt(site, D + 2);
-  expect(nextSweep).not.toContain(surplus);
-  const next = await runDay(site, D + 2, dropped.terminal);
-  expect(next.modelReads).toEqual(
-    urlsAt(
-      site,
-      [...nextSweep, surplus].sort((a, b) => a - b),
-    ),
+  // Days D + 2 to D + 6: the badge is unchanged and the page still lists only
+  // its badge. One re-read does not accept it: each run reads it again (short)
+  // and keeps the surplus and the day the low reads began. From D + 6 on, the
+  // other models of each slice were last read six days earlier (stale).
+  let previous = dropped.terminal;
+  for (let day = D + 2; day <= D + 6; day++) {
+    const daySweep = sweepAt(site, day);
+    expect(daySweep).not.toContain(surplus);
+    const run = await runDay(site, day, previous);
+    expect(run.modelReads).toEqual(
+      urlsAt(
+        site,
+        [...daySweep, surplus].sort((a, b) => a - b),
+      ),
+    );
+    expect([...run.published].sort()).toEqual(expectedVins(site));
+    expect(run.warnings).toContain(
+      `Calton Read ${daySweep.length + 1} of ${MODEL_COUNT} model pages (${sweepAndOne(daySweep, surplus, "short", day - D >= MODEL_CENSUS_SWEEP_DAYS ? "stale" : "sweep")}); carried ${MODEL_COUNT - daySweep.length - 1}.`,
+    );
+    if (run.cursor.phase !== "complete" || !run.cursor.census)
+      throw new Error("Expected a terminal census");
+    expect(run.cursor.census.models[surplus]).toMatchObject({
+      count: 4,
+      readDay: day,
+      expected: 5,
+      lowSince: D + 1,
+      confirmed: false,
+    });
+    previous = run.terminal;
+  }
+  // Day D + 7 (lowSince + 6) is a normal incremental run: it reads the page
+  // again (short, ahead of its stale slice) and lowers the surplus.
+  const lowerSweep = sweepAt(site, D + 7);
+  expect(lowerSweep).toEqual(sweep);
+  const lowering = await runDay(site, D + 7, previous);
+  expect(lowering.modelReads).toEqual(urlsAt(site, sweep));
+  expect([...lowering.published].sort()).toEqual(expectedVins(site));
+  const others = sweep.length - 1;
+  expect(lowering.warnings).toContain(
+    `Calton Read ${sweep.length} of ${MODEL_COUNT} model pages (short 1${others ? `, stale ${others}` : ""}); carried ${MODEL_COUNT - sweep.length}.`,
   );
-  expect(next.warnings).toContain(
-    `Calton Read ${nextSweep.length + 1} of ${MODEL_COUNT} model pages (${sweepAndOne(nextSweep, surplus, "short")}); carried ${MODEL_COUNT - nextSweep.length - 1}.`,
-  );
-  // That read agrees with its badge and its previous page, so it carries again.
-  const settled = await runDay(site, D + 3, next.terminal);
-  expect(settled.modelReads).toEqual(urlsAt(site, sweepAt(site, D + 3)));
+  if (lowering.cursor.phase !== "complete" || !lowering.cursor.census)
+    throw new Error("Expected a terminal census");
+  expect(lowering.cursor.census.models[surplus]).toMatchObject({
+    count: 4,
+    readDay: D + 7,
+    expected: 4,
+    lowSince: null,
+    confirmed: false,
+  });
+  // From then on the page agrees with its badge and lowered surplus, so it
+  // carries outside its slice.
+  const settledSweep = sweepAt(site, D + 8);
+  expect(settledSweep).not.toContain(surplus);
+  const settled = await runDay(site, D + 8, lowering.terminal);
+  expect(settled.modelReads).toEqual(urlsAt(site, settledSweep));
   expect([...settled.published].sort()).toEqual(expectedVins(site));
+  expect(settled.warnings).toContain(
+    `Calton Read ${settledSweep.length} of ${MODEL_COUNT} model pages (stale ${settledSweep.length}); carried ${MODEL_COUNT - settledSweep.length}.`,
+  );
+  if (settled.cursor.phase !== "complete" || !settled.cursor.census)
+    throw new Error("Expected a terminal census");
+  expect(settled.cursor.census.models[surplus]).toMatchObject({
+    count: 4,
+    readDay: D + 7,
+    expected: 4,
+    lowSince: null,
+  });
 });
 
 test("a run fails when today's swept pages list one card each while their badges hold", async () => {
