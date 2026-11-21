@@ -4,8 +4,10 @@ import {
   PICKAPARTVA_MAX_PAGES,
   PICKAPARTVA_MAX_TIE_SEARCHES,
   PICKAPARTVA_PAGE_SIZE,
+  PICKAPARTVA_YARD_CODES,
   pickapartvaPageUrl,
-  pickapartvaSearchUrl,
+  pickapartvaSearchHref,
+  pickapartvaSearchScopes,
 } from "./pickapartva-yard-metadata";
 
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
@@ -38,8 +40,9 @@ export const PickapartvaCursorSchema = z
           )
           .min(2)
           .max(PICKAPARTVA_MAX_PAGES),
-        // Set-date searches that recovered donors hidden by catalog ties.
-        // Checkpoints written before these searches carry none.
+        // Set-date searches that recovered donors hidden by catalog ties, up
+        // to one per yard for each date. Checkpoints written before these
+        // searches carry none.
         searches: z
           .array(
             z
@@ -50,7 +53,7 @@ export const PickapartvaCursorSchema = z
               })
               .strict(),
           )
-          .max(PICKAPARTVA_MAX_TIE_SEARCHES)
+          .max(PICKAPARTVA_MAX_TIE_SEARCHES * PICKAPARTVA_YARD_CODES.length)
           .default([]),
         processed: count,
         emitted: count,
@@ -70,12 +73,16 @@ export const PickapartvaCursorSchema = z
     if (
       cursor.snapshotHash !==
         pickapartvaSnapshotHash(cursor.receipts, cursor.searches) ||
-      new Set(cursor.searches.map((search) => search.date)).size !==
-        cursor.searches.length ||
-      cursor.searches.some(
-        (search) =>
-          pickapartvaSearchUrl(search.url, search.date) !== search.url,
-      ) ||
+      // Each repeated date has one unfiltered search or one search per yard.
+      JSON.stringify(cursor.searches.map((search) => search.url)) !==
+        JSON.stringify(
+          [...new Set(cursor.searches.map((search) => search.date))].flatMap(
+            (date) =>
+              pickapartvaSearchScopes(
+                cursor.searches.filter((search) => search.date === date).length,
+              ).map((id) => pickapartvaSearchHref(date, id)),
+          ),
+        ) ||
       cursor.nextPage > cursor.lastPage ||
       cursor.receipts.length !== cursor.lastPage ||
       cursor.processed !== (cursor.nextPage - 1) * PICKAPARTVA_PAGE_SIZE ||

@@ -20,6 +20,7 @@ import {
   PICKAPARTVA_ORIGIN,
   PICKAPARTVA_PAGE_SIZE,
   pickapartvaSetDate,
+  type PickapartvaSearchScope,
   type PickapartvaYardCode,
 } from "./pickapartva-yard-metadata";
 
@@ -237,41 +238,57 @@ export function parsePickapartvaPage(
 
 export interface PickapartvaSearchPage {
   date: string;
+  id: PickapartvaSearchScope;
   records: PickapartvaRecord[];
   hash: string;
 }
+/** A search page holds at most 500 cards, so a full page proves nothing about
+ * further matches: `capped` carries no donors and the caller must narrow the
+ * search or fail closed. */
+export type PickapartvaSearchResult =
+  | { status: "complete"; page: PickapartvaSearchPage }
+  | { status: "capped"; cards: number };
 
 /**
- * The native search for one Set Date. It must answer the same unfiltered
- * owner, yard and make scope as the catalog, reflect the searched date, publish
- * no continuation and hold only donors set on that date. A full page could
- * hide further matches, so 500 or more cards fail closed.
+ * The native search for one Set Date across every yard (`id` ANY) or within
+ * one physical yard. It must answer the same owner and make scope as the
+ * catalog, select exactly the searched yard, reflect the searched date,
+ * publish no continuation and hold only donors set on that date in that yard.
  */
 export function parsePickapartvaSearch(
   raw: string,
   date: string,
-): PickapartvaSearchPage {
+  id: PickapartvaSearchScope = "ANY",
+): PickapartvaSearchResult {
   const html = stripInventoryRawText(raw);
   if (!unbroken(raw, html) || !pickapartvaSetDate(date))
     throw new Error(
       "Pick-A-Part VA set-date search is oversized, truncated or has an invalid date",
     );
-  verifyPickapartvaOwner(html, raw, date);
+  verifyPickapartvaOwner(html, raw, date, id);
   verifyPickapartvaSearchTerminal(html);
   const makes = pickapartvaMakes(html);
   const cards = pickapartvaDivs(html, "card-price");
   if (
     cards.length < 1 ||
-    cards.length >= PICKAPARTVA_PAGE_SIZE ||
     pickapartvaDivs(html, "car-details-uPull").length !== cards.length
   )
     throw new Error(
-      `Pick-A-Part VA set-date search for ${date} returned ${cards.length} cards; completeness is only known for 1 to ${PICKAPARTVA_PAGE_SIZE - 1} matched donor cards`,
+      `Pick-A-Part VA set-date search for ${date} in ${id} returned ${cards.length} cards or unmatched donor cards; a repeated Set Date has at least one donor`,
     );
+  if (cards.length >= PICKAPARTVA_PAGE_SIZE)
+    return { status: "capped", cards: cards.length };
   const records = pickapartvaRecords(cards, makes);
   if (records.some((record) => record.setDate !== date))
     throw new Error(
       `Pick-A-Part VA set-date search for ${date} returned donors set on another date`,
     );
-  return { date, records, hash: pickapartvaHash([date, records]) };
+  if (id !== "ANY" && records.some((record) => record.yardCode !== id))
+    throw new Error(
+      `Pick-A-Part VA set-date search for ${date} in ${id} returned donors outside ${id}`,
+    );
+  return {
+    status: "complete",
+    page: { date, id, records, hash: pickapartvaHash([date, records]) },
+  };
 }

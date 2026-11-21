@@ -25,7 +25,11 @@ import {
   pickapartvaTestRecord,
 } from "./pickapartva-test-fixtures";
 import type { PickapartvaCanonicalVehicle } from "./pickapartva-transform";
-import { pickapartvaSearchUrl } from "./pickapartva-yard-metadata";
+import {
+  pickapartvaSearchUrl,
+  type PickapartvaSearchScope,
+  type PickapartvaYardCode,
+} from "./pickapartva-yard-metadata";
 
 // The November 12, 2026 census (15 catalog pages, then closing reads of pages
 // 1, 2 and 15) and the live November 19 native search for 2026-10-16. See
@@ -50,8 +54,32 @@ const closings = new Map(
   saved.slice(15, 18).map((response) => [response.url, response.body]),
 );
 const captured = saved[18]?.body ?? "";
-const searchUrl = (date: string) =>
-  `https://pickapartva.com/inventory/ANY/ANY/?k=1&id=ANY&search=${date}`;
+const searchUrl = (date: string, id: PickapartvaSearchScope = "ANY") =>
+  `https://pickapartva.com/inventory/ANY/ANY/?k=1&id=${id}&search=${date}`;
+
+// The live November 21 searches for 2026-11-18: the unfiltered search capped
+// at 500 cards, then the Fredericksburg and Stafford searches.
+const live = z
+  .array(z.object({ url: z.string(), body: z.string() }).strict())
+  .length(3)
+  .parse(
+    JSON.parse(
+      brotliDecompressSync(
+        readFileSync(
+          new URL(
+            "./pickapartva-test-fixtures/searches-2026-11-18.json.br",
+            import.meta.url,
+          ),
+        ),
+      ).toString(),
+    ),
+  );
+const liveSearch = (raw: string, id?: PickapartvaYardCode) => {
+  const result = parsePickapartvaSearch(raw, "2026-11-18", id);
+  if (result.status !== "complete")
+    throw new Error("Expected a complete native search");
+  return result.page;
+};
 
 /** Each catalog card wrapper, with the donor parsed from it. */
 const wrapped = (html: string) =>
@@ -81,6 +109,38 @@ function searchPage(date: string, cards: string[]) {
     form(captured.slice(end))
   );
 }
+/** The captured 2026-10-16 search narrowed to one yard the way the live
+ * 2026-11-18 yard searches are: only that yard's cards, `id` in the form and
+ * that yard selected. */
+function yardPage(cards: string[], id: PickapartvaYardCode) {
+  const location = id === "TT87" ? "Fredericksburg" : "Stafford";
+  return searchPage(
+    "2026-10-16",
+    cards.filter((card) => card.includes(`<b>Location: </b> ${location}<`)),
+  )
+    .replaceAll('name="id" value="ANY"', `name="id" value="${id}"`)
+    .replaceAll(
+      'name="yardID" value="ANY" selected',
+      'name="yardID" value="ANY"',
+    )
+    .replaceAll(
+      `name="yardID" id="" value="${id}"`,
+      `name="yardID" id="" value="${id}" selected`,
+    );
+}
+/** The captured 2026-10-16 search padded with synthetic donors to the cap. */
+const capped = (cards: string[], record = synthetic("2026-10-16", 0)) =>
+  searchPage("2026-10-16", [
+    ...cards,
+    ...Array.from({ length: 500 - cards.length }, (_, index) =>
+      hiddenCard({
+        ...record,
+        cardId: `PAP98${String(index).padStart(4, "0")}`,
+        stock: `PAP98${String(index).padStart(4, "0")}`,
+        vin: `1FAHP3FN0AW98${String(index).padStart(4, "0")}`,
+      }),
+    ),
+  ]);
 const hiddenCard = (record: PickapartvaRecord) =>
   `<div class="iis-uPull-col-sm-4 iis-uPull-col-xs-12 col-equal mb-1">${pickapartvaTestCard(record)}</div>`;
 const synthetic = (date: string, index: number): PickapartvaRecord => ({
@@ -131,6 +191,8 @@ const searches = new Map<string, string>([
     ];
   }),
   [searchUrl("2026-10-16"), captured],
+  [searchUrl("2026-10-16", "TT87"), yardPage(wrapped(captured), "TT87")],
+  [searchUrl("2026-10-16", "UU81"), yardPage(wrapped(captured), "UU81")],
 ]);
 // Absent from every November 12 page, listed by the 2026-10-16 search.
 const recoveredOnTie = [
@@ -206,7 +268,7 @@ test("Pick-A-Part VA recovers donors hidden by catalog Set Date ties before acce
   );
   expect(calls).toEqual([
     ...catalog.map((response) => response.url),
-    ...tieDates.map(searchUrl),
+    ...tieDates.map((date) => searchUrl(date)),
     ...[1, 2, 15].map(
       (page) =>
         `https://pickapartva.com/inventory/ANY/ANY/?k=1&id=ANY&pagenum=${page}`,
@@ -297,22 +359,6 @@ test("Pick-A-Part VA resumes a tie-recovered census only against the same search
 const firstCard = /<b>Set Date: <\/b> 2026-10-16<br\/>/;
 test.each<[string, (body: string) => string, string]>([
   [
-    "500 cards",
-    (body) =>
-      searchPage("2026-10-16", [
-        ...wrapped(body),
-        ...Array.from({ length: 500 - 191 }, (_, index) =>
-          hiddenCard({
-            ...synthetic("2026-10-16", 0),
-            cardId: `PAP98${String(index).padStart(4, "0")}`,
-            stock: `PAP98${String(index).padStart(4, "0")}`,
-            vin: `1FAHP3FN0AW98${String(index).padStart(4, "0")}`,
-          }),
-        ),
-      ]),
-    "returned 500 cards",
-  ],
-  [
     "another Set Date",
     (body) => body.replace(firstCard, "<b>Set Date: </b> 2026-10-15<br/>"),
     "set on another date",
@@ -368,6 +414,126 @@ test.each<[string, (body: string) => string, string]>([
   60_000,
 );
 
+test("Pick-A-Part VA splits a capped set-date search by physical yard", async () => {
+  const calls = serve((url, body) =>
+    url === searchUrl("2026-10-16") ? capped(wrapped(body)) : body,
+  );
+  const emitted: PickapartvaCanonicalVehicle[] = [];
+  const onBatch = (batch: PickapartvaCanonicalVehicle[]) =>
+    Effect.sync(() => {
+      emitted.push(...batch);
+    });
+  const first = await run(onBatch, undefined, 8);
+  expect(calls).toEqual([
+    ...catalog.map((response) => response.url),
+    ...tieDates.map((date) => searchUrl(date)),
+    searchUrl("2026-10-16", "TT87"),
+    searchUrl("2026-10-16", "UU81"),
+    ...[1, 2, 15].map(
+      (page) =>
+        `https://pickapartva.com/inventory/ANY/ANY/?k=1&id=ANY&pagenum=${page}`,
+    ),
+  ]);
+  if (first.cursor.phase !== "pages")
+    throw new Error("Expected a paused checkpoint");
+  expect(first.cursor.searches.map((search) => search.url)).toEqual([
+    ...tieDates.slice(0, -1).map((date) => searchUrl(date)),
+    searchUrl("2026-10-16", "TT87"),
+    searchUrl("2026-10-16", "UU81"),
+  ]);
+  // A checkpoint that keeps only one yard of a split date is refused.
+  expect(
+    PickapartvaCursorSchema.safeParse({
+      ...first.cursor,
+      searches: first.cursor.searches.slice(0, -1),
+    }).success,
+  ).toBe(false);
+  serve((url, body) =>
+    url === searchUrl("2026-10-16") ? capped(wrapped(body)) : body,
+  );
+  const second = await run(
+    onBatch,
+    parseDurableSourceCursor(
+      "pickapartva",
+      serializeDurableSourceCursor(first.cursor),
+    ),
+  );
+  expect(second.status).toBe("complete");
+  const vins = new Set(emitted.map((vehicle) => vehicle.vin));
+  expect(emitted).toHaveLength(7440);
+  expect(vins.size).toBe(7440);
+  for (const vin of [...recoveredOnTie, liveTieDonor.vin])
+    expect(vins.has(vin)).toBe(true);
+  // A donor recovered by a yard search links to that yard's search.
+  expect(
+    emitted.find((vehicle) => vehicle.vin === "1GNFK13007J143046"),
+  ).toMatchObject({
+    locationCode: "UU81",
+    detailsUrl:
+      "https://pickapartva.com/inventory/ANY/ANY/?k=1&id=UU81&search=2026-10-16#STK126182",
+  });
+}, 60_000);
+
+test("Pick-A-Part VA fails closed when a yard search for a capped date is still capped", async () => {
+  const fredericksburg = wrapped(captured).filter((card) =>
+    card.includes("<b>Location: </b> Fredericksburg<"),
+  );
+  const calls = serve((url, body) =>
+    url === searchUrl("2026-10-16")
+      ? capped(wrapped(body))
+      : url === searchUrl("2026-10-16", "TT87")
+        ? yardPage(wrapped(capped(fredericksburg)), "TT87")
+        : body,
+  );
+  let callbacks = 0;
+  await expect(
+    run(() =>
+      Effect.sync(() => {
+        callbacks++;
+      }),
+    ),
+  ).rejects.toThrow(
+    "set-date search for 2026-10-16 in TT87 returned 500 cards; completeness is only known for 1 to 499",
+  );
+  expect(callbacks).toBe(0);
+  expect(calls.at(-1)).toBe(searchUrl("2026-10-16", "TT87"));
+}, 60_000);
+
+test("Pick-A-Part VA reads the live 2026-11-18 searches: the unfiltered search is capped and each yard search is complete", () => {
+  const [all, fredericksburg, stafford] = live.map((response) => response.body);
+  expect(live.map((response) => response.url)).toEqual([
+    searchUrl("2026-11-18"),
+    searchUrl("2026-11-18", "TT87"),
+    searchUrl("2026-11-18", "UU81"),
+  ]);
+  expect(parsePickapartvaSearch(all ?? "", "2026-11-18")).toEqual({
+    status: "capped",
+    cards: 500,
+  });
+  const tt87 = liveSearch(fredericksburg ?? "", "TT87");
+  const uu81 = liveSearch(stafford ?? "", "UU81");
+  expect(tt87.records).toHaveLength(412);
+  expect(uu81.records).toHaveLength(169);
+  expect(tt87.records.every((record) => record.yardCode === "TT87")).toBe(true);
+  expect(uu81.records.every((record) => record.yardCode === "UU81")).toBe(true);
+  // A yard search never stands in for another physical scope.
+  expect(() => liveSearch(fredericksburg ?? "")).toThrow(
+    "narrowed physical scope",
+  );
+  expect(() => liveSearch(fredericksburg ?? "", "UU81")).toThrow(
+    "narrowed physical scope",
+  );
+  expect(() =>
+    liveSearch(
+      (fredericksburg ?? "").replace(
+        "<b>Location: </b> Fredericksburg<",
+        "<b>Location: </b> Stafford<",
+      ),
+      "TT87",
+    ),
+  ).toThrow("outside TT87");
+});
+
 test("Pick-A-Part VA fails closed when donors repeat but the catalog is not ordered by Set Date", async () => {
   // The terminal page's first card claims a newer Set Date than the pages
   // before it, so the repeated slots no longer locate the hidden donors.
@@ -397,14 +563,39 @@ test("Pick-A-Part VA snapshots refuse searches that do not match the repeated Se
     url: response.url,
     page: parsePickapartvaPage(response.body, index + 1),
   }));
-  const search = {
-    url: searchUrl("2026-10-16"),
-    page: parsePickapartvaSearch(captured, "2026-10-16"),
+  const parsed = (url: string, id?: PickapartvaYardCode) => {
+    const body = searches.get(url) ?? "";
+    const result = parsePickapartvaSearch(body, "2026-10-16", id);
+    if (result.status !== "complete")
+      throw new Error("Expected a complete native search");
+    return { url, page: result.page };
   };
-  for (const searches of [[], [search], [search, search]])
-    expect(() => buildPickapartvaSnapshot(pages, searches)).toThrow(
+  const search = parsed(searchUrl("2026-10-16"));
+  const tt87 = parsed(searchUrl("2026-10-16", "TT87"), "TT87");
+  const uu81 = parsed(searchUrl("2026-10-16", "UU81"), "UU81");
+  const others = tieDates.slice(0, -1).map((date) => {
+    const result = parsePickapartvaSearch(
+      searches.get(searchUrl(date)) ?? "",
+      date,
+    );
+    if (result.status !== "complete")
+      throw new Error("Expected a complete native search");
+    return { url: searchUrl(date), page: result.page };
+  });
+  for (const changed of [
+    [],
+    [search],
+    [search, search],
+    [...others, tt87],
+    [...others, uu81, tt87],
+    [...others, search, tt87, uu81],
+  ])
+    expect(() => buildPickapartvaSnapshot(pages, changed)).toThrow(
       "do not match the catalog's repeated Set Dates (2026-11-07, 2026-11-04, 2026-10-28, 2026-10-24, 2026-10-20, 2026-10-16)",
     );
+  expect(buildPickapartvaSnapshot(pages, [...others, tt87, uu81]).hash).toMatch(
+    /^[a-f0-9]{64}$/,
+  );
 });
 
 test("Pick-A-Part VA set-date search destinations are as narrow as catalog pages", () => {
@@ -416,14 +607,26 @@ test("Pick-A-Part VA set-date search destinations are as narrow as catalog pages
     searchUrl("2026-02-30"),
     searchUrl("2026-10"),
     searchUrl("PAP156479"),
-    searchUrl("2026-10-16").replace("id=ANY", "id=TT87"),
     searchUrl("2026-10-16").replace("k=1", "k=2"),
     searchUrl("2026-10-16").replace("pickapartva.com", "pickapartva.net"),
     searchUrl("2026-10-16") + "#card",
+    searchUrl("2026-10-16").replace("id=ANY", "id=UU82"),
+    searchUrl("2026-10-16").replace("id=ANY", "id=tt87"),
+    searchUrl("2026-10-16", "TT87").replace("/ANY/ANY/", "/TT87/ANY/"),
     "https://pickapartva.com/inventory/ANY/ANY/?k=1&id=ANY&pagenum=1",
   ])
     expect(pickapartvaSearchUrl(url)).toBeNull();
   expect(
     pickapartvaSearchUrl(searchUrl("2026-10-16"), "2026-10-17"),
+  ).toBeNull();
+  // The yard split narrows only through the native `id` parameter.
+  expect(
+    pickapartvaSearchUrl(searchUrl("2026-10-16", "TT87"), "2026-10-16", "TT87"),
+  ).toBe(searchUrl("2026-10-16", "TT87"));
+  expect(
+    pickapartvaSearchUrl(searchUrl("2026-10-16", "TT87"), "2026-10-16", "ANY"),
+  ).toBeNull();
+  expect(
+    pickapartvaSearchUrl(searchUrl("2026-10-16"), "2026-10-16", "UU81"),
   ).toBeNull();
 });

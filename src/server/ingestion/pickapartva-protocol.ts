@@ -9,11 +9,28 @@ import {
   PICKAPARTVA_MAX_PAGES,
   PICKAPARTVA_YARDS,
   pickapartvaPageUrl,
+  type PickapartvaSearchScope,
 } from "./pickapartva-yard-metadata";
 
+/** The unfiltered selector may leave ANY implicit; a yard search must select
+ * exactly that yard. */
+const selectedScope = (
+  selected: Array<string | null>,
+  id: PickapartvaSearchScope,
+) =>
+  id === "ANY"
+    ? selected.every((value) => value === "ANY")
+    : selected.length === 1 && selected[0] === id;
+
 /** `search` is the expected native search term: empty for the catalog pages,
- * the Set Date for a set-date search. */
-export function verifyPickapartvaOwner(html: string, raw: string, search = "") {
+ * the Set Date for a set-date search. `id` is the expected physical scope:
+ * every yard, or the one yard a split set-date search selects. */
+export function verifyPickapartvaOwner(
+  html: string,
+  raw: string,
+  search = "",
+  id: PickapartvaSearchScope = "ANY",
+) {
   const plain = pickapartvaText(html);
   if (
     ![
@@ -61,13 +78,15 @@ export function verifyPickapartvaOwner(html: string, raw: string, search = "") {
         ["TT87", "Fredericksburg"],
         ["UU81", "Stafford"],
       ]) ||
-    options
-      .filter(
-        (match) => inventoryHtmlAttribute(match[1] ?? "", "selected") !== null,
-      )
-      .some(
-        (match) => inventoryHtmlAttribute(match[1] ?? "", "value") !== "ANY",
-      )
+    !selectedScope(
+      options
+        .filter(
+          (match) =>
+            inventoryHtmlAttribute(match[1] ?? "", "selected") !== null,
+        )
+        .map((match) => inventoryHtmlAttribute(match[1] ?? "", "value")),
+      id,
+    )
   )
     throw new Error(
       "Pick-A-Part VA inventory selector has changed or narrowed physical scope",
@@ -94,7 +113,7 @@ export function verifyPickapartvaOwner(html: string, raw: string, search = "") {
       JSON.stringify(inputs) !==
         JSON.stringify([
           ["k", "1"],
-          ["id", "ANY"],
+          ["id", id],
           ["search", search],
         ])
     )

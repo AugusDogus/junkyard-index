@@ -83,10 +83,30 @@ export function pickapartvaSetDate(raw: string): boolean {
   );
 }
 
-/** The unfiltered native search for one Set Date, or null for anything else. */
+/** The physical scope of a native set-date search: every yard, or one yard
+ * through the native `id` query parameter. The path stays `/inventory/ANY/ANY/`
+ * because its first segment is the make, not the yard. */
+export type PickapartvaSearchScope = "ANY" | PickapartvaYardCode;
+export const PICKAPARTVA_YARD_CODES = [
+  "TT87",
+  "UU81",
+] as const satisfies readonly PickapartvaYardCode[];
+const searchScopes: readonly string[] = ["ANY", ...PICKAPARTVA_YARD_CODES];
+
+/** The searches that cover one repeated Set Date, given how many there are:
+ * the unfiltered search, or one search per yard once the unfiltered search
+ * reached the 500-card cap. */
+export const pickapartvaSearchScopes = (
+  count: number,
+): readonly PickapartvaSearchScope[] =>
+  count > 1 ? PICKAPARTVA_YARD_CODES : ["ANY"];
+
+/** The native search for one Set Date across every yard or within one yard,
+ * or null for anything else. */
 export function pickapartvaSearchUrl(
   raw: string,
   date?: string,
+  id?: PickapartvaSearchScope,
 ): string | null {
   const url = URL.parse(raw, PICKAPARTVA_ORIGIN);
   if (
@@ -99,18 +119,27 @@ export function pickapartvaSearchUrl(
   )
     return null;
   const search = url.searchParams.get("search") ?? "";
+  const scope = url.searchParams.get("id") ?? "";
   const entries = [...url.searchParams.entries()];
   if (
     !pickapartvaSetDate(search) ||
     (date !== undefined && search !== date) ||
+    !searchScopes.includes(scope) ||
+    (id !== undefined && scope !== id) ||
     entries.length !== 3 ||
     url.searchParams.get("k") !== "1" ||
-    url.searchParams.get("id") !== "ANY" ||
     new Set(entries.map(([key]) => key)).size !== 3
   )
     return null;
   return url.href;
 }
 
-export const pickapartvaSearchHref = (date: string) =>
-  pickapartvaSearchUrl(`/inventory/ANY/ANY/?k=1&id=ANY&search=${date}`, date);
+export const pickapartvaSearchHref = (
+  date: string,
+  id: PickapartvaSearchScope = "ANY",
+) =>
+  pickapartvaSearchUrl(
+    `/inventory/ANY/ANY/?k=1&id=${id}&search=${date}`,
+    date,
+    id,
+  );
