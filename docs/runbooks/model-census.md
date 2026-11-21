@@ -34,9 +34,22 @@ shared rules.
 
 ## Short pages and closing
 
-- A model's expected cards are its published count plus any surplus its last
-  accepted page listed above that page's own count (placeholder or surplus
-  rows). The surplus carries across count changes.
+- A model's expected cards are its published count plus a sticky surplus: the
+  placeholder or surplus rows its pages have listed above their count (for
+  example Scotts' VIN-less NOF cards, or real rows on a badge that
+  undercounts). The surplus carries across count changes and grows with any
+  read that lists more.
+- A read that lists less than the surplus allows does not lower it: badge lag
+  after a sale looks exactly like a lost card. The page counts as short and is
+  read again every run. The surplus is lowered only once such reads have lasted
+  6 run days and a normal incremental run confirms the lower count; cold, gap
+  and outage full reads never lower it. So a real card lost behind a
+  placeholder is read again and healed on the next run, while a placeholder
+  that is really gone costs about two GETs a day for six days.
+- Counting only VIN-bearing cards instead would need per-source placeholder
+  detection. Only Scotts' NOF rows are known to be VIN-less, and real surplus
+  rows from badge undercounts (Calton, Central, Aviation) erode the same way, so
+  the sticky surplus is the shared rule.
 - Closing re-reads every page read this run whose cards differ from its count
   or fall below its expected cards (`ModelCensus.closingReads`), and fails the
   run if a re-read differs. Calton has no closing pass, so its short pages are
