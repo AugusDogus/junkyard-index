@@ -83,6 +83,7 @@ function FilterPopover({
         </Button>
       </PopoverTrigger>
       <PopoverContent
+        portal={false}
         align="start"
         sideOffset={8}
         className="w-[min(22rem,calc(100vw-2rem))]"
@@ -130,7 +131,11 @@ export function DesktopFiltersBar({
     <section
       aria-labelledby="desktop-filters-heading"
       aria-describedby="desktop-filters-status"
-      className="min-w-0"
+      // Radix positions popovers with position: fixed, moved by script after
+      // each scroll, so a portaled panel trails its trigger by a frame. The
+      // transform makes this section the panels' containing block, so they
+      // scroll with their triggers. Stay under the sticky search bar (z-40).
+      className="relative z-30 min-w-0 [transform:translateZ(0)]"
     >
       <h2 id="desktop-filters-heading" className="sr-only">
         Refine inventory
