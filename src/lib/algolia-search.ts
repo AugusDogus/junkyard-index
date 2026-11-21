@@ -75,11 +75,15 @@ const keyedSearchClient: Pick<LiteClient, "search" | "addAlgoliaAgent"> & {
     responsesCache: createMemoryCache(),
   },
   addAlgoliaAgent(segment, version) {
-    algoliaAgents.push([segment, version]);
-    (serverSearchClient ?? browserSearchClient)?.addAlgoliaAgent(
-      segment,
-      version,
-    );
+    const client = serverSearchClient ?? browserSearchClient;
+    if (client) {
+      client.addAlgoliaAgent(segment, version);
+      return;
+    }
+    // Only the browser records segments, and only until its client exists;
+    // every remount re-adds the same ones, so keep each segment once.
+    if (!algoliaAgents.some(([recorded]) => recorded === segment))
+      algoliaAgents.push([segment, version]);
   },
   async search(searchMethodParams, requestOptions) {
     const { client, apiKey } = await liteSearchClient();
