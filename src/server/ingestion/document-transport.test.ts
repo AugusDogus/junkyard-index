@@ -1,13 +1,21 @@
 import { afterEach, expect, spyOn, test } from "bun:test";
-import { Effect } from "effect";
-import { fetchBigdPage } from "./bigd-client";
+import { Effect, Exit } from "effect";
+import { acquireBigdBrowser, fetchBigdPage } from "./bigd-client";
+import { streamBigdInventory } from "./bigd-connector";
+import { Config } from "./context";
 import {
   DocumentTransport,
   type BrowserDocumentMode,
   type BrowserDocumentPage,
+  type BrowserRoute,
+  type BrowserSessions,
 } from "./document-transport";
+import { BrowserSessionError } from "./errors";
+import { streamNorthwestInventory } from "./northwest-connector";
+import { NORTHWEST_ROOT } from "./northwest-yard-metadata";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { fetchSix03Page } from "./six03-client";
+import { streamSix03Inventory } from "./six03-connector";
 import { SIX03_CATALOG, SIX03_CONTACT } from "./six03-yard-metadata";
 
 const originalFetch = globalThis.fetch;
@@ -314,4 +322,237 @@ test("in-page fetch carries exact body bytes, so the client still refuses invali
   await expect(
     Effect.runPromise(fetchSix03Page(SIX03_CATALOG, direct, transport)),
   ).rejects.toThrow("utf-8");
+});
+
+test("a prepared page routes every request and drops only rendering subresources", async () => {
+  const routes: string[] = [];
+  const handlers: ((route: BrowserRoute) => Promise<void>)[] = [];
+  await DocumentTransport.preparePage({
+    route: async (url, handler) => {
+      routes.push(url);
+      handlers.push(handler);
+    },
+  });
+  // Playwright disables the HTTP cache while any route is on, so routing
+  // every URL is what keeps repeated navigations off the browser cache.
+  expect(routes).toEqual(["**/*"]);
+  const outcomes: Record<string, string> = {};
+  for (const type of [
+    "document",
+    "script",
+    "stylesheet",
+    "xhr",
+    "fetch",
+    "image",
+    "media",
+    "font",
+  ])
+    for (const handle of handlers)
+      await handle({
+        request: () => ({ resourceType: () => type }),
+        abort: async () => {
+          outcomes[type] = "abort";
+        },
+        continue: async () => {
+          outcomes[type] = "continue";
+        },
+      });
+  expect(outcomes).toEqual({
+    document: "continue",
+    script: "continue",
+    stylesheet: "continue",
+    xhr: "continue",
+    fetch: "continue",
+    image: "abort",
+    media: "abort",
+    font: "abort",
+  });
+});
+
+/** Remote sessions that record every lifecycle call. */
+function fakeSessions(
+  page: BrowserDocumentPage,
+  connectFailure: Error | null = null,
+) {
+  const events: string[] = [];
+  let created = 0;
+  const sessions: BrowserSessions = {
+    create: async () => {
+      created++;
+      events.push("create s" + created);
+      return { id: "s" + created, wsEndpoint: "wss://browser/" + created };
+    },
+    stop: async (id) => {
+      events.push("stop " + id);
+    },
+    connect: async () => {
+      if (connectFailure) throw connectFailure;
+      events.push("connect");
+      return {
+        page,
+        close: async () => {
+          events.push("disconnect");
+        },
+      };
+    },
+  };
+  return { sessions, events };
+}
+
+const servingPage = (
+  respond: (url: string) => Navigation | null = ok,
+): BrowserDocumentPage => {
+  let current = "about:blank";
+  return {
+    url: () => current,
+    goto: async (url) => {
+      current = url;
+      return respond(url);
+    },
+    evaluate: () => Promise.reject(new Error("unexpected in-page fetch")),
+  };
+};
+const refused = (url: string) =>
+  navigation({ status: 403, url, headers: { "content-type": "text/html" } });
+
+test("a browser transport opens no session until its first request", async () => {
+  const { sessions, events } = fakeSessions(servingPage());
+  await Effect.runPromise(Effect.scoped(acquireBigdBrowser(sessions)));
+  expect(events).toEqual([]);
+});
+
+test("a browser transport opens one session on first use, reuses it, and stops it with the scope", async () => {
+  const { sessions, events } = fakeSessions(servingPage());
+  await Effect.runPromise(
+    Effect.scoped(
+      Effect.gen(function* () {
+        const transport = yield* acquireBigdBrowser(sessions);
+        for (const path of ["/", "/inventory/"] as const)
+          yield* transport.pipe(
+            Effect.flatMap((documents) =>
+              fetchBigdPage(path, { cookie: null }, direct, documents),
+            ),
+          );
+        expect(events).toEqual(["create s1", "connect"]);
+      }),
+    ),
+  );
+  expect(events).toEqual(["create s1", "connect", "disconnect", "stop s1"]);
+});
+
+test("a refused request still stops the session", async () => {
+  const { sessions, events } = fakeSessions(servingPage(refused));
+  const exit = await Effect.runPromiseExit(
+    Effect.scoped(
+      Effect.gen(function* () {
+        const transport = yield* acquireBigdBrowser(sessions);
+        yield* transport.pipe(
+          Effect.flatMap((documents) =>
+            fetchBigdPage("/inventory/", { cookie: null }, direct, documents),
+          ),
+        );
+      }),
+    ),
+  );
+  expect(Exit.isFailure(exit)).toBe(true);
+  expect(events).toEqual(["create s1", "connect", "disconnect", "stop s1"]);
+});
+
+test("an interrupted request still stops the session", async () => {
+  const { sessions, events } = fakeSessions({
+    url: () => "about:blank",
+    goto: () => new Promise(() => {}),
+    evaluate: () => new Promise(() => {}),
+  });
+  const exit = await Effect.runPromiseExit(
+    Effect.scoped(
+      Effect.gen(function* () {
+        const transport = yield* acquireBigdBrowser(sessions);
+        yield* transport.pipe(
+          Effect.flatMap((documents) =>
+            fetchBigdPage("/", { cookie: null }, direct, documents),
+          ),
+        );
+      }),
+    ).pipe(Effect.timeout("50 millis")),
+  );
+  expect(Exit.isFailure(exit)).toBe(true);
+  expect(events).toEqual(["create s1", "connect", "disconnect", "stop s1"]);
+});
+
+test("a failed browser connection still stops the created session", async () => {
+  const failure = new Error("CDP connect timed out");
+  const { sessions, events } = fakeSessions(servingPage(), failure);
+  const exit = await Effect.runPromiseExit(
+    Effect.scoped(
+      acquireBigdBrowser(sessions).pipe(Effect.flatMap((open) => open)),
+    ),
+  );
+  expect(exit).toEqual(
+    Exit.fail(new BrowserSessionError({ phase: "open", cause: failure })),
+  );
+  expect(events).toEqual(["create s1", "stop s1"]);
+});
+
+const config = { betterStackHeartbeatUrl: undefined, hyperbrowserApiKey: "" };
+const ignore = () => Effect.void;
+
+test.each([
+  [
+    "Big D with an invalid budget",
+    (sessions: BrowserSessions) =>
+      streamBigdInventory({ maxPages: 5, onBatch: ignore }, sessions).pipe(
+        Effect.asVoid,
+      ),
+  ],
+  [
+    "Northwest with an invalid budget",
+    (sessions: BrowserSessions) =>
+      streamNorthwestInventory({ maxPages: 9, onBatch: ignore }, sessions).pipe(
+        Effect.asVoid,
+      ),
+  ],
+  [
+    "603 with an invalid budget",
+    (sessions: BrowserSessions) =>
+      streamSix03Inventory({ maxPages: 9, onBatch: ignore }, sessions).pipe(
+        Effect.asVoid,
+      ),
+  ],
+] as const)("%s opens no session", async (_name, run) => {
+  const { sessions, events } = fakeSessions(servingPage());
+  const exit = await Effect.runPromiseExit(
+    run(sessions).pipe(Effect.provideService(Config, config)),
+  );
+  expect(Exit.isFailure(exit)).toBe(true);
+  expect(events).toEqual([]);
+});
+
+test("603 with a complete checkpoint opens no session", async () => {
+  const { sessions, events } = fakeSessions(servingPage());
+  const result = await Effect.runPromise(
+    streamSix03Inventory(
+      {
+        startCursor: { source: "six03", version: 1, phase: "complete" },
+        onBatch: ignore,
+      },
+      sessions,
+    ).pipe(Effect.provideService(Config, config)),
+  );
+  expect(result.status).toBe("complete");
+  expect(events).toEqual([]);
+});
+
+test("a Northwest chunk whose first document is refused stops its session", async () => {
+  const { sessions, events } = fakeSessions(servingPage(refused));
+  const exit = await Effect.runPromiseExit(
+    streamNorthwestInventory({ onBatch: ignore }, sessions).pipe(
+      Effect.provideService(Config, config),
+    ),
+  );
+  expect(exit).toMatchObject({
+    _tag: "Failure",
+    cause: { error: { operation: NORTHWEST_ROOT } },
+  });
+  expect(events).toEqual(["create s1", "connect", "disconnect", "stop s1"]);
 });

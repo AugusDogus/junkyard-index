@@ -2,7 +2,7 @@ import { sharedProviderHostSlot } from "./shared-provider-host";
 import { Data, Effect } from "effect";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
-import { DocumentTransport } from "./document-transport";
+import { DocumentTransport, type BrowserSessions } from "./document-transport";
 import {
   NORTHWEST_MAKES,
   NORTHWEST_ROOT,
@@ -127,5 +127,5 @@ export const northwestRequestGate: ProviderRequestGate = (request) =>
 
 /** Cloudflare refuses native requests from Vercel, so a browser session
  * navigates once and reads later documents by same-origin fetch. */
-export const acquireNorthwestBrowser = (apiKey: string) =>
-  DocumentTransport.acquireBrowser(apiKey, "fetch");
+export const acquireNorthwestBrowser = (sessions: BrowserSessions) =>
+  DocumentTransport.acquireBrowser(sessions, "fetch");

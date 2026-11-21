@@ -1,7 +1,7 @@
 import { Data, Effect } from "effect";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
-import { DocumentTransport } from "./document-transport";
+import { DocumentTransport, type BrowserSessions } from "./document-transport";
 import {
   SIX03_CATALOG,
   SIX03_CONTACT,
@@ -115,5 +115,5 @@ export function fetchSix03Page(
 
 /** Cloudflare refuses native requests from Vercel, so a browser session
  * navigates once and reads later documents by same-origin fetch. */
-export const acquireSix03Browser = (apiKey: string) =>
-  DocumentTransport.acquireBrowser(apiKey, "fetch");
+export const acquireSix03Browser = (sessions: BrowserSessions) =>
+  DocumentTransport.acquireBrowser(sessions, "fetch");

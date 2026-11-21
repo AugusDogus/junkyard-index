@@ -2,7 +2,7 @@ import { Data, Effect } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { BIGD_ORIGIN } from "./bigd-yard-metadata";
-import { DocumentTransport } from "./document-transport";
+import { DocumentTransport, type BrowserSessions } from "./document-transport";
 
 export class BigdProviderError extends Data.TaggedError("BigdProviderError")<{
   operation: string;
@@ -112,5 +112,5 @@ export function fetchBigdPage(
 
 /** Cloudflare refuses native requests from Vercel and challenges in-page fetch
  * on this host, so a browser session loads every document by navigation. */
-export const acquireBigdBrowser = (apiKey: string) =>
-  DocumentTransport.acquireBrowser(apiKey, "navigation");
+export const acquireBigdBrowser = (sessions: BrowserSessions) =>
+  DocumentTransport.acquireBrowser(sessions, "navigation");

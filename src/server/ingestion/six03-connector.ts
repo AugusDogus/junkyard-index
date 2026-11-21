@@ -31,7 +31,11 @@ import {
   type Six03Yard,
 } from "./six03-yard-metadata";
 import type { ProviderRequestGate } from "./provider-http-client";
-import type { DocumentTransport } from "./document-transport";
+import {
+  DocumentTransport,
+  type BrowserSessions,
+  type LazyDocumentTransport,
+} from "./document-transport";
 import { Config } from "./context";
 
 interface Six03Options<E, R> {
@@ -70,8 +74,12 @@ const nativeDetailProjection = (record: ReturnType<typeof parseSix03Detail>) =>
 export function streamSix03InventoryWithRequestGate<E, R>(
   options: Six03Options<E, R>,
   gate: ProviderRequestGate,
-  transport?: DocumentTransport,
+  transport: LazyDocumentTransport = DocumentTransport.nativeLazy,
 ) {
+  const load = (url: string) =>
+    transport.pipe(
+      Effect.flatMap((documents) => fetchSix03Page(url, gate, documents)),
+    );
   return Effect.gen(function* () {
     const validated = Six03CursorSchema.safeParse(
       options.startCursor ?? Six03Cursor.initial,
@@ -103,7 +111,7 @@ export function streamSix03InventoryWithRequestGate<E, R>(
       const state: Six03Progress = cursor;
       switch (state.phase) {
         case "contact": {
-          const html = yield* fetchSix03Page(SIX03_CONTACT, gate, transport);
+          const html = yield* load(SIX03_CONTACT);
           const contact = yield* parse("native contact", () =>
             parseSix03Contact(html),
           );
@@ -118,7 +126,7 @@ export function streamSix03InventoryWithRequestGate<E, R>(
           break;
         }
         case "catalog": {
-          const html = yield* fetchSix03Page(SIX03_CATALOG, gate, transport);
+          const html = yield* load(SIX03_CATALOG);
           const catalog = yield* parse("complete native catalog", () =>
             parseSix03Catalog(html),
           );
@@ -149,11 +157,7 @@ export function streamSix03InventoryWithRequestGate<E, R>(
                 cause: "Native donor control is missing",
               }),
             );
-          const html = yield* fetchSix03Page(
-            SIX03_ORIGIN + post[0],
-            gate,
-            transport,
-          );
+          const html = yield* load(SIX03_ORIGIN + post[0]);
           const record = yield* parse("native donor " + post[0], () =>
             parseSix03Detail(html, post),
           );
@@ -178,7 +182,7 @@ export function streamSix03InventoryWithRequestGate<E, R>(
               }),
             );
           if (state.closing === 0) {
-            const html = yield* fetchSix03Page(SIX03_CONTACT, gate, transport);
+            const html = yield* load(SIX03_CONTACT);
             const actual = yield* parse("closing physical contact", () =>
               parseSix03Contact(html),
             );
@@ -190,7 +194,7 @@ export function streamSix03InventoryWithRequestGate<E, R>(
                 }),
               );
           } else if (state.closing === 1) {
-            const html = yield* fetchSix03Page(SIX03_CATALOG, gate, transport);
+            const html = yield* load(SIX03_CATALOG);
             const actual = yield* parse("closing complete native catalog", () =>
               parseSix03Catalog(html),
             );
@@ -219,11 +223,7 @@ export function streamSix03InventoryWithRequestGate<E, R>(
             const post = posts[index];
             const expected = state.details[index];
             if (post && expected) {
-              const html = yield* fetchSix03Page(
-                SIX03_ORIGIN + post[0],
-                gate,
-                transport,
-              );
+              const html = yield* load(SIX03_ORIGIN + post[0]);
               const actual = yield* parse("closing native donor", () =>
                 parseSix03Detail(html, post),
               );
@@ -304,15 +304,18 @@ export function streamSix03InventoryWithRequestGate<E, R>(
   );
 }
 
-/** One browser session per chunk, stopped when the chunk ends. */
-export function streamSix03Inventory<E, R>(options: Six03Options<E, R>) {
+/** At most one browser session per chunk, opened by the first request and
+ * stopped when the chunk ends. `sessions` defaults to Hyperbrowser. */
+export function streamSix03Inventory<E, R>(
+  options: Six03Options<E, R>,
+  sessions?: BrowserSessions,
+) {
   return Effect.scoped(
     Effect.gen(function* () {
-      const config = yield* Config;
-      const transport =
-        options.startCursor?.phase === "complete"
-          ? undefined
-          : yield* acquireSix03Browser(config.hyperbrowserApiKey);
+      const transport = yield* acquireSix03Browser(
+        sessions ??
+          DocumentTransport.hyperbrowser((yield* Config).hyperbrowserApiKey),
+      );
       const limit = yield* RateLimiter.make({
         limit: 1,
         interval: "1600 millis",

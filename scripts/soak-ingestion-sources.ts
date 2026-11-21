@@ -246,6 +246,9 @@ interface SourceResult {
 
 const HYPERBROWSER_SOURCES: ReadonlySet<IngestionSource> = new Set([
   "upullitdavie",
+  "bigd",
+  "northwest",
+  "six03",
 ]);
 const requestMetrics = new SourceSoakMetrics();
 
@@ -369,7 +372,7 @@ async function main(): Promise<void> {
     !hyperbrowserApiKey
   ) {
     throw new Error(
-      "HYPERBROWSER_API_KEY is required for U Pull It Davie soaks",
+      `HYPERBROWSER_API_KEY is required to soak ${[...HYPERBROWSER_SOURCES].join(", ")}, which open a paid Hyperbrowser session per chunk. Set it, or leave those sources out of --sources.`,
     );
   }
 
