@@ -38,14 +38,18 @@ export const ALLIED_UNREACHABLE_MODEL_ROUTES: ReadonlySet<string> = new Set([
 ]);
 /**
  * Routes sent with literal parentheses. Every other route keeps the
- * percent-encoded spelling the November 15 census was captured with, which
- * listed donors on BLAZER.JIMMY_(FULL_SIZE) and SPRINT_(CHEV). On November 20,
- * 2026 the literal ISUZU_PUP_(PICKUP) and SAFARI_(GMC) routes listed their
- * cards while their %28/%29 spellings returned explicit empties, and the
- * literal NEW_YORKER_(FWD) route was refused with HTTP 403. Change a route's
- * spelling only after probing both spellings on this host.
+ * percent-encoded spelling the November 15 census was captured with. On
+ * November 20, 2026 the literal ISUZU_PUP_(PICKUP) and SAFARI_(GMC) routes
+ * listed their cards while their %28/%29 spellings returned explicit empties,
+ * and the literal NEW_YORKER_(FWD) route was refused with HTTP 403. On
+ * November 21 the literal BLAZER.JIMMY_(FULL_SIZE) and SPRINT_(CHEV) routes
+ * listed 4 and 1 donors while their %28/%29 spellings returned explicit
+ * empties. Change a route's spelling only after probing both spellings on
+ * this host.
  */
 export const ALLIED_LITERAL_PARENTHESIS_ROUTES: ReadonlySet<string> = new Set([
+  "/parts/CHEVROLET/BLAZER.JIMMY_(FULL_SIZE)/",
+  "/parts/CHEVROLET/SPRINT_(CHEV)/",
   "/parts/GMC/SAFARI_(GMC)/",
   "/parts/ISUZU/ISUZU_PUP_(PICKUP)/",
 ]);

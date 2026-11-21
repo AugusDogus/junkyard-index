@@ -209,12 +209,13 @@ test("Allied sends parentheses literally only on routes probed to need it", asyn
   });
   // Nov 20: literal ISUZU_PUP_(PICKUP) listed its card while %28/%29 returned
   // an explicit empty; literal NEW_YORKER_(FWD) was refused with HTTP 403.
-  // BLAZER.JIMMY_(FULL_SIZE) listed donors encoded and was never probed
-  // literally, so it keeps the encoded spelling.
+  // Nov 21: literal BLAZER.JIMMY_(FULL_SIZE) and SPRINT_(CHEV) listed their
+  // donors while %28/%29 returned explicit empties.
   for (const path of [
     "/parts/ISUZU/ISUZU_PUP_(PICKUP)/",
     "/parts/CHRYSLER/NEW_YORKER_(FWD)/",
     "/parts/CHEVROLET/BLAZER.JIMMY_(FULL_SIZE)/",
+    "/parts/CHEVROLET/SPRINT_(CHEV)/",
   ])
     expect(
       await Effect.runPromise(readAlliedPage(ALLIED_ORIGIN + path, direct)),
@@ -222,6 +223,7 @@ test("Allied sends parentheses literally only on routes probed to need it", asyn
   expect(calls).toEqual([
     ALLIED_ORIGIN + "/parts/ISUZU/ISUZU_PUP_(PICKUP)/",
     ALLIED_ORIGIN + "/parts/CHRYSLER/NEW_YORKER_%28FWD%29/",
-    ALLIED_ORIGIN + "/parts/CHEVROLET/BLAZER.JIMMY_%28FULL_SIZE%29/",
+    ALLIED_ORIGIN + "/parts/CHEVROLET/BLAZER.JIMMY_(FULL_SIZE)/",
+    ALLIED_ORIGIN + "/parts/CHEVROLET/SPRINT_(CHEV)/",
   ]);
 });
