@@ -29,6 +29,21 @@ for (const [input, query, range] of [
   ["2010 OR 2014 Ford", "2010 OR 2014 Ford", null],
   ["!2010 Ford", "!2010 Ford", null],
   ["-2010 Ford", "-2010 Ford", null],
+  // A leading two-digit year (people type "08 mustang").
+  ["08 mustang", "mustang", [2008, 2008]],
+  ["'08 Mustang", "Mustang", [2008, 2008]],
+  ["98 civic", "civic", [1998, 1998]],
+  ["86 Toyota pickup", "Toyota pickup", [1986, 1986]],
+  ["98-02 civic", "civic", [1998, 2002]],
+  ["'98-'02 civic", "civic", [1998, 2002]],
+  ["05..07 Ford F-150", "Ford F-150", [2005, 2007]],
+  // Two-digit numbers elsewhere are model names, not years.
+  ["Toyota 86", "Toyota 86", null],
+  ["mustang 08", "mustang 08", null],
+  ["08", "08", null],
+  ["08 2010 Ford", "08 Ford", [2010, 2010]],
+  ["08-05 civic", "08-05 civic", null],
+  ['"08 mustang"', '"08 mustang"', null],
 ] as const) {
   test(`plain year query: ${input}`, () => {
     expect(SearchYearQuery.parse(input)).toEqual({ query, range });
