@@ -377,7 +377,7 @@ initializeSearchIndexMigrationStep.maxRetries = 2;
 export async function searchPublicationModeStep() {
   "use step";
 
-  return await SearchPublicationFlag.mode();
+  return await SearchPublicationFlag.maintenance();
 }
 
 export async function warmVinCacheBatchStep(state: VinCachePassState) {

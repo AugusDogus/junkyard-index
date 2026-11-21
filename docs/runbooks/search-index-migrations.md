@@ -229,10 +229,14 @@ batch waits while a migration rewrites the index; each 30-second lock retry
 updates the check's `last_progress_at`, so delivery keeps holding earlier
 intents for that day's digest instead of treating the check as stuck.
 
-While `ingestion-skip-search-publication` is on, the scheduled workflow may
+The workflow reads the publication mode the same way runs do. While
+publication is inline and `ingestion-skip-search-publication` is on, it may
 still warm the VIN cache, then exits without an Algolia request or the writer
 lock, including `?force=true`. The first inline ingestion run after the
-freeze rebuilds the index from Turso.
+freeze rebuilds the index from Turso. While `ingestion-publication-mode`
+serves `decoupled`, the skip flag is ignored and the migration runs under the
+writer lock and the search-projector token. If the publication mode cannot be
+read, it exits without writing and the next daily run tries again.
 No owner-run step is needed for the initial backfill or outage recovery.
 
 Keys include VIN positions 1-8, 10-11 and the explicit vehicle year. Low-volume

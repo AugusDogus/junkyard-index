@@ -44,3 +44,29 @@ describe("SearchPublicationFlag.resolve", () => {
     }
   });
 });
+
+describe("SearchPublicationFlag.maintenanceFor", () => {
+  const skipOn = async () => "skipped" as const;
+  const skipOff = async () => "inline" as const;
+
+  test("decoupled publication ignores the skip flag, as runs do", async () => {
+    expect(
+      await SearchPublicationFlag.maintenanceFor("decoupled", skipOn),
+    ).toBe("decoupled");
+  });
+
+  test("inline publication follows the skip flag", async () => {
+    expect(await SearchPublicationFlag.maintenanceFor("inline", skipOn)).toBe(
+      "skipped",
+    );
+    expect(await SearchPublicationFlag.maintenanceFor("inline", skipOff)).toBe(
+      "inline",
+    );
+  });
+
+  test("an unreadable mode is reported, not guessed", async () => {
+    expect(
+      await SearchPublicationFlag.maintenanceFor("unavailable", skipOff),
+    ).toBe("mode_unavailable");
+  });
+});

@@ -31,11 +31,21 @@ export async function searchIndexMigrationWorkflow(force = false) {
 
   // Frozen search makes no Algolia request, even a settings read. Warmed
   // identities still reach Turso through reconciliation, and the first inline
-  // run after the freeze rebuilds the index from Turso.
-  if ((await searchPublicationModeStep()) === "skipped") {
+  // run after the freeze rebuilds the index from Turso. Decoupled publication
+  // ignores the skip flag, as runs do, and the writer and rebuild guards below
+  // keep the projector the only other writer. An unreadable publication mode
+  // writes nothing; the next daily run tries again.
+  const publication = await searchPublicationModeStep();
+  if (publication === "skipped") {
     return {
       status: "skipped" as const,
       reason: "search_publication_skipped" as const,
+    };
+  }
+  if (publication === "mode_unavailable") {
+    return {
+      status: "skipped" as const,
+      reason: "publication_mode_unavailable" as const,
     };
   }
 
