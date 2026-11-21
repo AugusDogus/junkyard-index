@@ -125,7 +125,7 @@ for (const width of [390, 640, 1440]) {
             `/auth/sign-in?returnTo=${encodeURIComponent(path)}`,
           );
         }
-        for (const label of ["Junkyards", "Cars", "Pricing", "Search"]) {
+        for (const label of ["Junkyards", "Map", "Cars", "Pricing", "Search"]) {
           expect(
             await page
               .getByRole("link", { name: label, exact: true })
@@ -154,3 +154,75 @@ for (const width of [390, 640, 1440]) {
     }, 20_000);
   }
 }
+
+async function openHeader(path: string, width: number) {
+  const result = Bun.spawn(["bun", server, path], {
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const [html, errors, status] = await Promise.all([
+    new Response(result.stdout).text(),
+    new Response(result.stderr).text(),
+    result.exited,
+  ]);
+  if (status !== 0) throw new Error(errors);
+  const page = await createPage(browser, {
+    viewport: { width, height: 900 },
+  });
+  await page.route("http://header.test/**", (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    return route.fulfill({
+      contentType:
+        pathname === "/app.js"
+          ? "text/javascript"
+          : pathname === "/app.css"
+            ? "text/css"
+            : "text/html",
+      body:
+        pathname === "/app.js"
+          ? script
+          : pathname === "/app.css"
+            ? stylesheet
+            : `<!doctype html><html><head><link rel="stylesheet" href="/app.css"></head><body><script>globalThis.process={env:{NODE_ENV:"production"}}</script><div id="root">${html}</div><script type="module" src="/app.js"></script></body></html>`,
+    });
+  });
+  await page.goto(`http://header.test${path}`);
+  return page;
+}
+
+for (const width of [390, 1440]) {
+  test(`the yard map link marks the current page at ${width}px`, async () => {
+    const page = await openHeader("/map?signed-in=1", width);
+    try {
+      const map = page
+        .getByRole("link", { name: "Map", exact: true })
+        .filter({ visible: true });
+      expect(await map.count()).toBe(1);
+      expect(await map.getAttribute("href")).toBe("/map");
+      expect(await map.getAttribute("aria-current")).toBe("page");
+    } finally {
+      await closePage(page);
+    }
+  }, 20_000);
+}
+
+test("the phone nav row fits a 360px screen", async () => {
+  const page = await openHeader("/junkyards?signed-in=1", 360);
+  try {
+    for (const label of ["Junkyards", "Map", "Cars", "Pricing", "Search"]) {
+      expect(
+        await page
+          .getByRole("link", { name: label, exact: true })
+          .filter({ visible: true })
+          .count(),
+      ).toBe(1);
+    }
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+  } finally {
+    await closePage(page);
+  }
+}, 20_000);
