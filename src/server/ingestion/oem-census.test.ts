@@ -696,26 +696,50 @@ test("OEM fails a steady-state run whose routine sweep page, read at age six, li
 
 test("OEM re-reads a surplus page that lost donors down to its unchanged badge", async () => {
   // A model page lists 40 cards under a badge of 38 (placeholder or surplus
-  // rows). On its sweep day it loses two real donors and lists exactly 38, so
-  // its cards match its badge. Its surplus is sticky: it stays expected at 40,
-  // closing re-reads it, its evidence is not confirmed, and every following
-  // daily run reads it again (and closing re-reads it) instead of carrying the
-  // shrunken page. Only a normal incremental run six days after the first low
-  // read lowers the surplus to what the page lists; after that it carries.
+  // rows). The cold run stores that surplus unconfirmed, so the first
+  // incremental run (M's sweep day) reads M as short. There it has lost two
+  // real donors and lists exactly 38, so its cards match its badge. Its
+  // surplus is sticky: it stays expected at 40 and unconfirmed, closing
+  // re-reads it, its evidence is not confirmed, and every following daily run
+  // reads it again (and closing re-reads it) instead of carrying the shrunken
+  // page. Only a normal incremental run six days after the first low read
+  // lowers the surplus to what the page lists; after that it carries.
   const native = yard();
   const day = dayAfterCold((d) => sweep(d).some((m) => m !== 0));
   const m = pickModel((model) => sweep(day).includes(model));
   native.badges.set(m, 38);
   const cold = await census(native, 600, null);
   expect(cold.vins).toEqual(allVins(native));
+  if (cold.terminal.state.phase !== "complete" || !cold.terminal.state.census)
+    throw new Error("Expected a terminal census");
+  expect(cold.terminal.state.census.models[m]).toMatchObject({
+    count: 38,
+    readDay: 600,
+    expected: 40,
+    lowSince: null,
+    surplusConfirmed: false,
+    confirmed: false,
+  });
+  // Every other cold page lists exactly its badge, so it has no surplus to
+  // confirm.
+  expect(
+    cold.terminal.state.census.models
+      .filter((evidence) => !evidence.surplusConfirmed)
+      .map((evidence) => evidence.key),
+  ).toEqual([modelKey(m)]);
   native.rows.set(m, donors(m, 38));
   const shrunk = await census(native, day, cold.wire);
   expect(shrunk.models).toEqual([...sweep(day), m]);
-  // Arrivals, makes, one menu, the swept pages, the closing re-read and the
-  // closing make directory.
+  // Arrivals, makes, one menu, the swept pages and M's short read, the closing
+  // re-read and the closing make directory.
   expect(shrunk.requests).toBe(5 + sweep(day).length);
   expect(shrunk.vins).toEqual(allVins(native));
-  expect(shrunk.warnings.at(-1)).toBe(summary([["sweep", sweep(day)]]));
+  expect(shrunk.warnings.at(-1)).toBe(
+    summary([
+      ["sweep", sweep(day).filter((x) => x !== m)],
+      ["short", [m]],
+    ]),
+  );
   if (
     shrunk.terminal.state.phase !== "complete" ||
     !shrunk.terminal.state.census
@@ -726,6 +750,7 @@ test("OEM re-reads a surplus page that lost donors down to its unchanged badge",
     readDay: day,
     expected: 40,
     lowSince: day,
+    surplusConfirmed: false,
     confirmed: false,
   });
   const lastRead = new Map(MODELS.map((model) => [model, 600]));
@@ -771,14 +796,17 @@ test("OEM re-reads a surplus page that lost donors down to its unchanged badge",
             readDay: today,
             expected: 40,
             lowSince: day,
+            surplusConfirmed: false,
             confirmed: false,
           }
-        : // Lowered on the lowering day, then carried.
+        : // Lowered on the lowering day, then carried. With no surplus left
+          // there is nothing to confirm.
           {
             count: 38,
             readDay: lowered,
             expected: 38,
             lowSince: null,
+            surplusConfirmed: true,
             confirmed: false,
           },
     );

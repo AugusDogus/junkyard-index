@@ -541,6 +541,20 @@ test("Central re-reads a surplus page that drops to its badge instead of carryin
   const cold = await census(native, 600, null);
   const label = "M" + surplus;
   const kept = donors(surplus, label).slice(0, 160);
+  // A surplus first seen on a cold read is unconfirmed until a normal
+  // incremental run reads the page again.
+  expect(
+    terminalCensus(cold.terminal).models.find(
+      (m) => m.key === censusKey(surplus, label),
+    ),
+  ).toMatchObject({
+    readDay: 600,
+    count: 160,
+    expected: 170,
+    lowSince: null,
+    surplusConfirmed: false,
+    confirmed: false,
+  });
 
   // A transient drop to exactly its badge is re-read at closing and stops
   // emission instead of passing as a healthy page for six days.
@@ -575,12 +589,24 @@ test("Central re-reads a surplus page that drops to its badge instead of carryin
   native.rows.set(surplus, kept);
   const dropped = await census(native, day, cold.terminal);
   expect(dropped.models).toEqual([...sweep(native, day), surplus]);
+  // root, makes, one menu, the swept models, the closing re-read of the
+  // surplus page, closing root and makes.
+  expect(dropped.requests).toBe(5 + sweep(native, day).length + 1);
   expect(dropped.vins).toEqual(allVins(native));
+  // The unconfirmed cold surplus is read as short, ahead of its sweep slice.
+  const swept = sweep(native, day).length - 1;
+  expect(dropped.warnings.at(-1)).toBe(
+    `Central Read ${swept + 1} of 12 model pages (short 1${
+      swept > 0 ? `, sweep ${swept}` : ""
+    }); carried ${11 - swept}.`,
+  );
   const evidence = terminalCensus(dropped.terminal).models.find(
     (m) => m.key === censusKey(surplus, label),
   );
   expect(evidence?.expected).toBe(170);
   expect(evidence?.lowSince).toBe(day);
+  // A read listing less than the held surplus does not confirm it.
+  expect(evidence?.surplusConfirmed).toBe(false);
   expect(evidence?.confirmed).toBe(false);
   expect(evidence?.page.records).toHaveLength(160);
 
@@ -623,6 +649,9 @@ test("Central re-reads a surplus page that drops to its badge instead of carryin
     expect(held?.count).toBe(160);
     expect(held?.expected).toBe(lowered ? 160 : 170);
     expect(held?.lowSince).toBe(lowered ? null : day);
+    // Unconfirmed while the held surplus exceeds the reads; lowering to the
+    // badge leaves no surplus, which is always confirmed.
+    expect(held?.surplusConfirmed).toBe(lowered);
     expect(held?.confirmed).toBe(false);
     expect(held?.page.records).toHaveLength(160);
     previous = run.terminal;
@@ -645,6 +674,7 @@ test("Central re-reads a surplus page that drops to its badge instead of carryin
     count: 160,
     expected: 160,
     lowSince: null,
+    surplusConfirmed: true,
     confirmed: false,
   });
 });

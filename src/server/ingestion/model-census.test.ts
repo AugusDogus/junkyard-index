@@ -442,7 +442,9 @@ describe("ModelCensus", () => {
     const dropped = run(models, cold.census, day, undefined, {
       listed: new Map([["model-2", 3]]),
     });
-    expect(dropped.decisions[2]).toEqual({ kind: "read", reason: "sweep" });
+    // The surplus a cold run saw is unconfirmed, so the first incremental run
+    // (also this model's sweep day) reads it as short.
+    expect(dropped.decisions[2]).toEqual({ kind: "read", reason: "short" });
     // Closing must re-read it even though cards equal the badge.
     expect(
       ModelCensus.closingReads({
@@ -523,25 +525,101 @@ describe("ModelCensus", () => {
     });
   });
 
-  test("a surplus that really went away is lowered after six run days of reads", () => {
-    // Badge 3, page 4 until its placeholder is removed for good on day 101.
+  test("a surplus that really went away is read daily and lowered only by an incremental run after six days", () => {
+    // Badge 3, page 4 (a placeholder). The cold run's surplus is confirmed by
+    // the first incremental run; the placeholder is then gone for good from
+    // the model's own sweep day S.
     const models = controls(12, 3);
-    let census = run(models, null, 100, undefined, {
-      listed: new Map([["model-2", 4]]),
-    }).census;
-    const reads: number[] = [];
-    for (let day = 101; day <= 108; day++) {
-      const next = run(models, census, day, new Set(["model-2"]));
-      if (next.decisions[2]?.kind === "read") reads.push(day);
+    const withPlaceholder = { listed: new Map([["model-2", 4]]) };
+    let census = run(models, null, 100, undefined, withPlaceholder).census;
+    expect(census.models[2]).toMatchObject({
+      expected: 4,
+      surplusConfirmed: false,
+    });
+    const first = run(models, census, 101, undefined, withPlaceholder);
+    expect(first.decisions[2]).toEqual({ kind: "read", reason: "short" });
+    expect(first.census.models[2]).toMatchObject({
+      expected: 4,
+      surplusConfirmed: true,
+    });
+    census = first.census;
+    const S = [102, 103, 104, 105, 106, 107].find(
+      (d) => ModelCensus.slice("model-2") === d % MODEL_CENSUS_SWEEP_DAYS,
+    );
+    if (S === undefined) throw new Error("fixture needs model-2's slice day");
+    for (let day = 102; day < S; day++) {
+      const next = run(models, census, day, undefined, withPlaceholder);
+      expect(next.decisions[2]?.kind).toBe("carry");
       census = next.census;
     }
-    // Read every run while the lower count lasted under six days, then the
-    // surplus is lowered and the page is carried like any other.
-    expect(census.models[2]).toMatchObject({ expected: 3, lowSince: null });
-    const after = run(models, census, 109);
-    expect(
-      after.decisions[2]?.kind === "read" && after.decisions[2].reason,
-    ).not.toBe("short");
+    // S to S + 5: read every run (its sweep, then short), the surplus held.
+    for (let day = S; day <= S + 5; day++) {
+      const next = run(models, census, day);
+      expect(next.decisions[2]).toEqual({
+        kind: "read",
+        // Its due day reads it as sweep, or as stale when that day is six
+        // days after its day 101 read; later days read it as short.
+        reason:
+          day === S
+            ? S - 101 >= MODEL_CENSUS_SWEEP_DAYS
+              ? "stale"
+              : "sweep"
+            : "short",
+      });
+      expect(next.census.models[2]).toMatchObject({
+        expected: 4,
+        lowSince: S,
+      });
+      census = next.census;
+    }
+    // S + 6 is missed, so S + 7 is a full gap read: six days have passed, but
+    // a gap run never lowers the surplus.
+    const gap = run(models, census, S + 7);
+    expect(gap.decisions[2]).toEqual({ kind: "read", reason: "gap" });
+    expect(gap.census.models[2]).toMatchObject({ expected: 4, lowSince: S });
+    // The next normal incremental run reads it again and lowers it.
+    const lowered = run(models, gap.census, S + 8);
+    expect(lowered.decisions[2]).toEqual({ kind: "read", reason: "short" });
+    expect(lowered.census.models[2]).toMatchObject({
+      expected: 3,
+      lowSince: null,
+      surplusConfirmed: true,
+    });
+    // From then on it carries like any other model.
+    const after = run(models, lowered.census, S + 9);
+    expect(after.decisions[2]?.kind).toBe(
+      ModelCensus.slice("model-2") === (S + 9) % MODEL_CENSUS_SWEEP_DAYS
+        ? "read"
+        : "carry",
+    );
+  });
+
+  test("a count change restarts the surplus window, so arrival lag never lowers it", () => {
+    // Badge 3, page 4 (a placeholder). Arrivals raise the badge every day for
+    // seven days before their cards appear, so each read lists exactly the
+    // badge: the surplus looks gone but must not be lowered.
+    let models = controls(12, 3);
+    const placeholder = (day: number, count: number) =>
+      new Map([["model-2", day === 100 || day === 101 ? 4 : count]]);
+    let census = run(models, null, 100, undefined, {
+      listed: placeholder(100, 3),
+    }).census;
+    census = run(models, census, 101, undefined, {
+      listed: placeholder(101, 3),
+    }).census;
+    for (let day = 102; day <= 109; day++) {
+      const count = 3 + (day - 101);
+      models = models.map((m, i) => (i === 2 ? { ...m, count } : m));
+      const next = run(models, census, day, undefined, {
+        listed: placeholder(day, count),
+      });
+      expect(next.decisions[2]?.kind).toBe("read");
+      expect(next.census.models[2]).toMatchObject({
+        expected: count + 1,
+        lowSince: day,
+      });
+      census = next.census;
+    }
   });
 
   test("a surplus page that loses a donor on the day its count changes is still re-read", () => {
