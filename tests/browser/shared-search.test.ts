@@ -593,3 +593,69 @@ test("settled counts replace the full-service announcement after another query",
     await closePage(page);
   }
 }, 15_000);
+
+for (const width of [390, 1390]) {
+  test(`the results header keeps the count and full-service hint compact: ${width}px`, async () => {
+    const page = await createPage(browser, {
+      viewport: { width, height: 900 },
+    });
+    try {
+      await page.route("http://shared-search.test/**", async (route) => {
+        const url = new URL(route.request().url());
+        const isScript = url.pathname === "/app.js";
+        return route.fulfill({
+          contentType: isScript ? "text/javascript" : "text/html",
+          body: isScript ? script : await renderSharedSearchFixture(url.search),
+        });
+      });
+      await page.goto("http://shared-search.test/search?q=Volvo");
+      await page.addStyleTag({ content: stylesheet });
+      const count = page.getByRole("heading", {
+        name: "3 vehicles at self-service yards",
+        exact: true,
+      });
+      await count.waitFor();
+      const header = count.locator("xpath=../..");
+      const button = header.getByRole("button", {
+        name: "Show full-service results",
+        exact: true,
+      });
+      await button.waitFor();
+      const [headerBox, countBox, buttonBox] = await Promise.all([
+        header.boundingBox(),
+        count.boundingBox(),
+        button.boundingBox(),
+      ]);
+      if (!headerBox || !countBox || !buttonBox)
+        throw new Error("Expected the results header to be laid out");
+      if (width === 1390) {
+        expect(headerBox.height).toBeLessThanOrEqual(64);
+        // The button shares the count's row instead of sitting below it.
+        expect(buttonBox.y).toBeLessThan(countBox.y + countBox.height);
+      } else {
+        expect(headerBox.height).toBeLessThanOrEqual(120);
+        expect(buttonBox.height).toBeGreaterThanOrEqual(44);
+      }
+      // The hint is text and an outline button, never a filled panel.
+      expect(
+        await header
+          .getByText("+3 more vehicles at full-service yards.", {
+            exact: false,
+          })
+          .evaluate((element) => {
+            const fills = [element, element.parentElement].map(
+              (node) => node && getComputedStyle(node).backgroundColor,
+            );
+            return fills.every((fill) => fill === "rgba(0, 0, 0, 0)");
+          }),
+      ).toBe(true);
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true);
+    } finally {
+      await closePage(page);
+    }
+  }, 15_000);
+}
