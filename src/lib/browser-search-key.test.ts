@@ -39,7 +39,7 @@ describe("BrowserSearchKey", () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
-  test("renews a key once after the plan changes, and a re-render cannot restore it", async () => {
+  test("renews a rendered key after the plan changes, and a re-render cannot restore it", async () => {
     const fetcher = serving(grant("paid", NOW_S + 3600, "lite"));
     const key = BrowserSearchKey.create(fetcher);
     const rendered = grant("free", NOW_S + 3600);
@@ -54,7 +54,7 @@ describe("BrowserSearchKey", () => {
     expect(key.tier()).toBe("lite");
   });
 
-  test("keeps the server's answer when it mints the same kind of key again", async () => {
+  test("keeps a key the server fetched for the plan the page still shows", async () => {
     const fetcher = serving(grant("still-free", NOW_S + 3600));
     const key = BrowserSearchKey.create(fetcher);
     key.prime(grant("free", NOW_S + 3600));
@@ -63,6 +63,38 @@ describe("BrowserSearchKey", () => {
     key.renewFor("lite");
     expect(await key.current(NOW_MS)).toBe("still-free");
     expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  test("a later render's stale free key does not override a paid plan", async () => {
+    // Navigating back to /search within the server's tier cache renders a
+    // newer free key over the paid one fetched after checkout.
+    const fetcher = serving(
+      grant("paid", NOW_S + 3600, "lite"),
+      grant("paid-again", NOW_S + 3600, "lite"),
+    );
+    const key = BrowserSearchKey.create(fetcher);
+    key.prime(grant("free", NOW_S + 3600));
+    key.renewFor("lite");
+    expect(await key.current(NOW_MS)).toBe("paid");
+    key.prime(grant("newer-free", NOW_S + 7200));
+    key.renewFor("lite");
+    expect(key.tier()).toBeNull();
+    expect(await key.current(NOW_MS)).toBe("paid-again");
+  });
+
+  test("a key fetched before a checkout is replaced once the plan turns paid", async () => {
+    const fetcher = serving(
+      grant("free-refresh", NOW_S + 3600),
+      grant("paid", NOW_S + 3600, "full"),
+    );
+    const key = BrowserSearchKey.create(fetcher);
+    key.prime(grant("expiring", NOW_S + 60));
+    key.renewFor("free");
+    expect(await key.current(NOW_MS)).toBe("free-refresh");
+    key.renewFor("full");
+    expect(key.tier()).toBeNull();
+    expect(await key.current(NOW_MS)).toBe("paid");
+    expect(fetcher).toHaveBeenCalledTimes(2);
   });
 
   test("reports a refused key as a tagged error and retries on the next search", async () => {
