@@ -595,8 +595,10 @@ test("settled counts replace the full-service announcement after another query",
   }
 }, 15_000);
 
-for (const width of [390, 1390]) {
-  test(`the results header keeps the count and full-service hint compact: ${width}px`, async () => {
+// A busy query's five-digit count and three-digit timing, in the site's
+// monospace font: the fixture's own single digits fit any row.
+for (const width of [360, 390, 1390]) {
+  test(`the results header keeps a five-digit count and full-service hint compact: ${width}px`, async () => {
     const page = await createPage(browser, {
       viewport: { width, height: 900 },
     });
@@ -609,10 +611,16 @@ for (const width of [390, 1390]) {
           body: isScript ? script : await renderSharedSearchFixture(url.search),
         });
       });
-      await page.goto("http://shared-search.test/search?q=Volvo");
+      await page.goto(
+        "http://shared-search.test/search?q=Volvo&fixtureHitScale=4115&fixtureProcessingTimeMS=158",
+      );
       await page.addStyleTag({ content: stylesheet });
+      // next/font defines this in the app; without it text is proportional.
+      await page.addStyleTag({
+        content: ':root{--font-chivo-mono:"Chivo Mono"}',
+      });
       const count = page.getByRole("heading", {
-        name: "3 vehicles at self-service yards",
+        name: "12,345 vehicles at self-service yards",
         exact: true,
       });
       await count.waitFor();
@@ -640,7 +648,7 @@ for (const width of [390, 1390]) {
       // The hint is text and an outline button, never a filled panel.
       expect(
         await header
-          .getByText("+3 more vehicles at full-service yards.", {
+          .getByText("+12,345 more vehicles at full-service yards.", {
             exact: false,
           })
           .evaluate((element) => {
