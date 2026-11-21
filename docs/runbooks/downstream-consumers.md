@@ -32,9 +32,9 @@ A failed refresh, returned or thrown, is never retried within a tick. It
 leaves the checkpoint behind, increments `failure_count`, sets
 `last_error_tag` (`refresh_project`, `refresh_revalidate` or
 `refresh_unexpected`) and blocks the consumer until `blocked_until`: 3 hours,
-then 6, 12 and at most 24. While blocked, each hourly tick reports
+then 6, 12 and at most 24, with the same 10 minutes of slack. While blocked, each hourly tick reports
 `backing_off` as a failed tick (heartbeat `/fail` and the Sentry issue), so a
-stuck consumer stays red. A success clears the backoff. The announcement is
+stuck consumer stays red. The Sentry issue names the `blocked_until` time; clear it on the `inventory-downstream` row of `ingestion_projector_checkpoint` to retry sooner after fixing the cause. A success clears the backoff. The announcement is
 best effort: IndexNow keeps its own checkpoint, so the next publication's
 announcement includes anything that failed.
 

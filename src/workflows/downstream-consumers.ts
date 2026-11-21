@@ -1,5 +1,6 @@
 import { createHook, sleep } from "workflow";
 import {
+  inventoryDownstreamTickOutcome,
   runInventoryDownstream,
   type InventoryDownstreamResult,
 } from "~/server/ingestion/inventory-downstream-consumer";
@@ -58,7 +59,7 @@ export async function inventoryDownstreamWorkflow(checkedAt: string) {
   }
   await reportConsumerTickStep(
     "inventory-downstream",
-    result.status === "refresh_failed" ? "failed" : "succeeded",
+    inventoryDownstreamTickOutcome(result),
     result,
   );
   return result;
