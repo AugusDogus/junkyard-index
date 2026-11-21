@@ -18,7 +18,7 @@ Source ID: `whitebradstreet`. Native inventory: <https://white-bradstreet.com/tr
 
 `WhitebradstreetCursor.initial` starts the bounded connector. Default chunks process eight new native pages, with a supported budget of 1-32. The cursor stores all prior native IDs, canonical identity outcomes, page hashes and cumulative counts. Its schema checks monotone page coverage, unique native IDs and consistent accounting.
 
-Resume rereads the complete prior prefix and compares semantic page hashes and the reconstructed ledger before emitting new work. Completion rereads every enumerated page to reject changes during the crawl. Native ranges, two matching pagination controls, row counts and terminal pagination must agree with the advertised total. A complete cursor performs no requests or callbacks.
+Resume continues at `nextPage` from the validated ledger without rereading the prefix or the active-donor control, so a resume after a rate-limit cooldown spends its first request on new work. Completion rereads every enumerated page and requires each advertised total and semantic page hash to match the ledger, which rejects reorders, arrivals and removals during the crawl. That recheck is checkpointed in the `recheck` phase (`nextRecheckPage`, `total`, `hashes`), so an HTTP 429 during it resumes at the refused page after the cooldown. The source completes only after every page is confirmed. Native ranges, two matching pagination controls, row counts and terminal pagination must agree with the advertised total. A complete cursor performs no requests or callbacks.
 
 Requests are sequential at one per 1,600 ms. Each has a 20-second timeout and no retries. A chunk has a two-minute limit. Responses must be complete HTTP 200 HTML at the requested native destination, bounded to 4 MiB, valid UTF-8 and consistent with any uncompressed Content-Length. Authentication failures, 429s, partial responses, redirects, MIME changes, drift or malformed controls fail without an advanced checkpoint. Previous published inventory remains preserved by the ingestion staging boundary.
 
@@ -55,4 +55,4 @@ bunx oxlint src/server/ingestion/whitebradstreet-*.ts src/server/ingestion/truck
 bun run typecheck
 ```
 
-Tests cover optional-null acceptance, old serials, presence-only rejects, cumulative limits across chunks, conflicting identities, source ownership, active scope, full-prefix and terminal drift, HTTP and body boundaries without retries, cursor tampering, pause/resume and complete-cursor idempotence.
+Tests cover optional-null acceptance, old serials, presence-only rejects, cumulative limits across chunks, conflicting identities, source ownership, active scope, terminal drift (including a page shift found by a resumed recheck), resume after a cooldown without prefix replay, rate-limited recheck resumption, HTTP and body boundaries without retries, cursor tampering, pause/resume and complete-cursor idempotence.

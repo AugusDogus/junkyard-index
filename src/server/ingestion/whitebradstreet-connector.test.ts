@@ -196,10 +196,10 @@ test.each([
   },
 );
 
-test("White & Bradstreet checks the full native prefix before resumed emissions", async () => {
+test("White & Bradstreet resumes at the next page and catches a changed prefix at the terminal recheck", async () => {
   inventory();
   const first = await run();
-  inventory({
+  const requests = inventory({
     rewrite: (body, page, detail) =>
       !detail && page === 1
         ? body.replaceAll("<p>386</p>", "<p>387</p>")
@@ -212,8 +212,13 @@ test("White & Bradstreet checks the full native prefix before resumed emissions"
         emitted = true;
       }),
     ),
-  ).rejects.toThrow("changed since the checkpoint");
+  ).rejects.toThrow("changed during enumeration");
   expect(emitted).toBe(false);
+  // No prefix replay and no second control: page 2, then the full recheck.
+  expect(requests).toEqual([
+    "https://white-bradstreet.com/trucks/?f-condition=nw&page_number=2",
+    "https://white-bradstreet.com/trucks/?f-condition=nw",
+  ]);
 });
 
 test("White & Bradstreet rechecks all pages at terminal before callbacks", async () => {
@@ -532,29 +537,161 @@ test("White & Bradstreet waits out a wake that starts just before retryAt", asyn
   expect("retryAt" in resumed.cursor).toBe(false);
 });
 
-test("White & Bradstreet keeps the input checkpoint when the terminal recheck is rate-limited", async () => {
-  let pageReads = 0;
-  const requests = inventory({
-    response: (body) =>
-      body.includes("of 26") && ++pageReads === 3
-        ? throttled("900")
-        : html(body),
+const pageUrl = (page: number) =>
+  "https://white-bradstreet.com/trucks/?f-condition=nw" +
+  (page === 1 ? "" : "&page_number=" + page);
+/** The cooldown ended; the next chunk may request again. */
+function elapsed(cursor: WhitebradstreetCursor) {
+  const { rateLimit } = deferred(cursor);
+  const since = rateLimit.since - 20 * MINUTE;
+  return WhitebradstreetCursorSchema.parse({
+    ...cursor,
+    rateLimit: { ...rateLimit, since },
+    retryAt: since + 1,
   });
-  let emitted = false;
-  const result = await run(undefined, 2, () =>
+}
+/** Answers `allowed` native requests, then HTTP 429 with Retry-After 300s. */
+function blockAfter(allowed: number, total: number) {
+  let answered = 0;
+  return inventory({
+    total,
+    response: (body) => (++answered > allowed ? throttled("300") : html(body)),
+  });
+}
+
+test("White & Bradstreet resumes after a cooldown with new pages inside five requests", async () => {
+  inventory({ total: 386 });
+  const first = await run(undefined, 12);
+  expect(first.cursor).toMatchObject({ phase: "pages", nextPage: 13 });
+  const since = Date.now() - 20 * MINUTE;
+  const cooled = WhitebradstreetCursorSchema.parse({
+    ...first.cursor,
+    rateLimit: { since, deferrals: 1 },
+    retryAt: since + 1,
+  });
+  // Production let about five requests through after each 300s cooldown.
+  const requests = blockAfter(5, 386);
+  const vehicles: WhitebradstreetCanonicalVehicle[] = [];
+  const resumed = await run(cooled, 8, (batch) =>
     Effect.sync(() => {
-      emitted = true;
+      vehicles.push(...batch);
     }),
   );
-  expect(requests).toHaveLength(4);
-  expect(emitted).toBe(false);
-  expect(result).toMatchObject({
+  expect(requests.slice(0, 5)).toEqual([
+    pageUrl(13),
+    pageUrl(14),
+    pageUrl(15),
+    pageUrl(16),
+    pageUrl(1),
+  ]);
+  expect(requests).toEqual([...requests.slice(0, 5), pageUrl(2)]);
+  expect(vehicles).toHaveLength(86);
+  expect(resumed).toMatchObject({
     status: "paused",
+    count: 86,
+    pagesProcessed: 4,
+    accounting: { recordsProcessed: 86 },
+    cursor: {
+      phase: "recheck",
+      nextRecheckPage: 2,
+      total: 386,
+      rateLimit: { since, deferrals: 2 },
+    },
+  });
+});
+
+test("White & Bradstreet resumes a rate-limited terminal recheck where it stopped", async () => {
+  // Pages 1-3, the control and recheck page 1 pass; recheck page 2 is refused.
+  const requests = blockAfter(5, 75);
+  const vehicles: WhitebradstreetCanonicalVehicle[] = [];
+  const onBatch = (batch: WhitebradstreetCanonicalVehicle[]) =>
+    Effect.sync(() => {
+      vehicles.push(...batch);
+    });
+  const yards: (typeof WHITEBRADSTREET_YARD)[] = [];
+  const onYards = (batch: (typeof WHITEBRADSTREET_YARD)[]) =>
+    Effect.sync(() => {
+      yards.push(...batch);
+    });
+  const stream = (cursor: WhitebradstreetCursor | undefined) =>
+    Effect.runPromise(
+      streamWhitebradstreetInventoryWithRequestGate(
+        { startCursor: cursor, maxPages: 3, onBatch, onYards },
+        gate,
+      ),
+    );
+  const first = await stream(undefined);
+  expect(requests).toHaveLength(6);
+  expect(requests.at(-1)).toBe(pageUrl(2));
+  expect(first).toMatchObject({
+    status: "paused",
+    count: 75,
+    pagesProcessed: 3,
+    cursor: {
+      phase: "recheck",
+      nextRecheckPage: 2,
+      rateLimit: { deferrals: 1 },
+    },
+  });
+  expect(yards).toEqual([]);
+  const cursor = WhitebradstreetCursorSchema.parse(
+    JSON.parse(JSON.stringify(first.cursor)),
+  );
+  // Before retryAt the recheck stays deferred without requests.
+  expect(await stream(cursor)).toMatchObject({ status: "paused", cursor });
+  expect(requests).toHaveLength(6);
+  const resumedRequests = inventory({ total: 75 });
+  const last = await stream(elapsed(cursor));
+  expect(resumedRequests).toEqual([pageUrl(2), pageUrl(3)]);
+  expect(last).toMatchObject({
+    status: "complete",
     count: 0,
     pagesProcessed: 0,
-    accounting: { recordsProcessed: 0 },
-    cursor: { phase: "start", rateLimit: { deferrals: 1 } },
+    cursor: { phase: "complete" },
   });
+  expect(new Set(vehicles.map((vehicle) => vehicle.vin)).size).toBe(75);
+  expect(yards).toEqual([WHITEBRADSTREET_YARD]);
+});
+
+test("White & Bradstreet fails a resumed recheck that finds shifted rows", async () => {
+  blockAfter(5, 75);
+  const first = await run(undefined, 3);
+  if (first.cursor.phase !== "recheck")
+    throw new Error("Expected a deferred recheck checkpoint");
+  // One donor left and one arrived: the total holds but page 3 rows shift.
+  const requests = inventory({
+    total: 75,
+    rewrite: (body, page, detail) =>
+      !detail && page === 3
+        ? whitebradstreetPage(3, 75, (record, offset) => ({
+            ...record,
+            id: String(193589 - offset - 1),
+            vin: "1XPHD49X0AD" + String(113809 - offset - 1),
+            stockNumber: String(471 - offset - 1) + "B",
+          }))
+        : body,
+  });
+  let yards = 0;
+  await expect(
+    Effect.runPromise(
+      streamWhitebradstreetInventoryWithRequestGate(
+        {
+          startCursor: elapsed(first.cursor),
+          maxPages: 3,
+          onBatch: () => Effect.void,
+          onYards: () =>
+            Effect.sync(() => {
+              yards++;
+            }),
+        },
+        gate,
+      ),
+    ),
+  ).rejects.toThrow(
+    "terminal page 3: Native catalog changed during enumeration",
+  );
+  expect(requests).toEqual([pageUrl(2), pageUrl(3)]);
+  expect(yards).toBe(0);
 });
 
 test.each([
@@ -765,9 +902,26 @@ test("White & Bradstreet rejects tampered checkpoints and invalid budgets before
     { source: "whitebradstreet", phase: "complete", nextPage: 2 },
   ])
     expect(WhitebradstreetCursorSchema.safeParse(invalid).success).toBe(false);
+  const recheck = {
+    source: "whitebradstreet",
+    phase: "recheck",
+    nextRecheckPage: 1,
+    total: 26,
+    hashes: ["a".repeat(64), "b".repeat(64)],
+  };
+  expect(WhitebradstreetCursorSchema.safeParse(recheck).success).toBe(true);
+  for (const invalid of [
+    { ...recheck, nextRecheckPage: 0 },
+    { ...recheck, nextRecheckPage: 3 },
+    { ...recheck, total: 51 },
+    { ...recheck, hashes: ["a".repeat(64), "a".repeat(64)] },
+    { ...recheck, seen: cursor.seen },
+  ])
+    expect(WhitebradstreetCursorSchema.safeParse(invalid).success).toBe(false);
+  // A forged page hash is caught when completion refetches that page.
   const changed = WhitebradstreetCursorSchema.parse({
     ...cursor,
     hashes: ["a".repeat(64)],
   });
-  await expect(run(changed)).rejects.toThrow("changed since the checkpoint");
+  await expect(run(changed)).rejects.toThrow("changed during enumeration");
 });

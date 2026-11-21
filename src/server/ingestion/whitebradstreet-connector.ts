@@ -197,9 +197,9 @@ function rateLimitCooldown(
   });
 }
 
-/** A resumed 16-page crawl is about 33 paced reads (replay, new pages and
- * terminal recheck), roughly 140 seconds. The chunk limit leaves 30 seconds
- * after the crawl for the batch and yard callbacks. */
+/** A terminal chunk is at most the page budget plus the control and a 16-page
+ * recheck, about 25 paced reads or 100 seconds. The chunk limit leaves 30
+ * seconds after the crawl for the batch and yard callbacks. */
 const CRAWL_DEADLINE = "270 seconds";
 /** How early a step may start against the Workflow's sleep before it waits. */
 const RETRY_AT_CLOCK_SKEW_MS = 10_000;
@@ -254,8 +254,33 @@ export function streamWhitebradstreetInventoryWithRequestGate<E, R>(
         } satisfies WhitebradstreetStreamResult;
       if (remainingMs > 0) yield* Effect.sleep(remainingMs);
     }
-    const progress = fresh();
-    let controlValidated = false;
+    // A resumed ledger was validated when it was checkpointed and its schema
+    // cross-checks coverage and counters. Rows shifted by later arrivals or
+    // removals change a page hash, which the terminal recheck rejects.
+    const progress: Progress =
+      cursor.phase === "pages"
+        ? {
+            total: cursor.total,
+            processed: cursor.processed,
+            emitted: cursor.emitted,
+            rejected: cursor.rejected,
+            duplicates: cursor.duplicates,
+            seen: [...cursor.seen],
+            hashes: [...cursor.hashes],
+          }
+        : fresh();
+    // The first chunk already fetched the active-donor control.
+    let controlValidated = cursor.phase !== "start";
+    // Set once every page is accounted for. nextPage is the first page the
+    // terminal recheck has not yet confirmed.
+    let recheck: { total: number; hashes: string[]; nextPage: number } | null =
+      cursor.phase === "recheck"
+        ? {
+            total: cursor.total,
+            hashes: cursor.hashes,
+            nextPage: cursor.nextRecheckPage,
+          }
+        : null;
     let lastRateLimit: { url: string; retryAfterMs: number } | null = null;
     const onRateLimited = (url: string, retryAfterMs: number) => {
       lastRateLimit = { url, retryAfterMs };
@@ -283,91 +308,57 @@ export function streamWhitebradstreetInventoryWithRequestGate<E, R>(
         yield* fetchWhitebradstreetControl(record, gate, onRateLimited);
         controlValidated = true;
       });
-    const before = { processed: 0, rejected: 0, duplicates: 0 };
+    const before = {
+      processed: progress.processed,
+      rejected: progress.rejected,
+      duplicates: progress.duplicates,
+    };
     const vehicles: WhitebradstreetCanonicalVehicle[] = [];
-    let seenStart = 0;
+    const seenStart = progress.seen.length;
     let pagesProcessed = 0;
-    let terminal = false;
     const crawl = Effect.gen(function* () {
-      // Replay the complete accepted prefix before emitting resumed work. This
-      // ties the persisted ledger and its counters to current native evidence.
-      if (cursor.phase === "pages") {
-        for (let pageNumber = 1; pageNumber < cursor.nextPage; pageNumber++) {
+      if (recheck === null) {
+        let terminal = false;
+        while (pagesProcessed < maxPages && !terminal) {
           const page = yield* fetchWhitebradstreetPage(
-            pageNumber,
+            progress.hashes.length + 1,
             gate,
             onRateLimited,
           );
-          if (
-            page.total !== cursor.total ||
-            page.hash !== cursor.hashes[pageNumber - 1]
-          )
-            return yield* failure(
-              "resume page " + pageNumber,
-              "Native catalog changed since the checkpoint; restart from the initial cursor",
-            );
           yield* control(page);
-          yield* consume(page);
+          vehicles.push(...(yield* consume(page)));
+          pagesProcessed++;
+          terminal = page.nextUrl === null;
         }
-        if (
-          JSON.stringify(progress) !==
-          JSON.stringify({
-            total: cursor.total,
-            processed: cursor.processed,
-            emitted: cursor.emitted,
-            rejected: cursor.rejected,
-            duplicates: cursor.duplicates,
-            seen: cursor.seen,
-            hashes: cursor.hashes,
-          })
-        )
-          return yield* failure(
-            "checkpoint evidence",
-            "Persisted donor identities or counters do not match the native prefix; restart from the initial cursor",
-          );
-      }
-      before.processed = progress.processed;
-      before.rejected = progress.rejected;
-      before.duplicates = progress.duplicates;
-      seenStart = progress.seen.length;
-      while (pagesProcessed < maxPages && !terminal) {
-        const page = yield* fetchWhitebradstreetPage(
-          progress.hashes.length + 1,
-          gate,
-          onRateLimited,
-        );
-        yield* control(page);
-        vehicles.push(...(yield* consume(page)));
-        pagesProcessed++;
-        terminal = page.nextUrl === null;
-      }
-      if (terminal) {
+        if (!terminal) return;
         if (progress.processed !== progress.total || progress.emitted === 0)
           return yield* failure(
             "terminal catalog",
             "Native terminal row count differs from its advertised total or no complete donors remain",
           );
-        // Recheck every page at completion so an in-flight reorder or optional
-        // metadata change cannot silently qualify a mixed catalog snapshot.
-        for (
-          let pageNumber = 1;
-          pageNumber <= progress.hashes.length;
-          pageNumber++
-        ) {
-          const page = yield* fetchWhitebradstreetPage(
-            pageNumber,
-            gate,
-            onRateLimited,
+        recheck = {
+          total: progress.total,
+          hashes: progress.hashes,
+          nextPage: 1,
+        };
+      }
+      // Recheck every page at completion so an in-flight reorder, arrival,
+      // removal or optional metadata change cannot silently qualify a mixed
+      // catalog snapshot. A rate limit checkpoints the confirmed pages.
+      for (; recheck.nextPage <= recheck.hashes.length; recheck.nextPage++) {
+        const page = yield* fetchWhitebradstreetPage(
+          recheck.nextPage,
+          gate,
+          onRateLimited,
+        );
+        if (
+          page.total !== recheck.total ||
+          page.hash !== recheck.hashes[recheck.nextPage - 1]
+        )
+          return yield* failure(
+            "terminal page " + recheck.nextPage,
+            "Native catalog changed during enumeration; restart from the initial cursor",
           );
-          if (
-            page.total !== progress.total ||
-            page.hash !== progress.hashes[pageNumber - 1]
-          )
-            return yield* failure(
-              "terminal page " + pageNumber,
-              "Native catalog changed during enumeration; restart from the initial cursor",
-            );
-        }
       }
     }).pipe(
       // In-chunk HTTP 429 waits can use up the crawl. That still defers, so a
@@ -429,15 +420,25 @@ export function streamWhitebradstreetInventoryWithRequestGate<E, R>(
         Effect.succeed(error),
       ),
     );
-    const advanced = {
-      source: "whitebradstreet",
-      phase: "pages",
-      nextPage: progress.hashes.length + 1,
-      ...progress,
-      ...(cursor.rateLimit === undefined
-        ? {}
-        : { rateLimit: cursor.rateLimit }),
-    } as const;
+    const rechecking = recheck;
+    const advanced =
+      rechecking === null
+        ? ({
+            source: "whitebradstreet",
+            phase: "pages",
+            nextPage: progress.hashes.length + 1,
+            ...progress,
+            ...(cursor.rateLimit === undefined
+              ? {}
+              : { rateLimit: cursor.rateLimit }),
+          } as const)
+        : ({
+            source: "whitebradstreet",
+            phase: "recheck",
+            nextRecheckPage: rechecking.nextPage,
+            total: rechecking.total,
+            hashes: rechecking.hashes,
+          } as const);
     if (refusal !== null) {
       const cooldown = yield* rateLimitCooldown(cursor.rateLimit, refusal);
       const warnings = [
@@ -450,11 +451,11 @@ export function streamWhitebradstreetInventoryWithRequestGate<E, R>(
           new Date(cooldown.retryAt).toISOString() +
           ".",
       ];
-      // Keep this chunk's pages only when they form a resumable checkpoint. A
-      // refusal during the terminal recheck has no such checkpoint, so the
-      // input cursor repeats the work after the cooldown.
+      // Keep this chunk's new pages, or its confirmed recheck pages, so the
+      // cooldown resumes where the refusal stopped. Otherwise the input
+      // cursor repeats the refused request after the cooldown.
       const kept =
-        pagesProcessed > 0
+        pagesProcessed > 0 || rechecking !== null
           ? WhitebradstreetCursorSchema.safeParse({ ...advanced, ...cooldown })
           : null;
       if (!kept?.success) {
@@ -473,6 +474,8 @@ export function streamWhitebradstreetInventoryWithRequestGate<E, R>(
       }
       return yield* emit(kept.data, warnings);
     }
+    // Without a refusal, a started recheck has confirmed every page.
+    const terminal = rechecking !== null;
     const nextCursor: WhitebradstreetCursor = terminal
       ? { source: "whitebradstreet", phase: "complete" }
       : advanced;
