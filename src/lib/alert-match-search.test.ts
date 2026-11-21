@@ -392,3 +392,29 @@ test("saved arrival searches apply a rolling window and the saved radius to aler
     ],
   });
 });
+
+test("batched arrival windows end at the check's bound, not the wall clock", async () => {
+  const requests: unknown[] = [];
+  const checkedThrough = new Date(Date.now() - 6 * 3600 * 1000);
+  const end = Math.floor(checkedThrough.getTime() / 1000);
+  await getAlertMatchStatsBatchWithClient(
+    emptySearchClient((input) => requests.push(input)),
+    [
+      {
+        query: "",
+        filters: filtersSchema.parse({ arrivalWindow: "24h" }),
+        lastCheckedAt: null,
+      },
+    ],
+    { checkedThrough, latestFirstSeenAt: checkedThrough },
+  );
+  expect(requests).toMatchObject([
+    {
+      requests: [
+        {
+          filters: `availableDateTs >= ${end - 24 * 3600} AND availableDateTs <= ${end} AND firstSeenAt <= ${end}`,
+        },
+      ],
+    },
+  ]);
+});
