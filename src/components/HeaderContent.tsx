@@ -62,7 +62,10 @@ export function HeaderContent({ auth }: HeaderContentProps) {
           </div>
         </div>
         {/* No room beside the brand and actions on phones: a slim row below. */}
-        <nav aria-label="Main" className="-mt-1 flex h-10 md:hidden">
+        <nav
+          aria-label="Main"
+          className="-mt-1 flex h-10 overflow-x-auto [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden"
+        >
           <MainLinks />
         </nav>
       </div>
@@ -75,6 +78,7 @@ function MainLinks() {
   return (
     <>
       <MainLink href="/junkyards">Junkyards</MainLink>
+      <MainLink href="/map">Map</MainLink>
       <MainLink href="/cars">Cars</MainLink>
       <MainLink href="/pricing">Pricing</MainLink>
       {pathname !== "/search" && <MainLink href="/search">Search</MainLink>}
@@ -91,7 +95,7 @@ function MainLink({ href, children }: { href: string; children: string }) {
       href={href}
       aria-current={pathname === href ? "page" : current ? "true" : undefined}
       className={cn(
-        "board-step focus-visible:outline-focus flex items-center border-b-2 px-3 text-sm font-medium whitespace-nowrap focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid first:-ml-3 sm:text-[0.9375rem]",
+        "board-step focus-visible:outline-focus flex items-center border-b-2 px-1.5 text-[0.8125rem] font-medium whitespace-nowrap focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid first:-ml-1.5 sm:px-3 sm:text-[0.9375rem] sm:first:-ml-3",
         current
           ? "border-ink text-ink"
           : "text-ink-2 hover:text-signal border-transparent",

@@ -1,9 +1,17 @@
 import Link from "next/link";
 import { TrackedRequestYardLink } from "~/components/TrackedRequestYardLink";
 
+/**
+ * Where else a footer link is reachable. Paid users scroll /search without
+ * end, so its footer never comes into view: every link must also be in the
+ * header (its brand or main links) or in the signed-in account menu, which
+ * lists the "account-menu" ones.
+ */
+type FooterLinkReach = "header" | "account-menu";
+
 type FooterLink =
-  | { kind: "static"; href: string; label: string }
-  | { kind: "request-yard" };
+  | { kind: "static"; href: string; label: string; alsoIn: FooterLinkReach }
+  | { kind: "request-yard"; alsoIn: FooterLinkReach };
 
 /** The footer's links, grouped the way a station sign groups its exits. */
 const FOOTER_GROUPS: readonly {
@@ -15,23 +23,40 @@ const FOOTER_GROUPS: readonly {
     id: "footer-browse",
     label: "Browse",
     links: [
-      { kind: "static", href: "/", label: "Home" },
-      { kind: "static", href: "/search", label: "Search" },
-      { kind: "static", href: "/junkyards", label: "Junkyards" },
-      { kind: "static", href: "/cars", label: "Cars by make" },
+      { kind: "static", href: "/", label: "Home", alsoIn: "header" },
+      { kind: "static", href: "/map", label: "Yard map", alsoIn: "header" },
+      { kind: "static", href: "/search", label: "Search", alsoIn: "header" },
+      {
+        kind: "static",
+        href: "/junkyards",
+        label: "Junkyards",
+        alsoIn: "header",
+      },
+      {
+        kind: "static",
+        href: "/cars",
+        label: "Cars by make",
+        alsoIn: "header",
+      },
     ],
   },
   {
     id: "footer-service",
     label: "Service",
     links: [
-      { kind: "static", href: "/pricing", label: "Pricing" },
-      { kind: "request-yard" },
-      { kind: "static", href: "/contact", label: "Contact" },
+      { kind: "static", href: "/pricing", label: "Pricing", alsoIn: "header" },
+      { kind: "request-yard", alsoIn: "account-menu" },
+      {
+        kind: "static",
+        href: "/contact",
+        label: "Contact",
+        alsoIn: "account-menu",
+      },
       {
         kind: "static",
         href: "https://github.com/AugusDogus/junkyard-index",
         label: "GitHub",
+        alsoIn: "account-menu",
       },
     ],
   },
@@ -39,11 +64,27 @@ const FOOTER_GROUPS: readonly {
     id: "footer-legal",
     label: "Legal",
     links: [
-      { kind: "static", href: "/privacy", label: "Privacy Policy" },
-      { kind: "static", href: "/terms", label: "Terms of Service" },
+      {
+        kind: "static",
+        href: "/privacy",
+        label: "Privacy Policy",
+        alsoIn: "account-menu",
+      },
+      {
+        kind: "static",
+        href: "/terms",
+        label: "Terms of Service",
+        alsoIn: "account-menu",
+      },
     ],
   },
 ];
+
+/** The footer links the header lacks, for the account menu. */
+export const ACCOUNT_MENU_FOOTER_LINKS: readonly FooterLink[] =
+  FOOTER_GROUPS.flatMap((group) =>
+    group.links.filter((link) => link.alsoIn === "account-menu"),
+  );
 
 export const footerLinkClassName =
   "board-step inline-flex min-h-11 items-center whitespace-nowrap text-ink underline decoration-transparent decoration-2 underline-offset-[0.3em] hover:text-signal hover:decoration-current focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-focus sm:min-h-9";

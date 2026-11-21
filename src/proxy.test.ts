@@ -29,4 +29,29 @@ describe("settings auth destination", () => {
     );
     expect(response.headers.get("location")).toBe("https://app.example/search");
   });
+  test("leaves the yard map to signed-in visitors", async () => {
+    // Next's matcher helper sets up AsyncLocalStorage state that breaks later
+    // test files in the same Bun process, so it runs in a child.
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        "--eval",
+        `
+        import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
+        const { config } = await import(${JSON.stringify(new URL("./proxy.ts", import.meta.url).pathname)});
+        const cookies = { "better-auth.session_token": "session" };
+        process.stdout.write(JSON.stringify(["/map", "/"].map((url) => unstable_doesMiddlewareMatch({ config, url, cookies }))));
+      `,
+      ],
+      { stdout: "pipe", stderr: "pipe" },
+    );
+    const [output, errors, exitCode] = await Promise.all([
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+      child.exited,
+    ]);
+    expect(errors).toBe("");
+    expect(exitCode).toBe(0);
+    expect(output).toBe("[false,true]");
+  });
 });

@@ -76,6 +76,17 @@ type SearchParams = {
 };
 type SearchRequest = { indexName: string; params?: SearchParams };
 
+// fixtureHitScale multiplies every count, as a busy query's five-digit totals
+// do; fixtureProcessingTimeMS sets the reported search time. Only the counts
+// grow: the hits and pages stay the fixture's own.
+const fixtureParams = new URLSearchParams(
+  typeof window === "undefined" ? (process.argv[2] ?? "") : location.search,
+);
+const hitScale = Number(fixtureParams.get("fixtureHitScale") ?? "1");
+const processingTimeMS = Number(
+  fixtureParams.get("fixtureProcessingTimeMS") ?? "1",
+);
+
 /** Searches the server render ran. Production pays quota for each one. */
 export const serverSearches = { count: 0 };
 
@@ -256,21 +267,21 @@ const client = {
           index: indexName,
           query,
           hits,
-          nbHits: matched.length,
+          nbHits: matched.length * hitScale,
           page: params?.page ?? 0,
           nbPages: pageSize > 0 ? Math.ceil(matched.length / pageSize) : 0,
           hitsPerPage: pageSize,
-          processingTimeMS: 1,
+          processingTimeMS,
           exhaustiveNbHits: true,
           params: "",
           facets: {
             yardTypes: {
-              self_service: matched.filter((hit) =>
-                hit.yardTypes.includes("self_service"),
-              ).length,
-              full_service: matched.filter((hit) =>
-                hit.yardTypes.includes("full_service"),
-              ).length,
+              self_service:
+                matched.filter((hit) => hit.yardTypes.includes("self_service"))
+                  .length * hitScale,
+              full_service:
+                matched.filter((hit) => hit.yardTypes.includes("full_service"))
+                  .length * hitScale,
             },
             state: { Alabama: 2, California: 1 },
             make: { Toyota: 2, Ford: 1 },

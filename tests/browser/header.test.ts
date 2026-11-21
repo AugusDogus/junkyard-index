@@ -5,6 +5,9 @@ import { join } from "node:path";
 import tailwind from "@tailwindcss/postcss";
 import postcss from "postcss";
 import type { Browser } from "playwright-core";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { FooterLinks } from "~/components/FooterLinks";
 import { closePage, createPage, launchBrowser } from "./browser-page";
 
 let browser: Browser;
@@ -12,6 +15,7 @@ let directory: string;
 let server: string;
 let script: string;
 let stylesheet: string;
+const statusPageUrl = "https://status.example.test";
 
 beforeAll(async () => {
   directory = await mkdtemp(join(tmpdir(), "header-browser-"));
@@ -25,7 +29,7 @@ beforeAll(async () => {
           name: "header-services",
           setup(builder) {
             builder.onLoad({ filter: /src\/env\.js$/ }, () => ({
-              contents: "export const env = {};",
+              contents: `export const env = { NEXT_PUBLIC_STATUS_PAGE_URL: "${statusPageUrl}" };`,
               loader: "js",
             }));
             builder.onLoad({ filter: /src\/lib\/auth-client\.ts$/ }, () => ({
@@ -125,7 +129,7 @@ for (const width of [390, 640, 1440]) {
             `/auth/sign-in?returnTo=${encodeURIComponent(path)}`,
           );
         }
-        for (const label of ["Junkyards", "Cars", "Pricing", "Search"]) {
+        for (const label of ["Junkyards", "Map", "Cars", "Pricing", "Search"]) {
           expect(
             await page
               .getByRole("link", { name: label, exact: true })
@@ -153,4 +157,187 @@ for (const width of [390, 640, 1440]) {
       }
     }, 20_000);
   }
+}
+
+/**
+ * next/font defines --font-chivo-mono in the app. Without it the font stack
+ * is invalid and text falls back to a proportional face, narrower than the
+ * monospace the site sets every glyph in, so widths would read too small.
+ */
+const monospaceBody = `<style>:root{--font-chivo-mono:"Chivo Mono"}</style>`;
+
+async function openHeader(path: string, width: number) {
+  const result = Bun.spawn(["bun", server, path], {
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const [html, errors, status] = await Promise.all([
+    new Response(result.stdout).text(),
+    new Response(result.stderr).text(),
+    result.exited,
+  ]);
+  if (status !== 0) throw new Error(errors);
+  const page = await createPage(browser, {
+    viewport: { width, height: 900 },
+  });
+  await page.route("http://header.test/**", (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    return route.fulfill({
+      contentType:
+        pathname === "/app.js"
+          ? "text/javascript"
+          : pathname === "/app.css"
+            ? "text/css"
+            : "text/html",
+      body:
+        pathname === "/app.js"
+          ? script
+          : pathname === "/app.css"
+            ? stylesheet
+            : `<!doctype html><html><head><link rel="stylesheet" href="/app.css">${monospaceBody}</head><body><script>globalThis.process={env:{NODE_ENV:"production"}}</script><div id="root">${html}</div><script type="module" src="/app.js"></script></body></html>`,
+    });
+  });
+  await page.goto(`http://header.test${path}`);
+  return page;
+}
+
+for (const width of [390, 1440]) {
+  test(`the yard map link marks the current page at ${width}px`, async () => {
+    const page = await openHeader("/map?signed-in=1", width);
+    try {
+      const map = page
+        .getByRole("link", { name: "Map", exact: true })
+        .filter({ visible: true });
+      expect(await map.count()).toBe(1);
+      expect(await map.getAttribute("href")).toBe("/map");
+      expect(await map.getAttribute("aria-current")).toBe("page");
+    } finally {
+      await closePage(page);
+    }
+  }, 20_000);
+}
+
+for (const width of [320, 360, 375]) {
+  test(`the phone nav row fits a ${width}px screen without scrolling`, async () => {
+    const page = await openHeader("/junkyards?signed-in=1", width);
+    try {
+      for (const label of ["Junkyards", "Map", "Cars", "Pricing", "Search"]) {
+        expect(
+          await page
+            .getByRole("link", { name: label, exact: true })
+            .filter({ visible: true })
+            .count(),
+        ).toBe(1);
+      }
+      // The row clips its overflow, so the page never scrolls sideways; a
+      // link past its edge would be hidden with no cue that the row scrolls.
+      const nav = page
+        .getByRole("navigation", { name: "Main", exact: true })
+        .filter({ visible: true });
+      expect(
+        await nav.evaluate((row) => row.scrollWidth <= row.clientWidth),
+      ).toBe(true);
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true);
+    } finally {
+      await closePage(page);
+    }
+  }, 20_000);
+}
+
+test("the account menu carries every footer link the header lacks, by keyboard", async () => {
+  const footerLinks = [
+    ...renderToStaticMarkup(createElement(FooterLinks)).matchAll(
+      /<a [^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/g,
+    ),
+  ].flatMap(([, href, name]) =>
+    href && name ? [{ href, name: name.trim() }] : [],
+  );
+  expect(footerLinks.length).toBeGreaterThan(0);
+  const page = await openHeader("/junkyards/texas?signed-in=1", 1440);
+  try {
+    const headerHrefs = await page
+      .locator("header a[href]")
+      .evaluateAll((links) => links.map((link) => link.getAttribute("href")));
+    const footerOnly = footerLinks.filter(
+      (link) => !headerHrefs.includes(link.href),
+    );
+    expect(footerOnly.map((link) => link.name)).toEqual(
+      expect.arrayContaining([
+        "Request a Yard",
+        "Contact",
+        "GitHub",
+        "Privacy Policy",
+        "Terms of Service",
+      ]),
+    );
+
+    const trigger = page.getByRole("button", { name: "HT", exact: true });
+    await trigger.focus();
+    await page.keyboard.press("Enter");
+    const menu = page.getByRole("menu");
+    await menu.waitFor();
+    const items = await menu.getByRole("menuitem").evaluateAll((elements) =>
+      elements.map((element) => ({
+        href: element.getAttribute("href"),
+        name: (element.textContent ?? "").trim(),
+      })),
+    );
+    for (const link of footerOnly) expect(items).toContainEqual(link);
+    expect(items).toContainEqual({
+      href: statusPageUrl,
+      name: "System status",
+    });
+
+    // Radix moves focus into the menu after it opens; End needs it there.
+    await page.waitForFunction(() =>
+      document.activeElement?.closest('[role="menu"]'),
+    );
+    await page.keyboard.press("End");
+    const status = menu.getByRole("menuitem", {
+      name: "System status",
+      exact: true,
+    });
+    await page.waitForFunction(
+      () => document.activeElement?.textContent?.trim() === "System status",
+    );
+    expect(await status.getAttribute("target")).toBe("_blank");
+    expect(
+      await menu
+        .getByRole("group", { name: "Site links", exact: true })
+        .count(),
+    ).toBe(1);
+  } finally {
+    await closePage(page);
+  }
+}, 20_000);
+
+for (const width of [390, 1440]) {
+  test(`the account menu's site links are touch-sized on phones only: ${width}px`, async () => {
+    const page = await openHeader("/junkyards/texas?signed-in=1", width);
+    try {
+      await page.getByRole("button", { name: "HT", exact: true }).click();
+      const links = page
+        .getByRole("group", { name: "Site links", exact: true })
+        .getByRole("menuitem");
+      await links.first().waitFor();
+      // Layout heights: the menu's open animation scales its boxes.
+      const heights = await links.evaluateAll((items) =>
+        items.map((item) =>
+          item instanceof HTMLElement ? item.offsetHeight : 0,
+        ),
+      );
+      expect(heights.length).toBeGreaterThan(0);
+      for (const height of heights) {
+        // The footer's own links are 44px on phones, 36px from sm up.
+        if (width < 640) expect(height).toBeGreaterThanOrEqual(44);
+        else expect(height).toBeLessThanOrEqual(32);
+      }
+    } finally {
+      await closePage(page);
+    }
+  }, 20_000);
 }
