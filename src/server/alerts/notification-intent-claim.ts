@@ -145,30 +145,52 @@ export async function hasDeliverableNotificationIntent(params: {
 
 /**
  * When the longest-waiting deliverable intent became deliverable, or null when
- * none is deliverable now. An intent is deliverable no earlier than its
- * creation, its retry time, its claim's expiry, and the latest alert check's
- * completion (which releases intents held for it). A delivery worker should
- * send it within one notification-delivery cron interval.
+ * none is deliverable now. Each intent is dated by its own release: the
+ * latest of its creation, its retry time, its expired claim, its owner
+ * finishing (its alert check completing, or its run being released), today's
+ * hold lifting (today's check finishing or going stale, or the missing-check
+ * grace), and, for a pending intent whose recipient already got a digest
+ * since it was created, the start of today. A delivery worker should send it
+ * within one notification-delivery cron interval.
  */
 export async function oldestDeliverableNotificationIntentAt(params: {
   database: LibSQLDatabase;
   now: Date;
   leaseMs: number;
 }): Promise<Date | null> {
+  const today = IngestionDay.key(params.now);
+  const dayStart = IngestionDay.start(params.now).getTime();
+  const graceAt = SearchAlertSchedule.missingCheckGraceAt(params.now).getTime();
+  const intent = searchNotificationIntent;
   const [row] = await params.database
     .select({
       dueAt: sql<number | null>`min(max(
-        ${searchNotificationIntent.createdAt},
-        coalesce(${searchNotificationIntent.nextAttemptAt}, 0),
-        case when ${searchNotificationIntent.status} = 'sending'
-          then coalesce(${searchNotificationIntent.claimedAt}, 0) + ${params.leaseMs}
+        ${intent.createdAt},
+        coalesce(${intent.nextAttemptAt}, 0),
+        case when ${intent.status} = 'sending'
+          then coalesce(${intent.claimedAt}, 0) + ${params.leaseMs}
           else 0 end,
         coalesce((
-          select max(${searchAlertCheck.completedAt}) from ${searchAlertCheck}
-        ), 0)
+          select owner.completed_at from search_alert_check owner
+          where owner.id = ${intent.alertCheckId}
+        ), 0),
+        coalesce((
+          select run.released_at from ingestion_run run
+          where run.id = ${intent.runId}
+        ), 0),
+        case when ${intent.deliveryGroupId} is null then coalesce((
+          select case when today.status <> 'running' then today.completed_at
+            else today.last_progress_at + ${SearchAlertSchedule.staleAfterMs} end
+          from search_alert_check today where today.day = ${today}
+        ), ${graceAt}) else 0 end,
+        case when ${intent.status} = 'pending' and exists (
+          select 1 from search_notification_delivery d
+          where d.user_id = ${intent.userId} and d.channel = ${intent.channel}
+            and d.delivered_at >= ${intent.createdAt}
+        ) then ${dayStart} else 0 end
       ))`,
     })
-    .from(searchNotificationIntent)
+    .from(intent)
     .where(deliverableNotificationIntent(params));
   const dueAt = row?.dueAt ?? null;
   return dueAt === null ? null : new Date(dueAt);
