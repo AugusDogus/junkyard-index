@@ -49,6 +49,7 @@ import {
   validateDurableIngestionSourcesStep,
 } from "./vehicle-steps";
 import { IngestionTokens } from "./ingestion-tokens";
+import { waitForPublicationMode } from "./publication-mode-wait";
 import { vehicleNotificationDeliveryWorkflow } from "./downstream-consumers";
 import { searchProjectorWorkflow } from "./search-projector";
 import { PublicationModeFlag } from "~/server/ingestion/publication-mode-flag";
@@ -62,8 +63,6 @@ const COMMIT_TURN_FALLBACK = "5m";
 const COMMIT_TURN_SETTLE = "2s";
 const PASS_WATCHDOG_INTERVAL = "30m";
 const FAILED_RUN_RESUME_DELAY = "5m";
-// Retry interval while ingestion-publication-mode cannot be read.
-const PUBLICATION_MODE_RETRY_DELAY = "1m";
 // Retry interval while an alert check batch could read incomplete results:
 // a run from the previous release is matching alerts, or a commit inside the
 // check's window is not searchable yet.
@@ -242,7 +241,7 @@ async function runSourceIngestion(runId: string) {
     validateSources: validateDurableIngestionSourcesStep,
     reconcile: reconcileDurableIngestionStep,
     markRunFailed,
-    waitForPublicationMode: () => sleep(PUBLICATION_MODE_RETRY_DELAY),
+    waitForPublicationMode,
   };
   // Each source's run fetches and stages in parallel with the others.
   const staging = await stageDurableIngestion({ runId, operations });
@@ -316,7 +315,7 @@ async function runSourceIngestion(runId: string) {
               runId,
               runBatch: () => runAlgoliaProjectorStep(runId),
               markFailed: markRunFailed,
-              waitForPublicationMode: () => sleep(PUBLICATION_MODE_RETRY_DELAY),
+              waitForPublicationMode,
             }),
         }),
       reportHealth: reportProviderStatusStep,

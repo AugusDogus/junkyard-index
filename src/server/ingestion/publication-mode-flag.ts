@@ -93,9 +93,11 @@ export const PublicationModeFlag = {
   },
 
   /**
-   * The mode a step acts on. An unreadable mode throws, so the step is
-   * retried instead of releasing, skipping or writing search on a guess.
-   * Nothing has been written when it throws.
+   * The mode a decision acts on. An unreadable mode throws
+   * `PublicationModeUnavailable` before anything is written, so nothing is
+   * released, skipped or written to search on a guess. Callers turn it into
+   * a `mode_unavailable` result: the run waits a minute and asks again,
+   * without counting a failure toward abandoning it.
    */
   decided(reading: PublicationModeReading): PublicationMode {
     if (reading !== "unavailable") return reading;
