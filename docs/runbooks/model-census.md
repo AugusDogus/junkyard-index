@@ -46,6 +46,11 @@ shared rules.
   that read are re-read; a full read that sees an already confirmed surplus
   keeps its confirmation. A fault on that read that leaves a page
   at exactly its badge has no signal and is an accepted cold-start limit.
+- The same holds on any day a sale races a fault: the badge drops while the
+  sold card is still listed, and a one-off fault hides one real card, so the
+  page lists exactly its new badge. Nothing marks it short, closing does not
+  re-read it, and it carries until its next read: a real card hidden for up to
+  6 days in both modes (main: 1).
 - A read that lists less than the surplus allows does not lower it: badge lag
   after a sale looks exactly like a lost card. The page counts as short and is
   read again every run, and evidence records when the window began and the
@@ -68,19 +73,27 @@ shared rules.
   - **Calton (no closing pass):** the read sets `recheck` and the next run
     reads the page again (reason `short`), including after the read that
     lowered the surplus. The re-read settles it only when it lists the same
-    cards; a different count asks again. A one-off fault is published for at
-    most one run.
+    cards (compared by card identity, not count); other cards, even at the
+    same count, ask again. A one-off fault is published for at most one run.
+
+  Both modes enforce the ceiling of the last accepted census (or the one a
+  read raises), so they stop on the same run day: a ceiling set on run day L
+  applies to reads through day L + 12, and the evidence drops it from day
+  L + 12 on, carried or read. The Calton marker can therefore outlive its
+  ceiling by one run.
+
 - Costs, per surplus that really went away: about two GETs a day (the read
   and its closing re-read) for 6 run days, or up to 12 on a model whose badge
   keeps rising, then at most one extra GET on each read of that page during
   the 12-day ceiling. That is at most about 24 + 12 = 36 GETs once on a busy
   model read every day, and far fewer on a quiet one.
-- Limits of the bounded ceiling: a placeholder that comes back more than 12
-  run days after its surplus was lowered, or a real placeholder hidden by
-  continuous arrival lag for longer than the window plus the ceiling (about
-  24 run days), is a first observation again. A one-off fault on that first
-  read can hide a card until the page's next read (up to 6 days). The
-  simulation in the pull request measures both.
+- Limits of the bounded ceiling: once a ceiling set on day L has lapsed, a
+  returned placeholder is a first observation again. That happens when the
+  page's first read after the placeholder returns is after day L + 12, or when
+  continuous arrival lag hides a real placeholder for longer than the window
+  plus the ceiling (about 24 run days). A one-off fault on that first read can
+  hide a card until the page's next read (up to 6 days). The simulation in the
+  pull request measures both.
 - Counting only VIN-bearing cards instead would need per-source placeholder
   detection. Only Scotts' NOF rows are known to be VIN-less, and real surplus
   rows from badge undercounts (Calton, Central, Aviation) erode the same way, so
