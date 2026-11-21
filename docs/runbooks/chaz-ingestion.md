@@ -111,8 +111,9 @@ cold or gap full read costs 282 GETs: 278 opening reads, then contact, the
 make directory and the two dead `&` routes at closing. A steady day costs about
 80: 38 opening reads, about 40 model pages plus changes and triggers, and the
 closing controls. A surplus model listing less than its sticky surplus adds
-about two GETs a day (its read and closing re-read) for up to six days, and
-after a cold or gap read each surplus model costs one extra read to confirm.
+about two GETs a day (its read and closing re-read) for 6 to 12 run days, and
+after a cold or gap read each surplus first seen or grown on that read costs
+two GETs (its read and closing re-read) to confirm.
 
 Nonempty model destinations must match the requested literal model parent.
 Explicit empty pages must retain their native model heading; labels containing `&` also accept the native `-and`
