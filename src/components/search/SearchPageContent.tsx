@@ -1152,14 +1152,21 @@ function AlgoliaSearchInner({
         return;
       }
       const { query: rest } = typedYears;
-      setIndexUiState((previous) => ({
-        ...previous,
-        query: rest,
-        page: 1,
-        range: { ...previous.range, year: `${range[0]}:${range[1]}` },
-      }));
+      const cleared = range[0] === yearMin && range[1] === yearMax;
+      setIndexUiState((previous) => {
+        const otherRanges = { ...previous.range };
+        delete otherRanges.year;
+        return {
+          ...previous,
+          query: rest,
+          page: 1,
+          range: cleared
+            ? otherRanges
+            : { ...otherRanges, year: `${range[0]}:${range[1]}` },
+        };
+      });
     },
-    [refineYear, setIndexUiState, typedYears],
+    [refineYear, setIndexUiState, typedYears, yearMin, yearMax],
   );
 
   const handleAdvancedSearch = useCallback(
