@@ -30,6 +30,24 @@ async function requestLog(page: Page) {
   );
 }
 
+const analyticsLogSchema = z.array(
+  z.object({
+    event: z.string(),
+    properties: z.record(z.string(), z.unknown()),
+  }),
+);
+async function analyticsEvents(page: Page, event: string) {
+  return analyticsLogSchema
+    .parse(
+      JSON.parse(
+        await page.evaluate(
+          () => document.documentElement.dataset.analyticsEvents ?? "[]",
+        ),
+      ),
+    )
+    .filter((entry) => entry.event === event);
+}
+
 let browser: Browser;
 let script: string;
 let stylesheet: string;
@@ -359,6 +377,39 @@ test("a plan lookup that fails stays on the first page and asks for a refresh", 
     await closePage(page);
   }
 }, 30_000);
+
+for (const [label, query, reason] of [
+  ["a visitor", "q=pagination&fixtureGuest=1", "visitor"],
+  ["a free account", "q=pagination&fixturePlan=free", "free_plan"],
+  ["a plan still loading", "q=pagination&fixturePlan=pending", null],
+  [
+    "a checkout still confirming",
+    "q=pagination&fixturePlan=free&subscription=success",
+    null,
+  ],
+  ["a failed plan lookup", "q=pagination&fixturePlan=unavailable", null],
+] as const) {
+  test(`result_cap_reached for ${label}: ${reason ?? "not sent"}`, async () => {
+    const { page } = await open(query);
+    try {
+      await page
+        .getByText("Showing 24 of 96 vehicles", { exact: true })
+        .waitFor();
+      if (query.includes("fixturePlan=unavailable"))
+        await page
+          .getByRole("heading", { name: "Your plan could not be confirmed." })
+          .waitFor();
+      // Let the capped search's effects run before reading the events.
+      await page.waitForTimeout(1000);
+      const events = await analyticsEvents(page, "result_cap_reached");
+      expect(events.map(({ properties }) => properties.cap_reason)).toEqual(
+        reason === null ? [] : [reason],
+      );
+    } finally {
+      await closePage(page);
+    }
+  }, 30_000);
+}
 
 test("signed-in pagination survives sort switches and rows do not overlap after resizing", async () => {
   const { page, html } = await open("q=pagination");

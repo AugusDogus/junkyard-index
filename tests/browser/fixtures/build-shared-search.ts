@@ -17,6 +17,13 @@ export async function bundleSharedSearchFixture(target: "bun" | "browser") {
               'export const env = {NEXT_PUBLIC_APP_URL:"http://shared-search.test"};',
             loader: "js",
           }));
+          // Record analytics events on the page instead of loading PostHog.
+          builder.onLoad({ filter: /src\/lib\/analytics\.ts$/ }, async () => ({
+            contents: await Bun.file(
+              "tests/browser/fixtures/analytics-stub.ts",
+            ).text(),
+            loader: "ts",
+          }));
           builder.onResolve({ filter: /^algoliasearch\/lite$/ }, () => ({
             path: resolve("tests/browser/fixtures/shared-search-client.ts"),
           }));
