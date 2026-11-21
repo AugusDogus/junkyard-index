@@ -1,18 +1,16 @@
 "use client";
 
-import {
-  defaultRangeExtractor,
-  useVirtualizer,
-  type Virtualizer,
-} from "@tanstack/react-virtual";
+import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import { Plus, Search, X } from "lucide-react";
 import {
   Fragment,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { Checkbox } from "~/components/ui/checkbox";
 import {
@@ -120,39 +118,24 @@ export function SearchableCheckboxList({
   };
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
-  const virtualize = sorted.length > VIRTUALIZE_ABOVE;
-  const virtualizer = useVirtualizer({
-    count: virtualize ? sorted.length : 0,
-    getScrollElement: () => scrollRef.current,
-    getItemKey: (index) => sorted[index] ?? index,
-    estimateSize: () => ROW_SIZE,
-    initialRect: { width: 320, height: maxHeight },
-    overscan: 8,
-    // Keep the focused row mounted so keyboard focus survives scrolling.
-    rangeExtractor: (range) => {
-      const indexes = defaultRangeExtractor(range);
-      return focusedIndex === null ||
-        focusedIndex >= range.count ||
-        indexes.includes(focusedIndex)
-        ? indexes
-        : [...indexes, focusedIndex].sort((a, b) => a - b);
-    },
-  });
+  const optionId = (option: string) =>
+    `${idPrefix}-${name}-${encodeURIComponent(option)}`;
 
   const renderOption = (option: string) => {
-    const optionId = `${idPrefix}-${name}-${encodeURIComponent(option)}`;
     return (
       <Field
         orientation="horizontal"
         className="hover:bg-muted/60 min-h-9 gap-3 rounded-md px-2 py-2"
       >
         <Checkbox
-          id={optionId}
+          id={optionId(option)}
           checked={selectedSet.has(option)}
           onCheckedChange={() => toggle(option)}
         />
-        <FieldLabel htmlFor={optionId} className="min-w-0 cursor-pointer">
+        <FieldLabel
+          htmlFor={optionId(option)}
+          className="min-w-0 cursor-pointer"
+        >
           <span className="truncate">{option}</span>
         </FieldLabel>
       </Field>
@@ -230,12 +213,13 @@ export function SearchableCheckboxList({
               No matches
             </p>
           ) : null
-        ) : virtualize ? (
+        ) : sorted.length > VIRTUALIZE_ABOVE ? (
           <VirtualOptions
-            virtualizer={virtualizer}
             options={sorted}
+            scrollRef={scrollRef}
+            viewportHeight={maxHeight}
+            optionId={optionId}
             renderOption={renderOption}
-            onFocusIndex={setFocusedIndex}
           />
         ) : (
           <FieldGroup className="gap-1">
@@ -261,25 +245,93 @@ export function SearchableCheckboxList({
   );
 }
 
+/**
+ * Renders the rows in view plus the focused one. Focus is tracked by option,
+ * not position, because selecting an option re-sorts it to the top. Keyboard
+ * entry from outside lands on the first or last option, as it would if every
+ * row were mounted.
+ */
 function VirtualOptions({
-  virtualizer,
   options,
+  scrollRef,
+  viewportHeight,
+  optionId,
   renderOption,
-  onFocusIndex,
 }: {
-  virtualizer: Virtualizer<HTMLDivElement, Element>;
   options: string[];
+  scrollRef: RefObject<HTMLDivElement | null>;
+  viewportHeight: number;
+  optionId: (option: string) => string;
   renderOption: (option: string) => ReactNode;
-  onFocusIndex: (index: number | null) => void;
 }) {
+  const [focused, setFocused] = useState<string | null>(null);
+  const pendingFocus = useRef<string | null>(null);
+  const pointerDown = useRef(false);
+  const focusedIndex = focused === null ? -1 : options.indexOf(focused);
+  const virtualizer = useVirtualizer({
+    count: options.length,
+    getScrollElement: () => scrollRef.current,
+    getItemKey: (index) => options[index] ?? index,
+    estimateSize: () => ROW_SIZE,
+    initialRect: { width: 320, height: viewportHeight },
+    overscan: 8,
+    rangeExtractor: (range) => {
+      const indexes = defaultRangeExtractor(range);
+      return focusedIndex < 0 || indexes.includes(focusedIndex)
+        ? indexes
+        : [...indexes, focusedIndex].sort((a, b) => a - b);
+    },
+  });
+
+  // Focus a redirected entry once its row has mounted.
+  useLayoutEffect(() => {
+    const target = pendingFocus.current;
+    if (target === null) return;
+    const element = document.getElementById(optionId(target));
+    if (!element) return;
+    pendingFocus.current = null;
+    element.focus({ preventScroll: true });
+  });
+
+  const enterAt = (index: number) => {
+    const target = options[index];
+    if (target === undefined) return;
+    setFocused(target);
+    const element = document.getElementById(optionId(target));
+    if (element) {
+      element.focus();
+      return;
+    }
+    pendingFocus.current = target;
+    virtualizer.scrollToIndex(index, { align: "auto" });
+  };
+
   return (
     <FieldGroup
+      role="list"
       // Fields lay out against this group's container queries.
       className="relative gap-0"
       style={{ height: virtualizer.getTotalSize() }}
+      onPointerDown={() => {
+        pointerDown.current = true;
+      }}
+      onPointerUp={() => {
+        pointerDown.current = false;
+      }}
+      onFocus={(event) => {
+        const from = event.relatedTarget;
+        const entering = !event.currentTarget.contains(from);
+        if (!entering || pointerDown.current || !(from instanceof Node)) return;
+        const fromBefore =
+          (from.compareDocumentPosition(event.currentTarget) &
+            Node.DOCUMENT_POSITION_FOLLOWING) !==
+          0;
+        const index = fromBefore ? 0 : options.length - 1;
+        if (options[index] !== focused) enterAt(index);
+      }}
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget))
-          onFocusIndex(null);
+          setFocused(null);
       }}
     >
       {virtualizer.getVirtualItems().map((row) => {
@@ -288,11 +340,14 @@ function VirtualOptions({
         return (
           <div
             key={row.key}
+            role="listitem"
+            aria-setsize={options.length}
+            aria-posinset={row.index + 1}
             data-index={row.index}
             ref={virtualizer.measureElement}
             className="absolute inset-x-0 top-0 pb-1"
             style={{ transform: `translateY(${row.start}px)` }}
-            onFocus={() => onFocusIndex(row.index)}
+            onFocus={() => setFocused(option)}
           >
             {renderOption(option)}
           </div>
