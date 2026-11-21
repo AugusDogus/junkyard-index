@@ -83,10 +83,12 @@ async function open(query: string, width = 1440, height = 900) {
         json: {
           apiKey: "fixture-fetched-key",
           validUntil: 4_102_444_800,
-          // fixtureKeyTier=free: the server still cannot confirm the plan.
+          // fixtureKeyTier=free: the server still cannot confirm the plan,
+          // unless fixtureRenewedTier=full says the direct lookup now does.
           tier:
             query.includes("fixtureGuest=1") ||
-            query.includes("fixtureKeyTier=free")
+            (query.includes("fixtureKeyTier=free") &&
+              !query.includes("fixtureRenewedTier=full"))
               ? "free"
               : "full",
         },
@@ -501,6 +503,34 @@ test("a paid page whose key the server minted free stays on the first page", asy
     expect(
       await page.locator("h3").filter({ hasText: "Pagination Car" }).count(),
     ).toBe(24);
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
+
+test("a just-paid page replaces its rendered free key and browses every page", async () => {
+  const { page } = await open(
+    "q=pagination&fixtureKeyTier=free&fixtureRenewedTier=full",
+  );
+  try {
+    await page
+      .getByText("Showing 24 of 96 vehicles", { exact: true })
+      .waitFor();
+    await page.waitForFunction(
+      () =>
+        document.documentElement.dataset.searchApiKey === "fixture-fetched-key",
+    );
+    await page.evaluate(() =>
+      window.scrollTo(0, document.body.scrollHeight - innerHeight),
+    );
+    await page
+      .getByText("Showing 48 of 96 vehicles", { exact: true })
+      .waitFor();
+    expect(
+      await page
+        .getByRole("heading", { name: "Your plan could not be confirmed." })
+        .count(),
+    ).toBe(0);
   } finally {
     await closePage(page);
   }

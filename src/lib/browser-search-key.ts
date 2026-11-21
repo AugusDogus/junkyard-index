@@ -20,11 +20,21 @@ type Fetch = (input: string, init: RequestInit) => Promise<Response>;
  * new one when the key is missing or about to expire. One instance per tab;
  * server renders never use this (they search with their own key).
  */
+/**
+ * Where the held key came from. A rendered key reflects the server's cached
+ * tier lookup and can lag a plan change. A fetched key comes from
+ * `/api/search-key`, which asks the billing provider directly; `forPaid` is
+ * the kind of plan the page showed when it asked.
+ */
+type HeldKey =
+  | { source: "rendered"; grant: SearchKeyGrant }
+  | { source: "fetched"; grant: SearchKeyGrant; forPaid: boolean | null };
+
 function create(fetcher: Fetch) {
-  let grant: SearchKeyGrant | null = null;
+  let held: HeldKey | null = null;
   let lastPrimed: string | null = null;
-  // The kind of plan (paid or not) the key was last renewed for.
-  let renewedForPaid: boolean | null = null;
+  // The kind of plan the page last showed, passed to `renewFor`.
+  let shownPaid: boolean | null = null;
   let pending: Promise<SearchKeyGrant> | null = null;
   const listeners = new Set<() => void>();
 
@@ -51,28 +61,27 @@ function create(fetcher: Fetch) {
     prime(next: SearchKeyGrant): void {
       if (next.apiKey === lastPrimed) return;
       lastPrimed = next.apiKey;
-      if (!grant || next.validUntil > grant.validUntil) grant = next;
+      if (!held || next.validUntil > held.grant.validUntil)
+        held = { source: "rendered", grant: next };
     },
     /**
-     * Drops a key minted for a different kind of plan than the page now
-     * shows (such as after a checkout), so the next search fetches one. It
-     * renews once per change: if the server mints the same kind again, its
-     * answer stands, rather than every search fetching a new key.
+     * Drops a key minted for a different kind of plan than the page shows,
+     * so the next search fetches one: always for a rendered key (such as
+     * right after a checkout), and for a fetched key once the page shows a
+     * different plan than it did when that key was fetched. A fetched key
+     * minted for the plan the page still shows is the server's answer and
+     * stands, so searches do not each fetch a key.
      */
     renewFor(tier: PlanTier): void {
       const paid = isPaidPlanTier(tier);
-      if (
-        grant === null ||
-        isPaidPlanTier(grant.tier) === paid ||
-        renewedForPaid === paid
-      )
-        return;
-      renewedForPaid = paid;
-      grant = null;
+      shownPaid = paid;
+      if (!held || isPaidPlanTier(held.grant.tier) === paid) return;
+      if (held.source === "fetched" && held.forPaid === paid) return;
+      held = null;
     },
     /** The tier of the key searches use now; null while one is fetched. */
     tier(): PlanTier | null {
-      return grant?.tier ?? null;
+      return held?.grant.tier ?? null;
     },
     subscribe(listener: () => void): () => void {
       listeners.add(listener);
@@ -81,19 +90,22 @@ function create(fetcher: Fetch) {
       };
     },
     async current(nowMs: number): Promise<string> {
-      if (grant && !SearchKeyGrant.isExpiring(grant, nowMs))
-        return grant.apiKey;
-      pending ??= request()
-        .then((fetched) => {
-          grant = fetched;
-          // Only fetches notify: prime and renewFor run while rendering,
-          // and readers see their result through `tier` in the same render.
-          for (const listener of listeners) listener();
-          return fetched;
-        })
-        .finally(() => {
-          pending = null;
-        });
+      if (held && !SearchKeyGrant.isExpiring(held.grant, nowMs))
+        return held.grant.apiKey;
+      if (!pending) {
+        const forPaid = shownPaid;
+        pending = request()
+          .then((fetched) => {
+            held = { source: "fetched", grant: fetched, forPaid };
+            // Only fetches notify: prime and renewFor run while rendering,
+            // and readers see their result through `tier` in the same render.
+            for (const listener of listeners) listener();
+            return fetched;
+          })
+          .finally(() => {
+            pending = null;
+          });
+      }
       return (await pending).apiKey;
     },
   };
