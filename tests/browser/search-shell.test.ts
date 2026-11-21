@@ -124,23 +124,15 @@ async function open(query: string, width = 1440, height = 900) {
         requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
       ),
   );
-  // Signed-in pages repeat their first-page search after hydration. Let it
-  // land before tests measure the requests their own actions send.
-  if (!query.includes("fixtureGuest=1")) {
-    while (
-      !(await requestLog(page)).some(
-        ({ params }) =>
-          (params.hitsPerPage ?? 0) > 0 && (params.page ?? 0) === 0,
-      )
-    ) {
-      await page.waitForTimeout(50);
-    }
-    await page.evaluate(
-      () =>
-        new Promise<void>((resolve) =>
-          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-        ),
-    );
+  // Hydration answers the server's own query from the client cache, but a
+  // signed-in page may still search as its plan resolves. Let those land,
+  // until no search starts for 300 ms, before tests measure their own.
+  let seen = -1;
+  for (let quiet = 0; quiet < 6; ) {
+    const count = (await requestLog(page)).length;
+    quiet = count === seen ? quiet + 1 : 0;
+    seen = count;
+    await page.waitForTimeout(50);
   }
   return { page, html };
 }
@@ -190,6 +182,31 @@ test("a person on the default page gets results after hydration without a server
         ({ params }) => (params.hitsPerPage ?? 0) > 0,
       ),
     ).toBe(true);
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
+
+test("a server-rendered person search is not repeated by the browser after hydration", async () => {
+  const userAgent =
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+  const { page, html } = await open(
+    `q=toyota+venza&fixtureGuest=1&fixtureUserAgent=${encodeURIComponent(userAgent)}`,
+  );
+  try {
+    expect(html).toContain("InstantSearchInitialResults");
+    expect(html).not.toContain(
+      '<meta name="fixture-server-searches" content="0">',
+    );
+    await page.getByRole("heading", { name: "2011 Toyota Venza" }).waitFor();
+    // Hydration answers the server's query from the client cache.
+    await page.waitForTimeout(1000);
+    expect(
+      (await requestLog(page)).filter(
+        ({ params }) =>
+          params.query === "toyota venza" && (params.hitsPerPage ?? 0) > 0,
+      ),
+    ).toEqual([]);
   } finally {
     await closePage(page);
   }
@@ -473,6 +490,9 @@ for (const [label, query, key] of [
       await page
         .getByText("Showing 24 of 96 vehicles", { exact: true })
         .waitFor();
+      // Hydration serves the server's results, so search anew in the browser.
+      await page.getByRole("searchbox").fill("pagination2");
+      await page.getByRole("searchbox").press("Enter");
       await page.waitForFunction(
         () => (document.documentElement.dataset.searchRequests ?? "0") !== "0",
       );
@@ -516,21 +536,52 @@ test("a just-paid page replaces its rendered free key and browses every page", a
     await page
       .getByText("Showing 24 of 96 vehicles", { exact: true })
       .waitFor();
-    await page.waitForFunction(
-      () =>
-        document.documentElement.dataset.searchApiKey === "fixture-fetched-key",
-    );
-    await page.evaluate(() =>
-      window.scrollTo(0, document.body.scrollHeight - innerHeight),
-    );
-    await page
-      .getByText("Showing 48 of 96 vehicles", { exact: true })
-      .waitFor();
+    // The paid key is fetched without a search; once it lands, the cap
+    // lifts and scrolling loads the next page with it.
+    const more = page.getByText("Showing 48 of 96 vehicles", { exact: true });
+    for (
+      let attempt = 0;
+      attempt < 20 && (await more.count()) === 0;
+      attempt++
+    ) {
+      await page.evaluate(() =>
+        window.scrollTo(0, document.body.scrollHeight - innerHeight),
+      );
+      await page.waitForTimeout(250);
+    }
+    await more.waitFor();
+    expect(
+      await page.evaluate(() => document.documentElement.dataset.searchApiKey),
+    ).toBe("fixture-fetched-key");
     expect(
       await page
         .getByRole("heading", { name: "Your plan could not be confirmed." })
         .count(),
     ).toBe(0);
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
+
+test("a blocked backend fails the search once without fetching a new key", async () => {
+  const { page } = await open("q=pagination&fixtureGuest=1");
+  const keyRequests: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/search-key")
+      keyRequests.push(request.url());
+  });
+  try {
+    await page.getByRole("searchbox").fill("blocked");
+    await page.getByRole("searchbox").press("Enter");
+    await page.getByText("Yard pages still work.").waitFor();
+    await page.waitForTimeout(500);
+    // A blocked app or exhausted quota is not the key's fault.
+    expect(keyRequests).toEqual([]);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.dataset.blockedSearches,
+      ),
+    ).toBe("1");
   } finally {
     await closePage(page);
   }

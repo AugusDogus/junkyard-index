@@ -58,6 +58,31 @@ function create(fetcher: Fetch, now: () => number = () => Date.now()) {
     return SearchKeyGrant.parse(await response.json());
   }
 
+  /** The key for the next search, fetching a new one when it is due. */
+  async function current(): Promise<string> {
+    if (held && now() < held.renewAtMs) return held.grant.apiKey;
+    if (!pending) {
+      const forPaid = shownPaid;
+      pending = request()
+        .then((fetched) => {
+          held = {
+            source: "fetched",
+            grant: fetched,
+            forPaid,
+            renewAtMs: SearchKeyGrant.renewAtMs(fetched, now()),
+          };
+          // Only fetches notify: prime and renewFor run while rendering,
+          // and readers see their result through `tier` in the same render.
+          for (const listener of listeners) listener();
+          return fetched;
+        })
+        .finally(() => {
+          pending = null;
+        });
+    }
+    return (await pending).apiKey;
+  }
+
   return {
     /**
      * Uses a key the server rendered into the page. Each key primes once, so
@@ -91,8 +116,8 @@ function create(fetcher: Fetch, now: () => number = () => Date.now()) {
       return true;
     },
     /**
-     * Drops a key minted for a different kind of plan than the page shows,
-     * so the next search fetches one: always for a rendered key (such as
+     * Replaces a key minted for a different kind of plan than the page shows:
+     * always for a rendered key (such as
      * right after a checkout), and for a fetched key once the page shows a
      * different plan than it did when that key was fetched. A fetched key
      * minted for the plan the page still shows is the server's answer and
@@ -104,6 +129,13 @@ function create(fetcher: Fetch, now: () => number = () => Date.now()) {
       if (!held || isPaidPlanTier(held.grant.tier) === paid) return;
       if (held.source === "fetched" && held.forPaid === paid) return;
       held = null;
+      // Fetch the replacement now, not on the next search: a capped page
+      // may not search again, and its cap follows this key's tier. This runs
+      // during render, so the fetch starts after it; a failure surfaces on
+      // the next search, which tries again.
+      queueMicrotask(() => {
+        current().catch(() => undefined);
+      });
     },
     /** The tier of the key searches use now; null while one is fetched. */
     tier(): PlanTier | null {
@@ -115,29 +147,7 @@ function create(fetcher: Fetch, now: () => number = () => Date.now()) {
         listeners.delete(listener);
       };
     },
-    async current(): Promise<string> {
-      if (held && now() < held.renewAtMs) return held.grant.apiKey;
-      if (!pending) {
-        const forPaid = shownPaid;
-        pending = request()
-          .then((fetched) => {
-            held = {
-              source: "fetched",
-              grant: fetched,
-              forPaid,
-              renewAtMs: SearchKeyGrant.renewAtMs(fetched, now()),
-            };
-            // Only fetches notify: prime and renewFor run while rendering,
-            // and readers see their result through `tier` in the same render.
-            for (const listener of listeners) listener();
-            return fetched;
-          })
-          .finally(() => {
-            pending = null;
-          });
-      }
-      return (await pending).apiKey;
-    },
+    current,
   };
 }
 

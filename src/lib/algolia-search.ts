@@ -6,6 +6,7 @@ import {
   type CompiledExpression,
   combineSearchFilters,
 } from "~/lib/compile-search-expression";
+import { createMemoryCache, type Transporter } from "@algolia/client-common";
 import { createXhrRequester } from "@algolia/requester-browser-xhr";
 import {
   liteClient as algoliasearch,
@@ -40,6 +41,8 @@ const serverSearchClient =
     ? algoliasearch(env.NEXT_PUBLIC_ALGOLIA_APP_ID, env.ALGOLIA_SEARCH_API_KEY)
     : null;
 let browserSearchClient: LiteClient | null = null;
+// Agent segments InstantSearch adds before the browser client exists.
+const algoliaAgents: [segment: string, version?: string][] = [];
 async function liteSearchClient(): Promise<{
   client: LiteClient;
   apiKey: string | null;
@@ -54,12 +57,30 @@ async function liteSearchClient(): Promise<{
       apiKey,
       SearchQueryMeter.clientOptions(searchQueryMeter, createXhrRequester()),
     );
+    for (const [segment, version] of algoliaAgents)
+      browserSearchClient.addAlgoliaAgent(segment, version);
   } else {
     browserSearchClient.setClientApiKey({ apiKey });
   }
   return { client: browserSearchClient, apiKey };
 }
-const keyedSearchClient: Pick<LiteClient, "search"> = {
+const keyedSearchClient: Pick<LiteClient, "search" | "addAlgoliaAgent"> & {
+  transporter: Pick<Transporter, "responsesCache">;
+} = {
+  // InstantSearch's hydration (hydrateSearchClient) seeds the server
+  // render's results into this cache and answers matching browser searches
+  // from it. It skips clients without a transporter, so without this the
+  // first browser search would repeat the server's query.
+  transporter: serverSearchClient?.transporter ?? {
+    responsesCache: createMemoryCache(),
+  },
+  addAlgoliaAgent(segment, version) {
+    algoliaAgents.push([segment, version]);
+    (serverSearchClient ?? browserSearchClient)?.addAlgoliaAgent(
+      segment,
+      version,
+    );
+  },
   async search(searchMethodParams, requestOptions) {
     const { client, apiKey } = await liteSearchClient();
     try {
