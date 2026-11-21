@@ -76,7 +76,8 @@ listed above its own badge; the surplus carries across badge changes). A
 changed fingerprint stops the run before emission, so a transient short or
 empty page is never published or carried. A page below its badge that re-reads
 identically, such as the dead `&` routes (TOWN & COUNTRY: badge 8, explicit
-empty), is confirmed when the replay floor judged the run, and carries until
+empty), is confirmed only by a normal incremental run (not a cold, gap or outage
+full read), and carries until
 its sweep. Each such page costs one closing GET on the runs that read it. A
 page that only lost surplus cards without its badge dropping is never
 confirmed and is read again on the next run. Other model-level changes surface as badge

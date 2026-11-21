@@ -72,8 +72,8 @@ run whose card count differs from its badge or falls below its expected count
 (`ModelCensus.closingReads`), and the run fails if a re-read differs. A model's
 expected count is its badge plus any surplus its last accepted page listed
 above its own badge (44 saved models list surplus cards). A page below its
-badge that repeats is stored as confirmed evidence only when the replay floor
-judged the run. Any other page below its expected count, including a surplus
+badge that repeats is stored as confirmed evidence only by a normal
+incremental run (not a cold, gap or outage full read). Any other page below its expected count, including a surplus
 page that only fell toward its badge, is read again next run. Other per-model
 changes during a run surface as badge changes in the next run's opening menus.
 

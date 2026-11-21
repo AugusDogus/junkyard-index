@@ -42,8 +42,11 @@ shared rules.
   run if a re-read differs. Calton has no closing pass, so its short pages are
   never confirmed and are re-read on the next run.
 - A page below its count is stored as `confirmed` only when that closing
-  re-read matched and the run was judged by the replay floor (see below). Any
-  other page below its expected cards is read again on the next run.
+  re-read matched in a normal incremental run (an accepted census from the same
+  day or the day before). Cold, gap and outage runs read every page and
+  confirm nothing, so a fault confined to that one day cannot be carried past
+  the next run. Any other page below its expected cards is read again on the
+  next run.
 
 ## Coverage floors (checked before anything is published)
 
@@ -69,7 +72,7 @@ on its own.
 - **Steady state:** opening pages, every make menu, about a sixth of the model
   pages plus changes and triggers, and the closing pass.
 - **The day after a missed, failed or rejected run:** one full read, the same
-  as that source's cold census.
-- **After an outage of 6 or more days:** one full read, then the next run
-  re-reads that read's short pages (reason `short`) once, because the outage
-  run confirms none.
+  as that source's cold census. The run after that re-reads every short page
+  the full read found (reason `short`) and re-confirms each at closing, about
+  2N extra GETs for N short pages (OEM: about 103 short pages, so about 206).
+  The same follows a cold run and an outage of 6 or more days.
