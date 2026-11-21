@@ -50,6 +50,34 @@ describe("search projector consumer", () => {
     expect(reported).toEqual([10, 20]);
   });
 
+  test("keeps stepping through a rebuild until it goes live and replays", async () => {
+    const ticks: SearchProjectorTick[] = [
+      { status: "rebuild_requested", generationId: "gen", reason: "bootstrap" },
+      {
+        status: "rebuild_prepared",
+        generationId: "gen",
+        snapshotChangeId: 9,
+        sweptIndices: 1,
+      },
+      {
+        status: "rebuild_loading",
+        generationId: "gen",
+        recordsLoaded: 5,
+        deadLettered: 0,
+        loaded: true,
+      },
+      { status: "rebuild_live", generationId: "gen", snapshotChangeId: 9 },
+      projected(2, true),
+    ];
+    const run = await runSearchProjector({
+      step: async () =>
+        ticks.shift() ?? { status: "current", projectedThrough: 0, horizon: 0 },
+      maxSteps: 10,
+      progress: async () => {},
+    });
+    expect(run).toMatchObject({ steps: 5, changes: 2 });
+  });
+
   test("ends a run at its step limit while still behind", async () => {
     const run = await runSearchProjector({
       step: async () => projected(1, false),
@@ -83,7 +111,24 @@ describe("search projector consumer", () => {
       { status: "refused", message: "refused" },
       { status: "inline_writer_active", runIds: ["run"] },
       { status: "environment_mismatch", generationEnvironment: "preview" },
-      { status: "rebuild_required" },
+      {
+        status: "record_cap",
+        generationId: "gen",
+        entries: 600_000,
+        vehicles: 430_000,
+        cap: 1_000_000,
+        retryAt: "2026-11-20T12:15:00.000Z",
+      },
+      { status: "move_unconfirmed", generationId: "gen", message: "check" },
+      {
+        status: "drift_checked",
+        day: "2026-11-20",
+        entries: 1,
+        vehicles: 500,
+        drifted: true,
+        consecutiveDrifts: 2,
+        rebuildRequested: null,
+      },
       {
         status: "circuit_open",
         tag: "QuotaExceeded",
@@ -100,6 +145,22 @@ describe("search projector consumer", () => {
       { status: "current", projectedThrough: 4, horizon: 4 },
       projected(4, true),
       { status: "stopped" },
+      {
+        status: "rebuild_loading",
+        generationId: "gen",
+        recordsLoaded: 10,
+        deadLettered: 0,
+        loaded: false,
+      },
+      {
+        status: "drift_checked",
+        day: "2026-11-20",
+        entries: 1,
+        vehicles: 500,
+        drifted: true,
+        consecutiveDrifts: 1,
+        rebuildRequested: "gen",
+      },
     ];
     for (const tick of succeeded) {
       expect(searchProjectorTickOutcome(tick)).toBe("succeeded");

@@ -63,6 +63,25 @@ export async function deleteRebuildIndex(
   }
 }
 
+async function deleteIndexByName(
+  algolia: RebuildDeletionClient,
+  indexName: string,
+): Promise<RebuildIndexDeletion> {
+  try {
+    const deleted = await algolia.deleteIndex({ indexName });
+    await algolia.waitForTask({ indexName, taskID: deleted.taskID });
+    return "deleted";
+  } catch (error) {
+    const failure = AlgoliaError.classify(
+      { operation: "deleteIndex", indexName },
+      error,
+    );
+    if (failure._tag === "NotFound") return "deleted";
+    if (failure._tag === "SearchBackendBlocked") return "blocked";
+    throw error;
+  }
+}
+
 type RebuildContext = {
   database: LibSQLDatabase;
   algolia: RebuildDeletionClient;
@@ -147,7 +166,20 @@ async function deleteInactiveRebuildCopies(params: {
       .map((name) => name.replace(/^virtual\((.*)\)$/, "$1")),
   );
   const prefix = `${params.indexName}__rebuild_`;
+  // Inline rebuilds run only while publication is inline, when no search
+  // projector generation loads: a copy one left (publication switched back
+  // during its rebuild) counts toward the record cap and is removed. The
+  // generation is discarded once the projector finds its copy gone.
+  const generationPrefix = `${params.indexName}__generation_`;
   for (const index of indices) {
+    if (
+      index.name.startsWith(generationPrefix) &&
+      index.primary === undefined &&
+      !replicas.has(index.name)
+    ) {
+      await deleteIndexByName(params.algolia, index.name);
+      continue;
+    }
     if (
       !index.name.startsWith(prefix) ||
       index.primary !== undefined ||

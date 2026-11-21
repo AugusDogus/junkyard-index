@@ -24,7 +24,18 @@ export type SearchProjectorTick =
 
 /** Whether another step right away would make progress. */
 export function searchProjectorContinues(tick: SearchProjectorTick): boolean {
-  return tick.status === "projected" && !tick.caughtUp;
+  switch (tick.status) {
+    case "projected":
+      return !tick.caughtUp;
+    case "rebuild_requested":
+    case "rebuild_prepared":
+    case "rebuild_loading":
+    case "rebuild_live":
+    case "rebuild_discarded":
+      return true;
+    default:
+      return false;
+  }
 }
 
 /**
@@ -42,12 +53,23 @@ export function searchProjectorTickOutcome(
     case "current":
     case "projected":
     case "stopped":
+    case "rebuild_requested":
+    case "rebuild_prepared":
+    case "rebuild_loading":
+    case "rebuild_live":
+    case "rebuild_discarded":
       return "succeeded";
+    case "drift_checked":
+      // One day of drift requests a rebuild; drift that persists pages.
+      return tick.consecutiveDrifts >= 2 ? "failed" : "succeeded";
     case "mode_unavailable":
     case "refused":
     case "inline_writer_active":
     case "environment_mismatch":
-    case "rebuild_required":
+    case "record_cap":
+    case "missing_live_index":
+    case "rebuild_waiting":
+    case "move_unconfirmed":
     case "circuit_open":
     case "failed":
       return "failed";
@@ -65,6 +87,7 @@ export function searchProjectorTickNotifies(
     case "failed":
       return tick.opened;
     case "circuit_open":
+    case "rebuild_waiting":
       return false;
     default:
       return true;

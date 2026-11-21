@@ -33,6 +33,7 @@ function inputs(overrides?: Partial<SearchStatusInputs>): SearchStatusInputs {
     horizon: 100,
     oldestUnprojectedAt: new Date(NOW.getTime() - HOUR),
     inlineWriterRunIds: [],
+    rebuildWait: null,
     ...overrides,
   };
 }
@@ -109,6 +110,35 @@ describe("search status", () => {
       status: "healthy",
       circuit: { state: "open", lastErrorTag: "Transient" },
     });
+  });
+
+  test("a requested rebuild that cannot start is reported", () => {
+    const status = SearchStatus.evaluate(
+      inputs({
+        generations: {
+          status: "own",
+          live: null,
+          active: {
+            id: "gen-2",
+            environment: "production",
+            indexName: "vehicles",
+            reason: "drift",
+            requestedAt: NOW,
+            status: "requested",
+          },
+        },
+        rebuildWait: {
+          reason: "record_cap",
+          attempts: 1,
+          retryAt: new Date(NOW.getTime() + HOUR),
+        },
+      }),
+      NOW,
+    );
+    expect(status).toMatchObject({ status: "unhealthy" });
+    expect(status.status !== "inline" && status.problems).toContainEqual(
+      expect.stringContaining("record cap"),
+    );
   });
 
   test("a paused projector reports its lag without paging", () => {

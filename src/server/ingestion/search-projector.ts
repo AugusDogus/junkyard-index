@@ -1,46 +1,45 @@
-import type { Client, InStatement } from "@libsql/client";
-import { asc, inArray } from "drizzle-orm";
+import { sql } from "drizzle-orm";
+import type { InStatement } from "@libsql/client";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { Effect, Either } from "effect";
 import type { AlgoliaErrorTag } from "~/lib/algolia-failure-tag";
-import { vehicle } from "~/schema";
 import type { AlgoliaError } from "./algolia-error";
-import { SearchIndexGenerations } from "./search-index-generation";
-import type { SearchIndexWriter } from "./search-index-writer";
-import { SearchOutbox, type OutboxChange } from "./search-outbox";
+import {
+  SearchIndexDrift,
+  type SearchIndexDriftResult,
+} from "./search-index-drift";
+import {
+  SearchIndexGenerations,
+  type ActiveSearchIndexGeneration,
+  type LiveSearchIndexGeneration,
+  type SearchIndexGenerationReason,
+} from "./search-index-generation";
+import {
+  SearchIndexRebuild,
+  type SearchIndexRebuildResult,
+} from "./search-index-rebuild";
+import { SearchOutbox } from "./search-outbox";
+import {
+  collapse,
+  deadLetterStatement,
+  readVehicles,
+  saveIsolating,
+  truncate,
+  type DeadLetter,
+  type SearchProjectorContext,
+} from "./search-projection-batch";
 import { SearchProjectorCheckpoint } from "./search-projector-checkpoint";
-import type { AlgoliaVehicleRecord } from "./types";
+import {
+  SearchRebuildWait,
+  type SearchRebuildWaitReason,
+} from "./search-rebuild-wait";
 
-type VehicleRow = typeof vehicle.$inferSelect;
+export type { SearchProjectorContext } from "./search-projection-batch";
 
 /** Changes read per batch; a step runs several batches. */
 const CHANGE_BATCH_SIZE = 5_000;
-const VEHICLE_READ_CHUNK = 1_000;
 // Leave room in a workflow step for the batch that is already running.
 const STEP_BUDGET_MS = 180_000;
-const DETAIL_LIMIT = 1_000;
-
-/** Everything the projector reads and writes, injected so tests use fakes. */
-export interface SearchProjectorContext {
-  database: LibSQLDatabase;
-  client: Pick<Client, "batch">;
-  writer: SearchIndexWriter;
-  /** The runtime's deployment; generations from another one are fenced off. */
-  environment: string;
-  /** The live index this deployment serves. */
-  indexName: string;
-  /** Turns vehicle rows into search records (projectSearchVehicles). */
-  project(rows: readonly VehicleRow[]): Promise<AlgoliaVehicleRecord[]>;
-  now(): Date;
-}
-
-/** A record the backend rejected, kept for an operator. */
-interface DeadLetter {
-  changeId: number;
-  vin: string;
-  tag: AlgoliaErrorTag;
-  detail: string;
-}
 
 /**
  * One projector step's outcome. Every variant is plain data (a workflow step
@@ -50,7 +49,13 @@ interface DeadLetter {
  *   writes nothing until it releases (single-writer invariant).
  * - environment_mismatch: the database's search generations belong to
  *   another deployment's index; this deployment refuses to write.
- * - rebuild_required: no live generation describes the index yet.
+ * - rebuild_requested: no live generation describes the index yet (or the
+ *   daily drift check found drift); a rebuild was requested.
+ * - rebuild_*, record_cap, move_unconfirmed: a rebuild step, see
+ *   SearchIndexRebuildResult.
+ * - drift_checked: the daily drift check ran, see SearchIndexDriftResult.
+ * - rebuild_waiting: a requested rebuild cannot start yet (record cap or
+ *   no live index); see SearchRebuildWait.
  * - circuit_open: a recent failure blocks writes until `retryAt`.
  * - current: nothing between the cursor and the horizon.
  * - projected: batches written and the cursor advanced; `caughtUp` when the
@@ -61,7 +66,20 @@ interface DeadLetter {
 export type SearchProjectorStepResult =
   | { status: "inline_writer_active"; runIds: string[] }
   | { status: "environment_mismatch"; generationEnvironment: string }
-  | { status: "rebuild_required" }
+  | {
+      status: "rebuild_requested";
+      generationId: string;
+      reason: SearchIndexGenerationReason;
+    }
+  | Exclude<SearchIndexRebuildResult, { status: "stopped" }>
+  | SearchIndexDriftResult
+  | {
+      status: "rebuild_waiting";
+      generationId: string;
+      reason: SearchRebuildWaitReason;
+      /** ISO time. */
+      retryAt: string;
+    }
   | {
       status: "circuit_open";
       tag: AlgoliaErrorTag;
@@ -105,104 +123,6 @@ const INLINE_WRITER_STAGES = [
   "full_reindex_publish_failed",
   "match_alerts",
 ];
-
-function truncate(detail: string): string {
-  return detail.length > DETAIL_LIMIT
-    ? `${detail.slice(0, DETAIL_LIMIT - 1)}…`
-    : detail;
-}
-
-/** The latest change per VIN: a delete deletes, anything else re-reads. */
-function collapse(changes: readonly OutboxChange[]) {
-  const latest = new Map<string, OutboxChange>();
-  for (const change of changes) {
-    const previous = latest.get(change.vin);
-    if (!previous || change.id > previous.id) latest.set(change.vin, change);
-  }
-  return [...latest.values()];
-}
-
-async function readVehicles(
-  database: LibSQLDatabase,
-  vins: readonly string[],
-): Promise<Map<string, VehicleRow>> {
-  const rows = new Map<string, VehicleRow>();
-  for (let index = 0; index < vins.length; index += VEHICLE_READ_CHUNK) {
-    const chunk = vins.slice(index, index + VEHICLE_READ_CHUNK);
-    const found = await database
-      .select()
-      .from(vehicle)
-      .where(inArray(vehicle.vin, chunk))
-      .orderBy(asc(vehicle.vin));
-    for (const row of found) rows.set(row.vin, row);
-  }
-  return rows;
-}
-
-type SaveOutcome = {
-  taskIds: number[];
-  rejected: Array<{ record: AlgoliaVehicleRecord; error: AlgoliaError }>;
-};
-
-/**
- * Whether an invalid-request answer can be about the records sent: a 401 or
- * 403 refuses the key or the operation, whatever the records, so it fails
- * the whole batch instead of being pinned on records.
- */
-function rejectsRecords(error: AlgoliaError): boolean {
-  return error.status !== 401 && error.status !== 403;
-}
-
-/**
- * Saves records; when the backend rejects the request as invalid, halves it
- * until the rejected records are isolated, so bad records cannot hold back
- * the outbox, however many there are. Any other failure, and a refused key
- * or operation, fails the whole save.
- */
-function saveIsolating(
-  writer: SearchIndexWriter,
-  indexName: string,
-  records: readonly AlgoliaVehicleRecord[],
-): Effect.Effect<SaveOutcome, AlgoliaError> {
-  if (records.length === 0) {
-    return Effect.succeed({ taskIds: [], rejected: [] });
-  }
-  return writer.saveObjects(indexName, records).pipe(
-    Effect.map(
-      (taskId): SaveOutcome => ({
-        taskIds: taskId === null ? [] : [taskId],
-        rejected: [],
-      }),
-    ),
-    Effect.catchTag("InvalidRequest", (error) => {
-      if (!rejectsRecords(error)) return Effect.fail(error);
-      const [only] = records;
-      if (records.length === 1 && only !== undefined) {
-        return Effect.succeed<SaveOutcome>({
-          taskIds: [],
-          rejected: [{ record: only, error }],
-        });
-      }
-      const middle = Math.ceil(records.length / 2);
-      return Effect.gen(function* () {
-        const left = yield* saveIsolating(
-          writer,
-          indexName,
-          records.slice(0, middle),
-        );
-        const right = yield* saveIsolating(
-          writer,
-          indexName,
-          records.slice(middle),
-        );
-        return {
-          taskIds: [...left.taskIds, ...right.taskIds],
-          rejected: [...left.rejected, ...right.rejected],
-        };
-      });
-    }),
-  );
-}
 
 type BatchOutcome =
   | { status: "empty" }
@@ -306,32 +226,22 @@ function projectBatch(
     const statements: InStatement[] = [
       SearchProjectorCheckpoint.advanceStatement({ from, to: last.id, now }),
       SearchProjectorCheckpoint.clearSettledRebuildsStatement(last.id),
-      ...deadLetters.map((letter) => ({
-        sql: `
-          insert into search_dead_letter (
-            change_id, vin, environment, index_name, error_tag, detail,
-            created_at
-          )
-          select ?, ?, ?, ?, ?, ?, ?
-          where exists (
-            select 1 from ingestion_projector_checkpoint
-            where name = ? and last_processed_change_id = ?
-              and last_success_at = ?
-          )
-        `,
-        args: [
-          letter.changeId,
-          letter.vin,
-          context.environment,
-          context.indexName,
-          letter.tag,
-          letter.detail,
-          now.getTime(),
-          SearchProjectorCheckpoint.name,
-          last.id,
-          now.getTime(),
-        ],
-      })),
+      ...deadLetters.map((letter) =>
+        deadLetterStatement({
+          letter,
+          environment: context.environment,
+          indexName: context.indexName,
+          now,
+          guard: {
+            sql: `exists (
+              select 1 from ingestion_projector_checkpoint
+              where name = ? and last_processed_change_id = ?
+                and last_success_at = ?
+            )`,
+            args: [SearchProjectorCheckpoint.name, last.id, now.getTime()],
+          },
+        }),
+      ),
     ];
     const results = yield* Effect.promise(() =>
       context.client.batch(statements, "write"),
@@ -365,7 +275,6 @@ export async function inlineWriterRuns(
 type Gate =
   | { status: "inline_writer_active"; runIds: string[] }
   | { status: "environment_mismatch"; generationEnvironment: string }
-  | { status: "rebuild_required" }
   | {
       status: "circuit_open";
       tag: AlgoliaErrorTag;
@@ -373,7 +282,13 @@ type Gate =
       /** ISO time. */
       retryAt: string;
     }
-  | { status: "open"; projectedThrough: number; probe: boolean };
+  | {
+      status: "open";
+      projectedThrough: number;
+      probe: boolean;
+      live: LiveSearchIndexGeneration | null;
+      active: ActiveSearchIndexGeneration | null;
+    };
 
 async function gate(
   database: LibSQLDatabase,
@@ -392,7 +307,6 @@ async function gate(
       generationEnvironment: generations.environment,
     };
   }
-  if (generations.live === null) return { status: "rebuild_required" };
   const checkpoint = await SearchProjectorCheckpoint.read(database);
   const circuit = SearchProjectorCheckpoint.circuit(checkpoint, now);
   if (circuit.state === "open") {
@@ -407,22 +321,107 @@ async function gate(
     status: "open",
     projectedThrough: checkpoint.projectedThrough,
     probe: circuit.state === "half_open",
+    live: generations.live,
+    active: generations.active,
   };
 }
 
 /**
  * Whether the cron should start the projector: `due` when it can write and
- * has changes to project or a backend to probe. Reads Turso only.
+ * has a rebuild to advance, changes to project, a backend to probe or a
+ * daily drift check to run. Reads Turso only.
  */
 export type SearchProjectorDue =
   | Exclude<Gate, { status: "open" }>
+  | Extract<SearchProjectorStepResult, { status: "rebuild_waiting" }>
   | { status: "current"; projectedThrough: number; horizon: number }
   | {
       status: "due";
+      reason: "rebuild" | "changes" | "probe" | "drift_check";
       projectedThrough: number;
       horizon: number;
-      probe: boolean;
     };
+
+/**
+ * Whether Turso holds vehicle writes the outbox horizon does not cover yet:
+ * a run is reconciling, or changes exist past the horizon. A drift check
+ * then would count vehicles the index cannot have yet.
+ */
+async function writesInFlight(
+  database: LibSQLDatabase,
+  horizon: number,
+): Promise<boolean> {
+  const result = await database.run(sql`
+    select (
+      exists (
+        select 1 from ingestion_run
+        where active_slot = 1
+          and stage in ('reconcile_upsert', 'reconcile_missing')
+      )
+      or exists (select 1 from vehicle_change_v2 where id > ${horizon})
+    ) as in_flight
+  `);
+  return Number(result.rows[0]?.in_flight ?? 0) === 1;
+}
+
+function rebuildWaiting(
+  generation: ActiveSearchIndexGeneration,
+  wait: SearchRebuildWait,
+): SearchProjectorStepResult {
+  return {
+    status: "rebuild_waiting",
+    generationId: generation.id,
+    reason: wait.reason,
+    retryAt: wait.retryAt.toISOString(),
+  };
+}
+
+/** One rebuild step, or the request that starts the first rebuild. */
+async function rebuildStep(
+  context: SearchProjectorContext,
+  active: ActiveSearchIndexGeneration | null,
+): Promise<SearchProjectorStepResult> {
+  if (active === null) {
+    const now = context.now();
+    const request = await SearchIndexGenerations.request(context.database, {
+      environment: context.environment,
+      indexName: context.indexName,
+      reason: "bootstrap",
+      now,
+    });
+    switch (request.status) {
+      case "requested":
+        return {
+          status: "rebuild_requested",
+          generationId: request.id,
+          reason: "bootstrap",
+        };
+      case "in_flight":
+        return { status: "stopped" };
+      case "foreign":
+        return {
+          status: "environment_mismatch",
+          generationEnvironment: request.environment,
+        };
+    }
+  }
+  const advanced = await Effect.runPromise(
+    Effect.either(SearchIndexRebuild.advance(context, active)),
+  );
+  if (Either.isLeft(advanced)) return recordFailure(context, advanced.left, 0);
+  const result = advanced.right;
+  // A rebuild step that wrote closes the circuit, as a projected batch does.
+  if (
+    result.status === "rebuild_prepared" ||
+    result.status === "rebuild_loading"
+  ) {
+    await SearchProjectorCheckpoint.recordSuccess(
+      context.database,
+      context.now(),
+    );
+  }
+  return result;
+}
 
 async function recordFailure(
   context: SearchProjectorContext,
@@ -461,19 +460,49 @@ export const SearchProjector = {
     const opened = await gate(database, environment, now);
     if (opened.status !== "open") return opened;
     const horizon = await SearchOutbox.horizon(database);
-    if (opened.probe || horizon > opened.projectedThrough) {
-      return {
-        status: "due",
-        projectedThrough: opened.projectedThrough,
-        horizon,
-        probe: opened.probe,
-      };
+    const position = { projectedThrough: opened.projectedThrough, horizon };
+    const { active } = opened;
+    const wait =
+      active?.status === "requested"
+        ? await SearchRebuildWait.read(database, now)
+        : null;
+    const waiting = (generation: ActiveSearchIndexGeneration) =>
+      wait === null
+        ? null
+        : ({
+            status: "rebuild_waiting",
+            generationId: generation.id,
+            reason: wait.reason,
+            retryAt: wait.retryAt.toISOString(),
+          } as const);
+    if (
+      opened.live === null ||
+      (active !== null && active.status !== "requested")
+    ) {
+      return (
+        (active && waiting(active)) ?? {
+          status: "due",
+          reason: "rebuild",
+          ...position,
+        }
+      );
     }
-    return {
-      status: "current",
-      projectedThrough: opened.projectedThrough,
-      horizon,
-    };
+    if (opened.probe) return { status: "due", reason: "probe", ...position };
+    if (horizon > opened.projectedThrough) {
+      return { status: "due", reason: "changes", ...position };
+    }
+    if (active !== null) {
+      return (
+        waiting(active) ?? { status: "due", reason: "rebuild", ...position }
+      );
+    }
+    if (
+      (await SearchIndexDrift.due(database, now)) &&
+      !(await writesInFlight(database, horizon))
+    ) {
+      return { status: "due", reason: "drift_check", ...position };
+    }
+    return { status: "current", ...position };
   },
 
   async step(
@@ -498,6 +527,24 @@ export const SearchProjector = {
       // closes the circuit: reads can pass while writes stay refused (a
       // used-up record quota), and the backoff must keep growing then.
       if (Either.isLeft(probe)) return recordFailure(context, probe.left, 0);
+    }
+    // The first rebuild, or one already copying or moving, comes before
+    // changes: they are replayed from its snapshot once it is live. A
+    // requested rebuild with a live index waits until changes are caught up,
+    // so a rebuild that cannot start never stops the live index's updates.
+    const { active } = opened;
+    if (
+      opened.live === null ||
+      (active !== null && active.status !== "requested")
+    ) {
+      if (active?.status === "requested") {
+        const wait = await SearchRebuildWait.read(
+          context.database,
+          context.now(),
+        );
+        if (wait) return rebuildWaiting(active, wait);
+      }
+      return rebuildStep(context, active);
     }
 
     const from = opened.projectedThrough;
@@ -542,6 +589,27 @@ export const SearchProjector = {
         [SearchProjectorCheckpoint.clearSettledRebuildsStatement(cursor)],
         "write",
       );
+      // Caught up: a requested rebuild starts from here.
+      if (active !== null) {
+        const wait = await SearchRebuildWait.read(
+          context.database,
+          context.now(),
+        );
+        return wait
+          ? rebuildWaiting(active, wait)
+          : rebuildStep(context, active);
+      }
+      // Caught up with no run writing: the index should match Turso.
+      if (
+        (await SearchIndexDrift.due(context.database, context.now())) &&
+        !(await writesInFlight(context.database, horizon))
+      ) {
+        const drift = await Effect.runPromise(
+          Effect.either(SearchIndexDrift.check(context)),
+        );
+        if (Either.isLeft(drift)) return recordFailure(context, drift.left, 0);
+        return drift.right;
+      }
       return { status: "current", projectedThrough: cursor, horizon };
     }
     return {

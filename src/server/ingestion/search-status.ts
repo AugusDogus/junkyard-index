@@ -4,9 +4,14 @@ import type { PublicationModeReading } from "./publication-mode-flag";
 import {
   SearchIndexGenerations,
   type EnvironmentGenerations,
+  type SearchIndexGeneration,
 } from "./search-index-generation";
 import { SearchOutbox } from "./search-outbox";
 import { inlineWriterRuns } from "./search-projector";
+import {
+  SearchRebuildWait,
+  type SearchRebuildWait as SearchRebuildWaitState,
+} from "./search-rebuild-wait";
 import {
   SearchProjectorCheckpoint,
   type SearchProjectorCheckpointState,
@@ -28,6 +33,8 @@ export type SearchStatusInputs = {
   /** When the oldest change the projector has not published was written. */
   oldestUnprojectedAt: Date | null;
   inlineWriterRunIds: string[];
+  /** Why a requested rebuild cannot start yet, if it cannot. */
+  rebuildWait: SearchRebuildWaitState | null;
 };
 
 type GenerationSummary = {
@@ -36,6 +43,10 @@ type GenerationSummary = {
   reason: string;
   /** ISO time. */
   requestedAt: string;
+  /** ISO time the generation went live; the last rebuild, for the live one. */
+  liveAt: string | null;
+  /** Vehicles copied so far, while it loads. */
+  recordsLoaded: number | null;
 } | null;
 
 export type SearchStatus =
@@ -66,22 +77,20 @@ export type SearchStatus =
       problems: string[];
     };
 
-function summary(
-  generation: {
-    id: string;
-    status: string;
-    reason: string;
-    requestedAt: Date;
-  } | null,
-): GenerationSummary {
-  return generation === null
-    ? null
-    : {
-        id: generation.id,
-        status: generation.status,
-        reason: generation.reason,
-        requestedAt: generation.requestedAt.toISOString(),
-      };
+function summary(generation: SearchIndexGeneration | null): GenerationSummary {
+  if (generation === null) return null;
+  return {
+    id: generation.id,
+    status: generation.status,
+    reason: generation.reason,
+    requestedAt: generation.requestedAt.toISOString(),
+    liveAt:
+      generation.status === "live" ? generation.liveAt.toISOString() : null,
+    recordsLoaded:
+      generation.status === "loading" || generation.status === "moving"
+        ? generation.recordsLoaded
+        : null,
+  };
 }
 
 /**
@@ -95,21 +104,26 @@ export const SearchStatus = {
       mode: PublicationModeReading;
       consumer: ConsumerMode;
       environment: string;
+      now: Date;
     },
   ): Promise<SearchStatusInputs> {
-    const [generations, checkpoint, horizon, inlineWriterRunIds] =
+    const [generations, checkpoint, horizon, inlineWriterRunIds, rebuildWait] =
       await Promise.all([
         SearchIndexGenerations.forEnvironment(database, params.environment),
         SearchProjectorCheckpoint.read(database),
         SearchOutbox.horizon(database),
         inlineWriterRuns(database),
+        SearchRebuildWait.read(database, params.now),
       ]);
     const oldestUnprojectedAt = await SearchOutbox.oldestCreatedAt(database, {
       after: checkpoint.projectedThrough,
       through: horizon,
     });
     return {
-      ...params,
+      mode: params.mode,
+      consumer: params.consumer,
+      environment: params.environment,
+      rebuildWait,
       generations,
       checkpoint,
       horizon,
@@ -154,6 +168,17 @@ export const SearchStatus = {
     if (inputs.inlineWriterRunIds.length > 0) {
       problems.push(
         `Runs still publish search inline (${inputs.inlineWriterRunIds.join(", ")}); the projector waits for them to release.`,
+      );
+    }
+    if (
+      inputs.rebuildWait !== null &&
+      generations.status === "own" &&
+      generations.active?.status === "requested"
+    ) {
+      problems.push(
+        inputs.rebuildWait.reason === "record_cap"
+          ? `A requested rebuild waits: the copy would pass the Algolia record cap. It is tried again at ${inputs.rebuildWait.retryAt.toISOString()}; the live index keeps receiving changes.`
+          : `A requested rebuild waits for a live index to copy settings from; run the search-index migration once. It is tried again at ${inputs.rebuildWait.retryAt.toISOString()}.`,
       );
     }
     if (lagMs > SEARCH_LAG_THRESHOLD_MS) {

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { vehicle } from "~/schema";
 import { InvalidRequest } from "./algolia-error";
+import { IngestionDay } from "./ingestion-day";
 import { SearchProjector } from "./search-projector";
 import {
   INDEX,
@@ -106,6 +107,16 @@ describe("search projector", () => {
         changes: 1,
         upserted: 1,
         caughtUp: true,
+      });
+      // Caught up: the day's drift check finds the index matches Turso.
+      expect(await SearchProjector.step(context)).toEqual({
+        status: "drift_checked",
+        day: "2026-11-20",
+        entries: 3,
+        vehicles: 3,
+        drifted: false,
+        consecutiveDrifts: 0,
+        rebuildRequested: null,
       });
       expect(await SearchProjector.step(context)).toMatchObject({
         status: "current",
@@ -459,11 +470,12 @@ describe("search projector", () => {
     }
   });
 
-  test("needs a live generation of its own environment", async () => {
+  test("requests a first rebuild without a live generation, and refuses another environment's", async () => {
     const { client, calls, context } = await setup();
     try {
-      expect(await SearchProjector.step(context)).toEqual({
-        status: "rebuild_required",
+      expect(await SearchProjector.step(context)).toMatchObject({
+        status: "rebuild_requested",
+        reason: "bootstrap",
       });
       await insertLiveGeneration(client, "preview");
       expect(await SearchProjector.step(context)).toEqual({
@@ -551,8 +563,21 @@ describe("search projector", () => {
     try {
       const due = () =>
         SearchProjector.due(database, "production", context.now());
-      expect(await due()).toEqual({ status: "rebuild_required" });
+      expect(await due()).toEqual({
+        status: "due",
+        reason: "rebuild",
+        projectedThrough: 0,
+        horizon: 0,
+      });
       await insertLiveGeneration(client);
+      expect(await due()).toMatchObject({
+        status: "due",
+        reason: "drift_check",
+      });
+      await client.execute({
+        sql: "insert into ingestion_projector_checkpoint (name, kind, job_day) values ('search-projector:drift', 'daily', ?)",
+        args: [IngestionDay.key(context.now())],
+      });
       expect(await due()).toEqual({
         status: "current",
         projectedThrough: 0,
@@ -566,9 +591,9 @@ describe("search projector", () => {
       );
       expect(await due()).toEqual({
         status: "due",
+        reason: "changes",
         projectedThrough: 0,
         horizon: id ?? -1,
-        probe: false,
       });
       await SearchProjector.step(context);
       expect(await due()).toMatchObject({

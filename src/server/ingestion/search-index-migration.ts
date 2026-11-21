@@ -1,3 +1,4 @@
+import { AlgoliaError } from "./algolia-error";
 import { asc, gt } from "drizzle-orm";
 import { ALGOLIA_INDEX_NAME, getAlgoliaAdminClient } from "~/lib/algolia";
 import { ALGOLIA_SEARCH_INDEX_NAMES } from "~/lib/constants";
@@ -99,10 +100,21 @@ async function markSchemaReady(userData: unknown): Promise<void> {
 }
 
 export async function initializeSearchIndexMigration(): Promise<InitializeSearchIndexMigrationResult> {
-  const settings = await getAlgoliaAdminClient().getSettings({
-    indexName: ALGOLIA_INDEX_NAME,
-  });
-  const currentVersion = getSearchSchemaVersion(settings.userData);
+  // A missing index (a new environment) counts as schema version 0: the
+  // settings plan creates it and the migration fills it.
+  const currentVersion = await getAlgoliaAdminClient()
+    .getSettings({ indexName: ALGOLIA_INDEX_NAME })
+    .then(
+      (settings) => getSearchSchemaVersion(settings.userData),
+      (error: unknown) => {
+        const failure = AlgoliaError.classify(
+          { operation: "getSettings", indexName: ALGOLIA_INDEX_NAME },
+          error,
+        );
+        if (failure._tag === "NotFound") return 0;
+        throw error;
+      },
+    );
   if (currentVersion >= CURRENT_SEARCH_SCHEMA_VERSION) {
     return {
       status: "ready",

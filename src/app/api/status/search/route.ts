@@ -20,6 +20,7 @@ export async function GET() {
       mode,
       consumer,
       environment: AlgoliaDeployment.parse(process.env.VERCEL_ENV),
+      now,
     }),
     now,
   );

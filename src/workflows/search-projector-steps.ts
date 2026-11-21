@@ -5,6 +5,9 @@ import type { ConsumerTickSummary } from "~/server/ingestion/consumer-report";
 import { reportConsumerTickNow } from "~/server/ingestion/consumer-report-runtime";
 import type { SearchProjectorTick } from "~/server/ingestion/search-projector-consumer";
 import { runSearchProjectorTick } from "~/server/ingestion/search-projector-runtime";
+import { AlgoliaDeployment } from "~/lib/algolia-deployment";
+import { db } from "~/lib/db";
+import { SearchIndexGenerations } from "~/server/ingestion/search-index-generation";
 import { throwRetryableStepError } from "./step-errors";
 
 /**
@@ -37,3 +40,25 @@ export async function reportSearchProjectorTickStep(
     notify,
   });
 }
+
+/**
+ * Whether a search rebuild is copying or moving. The search-index migration
+ * then defers: it writes the live index in place, and the rebuild's move
+ * would replace those writes with a copy taken before them. A rebuild that
+ * is only requested has copied nothing yet, so the migration may run (and
+ * create a missing live index the rebuild waits for).
+ */
+export async function searchRebuildInFlightStep(): Promise<boolean> {
+  "use step";
+
+  const generations = await SearchIndexGenerations.forEnvironment(
+    db,
+    AlgoliaDeployment.parse(process.env.VERCEL_ENV),
+  );
+  return (
+    generations.status === "own" &&
+    (generations.active?.status === "loading" ||
+      generations.active?.status === "moving")
+  );
+}
+searchRebuildInFlightStep.maxRetries = 2;

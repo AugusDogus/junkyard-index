@@ -266,3 +266,32 @@ test("terminal rebuild copies are removed immediately while active runs stay pro
     client.close();
   }
 });
+
+test("an inline rebuild also removes a search projector copy left when publication went back inline", async () => {
+  const client = createClient({ url: ":memory:" });
+  try {
+    await client.executeMultiple(SCHEMA);
+    const deleted: string[] = [];
+    const now = "2026-11-20T12:00:00Z";
+    await clearLeftoverRebuildIndices({
+      database: drizzle(client),
+      algolia: fakeAlgolia(
+        [
+          { name: "vehicles", updatedAt: now },
+          { name: "vehicles__generation_abc", updatedAt: now },
+          {
+            name: "vehicles__generation_replica",
+            updatedAt: now,
+            primary: "vehicles",
+          },
+          { name: "preview_vehicles__generation_abc", updatedAt: now },
+        ],
+        deleted,
+      ),
+      indexName: "vehicles",
+    });
+    expect(deleted).toEqual(["vehicles__generation_abc"]);
+  } finally {
+    client.close();
+  }
+});

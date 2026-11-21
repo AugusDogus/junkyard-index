@@ -1,5 +1,6 @@
 import { createHook, sleep } from "workflow";
 import { IngestionTokens } from "./ingestion-tokens";
+import { searchRebuildInFlightStep } from "./search-projector-steps";
 import {
   finalizeSearchIndexMigrationStep,
   initializeSearchIndexMigrationStep,
@@ -42,6 +43,12 @@ export async function searchIndexMigrationWorkflow() {
       continue;
     }
 
+    if (await searchRebuildInFlightStep()) {
+      return {
+        status: "deferred" as const,
+        reason: "search_rebuild_in_flight",
+      };
+    }
     const initialized = await initializeSearchIndexMigrationStep();
     if (initialized.status === "ready") {
       return { status: "completed" as const, migration: initialized.result };

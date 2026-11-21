@@ -169,6 +169,25 @@ export const SearchProjectorCheckpoint = {
   },
 
   /**
+   * Moves the cursor to a rebuilt generation's snapshot (never backward)
+   * and closes the circuit: the new live index holds every change at or
+   * below it. Run `ensure` first.
+   */
+  jumpStatement(params: { through: number; now: Date }): InStatement {
+    const now = params.now.getTime();
+    return {
+      sql: `
+        update ingestion_projector_checkpoint
+        set last_processed_change_id = max(last_processed_change_id, ?),
+            failure_count = 0, last_error_tag = null, blocked_until = null,
+            last_success_at = ?, updated_at = ?
+        where name = ?
+      `,
+      args: [params.through, now, now, CHECKPOINT_NAME],
+    };
+  },
+
+  /**
    * Clears `full_reindex_required` on finished runs the index now covers:
    * runs with no change above `through`, the checkpoint the same batch
    * advanced to. Skipped, abandoned and handed-off runs keep the flag until

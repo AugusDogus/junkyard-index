@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { vehicle } from "~/schema";
 import {
   InvalidRequest,
+  NotFound,
   QuotaExceeded,
   SearchBackendBlocked,
   Transient,
@@ -14,6 +15,7 @@ import { mapDbVehicleToAlgolia } from "./algolia-projector-helpers";
 import { RECONCILIATION_TEST_SCHEMA } from "./durable-reconciliation-test-fixtures";
 import type { SearchProjectorContext } from "./search-projector";
 import type {
+  SearchIndexListing,
   SearchIndexMetadata,
   SearchIndexWriter,
 } from "./search-index-writer";
@@ -26,19 +28,30 @@ ${readFileSync(new URL("../../../drizzle/0025_search_projector.sql", import.meta
 
 export const INDEX = "vehicles";
 
+type FailureTag =
+  | "SearchBackendBlocked"
+  | "QuotaExceeded"
+  | "NotFound"
+  | "InvalidRequest"
+  | "Transient";
+
 /** Builds a tagged Algolia failure without a request. */
 export function algoliaFailure(
-  tag:
-    | "SearchBackendBlocked"
-    | "QuotaExceeded"
-    | "InvalidRequest"
-    | "Transient",
+  tag: FailureTag,
   detail: string = tag,
+  indexName: string = INDEX,
 ): AlgoliaError {
   const fields = {
     operation: "saveObjects",
-    indexName: INDEX,
-    status: tag === "Transient" ? null : tag === "InvalidRequest" ? 400 : 403,
+    indexName,
+    status:
+      tag === "Transient"
+        ? null
+        : tag === "InvalidRequest"
+          ? 400
+          : tag === "NotFound"
+            ? 404
+            : 403,
     detail,
     message: `Algolia saveObjects failed (${tag}): ${detail}`,
     cause: null,
@@ -48,6 +61,8 @@ export function algoliaFailure(
       return new SearchBackendBlocked(fields);
     case "QuotaExceeded":
       return new QuotaExceeded(fields);
+    case "NotFound":
+      return new NotFound(fields);
     case "InvalidRequest":
       return new InvalidRequest(fields);
     case "Transient":
@@ -59,18 +74,50 @@ type WriterCall =
   | { op: "save"; indexName: string; objectIDs: string[] }
   | { op: "delete"; indexName: string; objectIDs: string[] }
   | { op: "wait"; indexName: string; taskId: number }
-  | { op: "metadata"; indexName: string };
+  | { op: "metadata"; indexName: string }
+  | { op: "list" }
+  | { op: "prepare"; from: string; to: string; generation: string }
+  | { op: "move"; from: string; to: string }
+  | { op: "deleteIndex"; indexName: string };
+
+/** An index in the fake backend. */
+export interface FakeIndex {
+  records: Map<string, AlgoliaVehicleRecord>;
+  generation: string | null;
+  schemaVersion: number;
+}
 
 /**
- * A search writer that records every call and answers from `behavior`; it
- * never sends a request.
+ * A search backend held in memory. It records every call and answers from
+ * its indices, or with the failure `behavior` returns; it never sends a
+ * request.
  */
 export function fakeWriter(behavior?: {
   save?: (records: readonly AlgoliaVehicleRecord[]) => AlgoliaError | null;
   metadata?: () => AlgoliaError | SearchIndexMetadata;
+  /** A failure for any other operation on an index, or null. */
+  fail?: (op: WriterCall["op"], indexName: string) => AlgoliaError | null;
+  /** Indices `listIndices` reports besides the fake's own (replicas, say). */
+  extraListings?: SearchIndexListing[];
+  /** Runs while a task is waited for, to land work Algolia had queued. */
+  onWait?: (indexName: string, taskId: number) => void;
 }) {
   const calls: WriterCall[] = [];
+  const indices = new Map<string, FakeIndex>();
   let task = 0;
+  const index = (name: string): FakeIndex => {
+    const existing = indices.get(name);
+    if (existing) return existing;
+    const created: FakeIndex = {
+      records: new Map(),
+      generation: null,
+      schemaVersion: 0,
+    };
+    indices.set(name, created);
+    return created;
+  };
+  const failure = (op: WriterCall["op"], indexName: string) =>
+    behavior?.fail?.(op, indexName) ?? null;
   const writer: SearchIndexWriter = {
     saveObjects(indexName, records) {
       calls.push({
@@ -78,30 +125,99 @@ export function fakeWriter(behavior?: {
         indexName,
         objectIDs: records.map((record) => record.objectID),
       });
-      const failure = behavior?.save?.(records) ?? null;
-      if (failure) return Effect.fail(failure);
+      const failed = behavior?.save?.(records) ?? failure("save", indexName);
+      if (failed) return Effect.fail(failed);
+      const target = index(indexName);
+      for (const record of records) target.records.set(record.objectID, record);
       task += 1;
       return Effect.succeed(records.length === 0 ? null : task);
     },
     deleteObjects(indexName, objectIDs) {
       calls.push({ op: "delete", indexName, objectIDs: [...objectIDs] });
+      const failed = failure("delete", indexName);
+      if (failed) return Effect.fail(failed);
+      const target = index(indexName);
+      for (const objectID of objectIDs) target.records.delete(objectID);
       task += 1;
       return Effect.succeed(objectIDs.length === 0 ? null : task);
     },
     waitForTask(indexName, taskId) {
       calls.push({ op: "wait", indexName, taskId });
-      return Effect.void;
+      behavior?.onWait?.(indexName, taskId);
+      const failed = failure("wait", indexName);
+      return failed ? Effect.fail(failed) : Effect.void;
     },
     metadata(indexName) {
       calls.push({ op: "metadata", indexName });
-      const answer = behavior?.metadata?.() ?? {
-        generation: null,
-        schemaVersion: 0,
-      };
-      return "_tag" in answer ? Effect.fail(answer) : Effect.succeed(answer);
+      if (behavior?.metadata) {
+        const answer = behavior.metadata();
+        return "_tag" in answer ? Effect.fail(answer) : Effect.succeed(answer);
+      }
+      const failed = failure("metadata", indexName);
+      if (failed) return Effect.fail(failed);
+      const found = indices.get(indexName);
+      if (!found && indexName !== INDEX) {
+        return Effect.fail(
+          algoliaFailure("NotFound", "Index does not exist", indexName),
+        );
+      }
+      return Effect.succeed({
+        generation: found?.generation ?? null,
+        schemaVersion: found?.schemaVersion ?? 0,
+      });
+    },
+    listIndices() {
+      calls.push({ op: "list" });
+      const failed = failure("list", "");
+      if (failed) return Effect.fail(failed);
+      return Effect.succeed([
+        ...[...indices.entries()].map(([name, found]) => ({
+          name,
+          entries: found.records.size,
+          primary: null,
+          replicas: [],
+          virtual: false,
+        })),
+        ...(behavior?.extraListings ?? []),
+      ]);
+    },
+    prepareIndex({ from, to, generation }) {
+      calls.push({ op: "prepare", from, to, generation });
+      const failed = failure("prepare", to);
+      if (failed) return Effect.fail(failed);
+      const source = indices.get(from);
+      if (!source) return Effect.succeed("missing_source");
+      indices.set(to, {
+        records: new Map(),
+        generation,
+        schemaVersion: source.schemaVersion,
+      });
+      return Effect.succeed("copied");
+    },
+    moveIndex(from, to) {
+      calls.push({ op: "move", from, to });
+      const failed = failure("move", from);
+      if (failed) return Effect.fail(failed);
+      const source = indices.get(from);
+      if (!source) {
+        return Effect.fail(
+          algoliaFailure("NotFound", "Index does not exist", from),
+        );
+      }
+      indices.set(to, source);
+      indices.delete(from);
+      task += 1;
+      return Effect.succeed(task);
+    },
+    deleteIndex(indexName) {
+      calls.push({ op: "deleteIndex", indexName });
+      const failed = failure("deleteIndex", indexName);
+      if (failed) return Effect.fail(failed);
+      indices.delete(indexName);
+      return Effect.void;
     },
   };
-  return { writer, calls };
+  return { writer, calls, indices };
 }
 
 export function vehicleRow(
