@@ -80,6 +80,7 @@ import {
   getSearchSortKey,
   sanitizeSearchSources,
   SEARCH_SORT_OPTIONS,
+  SearchOwnedUrlParams,
 } from "~/components/search/search-routing";
 import { AnalyticsEvents, buildSearchContext } from "~/lib/analytics-events";
 import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access";
@@ -1128,8 +1129,15 @@ function AlgoliaSearchInner({
     helper.clearRefinements();
     // Typed years filter results too, so clearing filters drops them as well.
     if (typedYears?.range) helper.setQuery(typedYears.query);
-    void setArrivalParams({ arrivalWindow: null, "arrivalWindow[]": null });
-    void setRadius(null);
+    // The route write for the cleared facets runs before nuqs writes these.
+    SearchOwnedUrlParams.hold(
+      new URLSearchParams(),
+      Promise.all([
+        setArrivalParams({ arrivalWindow: null, "arrivalWindow[]": null }),
+        setRadius(null),
+        setOriginParams({ lat: null, lng: null }),
+      ]),
+    );
     if (!arrivalWindow && radiusMiles === null) helper.search();
   }, [
     activeFilterCount,
@@ -1137,6 +1145,7 @@ function AlgoliaSearchInner({
     arrivalWindow,
     radiusMiles,
     setArrivalParams,
+    setOriginParams,
     setRadius,
     typedYears,
   ]);

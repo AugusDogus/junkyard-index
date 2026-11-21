@@ -162,6 +162,36 @@ test("clearing year, arrival and radius filters spends one results request", asy
       .getByRole("heading", { name: "5 vehicles", exact: true })
       .waitFor();
     expect((await requestCount()) - before).toBe(1);
+    // Let any pending router and nuqs URL writes land before reading the URL.
+    await page.waitForTimeout(1000);
+    const clearedKeys = [
+      "arrivalWindow",
+      "arrivalWindow[]",
+      "lat",
+      "lng",
+      "radius",
+      "minYear",
+    ];
+    const urlParams = () =>
+      page.evaluate(() => [
+        ...new URL(window.location.href).searchParams.entries(),
+      ]);
+    const expectClearedUrl = async () => {
+      const params = await urlParams();
+      expect(params.filter(([key]) => clearedKeys.includes(key))).toEqual([]);
+      expect(params).toContainEqual(["q", "arrivals"]);
+    };
+    await expectClearedUrl();
+    await page.reload();
+    await page
+      .getByRole("heading", { name: "5 vehicles", exact: true })
+      .waitFor();
+    await expectClearedUrl();
+    expect(
+      await page
+        .getByRole("combobox", { name: "Distance radius", exact: true })
+        .inputValue(),
+    ).toBe("all");
   } finally {
     await closePage(page);
   }
