@@ -106,6 +106,34 @@ type InputHistory =
   | { kind: "submitting"; previous: string };
 const inputHistory = new WeakMap<Window, InputHistory>();
 
+// Arrival window, radius and origin params, per browser window, that nuqs has
+// queued but not yet written to the URL.
+const heldOwnedUrlParams = new WeakMap<Window, URLSearchParams>();
+
+/**
+ * The router copies nuqs-owned params from the current URL, but nuqs writes
+ * them after InstantSearch builds its next route. Hold their next values until
+ * `written` settles so a route written meanwhile does not restore old ones.
+ */
+export const SearchOwnedUrlParams = {
+  hold(next: URLSearchParams, written: Promise<unknown>) {
+    heldOwnedUrlParams.set(window, next);
+    const release = () => {
+      if (heldOwnedUrlParams.get(window) === next)
+        heldOwnedUrlParams.delete(window);
+    };
+    void written.then(release, release);
+  },
+  current(location: SearchLocation): URLSearchParams {
+    return (
+      (typeof window === "undefined"
+        ? undefined
+        : heldOwnedUrlParams.get(window)) ??
+      new URLSearchParams(location.search)
+    );
+  },
+} as const;
+
 function pushSubmittedSearch(previous: string, url: string) {
   if (previous === url) {
     window.history.replaceState(window.history.state, "", url);
@@ -387,15 +415,16 @@ export function createSearchRouting(
         const baseUrl = location.href.split("?")[0] ?? location.href;
         const params = new URLSearchParams();
         const locationParams = new URLSearchParams(location.search);
-        const arrivalWindow = ArrivalWindow.fromUrl(locationParams);
+        const ownedParams = SearchOwnedUrlParams.current(location);
+        const arrivalWindow = ArrivalWindow.fromUrl(ownedParams);
         if (arrivalWindow)
           SearchFilterUrl.write(params, "arrivalWindow", [arrivalWindow]);
-        const area = SearchArea.fromUrl(locationParams);
+        const area = SearchArea.fromUrl(ownedParams);
         if (area) {
           params.set("lat", String(area.lat));
           params.set("lng", String(area.lng));
         }
-        const radius = SearchRadius.parse(locationParams.get("radius"));
+        const radius = SearchRadius.parse(ownedParams.get("radius"));
         if (radius !== null) params.set("radius", String(radius));
         const vinPattern =
           vinPatternIndexReady && locationParams.get("syntax") !== "expression"
