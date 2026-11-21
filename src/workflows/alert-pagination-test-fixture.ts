@@ -284,6 +284,7 @@ mock.module("../../src/workflows/vehicle-steps", () => ({
       scanning = false;
     }
   },
+  searchPublicationModeStep: async () => "inline",
   warmVinCacheBatchStep: async (state: unknown) => ({
     status: "complete",
     state,

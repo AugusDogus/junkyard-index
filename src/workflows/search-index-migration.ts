@@ -6,6 +6,7 @@ import {
   finalizeSearchIndexMigrationStep,
   initializeSearchIndexMigrationStep,
   runSearchIndexMigrationBatchStep,
+  searchPublicationModeStep,
   warmVinCacheBatchStep,
 } from "./vehicle-steps";
 
@@ -27,6 +28,16 @@ export async function searchIndexMigrationWorkflow(force = false) {
   // No shared writer or ingestion commit is held during network enrichment.
   // A service failure opens the circuit for this pass, then publishes fallbacks.
   const warmed = await runVinCachePass(warmVinCacheBatchStep);
+
+  // Frozen search makes no Algolia request, even a settings read. Warmed
+  // identities still reach Turso through reconciliation, and the first inline
+  // run after the freeze rebuilds the index from Turso.
+  if ((await searchPublicationModeStep()) === "skipped") {
+    return {
+      status: "skipped" as const,
+      reason: "search_publication_skipped" as const,
+    };
+  }
 
   while (true) {
     using algoliaWrites = createHook({ token: IngestionTokens.algoliaWrites });

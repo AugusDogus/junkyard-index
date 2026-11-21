@@ -7,6 +7,7 @@ import { formatError, throwRetryableStepError } from "./step-errors";
 import { resumeHook } from "workflow/api";
 import { INVENTORY_CACHE_TAG } from "~/lib/inventory-cache";
 import { db } from "~/lib/db";
+import { SearchPublicationFlag } from "~/server/ingestion/search-publication-flag";
 import * as Sentry from "@sentry/nextjs";
 import { runDailySearchAlertCheckBatch } from "~/server/alerts/search-alert-check-runtime";
 import { runDurableAlgoliaProjectionBatch } from "~/server/ingestion/algolia-projector";
@@ -350,6 +351,13 @@ export async function initializeSearchIndexMigrationStep(force = false) {
   }
 }
 initializeSearchIndexMigrationStep.maxRetries = 2;
+
+/** Whether search publication is frozen (`skipped`) or inline. */
+export async function searchPublicationModeStep() {
+  "use step";
+
+  return await SearchPublicationFlag.mode();
+}
 
 export async function warmVinCacheBatchStep(state: VinCachePassState) {
   "use step";
