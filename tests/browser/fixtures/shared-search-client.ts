@@ -1,4 +1,4 @@
-import type { Requester } from "@algolia/client-common";
+import { createMemoryCache, type Requester } from "@algolia/client-common";
 import type { YardType } from "~/lib/yard-service";
 
 const selfServiceVehicles = [
@@ -86,6 +86,10 @@ let currentApiKey: string | undefined;
 let transport: Requester | undefined;
 
 const client = {
+  // Like the real lite client: InstantSearch hydrates server-rendered
+  // results only into a client with a transporter cache and an agent.
+  transporter: { responsesCache: createMemoryCache() },
+  addAlgoliaAgent(_segment: string, _version?: string) {},
   /** Browser searches record the key they were sent with. */
   setClientApiKey({ apiKey }: { apiKey: string }) {
     currentApiKey = apiKey;
@@ -117,11 +121,18 @@ const client = {
       (Array.isArray(input) ? input : input.requests).some((request) =>
         JSON.stringify(request).includes('"query":"blocked"'),
       )
-    )
+    ) {
+      if (typeof document !== "undefined") {
+        const previous = Number(
+          document.documentElement.dataset.blockedSearches ?? 0,
+        );
+        document.documentElement.dataset.blockedSearches = String(previous + 1);
+      }
       throw Object.assign(new Error("Application is blocked"), {
         name: "ApiError",
         status: 403,
       });
+    }
     if (typeof document !== "undefined") {
       const previous = Number(
         document.documentElement.dataset.searchRequests ?? 0,

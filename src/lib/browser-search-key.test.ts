@@ -178,4 +178,19 @@ describe("BrowserSearchKey", () => {
     expect(await key.current()).toBe("third");
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
+
+  test("a renewal fetches the new key without waiting for a search", async () => {
+    // A capped page may never search again, and its cap follows the key.
+    const fetcher = serving(grant("paid", 3600, "lite"));
+    const key = BrowserSearchKey.create(fetcher, clock().now);
+    const listener = mock(() => undefined);
+    key.subscribe(listener);
+    key.prime(grant("rendered-free", 3600));
+    key.renewFor("lite");
+    expect(key.tier()).toBeNull();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(key.tier()).toBe("lite");
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
 });
