@@ -6,11 +6,38 @@ export type SearchYearQuery = {
   range: readonly [number, number] | null;
 };
 
+/** A two-digit year in the window ending at the newest searchable model year. */
+function fullYear(twoDigits: string): number {
+  const year = Number(twoDigits);
+  const pivot = SEARCHABLE_VEHICLE_YEAR_RANGE.max % 100;
+  return year <= pivot ? 2000 + year : 1900 + year;
+}
+
+/**
+ * People type a leading two-digit year: "08 mustang", "'98-02 civic". Only the
+ * first word counts, and only before a word starting with a letter, so model
+ * names such as "Toyota 86" and four-digit years keep their meaning.
+ */
+function leadingTwoDigitYears(query: string): SearchYearQuery {
+  const match = /^'?(\d{2})(?:\s*(?:-|\.\.)\s*'?(\d{2}))?(?=\s+[a-z])/i.exec(
+    query,
+  );
+  if (!match) return { query, range: null };
+  const [lead, start, end] = match;
+  if (start === undefined) return { query, range: null };
+  const min = fullYear(start);
+  const max = end === undefined ? min : fullYear(end);
+  if (min > max) return { query, range: null };
+  return { query: query.slice(lead.length), range: [min, max] };
+}
+
 /** Plain, standalone years only. Quoted/excluded/Boolean terms keep their semantics. */
-function parse(query: string): SearchYearQuery {
-  if (hasAdvancedSearchSyntax(query) || /(^|\s)-\S/.test(query))
-    return { query, range: null };
-  let range: SearchYearQuery["range"] = null;
+function parse(input: string): SearchYearQuery {
+  if (hasAdvancedSearchSyntax(input) || /(^|\s)-\S/.test(input))
+    return { query: input, range: null };
+  const leading = leadingTwoDigitYears(input.trim());
+  const query = leading.query;
+  let range: SearchYearQuery["range"] = leading.range;
   const words = query.replace(
     /(^|\s)(\d{4})(?:\s*(-|\.\.)\s*(\d+))?(?=\s|$)/g,
     (
