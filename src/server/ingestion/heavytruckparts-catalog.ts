@@ -1,4 +1,8 @@
-import type { HtpPage } from "./heavytruckparts-census";
+import type {
+  HtpPage,
+  HtpYearFill,
+  HtpYearPage,
+} from "./heavytruckparts-census";
 import { heavyTruckPartsParser } from "./heavytruckparts-parser";
 import {
   heavyTruckPartsAnchors,
@@ -9,6 +13,7 @@ import {
 import {
   HTP_ORIGIN,
   htpCatalogUrl,
+  htpYearUrl,
   type HtpSupplier,
 } from "./heavytruckparts-yard-metadata";
 
@@ -37,13 +42,13 @@ export function parseHtpStore(raw: string, s: HtpSupplier): number {
     throw new Error(`HTP ${s.code} lacks a unique bounded store count`);
   return total;
 }
-export function parseHtpCatalog(
+function nativeRecords(
   raw: string,
   s: HtpSupplier,
-  direction: "DESC" | "ASC",
   page: number,
   total: number,
-): HtpPage {
+  url: (page: number) => string,
+) {
   const html = heavyTruckPartsDocument(raw),
     regions = heavyTruckPartsDivs(html, "search_result_div"),
     region = regions[0],
@@ -51,8 +56,8 @@ export function parseHtpCatalog(
   if (regions.length !== 1 || !region || page > last)
     throw new Error(`HTP ${s.code} inventory region or page changed`);
   for (const [label, expected] of [
-    ["Next", page < last ? htpCatalogUrl(s, direction, page + 1) : null],
-    ["Last", page < last ? htpCatalogUrl(s, direction, last) : null],
+    ["Next", page < last ? url(page + 1) : null],
+    ["Last", page < last ? url(last) : null],
   ] as const) {
     const links = new Set(
       heavyTruckPartsAnchors(region)
@@ -74,5 +79,34 @@ export function parseHtpCatalog(
     new Set(records.map((r) => r.id)).size !== records.length
   )
     throw new Error(`HTP ${s.code} page size or item uniqueness changed`);
-  return { direction, page, records };
+  return records;
+}
+export function parseHtpCatalog(
+  raw: string,
+  s: HtpSupplier,
+  direction: "DESC" | "ASC",
+  page: number,
+  total: number,
+): HtpPage {
+  return {
+    direction,
+    page,
+    records: nativeRecords(raw, s, page, total, (p) =>
+      htpCatalogUrl(s, direction, p),
+    ),
+  };
+}
+/** Page 1 of a single-year query; the dual-sort year count bounds its size. */
+export function parseHtpYearFill(
+  raw: string,
+  s: HtpSupplier,
+  fill: HtpYearFill,
+): HtpYearPage {
+  return {
+    year: fill.year,
+    direction: fill.direction,
+    records: nativeRecords(raw, s, 1, fill.count, (p) =>
+      htpYearUrl(s, fill.year, fill.direction, p),
+    ),
+  };
 }

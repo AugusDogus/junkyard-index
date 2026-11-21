@@ -206,7 +206,7 @@ export function htpSnapshot(
       throw new Error("HTP supplier census order changed");
     const snap = htpSupplierSnapshot(
       s,
-      htpRoster(s, census.pages, census.total),
+      htpRoster(s, census.pages, census.fills, census.total),
     );
     for (const field of [
       "recordsProcessed",
