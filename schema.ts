@@ -332,6 +332,17 @@ export const vinDecodeCache = sqliteTable("vin_decode_cache", {
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 });
 
+/**
+ * The search schema version each Algolia index has finished migrating to,
+ * recorded in Turso so ingestion can choose its vehicle identities without
+ * an Algolia request (the index may be blocked or frozen).
+ */
+export const searchIndexSchema = sqliteTable("search_index_schema", {
+  indexName: text("index_name").primaryKey(),
+  version: integer("version").notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+});
+
 export const vehicleModelRedirect = sqliteTable("vehicle_model_redirect", {
   fromPath: text("from_path").primaryKey(),
   toPath: text("to_path").notNull(),

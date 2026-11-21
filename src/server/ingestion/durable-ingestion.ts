@@ -1,5 +1,9 @@
-import { getSearchIndexCapabilities } from "./search-index-readiness";
-import { canonicalizeVinVehicles } from "./vin-canonicalization";
+import { VIN_CANONICAL_SEARCH_SCHEMA_VERSION } from "~/lib/search-index-schema";
+import { SearchIndexSchemaMarker } from "./search-index-schema-marker";
+import {
+  canonicalizeBackfilledVinVehicles,
+  canonicalizeVinVehicles,
+} from "./vin-canonicalization";
 import { isValidationRejection } from "./ingestion-validation";
 import type { DurableWorkflowCursor } from "./durable-workflow-cursor";
 import { ALGOLIA_INDEX_NAME, getAlgoliaAdminClient } from "~/lib/algolia";
@@ -226,7 +230,11 @@ export async function reconcileDurableIngestion(
     console.warn(`[Ingestion] Run ${runId}: ${error.message}`);
     return { status: "mode_unavailable" };
   }
-  const { makeAliasesReady } = await getSearchIndexCapabilities();
+  // Readiness comes from Turso, not Algolia: a blocked or frozen index must
+  // neither be queried here nor change the identities written to Turso.
+  const makeAliasesReady =
+    (await SearchIndexSchemaMarker.version(db, ALGOLIA_INDEX_NAME)) >=
+    VIN_CANONICAL_SEARCH_SCHEMA_VERSION;
   return reconcileDurableIngestionRun({
     runId,
     database: db,
@@ -235,7 +243,7 @@ export async function reconcileDurableIngestion(
     searchPublication,
     canonicalize: makeAliasesReady
       ? (rows) => canonicalizeVinVehicles(db, rows)
-      : undefined,
+      : (rows) => canonicalizeBackfilledVinVehicles(db, rows),
     budgetMs: 60_000,
   });
 }

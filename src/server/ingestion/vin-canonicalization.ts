@@ -1,8 +1,8 @@
 import { ModelRedirect } from "~/lib/model-redirect";
 import { ConsumerIdentity } from "~/lib/consumer-identity";
-import { inArray, sql } from "drizzle-orm";
+import { and, inArray, isNotNull, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
-import { vinDecodeCache, vehicleModelRedirect } from "~/schema";
+import { vehicle, vinDecodeCache, vehicleModelRedirect } from "~/schema";
 import { VehicleName } from "~/lib/vehicle-name";
 import { normalizeCanonicalVehicle } from "./normalization";
 import type { CanonicalVehicle } from "./types";
@@ -43,6 +43,48 @@ export async function canonicalizeVinVehicles<T extends CanonicalVehicle>(
       trim: row.trim?.trim() || decode.trim,
     };
   });
+}
+
+/**
+ * Before schema-12 readiness is recorded, applies the existing string
+ * normalization, except to vehicles whose stored row the backfill already
+ * gave VIN identities (`source_make` set): those are canonicalized from the
+ * same cache, so reconciliation never reverts the backfill's names.
+ */
+export async function canonicalizeBackfilledVinVehicles(
+  database: LibSQLDatabase,
+  rows: CanonicalVehicle[],
+): Promise<CanonicalVehicle[]> {
+  const backfilled =
+    rows.length === 0
+      ? new Set<string>()
+      : new Set(
+          (
+            await database
+              .select({ vin: vehicle.vin })
+              .from(vehicle)
+              .where(
+                and(
+                  inArray(
+                    vehicle.vin,
+                    rows.map((row) => row.vin),
+                  ),
+                  isNotNull(vehicle.sourceMake),
+                ),
+              )
+          ).map((row) => row.vin),
+        );
+  const canonical = new Map(
+    (
+      await canonicalizeVinVehicles(
+        database,
+        rows.filter((row) => backfilled.has(row.vin)),
+      )
+    ).map((row) => [row.vin, row] as const),
+  );
+  return rows.map(
+    (row) => canonical.get(row.vin) ?? normalizeCanonicalVehicle(row),
+  );
 }
 
 /** Unique aliases redirect to a model; ambiguous labels retain a live make destination. */
