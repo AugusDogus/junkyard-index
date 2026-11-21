@@ -250,3 +250,39 @@ test("a yard whose vehicles are mostly new does not count new arrivals", () => {
     since: now,
   });
 });
+
+describe("YardInventory.newDisplay", () => {
+  const now = "2026-11-19T12:00:00Z";
+  const recent = YardInventory.vehicle(row({ availableDate: "2026-11-18" }));
+  // New in the week before an older publication, but not by the clock.
+  const stale = YardInventory.vehicle(row({ availableDate: "2026-11-05" }));
+  const old = YardInventory.vehicle(row({ availableDate: "2026-10-01" }));
+
+  test("badges rows against the same time the header counts against", () => {
+    const shown = [recent, stale];
+    const display = YardInventory.newDisplay(
+      YardInventory.newArrivals(shown, [...shown, old, old, old], now),
+    );
+    expect(display).toEqual({ headerCount: 1, badgesSince: now });
+    const badged = shown.filter((vehicle) =>
+      YardInventory.isNew(vehicle, display.badgesSince),
+    );
+    expect(badged).toEqual([recent]);
+  });
+
+  test("hides the header but keeps badging when none of the shown are new", () => {
+    expect(
+      YardInventory.newDisplay(
+        YardInventory.newArrivals([old], [recent, old, old], now),
+      ),
+    ).toEqual({ headerCount: null, badgesSince: now });
+  });
+
+  test("shows neither at a mostly new yard", () => {
+    expect(
+      YardInventory.newDisplay(
+        YardInventory.newArrivals([recent], [recent, recent, recent], now),
+      ),
+    ).toEqual({ headerCount: null, badgesSince: null });
+  });
+});
