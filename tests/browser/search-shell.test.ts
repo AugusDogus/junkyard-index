@@ -649,6 +649,31 @@ test("search loads and searches when the page arrives without a usable key", asy
 test("signed-in pagination survives sort switches and rows do not overlap after resizing", async () => {
   const { page, html } = await open("q=pagination");
   try {
+    // Check every painted frame, not one moment: a stale row size shows for
+    // only a frame after each page appends, so a single read is a coin flip.
+    await page.evaluate(() => {
+      const overlaps: string[] = [];
+      document.documentElement.dataset.rowOverlaps = "[]";
+      const check = () => {
+        const boxes = Array.from(
+          document.querySelectorAll<HTMLElement>("[data-index]"),
+          (row) => ({
+            index: row.dataset.index,
+            box: row.getBoundingClientRect(),
+          }),
+        ).sort((a, b) => a.box.top - b.box.top);
+        boxes.forEach(({ index, box }, position) => {
+          const previous = boxes[position - 1];
+          if (previous && box.top < previous.box.bottom - 1) {
+            overlaps.push(`row ${index} overlaps row ${previous.index}`);
+            document.documentElement.dataset.rowOverlaps =
+              JSON.stringify(overlaps);
+          }
+        });
+        requestAnimationFrame(check);
+      };
+      requestAnimationFrame(check);
+    });
     expect(html).toContain('"hitsPerPage":24');
     expect(html).not.toContain('"objectID":"pagination-71"');
     await page
@@ -695,6 +720,18 @@ test("signed-in pagination survives sort switches and rows do not overlap after 
       );
     });
     expect(overlap).toBe(false);
+    // The monitor's callback for the next frame was queued first, so this read
+    // includes the frame painted after the last page appended.
+    expect(
+      await page.evaluate(
+        () =>
+          new Promise<string | undefined>((resolve) =>
+            requestAnimationFrame(() =>
+              resolve(document.documentElement.dataset.rowOverlaps),
+            ),
+          ),
+      ),
+    ).toBe("[]");
   } finally {
     await closePage(page);
   }

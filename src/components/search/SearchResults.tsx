@@ -137,9 +137,18 @@ export function SearchResults({
 
   const rowCount = !isLastPage ? rows.length + 1 : rows.length;
 
+  // The loader row gets its own key. When a page appends, the vehicle row that
+  // takes its index then mounts fresh and is measured before paint, instead of
+  // reusing the loader's short size until ResizeObserver catches up.
+  const getRowKey = useCallback(
+    (index: number) => (index < rows.length ? index : "loader"),
+    [rows.length],
+  );
+
   const rowVirtualizer = useWindowVirtualizer({
     count: rowCount,
     enabled: !staticPage && !isLoading,
+    getItemKey: getRowKey,
     estimateSize: () => estimatedRowHeight,
     overscan: 2,
     scrollMargin,
@@ -324,7 +333,7 @@ export function SearchResults({
 
           return (
             <div
-              key={`row-${virtualRow.index}`}
+              key={virtualRow.key}
               data-index={virtualRow.index}
               ref={rowVirtualizer.measureElement}
               style={{
