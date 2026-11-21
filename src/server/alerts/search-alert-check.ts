@@ -174,6 +174,28 @@ export async function openSearchAlertCheckState(
   return check.status === "running" ? "running" : "finished";
 }
 
+/**
+ * Keeps the day's running check live while its next batch waits for the
+ * search writer lock (a search index migration can hold it for hours), so
+ * delivery keeps holding earlier intents for today's digest instead of
+ * treating the waiting check as stuck. A finished check is unchanged.
+ */
+export async function touchSearchAlertCheck(
+  database: LibSQLDatabase,
+  day: string,
+  now: Date,
+): Promise<void> {
+  await database
+    .update(searchAlertCheck)
+    .set({ lastProgressAt: now })
+    .where(
+      and(
+        eq(searchAlertCheck.day, day),
+        eq(searchAlertCheck.status, "running"),
+      ),
+    );
+}
+
 /** Whether the vehicles a batch reads (or read) may be incomplete. */
 async function readIsBlocked(
   context: SearchAlertCheckContext,

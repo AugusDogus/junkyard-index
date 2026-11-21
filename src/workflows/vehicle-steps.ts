@@ -9,7 +9,10 @@ import { INVENTORY_CACHE_TAG } from "~/lib/inventory-cache";
 import { db } from "~/lib/db";
 import { SearchPublicationFlag } from "~/server/ingestion/search-publication-flag";
 import * as Sentry from "@sentry/nextjs";
-import { runDailySearchAlertCheckBatch } from "~/server/alerts/search-alert-check-runtime";
+import {
+  runDailySearchAlertCheckBatch,
+  touchDailySearchAlertCheck,
+} from "~/server/alerts/search-alert-check-runtime";
 import { runDurableAlgoliaProjectionBatch } from "~/server/ingestion/algolia-projector";
 import {
   cleanupDurableIngestionStateBatch,
@@ -315,6 +318,24 @@ export async function runSearchAlertCheckBatchStep(day: string) {
   }
 }
 runSearchAlertCheckBatchStep.maxRetries = 2;
+
+/**
+ * Heartbeats the day's check while its batch waits for the search writer.
+ * A failed heartbeat only lets delivery stop holding earlier intents sooner,
+ * as a stale check does, so the wait continues.
+ */
+export async function touchSearchAlertCheckStep(day: string) {
+  "use step";
+
+  try {
+    await touchDailySearchAlertCheck(day);
+  } catch (error) {
+    console.warn(
+      `[Workflow] Could not record that the ${day} alert check is waiting for the search writer; earlier intents may be delivered before its digest: ${formatError(error)}`,
+    );
+  }
+}
+touchSearchAlertCheckStep.maxRetries = 0;
 
 /** Updates the provider's status page row; never fails the run. */
 export async function reportProviderStatusStep(runId: string) {

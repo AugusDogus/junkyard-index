@@ -275,6 +275,7 @@ let result:
   | undefined;
 mock.module("../../src/workflows/vehicle-steps", () => ({
   ...Object.fromEntries(ingestionStepNames.map((name) => [name, unusedStep])),
+  touchSearchAlertCheckStep: async () => {},
   runSearchAlertCheckBatchStep: async (checkDay: string) => {
     scanning = true;
     try {

@@ -7,6 +7,7 @@ import { SearchAlertsFlag } from "./search-alerts-flag";
 import {
   openSearchAlertCheckState,
   runSearchAlertCheckBatch,
+  touchSearchAlertCheck,
   type SearchAlertCheckContext,
 } from "./search-alert-check";
 
@@ -25,6 +26,11 @@ export async function searchAlertsEnabled(): Promise<boolean> {
 
 export function runDailySearchAlertCheckBatch(day: string) {
   return runSearchAlertCheckBatch(context, day, new Date());
+}
+
+/** Marks the day's running check live while a batch waits for the search writer. */
+export function touchDailySearchAlertCheck(day: string) {
+  return touchSearchAlertCheck(db, day, new Date());
 }
 
 export function openDailySearchAlertCheck(day: string) {
