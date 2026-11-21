@@ -54,3 +54,18 @@ test("emits numeric year bounds", () => {
   const parsed = SearchYearQuery.parse("2010-2014 Ford F-150");
   expect(SearchYearQuery.filters(parsed)).toBe("year >= 2010 AND year <= 2014");
 });
+
+for (const [input, filter, shown] of [
+  ["08 mustang", [1900, 2027], [2008, 2008]],
+  ["2010-2014 Ford", [2012, 2020], [2012, 2014]],
+  ["mustang", [2005, 2010], [2005, 2010]],
+  // Disjoint bounds match nothing; the filter keeps its own bounds.
+  ["2008 mustang", [2010, 2014], [2010, 2014]],
+  ["2010 2012 Ford", [1900, 2027], [1900, 2027]],
+] as const) {
+  test(`year filter shows typed years: ${input} within ${filter.join("-")}`, () => {
+    expect(
+      SearchYearQuery.narrow(filter, SearchYearQuery.parse(input)),
+    ).toEqual([...shown]);
+  });
+}

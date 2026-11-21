@@ -81,4 +81,17 @@ export const SearchYearQuery = {
   filters({ range }: SearchYearQuery): string | undefined {
     return range ? `year >= ${range[0]} AND year <= ${range[1]}` : undefined;
   },
+  /**
+   * The years a search applies: the Year filter narrowed by typed years.
+   * Disjoint bounds match nothing, so the filter keeps its own bounds.
+   */
+  narrow(
+    filter: readonly [number, number],
+    { range }: SearchYearQuery,
+  ): [number, number] {
+    if (!range) return [filter[0], filter[1]];
+    const min = Math.max(filter[0], range[0]);
+    const max = Math.min(filter[1], range[1]);
+    return min <= max ? [min, max] : [filter[0], filter[1]];
+  },
 } as const;

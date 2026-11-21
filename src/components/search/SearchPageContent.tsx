@@ -82,6 +82,7 @@ import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access
 import type { PlanAccessState } from "~/lib/plan-access";
 import { PLANS, type PlanTier } from "~/lib/plans";
 import { SEARCHABLE_VEHICLE_YEAR_RANGE } from "~/lib/saved-search-filters";
+import { SearchYearQuery } from "~/lib/search-year-query";
 import {
   hasFiniteCoordinates,
   LOCATION_PREFERENCE_STORAGE_KEY,
@@ -738,7 +739,7 @@ function AlgoliaSearchInner({
   ) {
     [routeMinYear, routeMaxYear] = [routeMaxYear, routeMinYear];
   }
-  const yearRange: [number, number] = [
+  const filterYearRange: [number, number] = [
     routeMinYear ??
       clampRouteYear(
         Number.isFinite(yearStart[0]) ? (yearStart[0] as number) : yearMin,
@@ -754,6 +755,11 @@ function AlgoliaSearchInner({
       ) ??
       yearMax,
   ];
+  // Typed years ("08 mustang") filter results too, so the Year filter shows them.
+  const typedYears = expressionMode ? null : SearchYearQuery.parse(query);
+  const yearRange = typedYears
+    ? SearchYearQuery.narrow(filterYearRange, typedYears)
+    : filterYearRange;
   const isYearFiltered = yearRange[0] !== yearMin || yearRange[1] !== yearMax;
 
   const activeFilterCount =
@@ -775,8 +781,8 @@ function AlgoliaSearchInner({
       salvageYards: selectedLocations,
       sources: selectedSources,
       yardTypes: selectedYardTypes,
-      minYear: yearRange[0],
-      maxYear: yearRange[1],
+      minYear: filterYearRange[0],
+      maxYear: filterYearRange[1],
       sortBy,
     }),
     [
@@ -788,7 +794,7 @@ function AlgoliaSearchInner({
       selectedLocations,
       selectedSources,
       selectedYardTypes,
-      yearRange,
+      filterYearRange,
       sortBy,
       vinPattern,
       effectiveVinPatternFilter,
@@ -1074,7 +1080,10 @@ function AlgoliaSearchInner({
       previous_filter_count: activeFilterCount,
     });
     clearRefinements();
-  }, [activeFilterCount, clearRefinements]);
+    if (typedYears?.range) {
+      setIndexUiState((previous) => ({ ...previous, query: typedYears.query }));
+    }
+  }, [activeFilterCount, clearRefinements, setIndexUiState, typedYears]);
 
   const handleSearchModeChange = useCallback(
     async (value: { query: string | null; vinPattern: string | null }) => {
@@ -1134,11 +1143,23 @@ function AlgoliaSearchInner({
     [selectedSources, refineSource, applyRefinementDiff],
   );
 
+  // Editing the Year filter takes over from typed years, so drop them from the
+  // query. Otherwise they would keep narrowing what the filter now shows.
   const handleYearRangeChange = useCallback(
     (range: [number, number]) => {
-      refineYear(range);
+      if (!typedYears?.range) {
+        refineYear(range);
+        return;
+      }
+      const { query: rest } = typedYears;
+      setIndexUiState((previous) => ({
+        ...previous,
+        query: rest,
+        page: 1,
+        range: { ...previous.range, year: `${range[0]}:${range[1]}` },
+      }));
     },
-    [refineYear],
+    [refineYear, setIndexUiState, typedYears],
   );
 
   const handleAdvancedSearch = useCallback(
@@ -1253,7 +1274,7 @@ function AlgoliaSearchInner({
       salvageYards={selectedLocations}
       sources={selectedSources}
       yardTypes={selectedYardTypes}
-      yearRange={yearRange}
+      yearRange={filterYearRange}
       sortBy={sortBy}
       filterOptions={inventoryFilterOptions.data}
       filterOptionsFeedback={
