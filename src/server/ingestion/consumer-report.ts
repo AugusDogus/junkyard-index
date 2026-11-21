@@ -43,8 +43,12 @@ export async function reportConsumerTick(params: {
   try {
     sentry.info(`Downstream consumer ${params.consumer} tick`, attributes);
     if (params.outcome === "failed") {
+      // A consumer that backs off after failures reports when it retries.
+      const retryAt = params.summary.retryAt;
       sentry.captureMessage(
-        `Downstream consumer ${params.consumer} failed; its checkpoint stays behind and the next tick retries`,
+        typeof retryAt === "string"
+          ? `Downstream consumer ${params.consumer} failed; its checkpoint stays behind and it is blocked until ${retryAt} (blocked_until), when it retries. Fix the cause, then wait for that time or clear blocked_until on its ingestion_projector_checkpoint row to retry sooner`
+          : `Downstream consumer ${params.consumer} failed; its checkpoint stays behind and its next tick retries`,
         {
           level: "error",
           fingerprint: [FAILURE_CATEGORY, params.consumer],

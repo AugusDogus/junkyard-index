@@ -9,6 +9,7 @@ import {
   InventoryDownstream,
 } from "./inventory-downstream";
 import {
+  inventoryDownstreamTickOutcome,
   runInventoryDownstream,
   type AnnouncementStatus,
   type InventoryRefreshFailure,
@@ -251,6 +252,60 @@ describe("inventory-downstream consumer", () => {
       last_error_tag: null,
       blocked_until: null,
     });
+  });
+
+  test("a tick firing seconds before the backoff ends retries now, not an hour later", async () => {
+    await publish(7);
+    await tick(at(0), {
+      refresh: async () =>
+        ({ status: "failed", stage: "project", message: "x" }) as const,
+    });
+    const early = await tick(new Date(at(3).getTime() - 5_000));
+    expect(early.result).toMatchObject({
+      status: "refreshed",
+      publicationSequence: 7,
+    });
+  });
+
+  test("a failed refresh and a consumer backing off both report failed ticks", () => {
+    expect(
+      inventoryDownstreamTickOutcome({
+        status: "backing_off",
+        publicationSequence: 7,
+        refreshedThrough: 0,
+        failureCount: 2,
+        lastErrorTag: "refresh_project",
+        retryAt: at(9).toISOString(),
+      }),
+    ).toBe("failed");
+    expect(
+      inventoryDownstreamTickOutcome({
+        status: "refresh_failed",
+        publicationSequence: 7,
+        stage: "project",
+        message: "x",
+        failureCount: 1,
+        retryAt: at(3).toISOString(),
+      }),
+    ).toBe("failed");
+    for (const healthy of [
+      { status: "paused" },
+      { status: "current", refreshedThrough: 3 },
+      {
+        status: "recent",
+        publicationSequence: 4,
+        refreshedThrough: 3,
+        nextRefreshAt: at(3).toISOString(),
+      },
+      {
+        status: "refreshed",
+        publicationSequence: 4,
+        pagesChanged: 0,
+        announcement: "skipped",
+      },
+    ] as const) {
+      expect(inventoryDownstreamTickOutcome(healthy)).toBe("succeeded");
+    }
   });
 
   test("a refresh that throws counts as one failed attempt and backs off", async () => {

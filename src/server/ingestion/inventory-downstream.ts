@@ -89,7 +89,12 @@ export const InventoryDownstream = {
       return { status: "current", refreshedThrough };
     }
     const blockedUntil = state?.blockedUntil ?? null;
-    if (blockedUntil !== null && now.getTime() < blockedUntil) {
+    // The same slack as the success gate: a tick firing a moment before the
+    // deadline retries now instead of an hour later.
+    if (
+      blockedUntil !== null &&
+      now.getTime() < blockedUntil - INTERVAL_SLACK_MS
+    ) {
       return {
         status: "backing_off",
         publicationSequence: latest,

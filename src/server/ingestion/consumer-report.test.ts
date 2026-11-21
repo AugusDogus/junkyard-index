@@ -54,9 +54,27 @@ describe("reportConsumerTick", () => {
       fetchImpl,
     });
     expect(events.slice(1)).toEqual([
-      "issue:Downstream consumer maintenance failed; its checkpoint stays behind and the next tick retries",
+      "issue:Downstream consumer maintenance failed; its checkpoint stays behind and its next tick retries",
       "ping:https://example.com/hb/fail",
     ]);
+  });
+
+  test("a consumer backing off says when it retries, not that the next tick does", async () => {
+    const { events, sentry, fetchImpl } = harness();
+    await reportConsumerTick({
+      consumer: "inventory-downstream",
+      outcome: "failed",
+      summary: { status: "backing_off", retryAt: "2026-11-20T22:10:00.000Z" },
+      heartbeats: {},
+      production: false,
+      sentry,
+      fetchImpl,
+    });
+    const issue = events.find((event) => event.startsWith("issue:"));
+    expect(issue).toContain(
+      "blocked until 2026-11-20T22:10:00.000Z (blocked_until), when it retries",
+    );
+    expect(issue).not.toContain("next tick");
   });
 
   test("pings nothing outside production and never throws on a rejected ping", async () => {

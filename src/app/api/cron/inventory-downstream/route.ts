@@ -5,6 +5,7 @@ import { db } from "~/lib/db";
 import { ConsumerFlags } from "~/server/ingestion/consumer-flags";
 import { reportConsumerTickNow } from "~/server/ingestion/consumer-report-runtime";
 import { InventoryDownstream } from "~/server/ingestion/inventory-downstream";
+import { inventoryDownstreamTickOutcome } from "~/server/ingestion/inventory-downstream-consumer";
 import { hasValidCronAuthorization } from "~/server/workflows/cron-authorization";
 import { workflowStartRetryOptions } from "~/server/workflows/start-retry";
 import { inventoryDownstreamWorkflow } from "~/workflows/downstream-consumers";
@@ -37,11 +38,9 @@ export async function GET(request: Request) {
         { status: 202 },
       );
     }
-    // Backing off after failed refreshes is a failure every hour until a
-    // refresh succeeds, so a stuck consumer stays red and keeps its issue.
     await reportConsumerTickNow(
       "inventory-downstream",
-      due.status === "backing_off" ? "failed" : "succeeded",
+      inventoryDownstreamTickOutcome(due),
       due,
     );
     return Response.json({ consumer: "inventory-downstream", due });

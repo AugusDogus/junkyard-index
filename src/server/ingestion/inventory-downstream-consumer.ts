@@ -1,5 +1,6 @@
 // Orchestration only: the workflow passes its steps in, so this module stays
 // free of database and network imports and can run in the workflow bundle.
+import type { ConsumerTickOutcome } from "./consumer-heartbeats";
 
 /** Whether the inventory-downstream consumer has work now. */
 export type InventoryDownstreamDue =
@@ -158,4 +159,18 @@ export async function runInventoryDownstream(operations: {
     pagesChanged,
     announcement,
   };
+}
+
+/**
+ * How an inventory-downstream tick reports, from the cron route (which sees
+ * only the due check) or the workflow (which sees the result). A failed
+ * refresh and a consumer still backing off from one are both failed ticks,
+ * so a stuck consumer keeps its heartbeat red and its Sentry issue open.
+ */
+export function inventoryDownstreamTickOutcome(
+  result: InventoryDownstreamDue | InventoryDownstreamResult,
+): ConsumerTickOutcome {
+  return result.status === "refresh_failed" || result.status === "backing_off"
+    ? "failed"
+    : "succeeded";
 }
