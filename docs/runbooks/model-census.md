@@ -99,8 +99,10 @@ shared rules.
   rows from badge undercounts (Calton, Central, Aviation) erode the same way, so
   the sticky surplus is the shared rule.
 - Closing re-reads every page read this run whose cards differ from its count
-  or fall below its expected cards (`ModelCensus.closingReads`), and fails the
-  run if a re-read differs. Calton has no closing pass, so its short pages are
+  or fall below its closing floor (its expected cards, or count plus ceiling,
+  `ModelCensus.closingFloors`), and fails the run if a re-read differs. Central
+  lets a re-read of a page at or above its floor add cards (see its runbook);
+  a short page must still repeat exactly. Calton has no closing pass, so its short pages are
   never confirmed and are re-read on the next run.
 - A page below its count is stored as `confirmed` only when that closing
   re-read matched in a normal incremental run (an accepted census from the same

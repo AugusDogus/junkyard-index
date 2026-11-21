@@ -678,3 +678,111 @@ test("Central re-reads a surplus page that drops to its badge instead of carryin
     confirmed: false,
   });
 });
+
+/** A cold run on day 600 whose model M3 badges 160 donors but lists 170 at its
+ * first read, so closing re-reads it; `closing` sets the cards that re-read
+ * lists. */
+function surplusClosing(closing: (first: CentralRecord[]) => CentralRecord[]) {
+  const native = yard();
+  const surplus = 3;
+  const first = donors(surplus, "M" + surplus);
+  native.badges.set(surplus, 160);
+  native.once.set(surplus, first);
+  native.rows.set(surplus, closing(first));
+  return { native, surplus, run: () => census(native, 600, null) };
+}
+
+test("Central publishes donors that arrive on a surplus page before its closing re-read", async () => {
+  const arrival = centralFixtureRecord(3171, "M3");
+  const { native, surplus, run } = surplusClosing((first) => [
+    ...first.map((record, index): CentralRecord => {
+      const [vin, year, title, stock, destination] = record;
+      // Optional metadata may change; the closing card wins.
+      return index === 0
+        ? [vin, year, title, "NEW" + stock, destination, "photo.jpg"]
+        : record;
+    }),
+    arrival,
+  ]);
+  const closed = await run();
+  // Every model, then the closing re-read of the surplus page.
+  expect(closed.models).toEqual([
+    ...Array.from({ length: 12 }, (_, i) => i),
+    surplus,
+  ]);
+  expect(closed.vins).toContain(arrival[0]);
+  expect(closed.vins).toEqual(allVins(native));
+  expect(
+    terminalCensus(closed.terminal).models.find(
+      (m) => m.key === censusKey(surplus, "M" + surplus),
+    )?.page.records,
+  ).toEqual(native.rows.get(surplus) ?? []);
+});
+
+test("Central fails a closing re-read that drops a donor even when another arrives", async () => {
+  const { run } = surplusClosing((first) => [
+    ...first.slice(1),
+    centralFixtureRecord(3171, "M3"),
+  ]);
+  await expect(run()).rejects.toThrow(
+    "Closing Central model cards lost VIN 1HGCM82633A003001",
+  );
+});
+
+test("Central fails a closing re-read that changes a donor's year, title or destination", async () => {
+  for (const field of [1, 2, 4] as const) {
+    const { run } = surplusClosing((first) =>
+      first.map((record, index): CentralRecord => {
+        if (index !== 0) return record;
+        const changed: CentralRecord = [...record];
+        changed[field] =
+          field === 4 ? "/used-parts/ACURA/M3/OTHER/2003" : "2004";
+        return changed;
+      }),
+    );
+    await expect(run()).rejects.toThrow(
+      "Closing Central model card for VIN 1HGCM82633A003001 changed",
+    );
+  }
+});
+
+test("Central fails a closing make directory whose badges or destinations changed", async () => {
+  for (const change of [
+    (make: CentralControl) => [{ ...make, count: make.count - 1 }],
+    (make: CentralControl) => [{ ...make, count: make.count + 1 }],
+    (make: CentralControl) => [
+      make,
+      { path: "/used-parts/BMW", label: "BMW", count: 1 },
+    ],
+  ]) {
+    const native = yard();
+    const serve = globalThis.fetch;
+    let directories = 0;
+    globalThis.fetch = Object.assign(
+      async (input: string | URL | Request) => {
+        const url =
+          typeof input === "string"
+            ? input
+            : input instanceof URL
+              ? input.href
+              : input.url;
+        if (url !== CENTRAL_MAKES || ++directories === 1) return serve(input);
+        const total = [...native.rows.values()].reduce(
+          (n, l) => n + l.length,
+          0,
+        );
+        return new Response(
+          centralFixtureDirectory(
+            change({ ...centralFixtureMake, count: total }),
+            "makes",
+          ),
+          { status: 200, headers: { "content-type": "text/html" } },
+        );
+      },
+      { preconnect: originalFetch.preconnect },
+    );
+    await expect(census(native, 600, null)).rejects.toThrow(
+      "Closing Central make graph changed",
+    );
+  }
+});
