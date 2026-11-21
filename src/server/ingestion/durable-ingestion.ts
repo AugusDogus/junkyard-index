@@ -33,7 +33,14 @@ import { fetchDurableSourceChunk } from "./durable-source-fetch";
 import { IngestionDay } from "./ingestion-day";
 import type { IngestionPassPlan } from "./ingestion-pass-orchestrator";
 import { IngestionSourceFlags } from "./ingestion-source-flags";
-import { SearchPublicationFlag } from "./search-publication-flag";
+import {
+  PublicationModeFlag,
+  PublicationModeUnavailable,
+} from "./publication-mode-flag";
+import {
+  SearchPublicationFlag,
+  type SearchPublicationMode,
+} from "./search-publication-flag";
 import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import { BetterStackProviders } from "./better-stack-providers";
 import { reportUrgiisCensusProgress } from "./urgiis-progress";
@@ -209,14 +216,21 @@ export function markDurableSourceFailed<
 export async function reconcileDurableIngestion(
   runId: string,
 ): Promise<DurableReconciliationBatchResult> {
-  const result = await reconcileDurableIngestionRun({
+  let searchPublication: SearchPublicationMode;
+  try {
+    searchPublication = await SearchPublicationFlag.publication();
+  } catch (error) {
+    if (!(error instanceof PublicationModeUnavailable)) throw error;
+    console.warn(`[Ingestion] Run ${runId}: ${error.message}`);
+    return { status: "mode_unavailable" };
+  }
+  return reconcileDurableIngestionRun({
     runId,
     database: db,
     batchClient: dbClient,
     snapshotStore,
-    searchPublication: await SearchPublicationFlag.mode(),
+    searchPublication,
   });
-  return result;
 }
 
 export function validateDurableIngestionSources(runId: string) {
@@ -308,7 +322,6 @@ export function cleanupDurableIngestionStateBatch(runId: string) {
   return repository.cleanupBatch(runId);
 }
 
-
 /**
  * Deletes leaked temporary rebuild indices at the end of a completed pass.
  * Run pruning moved to the daily ingestion-maintenance consumer; this sweep
@@ -316,7 +329,10 @@ export function cleanupDurableIngestionStateBatch(runId: string) {
  */
 export async function cleanupStaleDurableAlgoliaRebuilds(): Promise<void> {
   // Frozen search makes no Algolia request. Skipped runs create no temp
-  // indices; the sweep resumes once the switch is off.
+  // indices; the sweep resumes once the switch is off. Decoupled, the search
+  // projector owns every search write, temp-index sweeps included; an
+  // unreadable mode skips the sweep until the next pass.
+  if ((await PublicationModeFlag.mode()) !== "inline") return;
   if ((await SearchPublicationFlag.mode()) === "skipped") return;
   await cleanupStaleRebuildIndices({
     database: db,

@@ -67,4 +67,5 @@ ${readFileSync(new URL("../../../drizzle/0016_yard_inventory.sql", import.meta.u
 ${readFileSync(new URL("../../../drizzle/0017_observed_vehicle_arrival.sql", import.meta.url), "utf8")}
 ${readFileSync(new URL("../../../drizzle/0019_vehicle_departure.sql", import.meta.url), "utf8").replaceAll("--> statement-breakpoint", "")}
 ${readFileSync(new URL("../../../drizzle/0021_yard_publication.sql", import.meta.url), "utf8")}
+${readFileSync(new URL("../../../drizzle/0024_consumer_checkpoint.sql", import.meta.url), "utf8").replaceAll("--> statement-breakpoint", "")}
 `;

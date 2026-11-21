@@ -1,5 +1,9 @@
 export type DurablePhaseBatchResult = {
-  status: "paused" | "complete" | "stopped";
+  /**
+   * mode_unavailable: the batch could not read the publication mode and did
+   * nothing; it is retried after a wait, never counted as a failure.
+   */
+  status: "paused" | "complete" | "stopped" | "mode_unavailable";
 };
 
 export async function drainDurablePhase<Result extends DurablePhaseBatchResult>(
@@ -17,10 +21,15 @@ export async function runProjectionWithFailureRecording<
   runId: string;
   runBatch: () => Promise<Result>;
   markFailed(runId: string, error: string): Promise<void>;
+  waitForPublicationMode(): Promise<void>;
 }): Promise<Result> {
-  const { runBatch, markFailed } = params;
+  const { runBatch, markFailed, waitForPublicationMode } = params;
   try {
-    return await drainDurablePhase(runBatch);
+    while (true) {
+      const batch = await drainDurablePhase(runBatch);
+      if (batch.status !== "mode_unavailable") return batch;
+      await waitForPublicationMode();
+    }
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     await markFailed(

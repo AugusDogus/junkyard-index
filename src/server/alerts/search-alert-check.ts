@@ -14,9 +14,11 @@ import {
 import { buildSearchUrl } from "~/lib/search-utils";
 import { savedSearch, searchAlertCheck, vehicle } from "~/schema";
 import { IngestionDay } from "~/server/ingestion/ingestion-day";
+import { SearchOutbox } from "~/server/ingestion/search-outbox";
 import {
   RUN_VEHICLE_STAMP_SQL,
   WINDOW_PUBLICATION_SEQUENCE_SQL,
+  runNotSearchableSql,
   savedSearchAlertCheckpointStatement,
   searchAlertCheckBlockerQuery,
   searchAlertCheckWriteGuard,
@@ -73,8 +75,9 @@ type SearchOutcome =
 /**
  * Creates the day's check. Its bound is fixed here: the end of the last
  * whole second before every commit whose vehicles may be missing from the
- * search index (still in progress, or abandoned and awaiting a rebuild) and
- * before the claim margin. Every vehicle first seen through the bound is
+ * search index (still in progress, abandoned and awaiting a rebuild, or not
+ * yet reached by the search projector) and before the claim margin. A commit
+ * the projector lags behind falls to the next day's check. Every vehicle first seen through the bound is
  * searchable, so later checks start there without missing or repeating one.
  * Later claims are stamped after the bound (see CommitLease).
  *
@@ -95,7 +98,7 @@ function createCheckStatements(day: string, now: Date): InStatement[] {
         from (
           select (cast(min(coalesce((
             select min(${RUN_VEHICLE_STAMP_SQL("run")}) from ingestion_run run
-            where run.active_slot = 1 or run.full_reindex_required = 1
+            where ${runNotSearchableSql("run", SearchOutbox.projectedThroughSql)}
           ), ?), ?) as integer) / 1000 - 1) * 1000 + 999 as checked_through
         ) bound
         where true
@@ -182,6 +185,23 @@ async function readIsBlocked(
   );
   const blocker = result?.rows[0]?.blocker;
   return blocker !== null && blocker !== undefined;
+}
+
+/** The search projector's checkpoint, read before a batch reads Algolia. */
+async function readProjectedThrough(
+  context: Pick<SearchAlertCheckContext, "client">,
+): Promise<number> {
+  const [result] = await context.client.batch(
+    [`select ${SearchOutbox.projectedThroughSql} as projected_through`],
+    "read",
+  );
+  const value = result?.rows[0]?.projected_through;
+  if (typeof value !== "number" && typeof value !== "bigint") {
+    throw new Error(
+      `Reading the search projector checkpoint returned ${String(value)}, not a change id. No saved search was read or advanced; retry the alert check.`,
+    );
+  }
+  return Number(value);
 }
 
 function intentStatement(params: {
@@ -430,6 +450,7 @@ export async function runSearchAlertCheckBatch(
     checkId: check.id,
     expectedCursor: check.searchCursor,
     readStartedAtMs: now.getTime(),
+    projectedThrough: await readProjectedThrough(context),
   };
   if (await readIsBlocked(context, read)) {
     return { status: "waiting", checkId: check.id };

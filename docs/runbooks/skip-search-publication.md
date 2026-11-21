@@ -39,6 +39,40 @@ Otherwise the flag acts only at the final reconciliation batch. A run already in
 its inline path. Workflows started by an older deployment run older code and
 never skip.
 
+## Decoupled publication takes precedence
+
+The string flag `ingestion-publication-mode` (`inline` or `decoupled`,
+[`publication-mode-flag.ts`](../../src/server/ingestion/publication-mode-flag.ts))
+wins over this one. Anything but the exact string `decoupled` keeps inline
+publication. While it serves `decoupled`, a run's final reconciliation batch
+releases the run exactly as a skipped one does, except that it records the
+live totals from `yard_inventory`, sets `full_reindex_required = 0` (clearing
+an inherited rebuild), and leaves its change rows for the search projector,
+which reads `vehicle_change_v2` as an outbox. A run already in
+`project_changes` or a `full_reindex_*` stage other than
+`full_reindex_move_pending` releases at its next projection step without
+calling Algolia, keeping its change rows and `full_reindex_required`; a run
+moving an index finishes the move inline. A handed-off rebuild leaves its
+`vehicles__rebuild_<run>` temp index for the search projector's sweep. The
+pass's stale temp-index sweep does not run.
+
+If `ingestion-publication-mode` cannot be evaluated on a deployment that
+reads flags (on Vercel, or with `FLAGS` set), or serves a value other than
+`inline` or `decoupled`, the mode is unknown. A run about to reconcile or
+project then writes nothing and waits a minute before asking again, however
+long the outage lasts; the waits never count toward abandoning it. No run is
+released, handed off or marked as owing a rebuild on a guess, the pass skips
+its temp-index sweep, and the search projector waits. Guessing inline while
+decoupled would start an inline search writer; guessing otherwise while
+inline would release a run mid-rebuild or owe a new full rebuild. A missing
+flag means inline, and so does a process that cannot read flags at all
+(tests, local scripts).
+
+If decoupled publication is switched back to inline, the first inline
+publisher rebuilds the index whenever a finished run left changes above the
+search projector's checkpoint (`ingestion_projector_checkpoint` row
+`search-projector`), so nothing the projector had not published is lost.
+
 ## Alerts while it is on
 
 Source runs never match saved searches; the daily alert check does. A
@@ -46,7 +80,8 @@ skipped run keeps `full_reindex_required = 1`, and any run with it bounds the
 check's window before that run's commit, so saved searches are not checked
 against a search index that lacks the skipped vehicles, and their
 `last_checked_at` windows do not advance past them. Checks resume covering
-those vehicles once the rebuild publishes.
+those vehicles once the rebuild publishes. Decoupled runs bound it the same
+way while they have change rows above the search projector's checkpoint.
 
 ## When it turns off
 

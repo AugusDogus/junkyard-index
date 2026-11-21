@@ -15,7 +15,10 @@ import {
   releasedProjection,
   releaseLegacyAlertMatchingRun,
   releaseProjectedRun,
+  releaseToSearchProjector,
+  type SearchProjectorHandoff,
 } from "./projection-release";
+import { PublicationModeFlag } from "./publication-mode-flag";
 import {
   rebuildIndexName,
   discardFailedRebuild,
@@ -36,7 +39,9 @@ export type DurableAlgoliaProjectionBatchResult =
       stage: "project_changes" | "full_reindex_load" | "full_reindex_publish";
       recordsProcessed: number;
     }
-  | { status: "complete"; searchPublishedAt: Date };
+  | { status: "complete"; searchPublishedAt: Date }
+  | SearchProjectorHandoff
+  | { status: "mode_unavailable" };
 
 async function waitForAlgoliaTask(indexName: string, taskID: number) {
   await getAlgoliaAdminClient().waitForTask({ indexName, taskID });
@@ -345,6 +350,22 @@ export async function runDurableAlgoliaProjectionBatch(
     algolia: getAlgoliaAdminClient(),
     indexName: ALGOLIA_INDEX_NAME,
   };
+  // Decoupled, the search projector is the only search writer. A run that
+  // entered an inline stage before the switch hands its changes over instead
+  // of writing them, so the projector never races an inline writer. An
+  // unreadable mode returns before anything is written or discarded; the run
+  // waits and retries without counting a failure, and the projector also
+  // waits while the mode is unreadable.
+  const mode = await PublicationModeFlag.mode();
+  if (mode === "unavailable") return { status: "mode_unavailable" };
+  if (mode === "decoupled") {
+    const handoff = await releaseToSearchProjector({
+      database,
+      runId,
+      now: new Date(),
+    });
+    if (handoff) return handoff;
+  }
   try {
     const result = await projectDurableAlgoliaBatch(runId, options);
     if (result.status === "stopped") await cleanupInactiveRunRebuild(cleanup);

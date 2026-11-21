@@ -48,6 +48,11 @@ export interface DurableIngestionOperations {
   validateSources: (runId: string) => Promise<DurableSourceValidationSummary>;
   reconcile: (runId: string) => Promise<DurableReconciliationBatchResult>;
   markRunFailed: (runId: string, message: string) => Promise<void>;
+  /**
+   * Waits before retrying a step that could not read the publication mode.
+   * The wait never counts toward abandoning the run.
+   */
+  waitForPublicationMode: () => Promise<void>;
 }
 
 export type DurableIngestionCompletion = {
@@ -226,11 +231,16 @@ export async function commitDurableIngestion(params: {
   runId: string;
   operations: DurableIngestionOperations;
 }): Promise<{ status: "stopped" } | DurableIngestionCompletion> {
-  const { reconcile, markRunFailed } = params.operations;
+  const { reconcile, markRunFailed, waitForPublicationMode } =
+    params.operations;
   return recordingFailure(params.runId, markRunFailed, async () => {
     while (true) {
       const reconciliation = await reconcile(params.runId);
       if (reconciliation.status === "stopped") return reconciliation;
+      if (reconciliation.status === "mode_unavailable") {
+        await waitForPublicationMode();
+        continue;
+      }
       if (reconciliation.status === "complete") {
         return {
           status: "completed",

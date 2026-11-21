@@ -1,4 +1,8 @@
 import { flagsClient, Reason, type EvaluationResult } from "@vercel/flags-core";
+import {
+  PublicationModeFlag,
+  type PublicationModeReading,
+} from "./publication-mode-flag";
 
 /**
  * How a source run treats search once its inventory is in Turso.
@@ -9,8 +13,12 @@ import { flagsClient, Reason, type EvaluationResult } from "@vercel/flags-core";
  *   Algolia request, leaves its `vehicle_change_v2` rows unprocessed, and
  *   sets `full_reindex_required`, so the first inline run after the switch
  *   turns off inherits a full rebuild that covers every skipped change.
+ * - `decoupled`: the final reconciliation batch releases the run, as when
+ *   skipped, but owes search nothing: the search projector reads its
+ *   `vehicle_change_v2` rows as an outbox, so it sets no
+ *   `full_reindex_required` (and clears an inherited one).
  */
-export type SearchPublicationMode = "inline" | "skipped";
+export type SearchPublicationMode = "inline" | "skipped" | "decoupled";
 
 // Vercel Flags freeze search without a deploy while Turso ingestion keeps
 // running, for example while Algolia rejects writes. Serve true for the
@@ -21,7 +29,7 @@ export type SearchPublicationMode = "inline" | "skipped";
 export const SearchPublicationFlag = {
   key: "ingestion-skip-search-publication",
 
-  resolve(result: EvaluationResult<unknown>): SearchPublicationMode {
+  resolve(result: EvaluationResult<unknown>): "inline" | "skipped" {
     const key = SearchPublicationFlag.key;
     if (result.reason === Reason.ERROR) {
       if (result.errorCode !== "FLAG_NOT_FOUND") {
@@ -40,8 +48,8 @@ export const SearchPublicationFlag = {
     return result.value ? "skipped" : "inline";
   },
 
-  /** The current mode. Read it where the run decides, inside a step. */
-  async mode(): Promise<SearchPublicationMode> {
+  /** The skip flag alone. Read it where the run decides, inside a step. */
+  async mode(): Promise<"inline" | "skipped"> {
     let result: EvaluationResult<unknown>;
     try {
       result = await flagsClient.evaluate<unknown>(
@@ -59,5 +67,34 @@ export const SearchPublicationFlag = {
       return "inline";
     }
     return SearchPublicationFlag.resolve(result);
+  },
+
+  /**
+   * How a run publishes search now: decoupled when `ingestion-publication-mode`
+   * says so, whatever the skip flag serves; otherwise the skip flag decides.
+   * When the publication mode cannot be read, this throws
+   * `PublicationModeUnavailable` and the reconciliation step is retried.
+   */
+  async publication(): Promise<SearchPublicationMode> {
+    return SearchPublicationFlag.publicationFor(
+      await PublicationModeFlag.mode(),
+      () => SearchPublicationFlag.mode(),
+    );
+  },
+
+  /**
+   * `publication` for a mode reading; reads the skip flag only when inline,
+   * and throws `PublicationModeUnavailable` for an unreadable mode.
+   */
+  async publicationFor(
+    mode: PublicationModeReading,
+    skipFlag: () => Promise<"inline" | "skipped">,
+  ): Promise<SearchPublicationMode> {
+    switch (PublicationModeFlag.decided(mode)) {
+      case "decoupled":
+        return "decoupled";
+      case "inline":
+        return skipFlag();
+    }
   },
 } as const;

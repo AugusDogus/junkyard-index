@@ -5,6 +5,7 @@ import {
   releasedProjection,
   releaseLegacyAlertMatchingRun,
   releaseProjectedRun,
+  releaseToSearchProjector,
 } from "./projection-release";
 
 const SCHEMA = `
@@ -14,6 +15,7 @@ const SCHEMA = `
     stage text not null,
     active_slot integer,
     projector_cursor integer not null default 0,
+    full_reindex_required integer not null default 0,
     last_progress_at integer not null default 0,
     search_published_at integer,
     released_at integer,
@@ -136,6 +138,76 @@ describe("projection release", () => {
           now: NOW,
         }),
       ).toEqual({ status: "stopped" });
+    } finally {
+      client.close();
+    }
+  });
+});
+
+describe("handoff to the search projector", () => {
+  test("releases runs in inline search stages without search, but keeps a pending move and other runs", async () => {
+    const { client, database } = await setup();
+    try {
+      await client.executeMultiple(`
+        insert into ingestion_run (id, status, stage, active_slot) values
+          ('projecting', 'running', 'project_changes', 1);
+        insert into ingestion_run (id, status, stage, active_slot, full_reindex_required) values
+          ('preparing', 'running', 'full_reindex_prepare', 1, 1);
+        insert into ingestion_run (id, status, stage, active_slot) values
+          ('loading', 'running', 'full_reindex_load', 1),
+          ('publishing', 'running', 'full_reindex_publish', 1),
+          ('publish-failed', 'running', 'full_reindex_publish_failed', 1),
+          ('moving', 'running', 'full_reindex_move_pending', 1),
+          ('reconciling', 'running', 'reconcile_missing', 1),
+          ('abandoned', 'abandoned', 'project_changes', null)
+      `);
+      const handoff = (runId: string) =>
+        releaseToSearchProjector({ database, runId, now: NOW });
+      for (const id of [
+        "projecting",
+        "preparing",
+        "loading",
+        "publishing",
+        "publish-failed",
+      ]) {
+        expect(await handoff(id)).toEqual({
+          status: "complete",
+          releasedTo: "search_projector",
+        });
+        expect({ ...(await run(client, id)) }).toEqual({
+          status: "success",
+          stage: "released",
+          active_slot: null,
+          // Not searchable yet: the projector publishes its changes.
+          search_published_at: null,
+          released_at: NOW.getTime(),
+          completed_at: NOW.getTime(),
+        });
+      }
+      // Handing off keeps the rebuild a run owed, for the projector's own
+      // rebuild to settle; its change rows are not touched at all.
+      const owed = await client.execute(
+        "select id, full_reindex_required from ingestion_run where id in ('projecting', 'preparing') order by id",
+      );
+      expect(
+        owed.rows.map((row) => [row.id, row.full_reindex_required]),
+      ).toEqual([
+        ["preparing", 1],
+        ["projecting", 0],
+      ]);
+      // A retried step finds the run handed off, not published.
+      expect(
+        releasedProjection({
+          status: "success",
+          stage: "released",
+          searchPublishedAt: null,
+        }),
+      ).toEqual({ status: "complete", releasedTo: "search_projector" });
+      for (const id of ["moving", "reconciling", "abandoned"]) {
+        const before = { ...(await run(client, id)) };
+        expect(await handoff(id)).toBeNull();
+        expect({ ...(await run(client, id)) }).toEqual(before);
+      }
     } finally {
       client.close();
     }

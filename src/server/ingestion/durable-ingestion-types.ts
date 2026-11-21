@@ -90,13 +90,21 @@ export interface FetchedDurableSourceChunk<
 /**
  * What a reconciled run still owes search. `pending`: the run holds the
  * commit until it projects its changes (or rebuilds) and matches alerts.
- * `skipped`: the run already released at its final reconciliation batch with
- * search publication switched off; its changes wait for a later rebuild.
+ * `skipped`: the run already released at its final reconciliation batch
+ * without publishing search: search publication is switched off (its changes
+ * wait for a later rebuild) or decoupled (the search projector publishes its
+ * changes from the outbox).
  */
 export type DurableSearchPublication = "pending" | "skipped";
 
 export type DurableReconciliationBatchResult =
   | { status: "stopped" }
+  /**
+   * `ingestion-publication-mode` could not be read, so the batch did not
+   * run. Nothing was written; the run waits and retries without counting a
+   * failure, since a flags outage says nothing about the run.
+   */
+  | { status: "mode_unavailable" }
   | {
       status: "paused";
       phase: "upsert" | "missing";

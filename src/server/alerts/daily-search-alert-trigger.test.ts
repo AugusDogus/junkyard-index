@@ -105,6 +105,14 @@ describe("daily search alert trigger", () => {
         );
         insert into ingestion_run (id, source, status, stage, started_at)
         values ('run-1', 'pyp', 'success', 'released', 0);
+        create table vehicle_change_v2 (
+          id integer primary key autoincrement, run_id text not null,
+          vin text not null, change_type text not null, processed_at integer
+        );
+        create table ingestion_projector_checkpoint (
+          name text primary key, kind text not null default 'publication',
+          last_processed_change_id integer not null default 0
+        );
         create table search_alert_check (
           id text primary key, day text not null unique, status text not null,
           checked_through integer not null, search_cursor text,

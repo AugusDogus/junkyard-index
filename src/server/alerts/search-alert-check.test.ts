@@ -24,6 +24,14 @@ const SCHEMA = `
     last_progress_at integer not null default 0
   );
   create table vehicle (vin text primary key, first_seen_at integer not null);
+  create table vehicle_change_v2 (
+    id integer primary key autoincrement, run_id text not null,
+    vin text not null, change_type text not null, processed_at integer
+  );
+  create table ingestion_projector_checkpoint (
+    name text primary key, kind text not null default 'publication',
+    last_processed_change_id integer not null default 0
+  );
   create table saved_search (
     id text primary key, user_id text not null, name text not null,
     query text not null, filters text not null,
@@ -538,6 +546,112 @@ describe("daily search alert check", () => {
           )
         ).rows,
       ).toEqual([expect.objectContaining({ publication_sequence: 3 })]);
+      expect(await searchWindows(client)).toEqual([
+        ["search-a", Date.parse("2026-11-20T17:58:59.999Z")],
+      ]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  test("stops before a decoupled run the search projector has not reached, and starts there once it has", async () => {
+    const { client, cleanup, calls, context } = await setup();
+    try {
+      // Released at its final batch with no rebuild owed: the search
+      // projector publishes its outbox changes 1 and 2.
+      await insertRun(client, {
+        id: "decoupled",
+        status: "success",
+        stage: "released",
+        activeSlot: null,
+        commitStartedAt: Date.parse("2026-11-20T14:00:00.250Z"),
+        publicationSequence: 30,
+      });
+      await client.executeMultiple(`
+        insert into vehicle_change_v2 (run_id, vin, change_type)
+        values ('decoupled', 'VIN1', 'upsert'), ('decoupled', 'VIN2', 'upsert');
+        insert into ingestion_projector_checkpoint (name, kind, last_processed_change_id)
+        values ('search-projector', 'outbox', 1);
+      `);
+      await client.execute({
+        sql: "insert into vehicle values ('VIN1', ?), ('VIN2', ?)",
+        args: [
+          Date.parse("2026-11-20T14:00:00.250Z"),
+          Date.parse("2026-11-20T14:00:00.250Z"),
+        ],
+      });
+      await insertSearch(
+        client,
+        "search-a",
+        Date.parse("2026-11-19T18:00:00Z"),
+      );
+      await runSearchAlertCheckBatch(context, DAY, NOW);
+      expect(calls[0]?.bound.checkedThrough).toEqual(
+        new Date("2026-11-20T13:59:59.999Z"),
+      );
+      expect(await searchWindows(client)).toEqual([
+        ["search-a", Date.parse("2026-11-20T13:59:59.999Z")],
+      ]);
+
+      // The projector reaches change 2; the next day's check covers the run.
+      await client.execute(
+        "update ingestion_projector_checkpoint set last_processed_change_id = 2",
+      );
+      const tomorrow = new Date(NOW.getTime() + 24 * 60 * MINUTE);
+      await runSearchAlertCheckBatch(context, "2026-11-21", tomorrow);
+      expect(calls[1]?.bound.checkedThrough).toEqual(
+        new Date("2026-11-21T17:58:59.999Z"),
+      );
+    } finally {
+      cleanup();
+    }
+  });
+
+  test("keeps windows when the search projector reaches a commit inside them while the batch reads Algolia", async () => {
+    const lastChecked = Date.parse("2026-11-19T18:00:00Z");
+    let projected = false;
+    const { client, cleanup, calls, counts, context } = await setup({
+      async onMatch() {
+        if (projected) return;
+        projected = true;
+        // A decoupled commit stamped before the bound landed after the check
+        // was created, and the projector published it during the read.
+        await client.execute({
+          sql: `insert into ingestion_run (
+            id, source, status, stage, active_slot, commit_started_at,
+            full_reindex_required, publication_sequence, started_at
+          ) values ('late', 'pyp', 'success', 'released', null, ?, 0, 3, ?)`,
+          args: [
+            Date.parse("2026-11-20T17:58:30Z"),
+            Date.parse("2026-11-20T17:58:30Z"),
+          ],
+        });
+        await client.executeMultiple(`
+          insert into vehicle_change_v2 (run_id, vin, change_type)
+          values ('late', 'VIN1', 'upsert');
+          insert into ingestion_projector_checkpoint (name, kind, last_processed_change_id)
+          values ('search-projector', 'outbox', 1);
+        `);
+      },
+    });
+    try {
+      await insertSearch(client, "search-a", lastChecked);
+      counts.set("search-a", 1);
+
+      expect(await runSearchAlertCheckBatch(context, DAY, NOW)).toMatchObject({
+        status: "waiting",
+      });
+      expect(await searchWindows(client)).toEqual([["search-a", lastChecked]]);
+
+      // A later read starts from the projector's new checkpoint.
+      expect(
+        await runSearchAlertCheckBatch(
+          context,
+          DAY,
+          new Date(NOW.getTime() + 10 * MINUTE),
+        ),
+      ).toMatchObject({ status: "complete", intentsCreated: 1 });
+      expect(calls).toHaveLength(2);
       expect(await searchWindows(client)).toEqual([
         ["search-a", Date.parse("2026-11-20T17:58:59.999Z")],
       ]);

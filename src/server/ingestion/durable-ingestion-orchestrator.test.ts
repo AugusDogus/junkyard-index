@@ -1,6 +1,7 @@
 import { describe, expect, spyOn, test } from "bun:test";
 import { stringify } from "devalue";
 import {
+  commitDurableIngestion,
   executeDurableIngestion,
   ingestDurableSource,
   type DurableIngestionOperations,
@@ -155,6 +156,7 @@ function makeOperations(
       search: "pending",
     }),
     markRunFailed: async () => undefined,
+    waitForPublicationMode: async () => undefined,
     ...overrides,
   };
 }
@@ -744,5 +746,45 @@ describe("chunks deferred by a deep shared host queue", () => {
       now.mockRestore();
     }
     expect(chunks).toBe(37);
+  });
+});
+
+describe("an unreadable publication mode", () => {
+  test("waits and retries reconciliation without counting a run failure", async () => {
+    const events: string[] = [];
+    let unreadable = 3;
+    const result = await commitDurableIngestion({
+      runId: "run-1",
+      operations: makeOperations({
+        reconcile: async () => {
+          events.push("reconcile");
+          if (unreadable > 0) {
+            unreadable -= 1;
+            return { status: "mode_unavailable" };
+          }
+          return {
+            status: "complete",
+            result: COMPLETED_INGESTION,
+            search: "skipped",
+          };
+        },
+        waitForPublicationMode: async () => {
+          events.push("wait");
+        },
+        markRunFailed: async () => {
+          events.push("markRunFailed");
+        },
+      }),
+    });
+    expect(result).toMatchObject({ status: "completed", search: "skipped" });
+    expect(events).toEqual([
+      "reconcile",
+      "wait",
+      "reconcile",
+      "wait",
+      "reconcile",
+      "wait",
+      "reconcile",
+    ]);
   });
 });

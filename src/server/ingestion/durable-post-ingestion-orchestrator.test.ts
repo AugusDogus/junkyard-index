@@ -74,6 +74,7 @@ describe("durable post-ingestion orchestration", () => {
         markFailed: async function (this: unknown) {
           receivers.push(this);
         },
+        waitForPublicationMode: async () => undefined,
       }),
     ).rejects.toBe(failure);
     expect(receivers).toEqual([undefined, undefined]);
@@ -101,5 +102,40 @@ describe("durable post-ingestion orchestration", () => {
       return { done: calls === 3 };
     });
     expect(calls).toBe(3);
+  });
+
+  test("a projection that cannot read the publication mode waits and retries without recording a failure", async () => {
+    const events: string[] = [];
+    const batches: Array<{
+      status: "paused" | "complete" | "stopped" | "mode_unavailable";
+    }> = [
+      { status: "mode_unavailable" },
+      { status: "paused" },
+      { status: "mode_unavailable" },
+      { status: "complete" },
+    ];
+    const result = await runProjectionWithFailureRecording({
+      runId: "run-1",
+      runBatch: async () => {
+        const batch = batches.shift() ?? { status: "stopped" };
+        events.push(batch.status);
+        return batch;
+      },
+      markFailed: async () => {
+        events.push("markFailed");
+      },
+      waitForPublicationMode: async () => {
+        events.push("wait");
+      },
+    });
+    expect(result).toEqual({ status: "complete" });
+    expect(events).toEqual([
+      "mode_unavailable",
+      "wait",
+      "paused",
+      "mode_unavailable",
+      "wait",
+      "complete",
+    ]);
   });
 });

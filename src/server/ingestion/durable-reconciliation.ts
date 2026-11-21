@@ -19,6 +19,7 @@ import type {
   DurableReconciliationBatchResult,
 } from "./durable-ingestion-types";
 import type { SearchPublicationMode } from "./search-publication-flag";
+import { SearchOutbox } from "./search-outbox";
 import {
   parseAcceptedSources,
   parseDurableRunStage,
@@ -312,52 +313,102 @@ const PUBLICATION_GUARD_SQL = `
 /**
  * The final batch's checkpoint, which publishes the run's inventory. Inline,
  * the run keeps the commit for search: it projects its changes, or rebuilds
- * when it carries `full_reindex_required`. Skipped, the run releases here
- * without touching search. It keeps its unprocessed change rows and records
- * `full_reindex_required`, which the next run to claim the commit inherits,
- * so the first inline run after the switch turns off rebuilds the index from
- * Turso and covers every skipped change. It records its published totals
- * here because no later stage does.
+ * when it carries `full_reindex_required` or a finished run left changes the
+ * search projector never made searchable (decoupled publication was switched
+ * back off). Skipped, the run releases here without touching search. It
+ * keeps its unprocessed change rows and records `full_reindex_required`,
+ * which the next run to claim the commit inherits, so the first inline run
+ * after the switch turns off rebuilds the index from Turso and covers every
+ * skipped change. Decoupled, the run also releases here and keeps its change
+ * rows, which the search projector reads as its outbox; it owes search no
+ * rebuild, so it clears any it inherited. Released runs record their
+ * published totals here because no later stage does.
  *
  * Inline args: upserted, deleted, runId, now, now, runId, cursor.
  * Skipped args: runId, now, now, then the inline args.
+ * Decoupled args: now, now, then the inline args.
  */
 function publicationStatementSql(mode: SearchPublicationMode): string {
-  if (mode === "inline") {
-    return `
-      update ingestion_run
-      set stage = case
-            when full_reindex_required = 1 then 'full_reindex_prepare'
-            else 'project_changes'
-          end,
-          ${PUBLICATION_SET_SQL}
-      ${PUBLICATION_GUARD_SQL}
-    `;
+  switch (mode) {
+    case "inline":
+      return `
+        update ingestion_run
+        set stage = case
+              when full_reindex_required = 1
+                or ${SearchOutbox.finishedRunOwesSearchSql}
+                then 'full_reindex_prepare'
+              else 'project_changes'
+            end,
+            full_reindex_required = case
+              when ${SearchOutbox.finishedRunOwesSearchSql} then 1
+              else full_reindex_required
+            end,
+            ${PUBLICATION_SET_SQL}
+        ${PUBLICATION_GUARD_SQL}
+      `;
+    case "skipped":
+      return `
+        update ingestion_run
+        set status = 'success',
+            stage = 'released',
+            active_slot = null,
+            full_reindex_required = case
+              when full_reindex_required = 1 or exists (
+                select 1 from vehicle_change_v2
+                where run_id = ? and processed_at is null
+              ) then 1
+              else 0
+            end,
+            published_vehicle_count = (select count(*) from vehicle),
+            published_yard_count = (
+              select count(distinct location_code) from vehicle
+            ),
+            released_at = ?,
+            completed_at = ?,
+            ${PUBLICATION_SET_SQL}
+        ${PUBLICATION_GUARD_SQL}
+      `;
+    case "decoupled":
+      // The batch refreshed the yard summaries first, so they hold the live
+      // totals without reading every vehicle.
+      return `
+        update ingestion_run
+        set status = 'success',
+            stage = 'released',
+            active_slot = null,
+            full_reindex_required = 0,
+            published_vehicle_count = (
+              select coalesce(sum(vehicle_count), 0) from yard_inventory
+            ),
+            published_yard_count = (select count(*) from yard_inventory),
+            released_at = ?,
+            completed_at = ?,
+            ${PUBLICATION_SET_SQL}
+        ${PUBLICATION_GUARD_SQL}
+      `;
   }
-  return `
-    update ingestion_run
-    set status = 'success',
-        stage = 'released',
-        active_slot = null,
-        full_reindex_required = case
-          when full_reindex_required = 1 or exists (
-            select 1 from vehicle_change_v2
-            where run_id = ? and processed_at is null
-          ) then 1
-          else 0
-        end,
-        published_vehicle_count = (select count(*) from vehicle),
-        published_yard_count = (
-          select count(distinct location_code) from vehicle
-        ),
-        released_at = ?,
-        completed_at = ?,
-        ${PUBLICATION_SET_SQL}
-    ${PUBLICATION_GUARD_SQL}
-  `;
 }
 
-/** A run whose final batch released it with search publication skipped. */
+/** Placeholder args a final batch's publication checkpoint adds before the inline ones. */
+function publicationLeadingArgs(
+  mode: SearchPublicationMode,
+  runId: string,
+  now: number,
+): InValue[] {
+  switch (mode) {
+    case "inline":
+      return [];
+    case "skipped":
+      return [runId, now, now];
+    case "decoupled":
+      return [now, now];
+  }
+}
+
+/**
+ * A run whose final batch released it without search publication: skipped,
+ * or decoupled (the search projector publishes its changes).
+ */
 function releasedWithoutSearch(run: typeof ingestionRun.$inferSelect) {
   return (
     run.status === "success" &&
@@ -954,9 +1005,11 @@ async function runMissingBatch(
         `,
     args: finishing
       ? [
-          ...(params.searchPublication === "skipped"
-            ? [params.runId, now, now]
-            : []),
+          ...publicationLeadingArgs(
+            params.searchPublication,
+            params.runId,
+            now,
+          ),
           restoredRows.length,
           deletedCount,
           params.runId,
@@ -993,7 +1046,7 @@ async function runMissingBatch(
     return {
       status: "complete",
       result: await buildResult(params.runId, params.database),
-      search: params.searchPublication === "skipped" ? "skipped" : "pending",
+      search: params.searchPublication === "inline" ? "pending" : "skipped",
     };
   }
   return { status: "paused", phase: "missing", cursor: nextCursor };

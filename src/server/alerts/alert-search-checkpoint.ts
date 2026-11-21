@@ -1,4 +1,5 @@
 import type { InStatement, InValue } from "@libsql/client";
+import { SearchOutbox } from "~/server/ingestion/search-outbox";
 
 /**
  * When a run's vehicles were stamped: its commit claim, or its start for a
@@ -8,11 +9,29 @@ export const RUN_VEHICLE_STAMP_SQL = (run: string) =>
   `coalesce(${run}.commit_started_at, case when ${run}.source = 'all' then ${run}.started_at end)`;
 
 /**
+ * Whether a run's vehicles may be missing from the search index: its commit
+ * is still in progress, it was abandoned (or released with search skipped)
+ * and awaits a rebuild, or it wrote changes the search projector had not
+ * made searchable by change id `through` (an SQL expression or placeholder).
+ * Inline runs delete their changes once searchable; runs that keep changes
+ * (decoupled, skipped, abandoned or handed off) stay unsearchable until the
+ * projector's checkpoint passes them and `full_reindex_required` is clear.
+ */
+export function runNotSearchableSql(run: string, through: string): string {
+  return `(
+    ${run}.active_slot = 1
+    or ${run}.full_reindex_required = 1
+    or ${SearchOutbox.runHasChangesAboveSql(run, through)}
+  )`;
+}
+
+/**
  * Whether a commit inside the check's window was not yet fully searchable
- * when the batch read Algolia: it is still in progress, it was abandoned and
- * awaits a rebuild, or it published after the read. The check's bound
+ * when the batch read Algolia: not searchable as of the projector checkpoint
+ * the batch read, or published inline after the read. The check's bound
  * excludes such commits when it is created; this catches one whose claim
- * landed later with an older timestamp.
+ * landed later with an older timestamp. Placeholders: the check id, the
+ * read's start and the projector checkpoint it read.
  */
 function unsearchableWindowCommitSql(): string {
   return `
@@ -21,9 +40,8 @@ function unsearchableWindowCommitSql(): string {
       where alert_check.id = ?
         and ${RUN_VEHICLE_STAMP_SQL("run")} <= alert_check.checked_through
         and (
-          run.active_slot = 1
-          or run.full_reindex_required = 1
-          or run.search_published_at >= ?
+          run.search_published_at >= ?
+          or ${runNotSearchableSql("run", "?")}
         )
     )
   `;
@@ -60,6 +78,11 @@ export interface SearchAlertCheckRead {
   expectedCursor: string | null;
   /** When the batch started reading Algolia. */
   readStartedAtMs: number;
+  /**
+   * The search projector's checkpoint (a `vehicle_change_v2` id) before the
+   * batch read Algolia: every change at or below it was searchable.
+   */
+  projectedThrough: number;
 }
 
 /** Why the vehicles a batch read may be incomplete; null when they are not. */
@@ -74,7 +97,7 @@ export function searchAlertCheckBlockerQuery(read: SearchAlertCheckRead): {
         when ${unsearchableWindowCommitSql()} then 'unsearchable_commit'
       end as blocker
     `,
-    args: [read.checkId, read.readStartedAtMs],
+    args: [read.checkId, read.readStartedAtMs, read.projectedThrough],
   };
 }
 
@@ -102,6 +125,7 @@ export function searchAlertCheckWriteGuard(read: SearchAlertCheckRead): {
       read.expectedCursor,
       read.checkId,
       read.readStartedAtMs,
+      read.projectedThrough,
     ],
   };
 }

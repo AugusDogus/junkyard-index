@@ -61,6 +61,8 @@ const COMMIT_TURN_FALLBACK = "5m";
 const COMMIT_TURN_SETTLE = "2s";
 const PASS_WATCHDOG_INTERVAL = "30m";
 const FAILED_RUN_RESUME_DELAY = "5m";
+// Retry interval while ingestion-publication-mode cannot be read.
+const PUBLICATION_MODE_RETRY_DELAY = "1m";
 // Retry interval while an alert check batch could read incomplete results:
 // a run from the previous release is matching alerts, or a commit inside the
 // check's window is not searchable yet.
@@ -218,6 +220,7 @@ async function runSourceIngestion(runId: string) {
     validateSources: validateDurableIngestionSourcesStep,
     reconcile: reconcileDurableIngestionStep,
     markRunFailed,
+    waitForPublicationMode: () => sleep(PUBLICATION_MODE_RETRY_DELAY),
   };
   // Each source's run fetches and stages in parallel with the others.
   const staging = await stageDurableIngestion({ runId, operations });
@@ -258,9 +261,10 @@ async function runSourceIngestion(runId: string) {
     });
     if (ingestionResult.status === "stopped") return ingestionResult;
 
-    // With search publication switched off, the final reconciliation batch
-    // already released the run and left its changes for a later rebuild.
-    // Nothing here may call Algolia.
+    // With search publication switched off or decoupled, the final
+    // reconciliation batch already released the run and left its changes
+    // for a later rebuild or the search projector. Nothing here may call
+    // Algolia.
     if (ingestionResult.search === "skipped") {
       await reportProviderStatusStep(runId);
       await drainDurableCleanup(() =>
@@ -289,6 +293,7 @@ async function runSourceIngestion(runId: string) {
               runId,
               runBatch: () => runAlgoliaProjectorStep(runId),
               markFailed: markRunFailed,
+              waitForPublicationMode: () => sleep(PUBLICATION_MODE_RETRY_DELAY),
             }),
         }),
       reportHealth: reportProviderStatusStep,

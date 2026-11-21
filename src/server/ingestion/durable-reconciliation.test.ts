@@ -2008,3 +2008,171 @@ describe("skipped search publication", () => {
     }
   });
 });
+
+describe("decoupled search publication", () => {
+  async function stagedRun(params: {
+    client: ReturnType<typeof createClient>;
+    store: IngestionSnapshotStore;
+    id: string;
+    source: "pyp" | "row52";
+    vins: readonly string[];
+    fullReindexRequired?: boolean;
+  }) {
+    const startedAt = new Date("2026-11-20T07:00:00.000Z");
+    await drizzle(params.client)
+      .insert(ingestionRun)
+      .values({
+        id: params.id,
+        source: params.source,
+        status: "running",
+        stage: "reconcile_upsert",
+        activeSlot: 1,
+        commitStartedAt: new Date("2026-11-20T08:00:00.000Z"),
+        fullReindexRequired: params.fullReindexRequired ?? false,
+        acceptedSources: JSON.stringify([params.source]),
+        startedAt,
+        lastProgressAt: startedAt,
+      });
+    await drizzle(params.client)
+      .insert(ingestionSourceRun)
+      .values({
+        id: `${params.id}:${params.source}`,
+        runId: params.id,
+        source: params.source,
+        status: "success",
+        acceptanceStatus: "accepted",
+        uniqueVehicles: params.vins.length,
+        startedAt,
+      });
+    await stageSnapshots({
+      client: params.client,
+      store: params.store,
+      runId: params.id,
+      vehicles: params.vins.map((vin) => ({
+        ...snapshot(params.source, "Blue"),
+        vin,
+        locationCode: `${params.source}-yard`,
+      })),
+    });
+  }
+
+  const run = async (client: ReturnType<typeof createClient>, id: string) =>
+    (
+      await client.execute({
+        sql: `select status, stage, active_slot, full_reindex_required,
+                publication_sequence, search_published_at,
+                published_vehicle_count, published_yard_count
+              from ingestion_run where id = ?`,
+        args: [id],
+      })
+    ).rows[0];
+
+  test("releases the run at its final batch, keeps its outbox rows, and clears an inherited rebuild", async () => {
+    const client = createClient({ url: ":memory:" });
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const database = drizzle(client);
+      const store = IngestionSnapshotStore.memory();
+      await stagedRun({
+        client,
+        store,
+        id: "decoupled",
+        source: "pyp",
+        vins: ["VIN-A", "VIN-B"],
+        fullReindexRequired: true,
+      });
+      const reconcile = () =>
+        reconcileDurableIngestionRun({
+          runId: "decoupled",
+          database,
+          batchClient: client,
+          snapshotStore: store,
+          searchPublication: "decoupled",
+        });
+      expect(await reconcile()).toMatchObject({
+        status: "complete",
+        search: "skipped",
+      });
+      expect({ ...(await run(client, "decoupled")) }).toEqual({
+        status: "success",
+        stage: "released",
+        active_slot: null,
+        full_reindex_required: 0,
+        publication_sequence: 1,
+        search_published_at: null,
+        // From the yard summaries the final batch refreshed.
+        published_vehicle_count: 2,
+        published_yard_count: 1,
+      });
+      const changes = await client.execute(
+        "select run_id, vin from vehicle_change_v2 order by id",
+      );
+      expect(changes.rows.map((row) => [row.run_id, row.vin])).toEqual([
+        ["decoupled", "VIN-A"],
+        ["decoupled", "VIN-B"],
+      ]);
+      // A retried step finds the run released and reports the same outcome.
+      expect(await reconcile()).toMatchObject({
+        status: "complete",
+        search: "skipped",
+      });
+    } finally {
+      client.close();
+    }
+  });
+
+  test("an inline publisher after decoupled runs rebuilds until the search projector has reached their changes", async () => {
+    for (const projected of [false, true]) {
+      const client = createClient({ url: ":memory:" });
+      try {
+        await client.executeMultiple(TEST_SCHEMA);
+        const database = drizzle(client);
+        const store = IngestionSnapshotStore.memory();
+        await stagedRun({
+          client,
+          store,
+          id: "decoupled",
+          source: "pyp",
+          vins: ["VIN-A", "VIN-B"],
+        });
+        await reconcileDurableIngestionRun({
+          runId: "decoupled",
+          database,
+          batchClient: client,
+          snapshotStore: store,
+          searchPublication: "decoupled",
+        });
+        if (projected) {
+          await client.execute(`
+            insert into ingestion_projector_checkpoint (name, kind, last_processed_change_id)
+            select 'search-projector', 'outbox', max(id) from vehicle_change_v2
+          `);
+        }
+        // Publication is switched back to inline.
+        await stagedRun({
+          client,
+          store,
+          id: "inline",
+          source: "row52",
+          vins: ["VIN-C"],
+        });
+        expect(
+          await reconcileDurableIngestionRun({
+            runId: "inline",
+            database,
+            batchClient: client,
+            snapshotStore: store,
+            searchPublication: "inline",
+          }),
+        ).toMatchObject({ status: "complete", search: "pending" });
+        expect(await run(client, "inline")).toMatchObject(
+          projected
+            ? { stage: "project_changes", full_reindex_required: 0 }
+            : { stage: "full_reindex_prepare", full_reindex_required: 1 },
+        );
+      } finally {
+        client.close();
+      }
+    }
+  });
+});
