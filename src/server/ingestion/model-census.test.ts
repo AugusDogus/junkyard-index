@@ -705,6 +705,98 @@ describe("ModelCensus", () => {
     });
   });
 
+  test("a sale does not cancel an arrival's lag signal inside an open window", () => {
+    // Quiet model: badge 10, page 11 (a placeholder). An arrival is counted
+    // on day 102 and its card appears on day 109; a sale on day 103 takes the
+    // count back to 10. The count rose by the missing card inside the window,
+    // so the surplus must hold, with the window-open count, through day 108.
+    let models = controls(12, 10);
+    const at = (count: number, listed: number) => {
+      models = models.map((m, i) => (i === 2 ? { ...m, count } : m));
+      return { listed: new Map([["model-2", listed]]) };
+    };
+    let census = run(models, null, 100, undefined, at(10, 11)).census;
+    census = run(models, census, 101, undefined, at(10, 11)).census;
+    const days: [number, number, number][] = [
+      // [day, count, listed]: the card lags, the sale removes a real card.
+      [102, 11, 11],
+      [103, 10, 10],
+      [104, 10, 10],
+      [105, 10, 10],
+      [106, 10, 10],
+      [107, 10, 10],
+      [108, 10, 10],
+    ];
+    for (const [day, count, listed] of days) {
+      const options = at(count, listed);
+      const next = run(models, census, day, undefined, options);
+      expect(next.decisions[2]?.kind).toBe("read");
+      expect(next.census.models[2]).toMatchObject({
+        expected: count + 1,
+        lowSince: 102,
+        lowCount: 10,
+      });
+      census = next.census;
+    }
+    // Day 109: the arrival's card appears; the surplus was never lost.
+    const appeared = run(models, census, 109, undefined, at(10, 11));
+    expect(appeared.census.models[2]).toMatchObject({
+      expected: 11,
+      lowSince: null,
+      lowCount: null,
+    });
+  });
+
+  test("a surplus lowered by the time bound keeps a ceiling that closing still enforces", () => {
+    // Badge 3, page 4 (a real placeholder). From day 102 an arrival is counted
+    // every day and its card appears a day later, so each read lists exactly
+    // the badge. The twelve-day bound lowers the surplus on day 114, but the
+    // old surplus stays as a ceiling: a later read below it is closing-read.
+    let models = controls(12, 3);
+    const at = (count: number, listed: number) => {
+      models = models.map((m, i) => (i === 2 ? { ...m, count } : m));
+      return { listed: new Map([["model-2", listed]]) };
+    };
+    const first = at(3, 4);
+    let census = run(models, null, 100, undefined, first).census;
+    census = run(models, census, 101, undefined, first).census;
+    for (let day = 102; day <= 114; day++) {
+      const count = 3 + (day - 101);
+      const options = at(count, count);
+      census = run(models, census, day, undefined, options).census;
+    }
+    expect(census.models[2]).toMatchObject({
+      expected: 16,
+      lowSince: null,
+      ceiling: 1,
+    });
+    // Day 115: the count holds, so the lowered page carries until it is due.
+    // When it is next read (a trigger here) a one-off fault hides a real card
+    // and the page lists exactly its badge. Closing must re-read it.
+    const faulty = at(16, 16);
+    expect(run(models, census, 115, undefined, faulty).decisions[2]?.kind).toBe(
+      "carry",
+    );
+    const fault = run(models, census, 115, new Set(["model-2"]), faulty);
+    expect(fault.decisions[2]?.kind).toBe("read");
+    expect(
+      ModelCensus.closingReads({
+        controls: models,
+        pages: fault.pages,
+        decisions: fault.decisions,
+        previous: census,
+        cards,
+      }),
+    ).toContain(2);
+    // When the page lists the old surplus again, the ceiling clears and the
+    // surplus returns.
+    const restored = run(models, census, 115, new Set(["model-2"]), at(16, 17));
+    expect(restored.census.models[2]).toMatchObject({
+      expected: 17,
+      ceiling: null,
+    });
+  });
+
   test("a surplus that grows on a gap or outage read is unconfirmed until an incremental run sees it", () => {
     // Badge 3, page 4, confirmed on day 101. Day 102 is missed; the day 103
     // gap read lists 5 (surplus 2). It must not inherit the earlier
