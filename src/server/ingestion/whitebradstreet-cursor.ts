@@ -83,6 +83,19 @@ export const WhitebradstreetCursorSchema = z
         ...deferral,
       })
       .strict(),
+    /** Every page was enumerated and accounted for. Completion refetches each
+     * page and requires its total and semantic hash to match the ledger; this
+     * phase resumes that recheck at nextRecheckPage after a rate limit. */
+    z
+      .object({
+        source: z.literal("whitebradstreet"),
+        phase: z.literal("recheck"),
+        nextRecheckPage: z.number().int().min(1).max(WHITEBRADSTREET_MAX_PAGES),
+        total: count.positive(),
+        hashes: z.array(hash).min(1).max(WHITEBRADSTREET_MAX_PAGES),
+        ...deferral,
+      })
+      .strict(),
     z
       .object({
         source: z.literal("whitebradstreet"),
@@ -105,6 +118,19 @@ export const WhitebradstreetCursorSchema = z
         message:
           "White & Bradstreet cooldown is not bound to a recorded rate limit inside its one-hour deferral window; retain the last validated checkpoint",
       });
+    if (cursor.phase === "recheck") {
+      if (
+        cursor.hashes.length !== Math.ceil(cursor.total / 25) ||
+        new Set(cursor.hashes).size !== cursor.hashes.length ||
+        cursor.nextRecheckPage > cursor.hashes.length
+      )
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            "White & Bradstreet recheck checkpoint page hashes do not cover the advertised total, repeat, or end before the next recheck page; retain the last validated checkpoint",
+        });
+      return;
+    }
     if (cursor.phase !== "pages") return;
     const accepted = new Map<string, string>();
     let identitiesValid = true;
