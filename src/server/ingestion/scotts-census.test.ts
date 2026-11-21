@@ -196,14 +196,41 @@ test("Scotts confirms a short model page only on the run that reads it", async (
   expect(cold.models).toEqual([...Array.from({ length: 12 }, (_, i) => i), 3]);
   expect(cold.requests).toBe(18);
   expect(cold.vins).toEqual(allVins(native));
+  // A cold run confirms no short page, even after its closing re-read.
+  const coldParsed = ScottsCursorSchema.parse(cold.terminal);
+  if (coldParsed.phase !== "complete" || !coldParsed.census)
+    throw new Error("Expected a terminal census");
+  expect(
+    coldParsed.census.models.find((m) => m.key === key(3))?.confirmed,
+  ).toBe(false);
+
+  // The next incremental run re-reads it as short, re-reads it at closing and
+  // confirms it.
+  const sweep601 = sweep(native, 601);
+  if (sweep601.length === 0 || sweep601.includes(3))
+    throw new Error("Fixture needs a non-empty day 601 sweep without M3");
+  const confirming = await census(native, 601, cold.terminal);
+  expect(confirming.models).toEqual([
+    ...[3, ...sweep601].sort((a, b) => a - b),
+    3,
+  ]);
+  expect(confirming.requests).toBe(5 + sweep601.length + 2);
+  expect(confirming.vins).toEqual(allVins(native));
+  expect(confirming.warnings.at(-1)).toBe(
+    `Scotts Read ${sweep601.length + 1} of 12 model pages (${3 < Math.min(...sweep601) ? `short 1, sweep ${sweep601.length}` : `sweep ${sweep601.length}, short 1`}); carried ${11 - sweep601.length}.`,
+  );
+  const confirmedParsed = ScottsCursorSchema.parse(confirming.terminal);
+  if (confirmedParsed.phase !== "complete" || !confirmedParsed.census)
+    throw new Error("Expected a terminal census");
+  expect(
+    confirmedParsed.census.models.find((m) => m.key === key(3))?.confirmed,
+  ).toBe(true);
 
   // A carried short page was confirmed on the run that read it.
-  const day = sweepDays(native, 600).find(
-    (candidate) => !sweep(native, candidate).includes(3),
-  );
-  if (day === undefined)
-    throw new Error("Fixture needs a sweep day without M3");
-  const carried = await census(native, day, cold.terminal);
+  const day = 602;
+  if (sweep(native, day).includes(3))
+    throw new Error("Fixture needs a day 602 sweep without M3");
+  const carried = await census(native, day, confirming.terminal);
   expect(carried.models).toEqual(sweep(native, day));
   expect(carried.requests).toBe(5 + sweep(native, day).length);
   expect(carried.vins).toEqual(allVins(native));
@@ -403,19 +430,40 @@ test("Scotts stores closing-confirmed short pages as confirmed and carries surpl
   const parsed = ScottsCursorSchema.parse(cold.terminal);
   if (parsed.phase !== "complete" || !parsed.census)
     throw new Error("Expected a terminal census");
+  // A cold run confirms no short page, even after its closing re-read.
   expect(parsed.census.models.map((m) => m.confirmed)).toEqual(
+    Array.from({ length: 12 }, () => false),
+  );
+
+  // The next incremental run re-reads only the short page as short, re-reads
+  // it at closing and stores it as confirmed; the surplus page carries as full.
+  const sweep601 = sweep(native, 601);
+  if (sweep601.length === 0 || sweep601.includes(3) || sweep601.includes(5))
+    throw new Error(
+      "Fixture needs a non-empty day 601 sweep without M3 and M5",
+    );
+  const confirming = await census(native, 601, cold.terminal);
+  expect(confirming.models).toEqual([
+    ...[3, ...sweep601].sort((a, b) => a - b),
+    3,
+  ]);
+  expect(confirming.requests).toBe(5 + sweep601.length + 2);
+  expect(confirming.vins).toEqual(allVins(native));
+  expect(confirming.warnings.at(-1)).toBe(
+    `Scotts Read ${sweep601.length + 1} of 12 model pages (${3 < Math.min(...sweep601) ? `short 1, sweep ${sweep601.length}` : `sweep ${sweep601.length}, short 1`}); carried ${11 - sweep601.length}.`,
+  );
+  const confirmedParsed = ScottsCursorSchema.parse(confirming.terminal);
+  if (confirmedParsed.phase !== "complete" || !confirmedParsed.census)
+    throw new Error("Expected a terminal census");
+  expect(confirmedParsed.census.models.map((m) => m.confirmed)).toEqual(
     Array.from({ length: 12 }, (_, i) => i === 3),
   );
 
   // Neither page is read again as short on a day whose slice skips both.
-  const day = sweepDays(native, 600).find(
-    (candidate) =>
-      !sweep(native, candidate).includes(3) &&
-      !sweep(native, candidate).includes(5),
-  );
-  if (day === undefined)
-    throw new Error("Fixture needs a sweep day without M3 and M5");
-  const carried = await census(native, day, cold.terminal);
+  const day = 602;
+  if (sweep(native, day).includes(3) || sweep(native, day).includes(5))
+    throw new Error("Fixture needs a day 602 sweep without M3 and M5");
+  const carried = await census(native, day, confirming.terminal);
   expect(carried.models).toEqual(sweep(native, day));
   expect(carried.vins).toEqual(allVins(native));
   expect(carried.warnings.at(-1)).not.toContain("short");

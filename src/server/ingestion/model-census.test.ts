@@ -236,21 +236,30 @@ describe("ModelCensus", () => {
     );
   });
 
-  test("a short page confirmed in-run carries, and keeps its confirmation", () => {
+  test("a cold run confirms nothing; a short page confirmed by an incremental run carries", () => {
     const models = controls(12, 10);
     const listed = new Map([["model-2", 3]]);
+    // A cold run is judged on the badge floor alone, so even an identical
+    // closing re-read does not confirm its short page.
     const cold = run(models, null, 100, undefined, {
       listed,
       shortPages: "confirmed",
     });
-    expect(cold.census.models[2]?.confirmed).toBe(true);
+    expect(cold.census.models.some((m) => m.confirmed)).toBe(false);
+    // The next incremental run reads it again (short) and confirms it.
+    const first = run(models, cold.census, 101, undefined, {
+      listed,
+      shortPages: "confirmed",
+    });
+    expect(first.decisions[2]).toEqual({ kind: "read", reason: "short" });
+    expect(first.census.models[2]?.confirmed).toBe(true);
     // Full pages are never marked confirmed.
-    expect(cold.census.models[3]?.confirmed).toBe(false);
-    // Daily runs carry it with its confirmation until its own sweep re-reads
-    // and confirms it again.
-    let census = cold.census;
+    expect(first.census.models[3]?.confirmed).toBe(false);
+    // Later daily runs carry it with its confirmation until its own sweep
+    // re-reads and confirms it again.
+    let census = first.census;
     let carried = 0;
-    for (let day = 101; day <= 105; day++) {
+    for (let day = 102; day <= 106; day++) {
       const next = run(models, census, day, undefined, {
         listed,
         shortPages: "confirmed",
@@ -262,39 +271,32 @@ describe("ModelCensus", () => {
     expect(carried).toBeGreaterThan(0);
   });
 
-  test("a gap reads every model; only an outage-length gap confirms nothing", () => {
+  test("a gap run confirms nothing, so a fault on the day after a failure heals the next day", () => {
     // Accepted daily to day 110. Day 111 is missed (or rejected), so day 112
-    // reads every page again. Its closing confirmations count, because the
-    // replay floor judged it against the day 110 census.
+    // reads every page again. A fault confined to that day lists model-2 short
+    // (passing both floors) and its closing re-read repeats it. It must not be
+    // stored as confirmed: the next run reads it again and heals it.
     const models = controls(12, 10);
-    const listed = new Map([["model-2", 3]]);
     let census = run(models, null, 100).census;
     for (let day = 101; day <= 110; day++)
       census = run(models, census, day).census;
-    const same = run(models, census, 110);
-    expect(same.decisions.some((d) => d.kind === "carry")).toBe(true);
-    const next = run(models, census, 111);
-    expect(next.decisions.some((d) => d.kind === "carry")).toBe(true);
     const gap = run(models, census, 112, undefined, {
-      listed,
+      listed: new Map([["model-2", 3]]),
       shortPages: "confirmed",
     });
     expect(
       gap.decisions.every((d) => d.kind === "read" && d.reason === "gap"),
     ).toBe(true);
-    expect(gap.census.models[2]?.confirmed).toBe(true);
-    // So the next incremental run does not re-read it for being short.
-    expect(run(models, gap.census, 113).decisions[2]).not.toEqual({
-      kind: "read",
-      reason: "short",
-    });
-    // After a six-day outage the run is judged on the badge floor alone, so a
-    // short page it reads is not confirmed and the next run reads it again.
+    expect(gap.census.models.some((m) => m.confirmed)).toBe(false);
+    const healed = run(models, gap.census, 113);
+    expect(healed.decisions[2]).toEqual({ kind: "read", reason: "short" });
+    expect(healed.census.models[2]?.page).toBe(page("model-2", 113, 10));
+    // The same holds after an outage of six or more days.
     const outage = run(models, census, 116, undefined, {
-      listed,
+      listed: new Map([["model-2", 3]]),
       shortPages: "confirmed",
     });
-    expect(outage.census.models[2]?.confirmed).toBe(false);
+    expect(outage.census.models.some((m) => m.confirmed)).toBe(false);
     expect(run(models, outage.census, 117).decisions[2]).toEqual({
       kind: "read",
       reason: "short",

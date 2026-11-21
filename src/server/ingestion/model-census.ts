@@ -12,16 +12,15 @@ import { z } from "zod";
  * Incremental reading needs an accepted census from today or the previous run
  * day. After a missed, failed or rejected run (a gap of more than one day),
  * every model page is read again (reason `gap`), so a fault that caused a
- * rejection is re-read in full and cannot hide behind carried pages. A short
- * page confirmed at closing in such a run counts as confirmed only while the
- * replay floor judged the run (gap under six days); after a longer outage no
- * short page is stored as confirmed.
+ * rejection is re-read in full and cannot hide behind carried pages. Only a
+ * normal incremental run confirms short pages: a cold, gap or outage run
+ * stores none as confirmed, so the next run reads them again.
  *
  * A model's expected card count is its published count plus any surplus its
  * previous accepted page listed above that page's own count (some pages list
  * placeholders or surplus rows). A page with fewer cards than its published
- * count is carried only when the run that read it confirmed it with an
- * identical re-read. Any other page below its expected count (an unconfirmed
+ * count is carried only when a normal incremental run read it and confirmed
+ * it with an identical re-read. Any other page below its expected count (an unconfirmed
  * short page, or a surplus page that lost cards without its count dropping)
  * is read again on the next run, so a transient short read is never carried.
  * `closingReads` names the pages a connector's closing must re-read for that
@@ -325,8 +324,10 @@ export const ModelCensus = {
 
   /** Terminal census for the next run: fresh reads are dated today, carried
    * evidence keeps its original read day, expectation and confirmation. A page
-   * read today below its published count counts as confirmed only when the
-   * connector's closing re-read it identically (`shortPages: "confirmed"`). A
+   * read today below its published count counts as confirmed only when this
+   * is a normal incremental run (an accepted census from today or the previous
+   * run day) and the connector's closing re-read it identically
+   * (`shortPages: "confirmed"`). A
    * page that only fell below a higher previous card count is never confirmed:
    * a real change and a transient drop look alike, so the next run re-reads it. */
   accept<Page>(
@@ -344,15 +345,15 @@ export const ModelCensus = {
         `Model census cannot close: ${pages.length} pages and ${decisions.length} decisions for ${controls.length} published models`,
       );
     const wanted = expected(controls, previous, cards);
-    // Closing confirmations count whenever this run was judged by the replay
-    // floor (any run within six days of the last accepted census, including a
-    // full read after a gap): it met the same bar against the last accepted
-    // census that every incremental run meets. After a longer outage the run
-    // is judged on the badge floor alone, so it confirms nothing and the next
-    // run reads its short pages again.
+    // Only a normal incremental run (an accepted census from today or the
+    // previous run day) confirms short pages. Cold, gap and outage runs read
+    // every page, so a fault confined to that one day would otherwise pass
+    // both floors, be stored as confirmed and be carried for days, past the
+    // 72-hour delete window. Their short pages are read again the next run.
     const confirming =
       shortPages === "confirmed" &&
-      (previous === null || today - previous.day < MODEL_CENSUS_SWEEP_DAYS);
+      previous !== null &&
+      today - previous.day <= 1;
     return {
       contract,
       day: today,
