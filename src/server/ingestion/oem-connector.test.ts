@@ -272,6 +272,24 @@ describe("OEM resumable native traversal", () => {
       firstRead.replace("1FTMF1KP0RKE76038", "1FTMF1KP0RKE76039"),
       // The placeholder dropped, which changes the page's card count.
       firstRead.replace(placeholder("2013"), ""),
+      // The placeholder gains a VIN while the card count stays the same.
+      firstRead.replace(
+        placeholder("2013"),
+        placeholder("2013").replace(
+          "<b>Vin :</b> <br>",
+          "<b>Vin :</b> 1FTMF1KP0RK999999<br>",
+        ),
+      ),
+      // A VIN-bearing donor loses its VIN while the card count stays the same.
+      firstRead.replace("1FTMF1KP0RKE76038", ""),
+      // A VIN-bearing donor added.
+      firstRead.replace(
+        placeholder("2013"),
+        oemDonorExcerpt
+          .replaceAll("10563", "30000")
+          .replaceAll("1FTMF1KP0RKE76038", "1FTMF1KP0RK777777") +
+          placeholder("2013"),
+      ),
     ]) {
       const drifted = run(closingRead);
       await expect(drifted.outcome).rejects.toThrow(
