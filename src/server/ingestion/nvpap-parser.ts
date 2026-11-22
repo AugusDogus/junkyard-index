@@ -114,7 +114,7 @@ export function parseNvpapPage(
     throw new Error("Nevada inventory HTML and JSON row counts disagree");
   const expectedStore = yardCode === "1074" ? "Las Vegas" : "Henderson";
   const records = data.search_results.map(
-    ([make, model, sourceYear, vin, , store], index) => {
+    ([make, model, sourceYear, vin, unlabeled, store], index) => {
       const chunk = chunks[index];
       if (
         !chunk ||
@@ -125,17 +125,18 @@ export function parseNvpapPage(
         throw new Error(
           "Nevada inventory row identity is missing or reordered",
         );
-      const cell = (name: string, absentValue?: "") => {
-        const matches = [
-          ...chunk.matchAll(
-            new RegExp(
-              '<div class="products-body-search__' +
-                name +
-                '">([\\s\\S]*?)</div>',
-              "g",
-            ),
+      const cellMatches = (name: string) => [
+        ...chunk.matchAll(
+          new RegExp(
+            '<div class="products-body-search__' +
+              name +
+              '">([\\s\\S]*?)</div>',
+            "g",
           ),
-        ];
+        ),
+      ];
+      const cell = (name: string, absentValue?: "") => {
+        const matches = cellMatches(name);
         const value = matches[0]?.[1];
         if (matches.length === 0 && absentValue !== undefined)
           return absentValue;
@@ -151,20 +152,43 @@ export function parseNvpapPage(
       // Native stock identifies yard ownership and broad/year control parity.
       // Its optional display contract does not relax this traversal identity.
       const stock = cell("stock");
-      if (
-        store !== Number(yardCode) ||
-        (year !== 0 && sourceYear !== year) ||
-        vins.length !== 1 ||
-        vins[0]?.trim().toUpperCase() !== vin.trim().toUpperCase() ||
-        cell("year") !== String(sourceYear) ||
-        cell("model").toLowerCase() !== (make + " " + model).toLowerCase() ||
-        cell("store") !== expectedStore ||
-        !/^[LH]\d{6}$/.test(stock) ||
-        !stock.startsWith(yardCode === "1074" ? "L" : "H")
-      )
+      // Checks run lazily in order, so a later cell is read only after every
+      // earlier check holds.
+      const checks: readonly (readonly [string, () => boolean])[] = [
+        ["JSON store id", () => store === Number(yardCode)],
+        ["requested year", () => year === 0 || sourceYear === year],
+        ["VIN button count", () => vins.length === 1],
+        [
+          "VIN button value",
+          () => vins[0]?.trim().toUpperCase() === vin.trim().toUpperCase(),
+        ],
+        ["year cell", () => cell("year") === String(sourceYear)],
+        [
+          "model cell",
+          () =>
+            cell("model").toLowerCase() === (make + " " + model).toLowerCase(),
+        ],
+        ["store cell", () => cell("store") === expectedStore],
+        ["stock format", () => /^[LH]\d{6}$/.test(stock)],
+        [
+          "stock yard prefix",
+          () => stock.startsWith(yardCode === "1074" ? "L" : "H"),
+        ],
+      ];
+      const failed = checks.find(([, holds]) => !holds());
+      if (failed) {
+        // Raw cell markup avoids a second decoding failure hiding this one.
+        const raw = (name: string) =>
+          JSON.stringify(
+            cellMatches(name).map((match) => (match[1] ?? "").slice(0, 200)),
+          );
         throw new Error(
-          "Nevada inventory has contradictory yard, year, VIN, stock or model identity",
+          `Nevada inventory has contradictory yard, year, VIN, stock or model identity: row ${index} failed the ${failed[0]} check for store ${yardCode}, expecting ${expectedStore} and ${year === 0 ? "any year" : "year " + year}. ` +
+            `JSON ${JSON.stringify({ make, model, year: sourceYear, vin, unlabeled, store })}; HTML cells stock ${raw("stock")}, year ${raw("year")}, model ${raw("model")}, store ${raw("store")}, VIN buttons ${JSON.stringify(vins)}. ` +
+            "The whole page is rejected and the source run fails, so previously published Nevada inventory and the last validated checkpoint are preserved. " +
+            "Compare this row with the native vehicle-stock response for the same store and year to decide whether the source data or the parser contract changed.",
         );
+      }
       return {
         make: make.trim(),
         model: model.trim(),
