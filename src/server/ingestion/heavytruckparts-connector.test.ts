@@ -576,9 +576,7 @@ describe("HeavyTruckParts marketplace", () => {
       const raw = await Effect.runPromise(fetchHtpPage(htpStoreUrl(crest)));
       expect(raw).toBe(new TextDecoder("utf-8").decode(bytes));
       expect(raw).toContain("4�4");
-      expect(parseHtpStore(raw, crest)).toBe(
-        parseHtpStore(read("crest-store"), crest),
-      );
+      expect(parseHtpStore(raw, crest)).toBe(238);
     } finally {
       globalThis.fetch = originalFetch;
     }

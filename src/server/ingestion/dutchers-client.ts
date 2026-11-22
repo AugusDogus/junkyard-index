@@ -40,7 +40,7 @@ export function fetchDutchersPage(url: string, gate: ProviderRequestGate) {
         cause: "URL is outside the exact Dutcher owner/store controls",
       }),
     );
-  return fetchHeavyTruckPartsPage(url, gate, "Dutcher").pipe(
+  return fetchHeavyTruckPartsPage(url, gate, "Dutcher", "utf-8-fatal").pipe(
     Effect.mapError(
       (cause) => new DutchersProviderError({ operation: url, cause }),
     ),
