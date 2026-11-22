@@ -18,10 +18,15 @@ export class CitymotorsProviderError extends Data.TaggedError(
     return `City Motors ${this.operation}: ${detail}. No advanced checkpoint was accepted; prior inventory is preserved. Inspect the native source and resume from the last validated checkpoint.`;
   }
 }
+/**
+ * Per-GET budget for headers, body and the combined deadline. The origin can
+ * take 12 to 14 seconds to first byte, so 20 seconds left too little headroom.
+ */
+export const CITYMOTORS_REQUEST_BUDGET_MS = 45_000;
 export function fetchCitymotorsPage(url: string, gate: ProviderRequestGate) {
   return gate(
     Effect.suspend(() => {
-      const deadline = AbortSignal.timeout(20_000);
+      const deadline = AbortSignal.timeout(CITYMOTORS_REQUEST_BUDGET_MS);
       return Effect.gen(function* () {
         if (citymotorsCatalogPage(url) === null && !isCitymotorsDonorUrl(url))
           return yield* Effect.fail(
@@ -35,7 +40,7 @@ export function fetchCitymotorsPage(url: string, gate: ProviderRequestGate) {
           context: "City Motors " + url,
           redirect: "manual",
           retry: {
-            timeoutMs: 20_000,
+            timeoutMs: CITYMOTORS_REQUEST_BUDGET_MS,
             retryLimit: 0,
             retryNetworkErrors: false,
           },
@@ -75,10 +80,10 @@ export function fetchCitymotorsPage(url: string, gate: ProviderRequestGate) {
         return raw;
       }).pipe(
         Effect.timeoutFail({
-          duration: "20 seconds",
+          duration: CITYMOTORS_REQUEST_BUDGET_MS,
           onTimeout: () =>
             new Error(
-              "Combined City Motors request/body deadline exceeded 20 seconds",
+              `Combined City Motors request/body deadline exceeded ${CITYMOTORS_REQUEST_BUDGET_MS / 1000} seconds`,
             ),
         }),
       );

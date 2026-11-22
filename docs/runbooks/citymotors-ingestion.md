@@ -62,9 +62,11 @@ engine, trim and transmission remain null. Optional fields never repair identity
 
 `streamCitymotorsInventory` and `streamCitymotorsInventoryWithRequestGate` accept
 `startCursor`, `maxPages`, `onBatch` and optional `onYards`. One request unit is
-one serial native GET. Default chunk size is eight, with a 32-request ceiling.
-The qualified census needs 203 GETs: six opening pages, 191 details, six closing
-pages. An eight-request replay completes in 26 chunks.
+one serial native GET. The connector default is eight, with a 32-request
+ceiling. Durable ingestion runs three GETs per chunk so three worst-case
+requests fit the three-minute chunk limit and catalog progress is checkpointed
+every three pages. The qualified census needs 203 GETs: six opening pages, 191
+details, six closing pages. A three-request chunking completes in 68 chunks.
 
 The cursor phases are `catalog`, `details`, `closing` and `complete`. Contiguous
 literal page links, page numbers, complete card counts, unique destinations,
@@ -80,10 +82,13 @@ pass. A failed request, parser, guard or callback returns no advanced checkpoint
 Prior accepted inventory remains preserved. A complete cursor performs no HTTP
 or callbacks when replayed.
 
-Requests use normal HTTPS, manual redirects, no retries, a combined 20-second
-request/body deadline and a 2 MiB document limit. Responses must be complete,
-unredirected HTTP 200 HTML, without content ranges. The entire chunk has a
-three-minute limit. A 1,600 ms finalizer delay follows success and failure,
+Requests use normal HTTPS, manual redirects, no retries, a combined 45-second
+request/body deadline and a 2 MiB document limit. The origin can take 12 to 14
+seconds to first byte, so the earlier 20-second budget failed whole chunks.
+Responses must be complete, unredirected HTTP 200 HTML, without content ranges.
+The entire chunk has a three-minute limit. Before each GET the connector pauses
+at the current checkpoint unless one full request budget plus its 1,600 ms gap
+still fits that limit. A 1,600 ms finalizer delay follows success and failure,
 including serialized chunk boundaries. No images, scripts, carts or forms are
 requested.
 
