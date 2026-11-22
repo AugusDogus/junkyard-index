@@ -50,7 +50,7 @@ export function hollanderstoresCensusError(
   });
   const firstChange = fieldChanges[0];
   const fieldPart = firstChange
-    ? `${fieldChanges.length} surviving vehicles changed fields, first ${firstChange.before.url} changed ` +
+    ? `${fieldChanges.length} surviving ${fieldChanges.length === 1 ? "vehicle" : "vehicles"} changed fields, first ${firstChange.before.url} changed ` +
       firstChange.fields
         .map(
           (field) =>
@@ -61,10 +61,13 @@ export function hollanderstoresCensusError(
   const position = openingSurvivors.findIndex(
     (row, index) => row.url !== closingSurvivors[index]?.url,
   );
+  const openingAt = openingSurvivors[position];
+  const closingAt = closingSurvivors[position];
+  // Stock and VIN show whether a reorder only swapped cards sharing a stock.
   const orderPart =
-    position === -1
+    !openingAt || !closingAt
       ? "relative order is unchanged"
-      : `order changed, first at surviving position ${position}: opening has ${openingSurvivors[position]?.url}, closing has ${closingSurvivors[position]?.url}`;
+      : `order changed, first at surviving position ${position}: opening has ${openingAt.url} (stock ${JSON.stringify(openingAt.stock)}, VIN ${JSON.stringify(openingAt.vin)}), closing has ${closingAt.url} (stock ${JSON.stringify(closingAt.stock)}, VIN ${JSON.stringify(closingAt.vin)}), ${openingAt.stock === closingAt.stock ? "same stock" : "different stocks"}`;
   const differing = openingSurvivors.filter(
     (row, index) =>
       JSON.stringify(row) !== JSON.stringify(closingSurvivors[index]),

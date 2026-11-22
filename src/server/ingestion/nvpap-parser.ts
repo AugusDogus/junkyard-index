@@ -178,15 +178,15 @@ export function parseNvpapPage(
       const failed = checks.find(([, holds]) => !holds());
       if (failed) {
         // Raw cell markup avoids a second decoding failure hiding this one.
-        const raw = (name: string) =>
+        const rawCells = (name: string) =>
           JSON.stringify(
             cellMatches(name).map((match) => (match[1] ?? "").slice(0, 200)),
           );
         throw new Error(
           `Nevada inventory has contradictory yard, year, VIN, stock or model identity: row ${index} failed the ${failed[0]} check for store ${yardCode}, expecting ${expectedStore} and ${year === 0 ? "any year" : "year " + year}. ` +
-            `JSON ${JSON.stringify({ make, model, year: sourceYear, vin, unlabeled, store })}; HTML cells stock ${raw("stock")}, year ${raw("year")}, model ${raw("model")}, store ${raw("store")}, VIN buttons ${JSON.stringify(vins)}. ` +
+            `JSON ${JSON.stringify({ make, model, year: sourceYear, vin, unlabeled, store })}; HTML cells stock ${rawCells("stock")}, year ${rawCells("year")}, model ${rawCells("model")}, store ${rawCells("store")}, VIN buttons ${JSON.stringify(vins)}. ` +
             "The whole page is rejected and the source run fails, so previously published Nevada inventory and the last validated checkpoint are preserved. " +
-            "Compare this row with the native vehicle-stock response for the same store and year to decide whether the source data or the parser contract changed.",
+            `Re-POST /wp-json/pt1/v1/vehicle-stock for store ${yardCode} and years=${year} to see whether this row persists, then decide whether the source data or the parser contract changed.`,
         );
       }
       return {
