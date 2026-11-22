@@ -14,6 +14,8 @@ import {
   MICHIGANTRUCK_SALVAGE,
 } from "./michigantruck-yard-metadata";
 import type { MichigantruckRecord } from "./michigantruck-record";
+import { MICHIGANTRUCK_MAX_PAGES } from "./michigantruck-parser";
+import { DURABLE_SOURCE_DEFINITIONS } from "./durable-source";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
@@ -300,4 +302,10 @@ test("Michigan Truck invalid budgets make no requests and HTTP denial is never r
     ),
   ).rejects.toThrow("403");
   expect(calls).toBe(1);
+});
+
+test("Michigan Truck reads the whole native catalog in one chunk, so a run opens one browser session", () => {
+  expect(DURABLE_SOURCE_DEFINITIONS.michigantruck.maxPagesPerChunk).toBe(
+    MICHIGANTRUCK_MAX_PAGES,
+  );
 });
