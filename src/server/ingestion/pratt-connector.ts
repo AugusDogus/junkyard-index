@@ -14,7 +14,10 @@ import type { PrattCanonicalVehicle } from "./pratt-transform";
 import { PRATT_UNREACHABLE_MODEL_ROUTES } from "./pratt-configuration";
 import { IisModelRoute } from "./iis-model-route";
 import { validationRejection } from "./ingestion-validation";
-import { ProviderChunkClock } from "./provider-chunk-clock";
+import {
+  ProviderChunkClock,
+  type ProviderTurnDeferred,
+} from "./provider-chunk-clock";
 import { sharedProviderHostTurn } from "./shared-provider-host";
 
 export interface PrattOptions<E, R> {
@@ -23,8 +26,11 @@ export interface PrattOptions<E, R> {
   startCursor?: unknown;
   maxPages?: number;
   /** Inject a complete bounded owned HTTP200 document, or a saved test fixture.
-   * Supplying a reader keeps pure saved replay independent from live transport. */
-  readPage: (url: string) => Effect.Effect<string, PrattError>;
+   * Supplying a reader keeps pure saved replay independent from live transport.
+   * A deferred read ends an advanced chunk at its last validated checkpoint. */
+  readPage: (
+    url: string,
+  ) => Effect.Effect<string, PrattError | ProviderTurnDeferred>;
   onBatch: (vehicles: PrattCanonicalVehicle[]) => Effect.Effect<void, E, R>;
   onYards?: (yards: PrattYard[]) => Effect.Effect<void, E, R>;
 }

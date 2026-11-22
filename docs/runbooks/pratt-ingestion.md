@@ -49,10 +49,17 @@ graph and emits only after complete-source validation. Durable validation also
 requires an explicit complete cursor. Initial and tampered cursors cannot
 authorize reconciliation.
 
-Each chunk permits at most eight requests and three minutes. Requests use a
-combined 20-second request/body deadline, complete owned HTTP 200 HTML, a 2 MiB
-body limit, manual redirects and no automatic retries. A shared serial gate
-preserves a 1.6-second completion gap across chunks. Whole runs permit at most
+Each chunk permits at most eight pages and three minutes of work. Requests use
+a combined 20-second request/body deadline, complete owned HTTP 200 HTML, a
+2 MiB body limit and manual redirects. The shared Pratt and Lambert server
+intermittently answers HTTP 5xx, drops connections or stalls, so a page that
+fails that way gets two more attempts, 5 then 10 seconds apart. Redirects, 4xx,
+partial content, wrong MIME and body or parse failures are never retried, and a
+page that fails all three attempts still fails the run. An attempt that could
+not end within the chunk's remaining work allowance is not sent: a chunk that
+already advanced returns its last validated checkpoint and the next chunk
+retries the page. A shared serial gate preserves a 1.6-second completion gap
+across chunks and attempts. Whole runs permit at most
 1,024 requests and 128 MiB, reserving one maximum-sized document before each
 request. Validated serialized cursors are capped at 8 MiB and bind the exact
 qualification contract, native control prefix and retained evidence.
