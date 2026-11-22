@@ -2,7 +2,10 @@ import { ingestionValidation } from "./ingestion-validation";
 import { Effect } from "effect";
 import type { Yard } from "~/lib/yard";
 import type { ProviderRequestGate } from "./provider-http-client";
-import { fetchHeavyTruckPartsPage } from "./heavytruckparts-client";
+import {
+  fetchHeavyTruckPartsPage,
+  HTP_TEXT_DECODING,
+} from "./heavytruckparts-client";
 import {
   HeavytruckpartsCursor,
   htpNextFill,
@@ -71,7 +74,7 @@ export function fetchHtpPage(url: string, gate: ProviderRequestGate = pass) {
         "URL is outside configured supplier/store controls",
       ),
     );
-  return fetchHeavyTruckPartsPage(url, gate, "HTP").pipe(
+  return fetchHeavyTruckPartsPage(url, gate, "HTP", HTP_TEXT_DECODING).pipe(
     Effect.mapError((cause) => new HeavytruckpartsProviderError(url, cause)),
   );
 }

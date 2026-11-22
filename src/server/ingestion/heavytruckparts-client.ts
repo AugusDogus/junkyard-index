@@ -9,9 +9,9 @@ import {
   type ProviderRequestGate,
 } from "./provider-http-client";
 
-// Pages declare UTF-8 but carry stray windows-1252 bytes, such as 0xD7 in
+// HTP pages declare UTF-8 but carry stray windows-1252 bytes, such as 0xD7 in
 // Crest's "4x4" description. Completeness rests on the census guards, not on
-// rejecting a malformed character.
+// rejecting a malformed character. Dutcher and C&S stay strict.
 export const HTP_TEXT_DECODING: ResponseTextDecoding = "utf-8-replace";
 // All three sources share this local gate and the deployed Redis host lease.
 const serial = Effect.runSync(Effect.makeSemaphore(1));
@@ -21,6 +21,7 @@ export function fetchHeavyTruckPartsPage(
   url: string,
   gate: ProviderRequestGate,
   label: string,
+  decoding: ResponseTextDecoding,
 ) {
   return heavyTruckPartsRequestGate(
     gate(
@@ -67,7 +68,7 @@ export function fetchHeavyTruckPartsPage(
               label + " inventory",
               AbortSignal.timeout(25_000),
               2 * 1024 * 1024,
-              HTP_TEXT_DECODING,
+              decoding,
             ),
           catch: (cause) => cause,
         });

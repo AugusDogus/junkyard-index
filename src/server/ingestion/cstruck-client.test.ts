@@ -110,6 +110,41 @@ test.each([
   },
 );
 
+test("only HTP replaces stray windows-1252 bytes; Dutcher and C&S stay strict", async () => {
+  const fetcher = spyOn(globalThis, "fetch").mockImplementation(
+    Object.assign(
+      async () =>
+        new Response(new Uint8Array([0x34, 0xd7, 0x34]), {
+          headers: { "Content-Type": "text/html" },
+        }),
+      { preconnect: globalThis.fetch.preconnect },
+    ),
+  );
+  try {
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const cstruck = yield* Effect.fork(
+          Effect.either(fetchCstruckPage(CSTRUCK_STORE)),
+        );
+        const dutchers = yield* Effect.fork(
+          Effect.either(fetchDutchersPage(DUTCHERS_STORE, pass)),
+        );
+        const htp = yield* Effect.fork(
+          Effect.either(fetchHtpPage(htpStoreUrl(HTP_SUPPLIERS[0]))),
+        );
+        yield* TestClock.adjust("12 seconds");
+        expect((yield* Fiber.join(cstruck))._tag).toBe("Left");
+        expect((yield* Fiber.join(dutchers))._tag).toBe("Left");
+        const result = yield* Fiber.join(htp);
+        expect(result._tag === "Right" && result.right).toBe("4�4");
+        expect(fetcher).toHaveBeenCalledTimes(3);
+      }).pipe(Effect.provide(TestContext.TestContext)),
+    );
+  } finally {
+    fetcher.mockRestore();
+  }
+});
+
 test.each([1, 2, 15])(
   "HTTP allowlist accepts exact unfiltered native page %i",
   async (page) => {

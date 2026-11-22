@@ -53,7 +53,7 @@ export function fetchCstruckPage(
         "URL is outside exact supplier/store year controls",
       ),
     );
-  return fetchHeavyTruckPartsPage(url, gate, "C&S").pipe(
+  return fetchHeavyTruckPartsPage(url, gate, "C&S", "utf-8-fatal").pipe(
     Effect.mapError((cause) => new CstruckProviderError(url, cause)),
   );
 }
