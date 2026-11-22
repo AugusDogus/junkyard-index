@@ -341,3 +341,58 @@ test("Pratt completes a full crawl when every request waits two minutes for a sh
   expect(run.requests).toHaveLength(5);
   expect(run.batches).toHaveLength(1);
 }, 120_000);
+
+test("Pratt retries a transient failure and returns its checkpoint before slow pages outrun the work deadline", async () => {
+  // Production on 2026-11-22: the shared server answered HTTP 500 on one page
+  // of about 520 and pages took up to 20 seconds. One failure used to fail the
+  // run; retries must not push the chunk past its three-minute work deadline.
+  const run = harness();
+  let makesAttempts = 0;
+  globalThis.fetch = Object.assign(
+    async (input: string | URL | Request) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+      run.requests.push(url);
+      if (url === PRATT_MAKES && ++makesAttempts < 3)
+        return new Response("busy", { status: 503 });
+      const body = run.documents.get(url);
+      if (body === undefined)
+        throw new Error("Unexpected fixture request " + url);
+      return new Response(body, { headers: { "content-type": "text/html" } });
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  const first = await runWithQueuedHost(
+    streamPrattInventoryFromProvider({ ...run.options, maxPages: 8 }),
+    { turnWaitMs: 0, requestMs: () => 19_000 },
+  );
+  if (Either.isLeft(first.result)) throw first.result.left;
+  expect(first.result.right.status).toBe("paused");
+  expect(first.result.right.pagesProcessed).toBe(4);
+  expect(makesAttempts).toBe(3);
+  expect(run.batches).toEqual([]);
+  const wire = PrattCursor.serialize(
+    first.result.right.cursor,
+    prattFixtureContract,
+  );
+  if (!wire.ok) throw new Error(wire.error.message);
+  const resumed = PrattCursor.fromWire(wire.value, prattFixtureContract);
+  if (!resumed.ok) throw new Error(resumed.error.message);
+  const second = await runWithQueuedHost(
+    streamPrattInventoryFromProvider({
+      ...run.options,
+      startCursor: resumed.value,
+      maxPages: 8,
+    }),
+    { turnWaitMs: 0, requestMs: () => 19_000 },
+  );
+  if (Either.isLeft(second.result)) throw second.result.left;
+  expect(second.result.right.status).toBe("complete");
+  expect(second.result.right.count).toBe(61);
+  expect(run.requests).toHaveLength(7);
+  expect(run.batches).toHaveLength(1);
+}, 120_000);

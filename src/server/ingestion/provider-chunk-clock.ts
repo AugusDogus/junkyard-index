@@ -62,21 +62,26 @@ export class ProviderChunkWallTimeout extends Data.TaggedError(
 
 /**
  * A shared host turn could not arrive and finish its requests before the
- * chunk's turn horizon. Nothing from the deferred turn was accepted. A chunk
- * that already advanced returns its validated checkpoint instead
- * (`ProviderChunkClock.unlessDeferred`); a chunk that has not is deferred as a
- * whole and the source retries the same cursor.
+ * chunk's turn horizon, or a request could not end within the chunk's work
+ * allowance (`allowance`, see `ProviderChunkClock.workFits`). Nothing from the
+ * deferred turn or request was accepted. A chunk that already advanced returns
+ * its validated checkpoint instead (`ProviderChunkClock.unlessDeferred`); a
+ * chunk that has not is deferred as a whole and the source retries the same
+ * cursor.
  */
 export class ProviderTurnDeferred extends Data.TaggedError(
   "ProviderTurnDeferred",
 )<{
   host: string;
-  stage: "wait" | "work";
+  stage: "wait" | "work" | "allowance";
   elapsedMs: number;
   queuedMs: number;
 }> {
   override get message() {
-    return `${this.host} shared host turn ${this.stage === "wait" ? "did not arrive" : "did not finish"} before this chunk's ${Duration.format(PROVIDER_CHUNK_WALL_LIMIT)} step allowance (${Math.round(this.elapsedMs / 1000)} s elapsed, ${Math.round(this.queuedMs / 1000)} s queued). The queue is too deep for another turn in this step, so nothing from that turn was accepted and the last validated checkpoint is preserved.`;
+    const time = `${Math.round(this.elapsedMs / 1000)} s elapsed, ${Math.round(this.queuedMs / 1000)} s queued`;
+    if (this.stage === "allowance")
+      return `${this.host} request was not sent because it could not end within this chunk's remaining work allowance (${time}). Nothing from it was accepted and the last validated checkpoint is preserved; the next chunk sends it.`;
+    return `${this.host} shared host turn ${this.stage === "wait" ? "did not arrive" : "did not finish"} before this chunk's ${Duration.format(PROVIDER_CHUNK_WALL_LIMIT)} step allowance (${time}). The queue is too deep for another turn in this step, so nothing from that turn was accepted and the last validated checkpoint is preserved.`;
   }
 }
 
@@ -220,8 +225,25 @@ export const ProviderChunkClock = {
       }),
     ),
 
+  /** Whether work taking up to `ms` from now ends within the chunk's work
+   * deadline, which excludes time queued for shared host turns. A request
+   * that would otherwise fail the chunk at that deadline checks this first and
+   * defers with stage `allowance` instead. Outside a chunk deadline everything
+   * fits. */
+  workFits: (ms: number): Effect.Effect<boolean> =>
+    Effect.flatMap(FiberRef.get(CurrentChunkClock), (clock) =>
+      clock === null
+        ? Effect.succeed(true)
+        : Effect.map(
+            Clock.currentTimeMillis,
+            (now) =>
+              now - clock.startedAt - queuedMs(clock, now) + ms <=
+              clock.workLimitMs,
+          ),
+    ),
+
   /** A deferral describing the current chunk's elapsed and queued time. */
-  deferred: (host: string, stage: "wait" | "work") =>
+  deferred: (host: string, stage: ProviderTurnDeferred["stage"]) =>
     Effect.flatMap(FiberRef.get(CurrentChunkClock), (clock) =>
       Effect.map(
         Clock.currentTimeMillis,

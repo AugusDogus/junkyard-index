@@ -1,12 +1,17 @@
 import { afterEach, expect, test } from "bun:test";
-import { Clock, Effect, Fiber, TestClock, TestContext } from "effect";
+import { Clock, Effect, Either, Fiber, TestClock, TestContext } from "effect";
 import type { ProviderRequestGate } from "./provider-http-client";
 import {
   PRATT_MAX_BODY_BYTES,
+  PRATT_REQUEST_ATTEMPTS,
   prattRequestGate,
   readPrattPage,
 } from "./pratt-client";
 import { PRATT_ORIGIN } from "./pratt-html";
+import {
+  ProviderChunkClock,
+  ProviderTurnDeferred,
+} from "./provider-chunk-clock";
 
 const originalFetch = globalThis.fetch;
 const direct: ProviderRequestGate = (request) => request;
@@ -14,6 +19,27 @@ const url = PRATT_ORIGIN + "/parts/LEXUS/LEXUS_LS460/";
 afterEach(() => {
   globalThis.fetch = originalFetch;
 });
+/** Runs `effect` on the test clock in 1-second steps, letting resolved
+ * promises settle before time moves on. `tick` sees each new clock time
+ * before the fibers it wakes run. */
+function onTestClock<A, E>(
+  effect: Effect.Effect<A, E>,
+  tick: (ms: number) => void = () => undefined,
+) {
+  return Effect.runPromise(
+    Effect.gen(function* () {
+      const fiber = yield* Effect.fork(Effect.either(effect));
+      while (fiber.unsafePoll() === null) {
+        yield* Effect.promise(
+          () => new Promise<void>((resolve) => setImmediate(resolve)),
+        );
+        tick((yield* Clock.currentTimeMillis) + 1000);
+        yield* TestClock.adjust("1 second");
+      }
+      return yield* Fiber.join(fiber);
+    }).pipe(Effect.provide(TestContext.TestContext)),
+  );
+}
 function stub(
   run: (url: string, options: RequestInit | undefined) => Promise<Response>,
 ) {
@@ -120,9 +146,9 @@ test("Pratt adapter enforces exact body completion and its 2 MiB streaming cap",
     expect(response.body?.locked).toBe(false);
   }
 });
-test("Pratt request/body timeout aborts the one in-flight request and performs no retry", async () => {
+test("Pratt request/body timeout aborts each in-flight attempt and fails after three attempts", async () => {
   let calls = 0,
-    aborted = false;
+    aborted = 0;
   stub(async (_url, options) => {
     calls++;
     return new Promise<Response>((_resolve, reject) => {
@@ -134,50 +160,115 @@ test("Pratt request/body timeout aborts the one in-flight request and performs n
       signal.addEventListener(
         "abort",
         () => {
-          aborted = true;
+          aborted++;
           reject(signal.reason);
         },
         { once: true },
       );
     });
   });
-  const result = await Effect.runPromise(
-    Effect.gen(function* () {
-      const fiber = yield* Effect.fork(readPrattPage(url, direct));
-      yield* TestClock.adjust("20 seconds");
-      return yield* Effect.either(Fiber.join(fiber));
-    }).pipe(Effect.provide(TestContext.TestContext)),
-  );
+  const result = await onTestClock(readPrattPage(url, direct));
   expect(result._tag).toBe("Left");
-  expect(calls).toBe(1);
-  expect(aborted).toBe(true);
+  if (result._tag === "Left")
+    expect(result.left.message).toContain("deadline exceeded 20 seconds");
+  expect(calls).toBe(PRATT_REQUEST_ATTEMPTS);
+  expect(aborted).toBe(PRATT_REQUEST_ATTEMPTS);
 });
-test("Pratt body shares the request deadline and releases a stalled response reader", async () => {
-  let canceled = false,
-    calls = 0;
-  const response = new Response(
-    new ReadableStream<Uint8Array>({
-      cancel() {
-        canceled = true;
-      },
-    }),
-    { headers: { "content-type": "text/html" } },
-  );
+test("Pratt body shares the request deadline and releases each stalled response reader", async () => {
+  const responses: Response[] = [];
+  let canceled = 0;
   stub(async () => {
-    calls++;
+    const response = new Response(
+      new ReadableStream<Uint8Array>({
+        cancel() {
+          canceled++;
+        },
+      }),
+      { headers: { "content-type": "text/html" } },
+    );
+    responses.push(response);
     return response;
   });
-  const result = await Effect.runPromise(
-    Effect.gen(function* () {
-      const fiber = yield* Effect.fork(readPrattPage(url, direct));
-      yield* TestClock.adjust("20 seconds");
-      return yield* Effect.either(Fiber.join(fiber));
-    }).pipe(Effect.provide(TestContext.TestContext)),
-  );
+  const result = await onTestClock(readPrattPage(url, direct));
   expect(result._tag).toBe("Left");
-  expect(calls).toBe(1);
-  expect(canceled).toBe(true);
-  expect(response.body?.locked).toBe(false);
+  expect(responses).toHaveLength(PRATT_REQUEST_ATTEMPTS);
+  expect(canceled).toBe(PRATT_REQUEST_ATTEMPTS);
+  expect(responses.every((response) => !response.body?.locked)).toBe(true);
+});
+test("Pratt retries HTTP 5xx and failed fetches, 5 then 10 seconds apart, and accepts the next complete page", async () => {
+  const sent: number[] = [];
+  let now = 0;
+  const answers = [
+    () => new Response("busy", { status: 500 }),
+    () => {
+      throw new TypeError("fetch failed");
+    },
+    () =>
+      new Response("complete", { headers: { "content-type": "text/html" } }),
+  ];
+  stub(async () => {
+    const answer = answers[sent.length];
+    sent.push(now);
+    if (!answer) throw new Error("Unexpected extra attempt");
+    return answer();
+  });
+  const result = await onTestClock(readPrattPage(url, direct), (ms) => {
+    now = ms;
+  });
+  expect(result).toEqual(Either.right("complete"));
+  expect(sent).toEqual([0, 5_000, 15_000]);
+});
+test("Pratt fails after three transient attempts and preserves the last validated checkpoint", async () => {
+  let calls = 0;
+  stub(async () => {
+    calls++;
+    return new Response("unavailable", { status: 503 });
+  });
+  const result = await onTestClock(readPrattPage(url, direct));
+  expect(result._tag).toBe("Left");
+  if (result._tag === "Left") {
+    expect(result.left.message).toContain("received HTTP503");
+    expect(result.left.message).toContain("last validated checkpoint");
+  }
+  expect(calls).toBe(PRATT_REQUEST_ATTEMPTS);
+});
+test("Pratt fails closed on client errors without retry", async () => {
+  for (const status of [400, 403, 404, 429]) {
+    let calls = 0;
+    const response = new Response("refused", { status });
+    stub(async () => {
+      calls++;
+      return response;
+    });
+    const result = await onTestClock(readPrattPage(url, direct));
+    expect(result._tag).toBe("Left");
+    if (result._tag === "Left")
+      expect(result.left.message).toContain("received HTTP" + status);
+    expect(calls).toBe(1);
+    expect(response.body?.locked).toBe(false);
+  }
+});
+test("Pratt sends no attempt that could outlast the chunk's work deadline", async () => {
+  let calls = 0;
+  stub(async () => {
+    calls++;
+    return new Response("complete", {
+      headers: { "content-type": "text/html" },
+    });
+  });
+  const result = await onTestClock(
+    Effect.sleep("155 seconds").pipe(
+      Effect.andThen(readPrattPage(url, direct)),
+      ProviderChunkClock.deadline({
+        duration: "3 minutes",
+        onTimeout: () => new Error("work deadline"),
+      }),
+    ),
+  );
+  expect(Either.isLeft(result) && result.left).toBeInstanceOf(
+    ProviderTurnDeferred,
+  );
+  expect(calls).toBe(0);
 });
 test("Pratt shared request gate serializes callers and preserves the 1.6-second gap", async () => {
   const starts: number[] = [];
