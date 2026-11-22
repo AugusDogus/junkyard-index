@@ -26,6 +26,7 @@ import {
 } from "./pickapartva-test-fixtures";
 import type { PickapartvaCanonicalVehicle } from "./pickapartva-transform";
 import {
+  pickapartvaSearchTarget,
   pickapartvaSearchUrl,
   type PickapartvaSearchScope,
   type PickapartvaYardCode,
@@ -542,30 +543,368 @@ test("Pick-A-Part VA searches by yard without the unfiltered search when the cat
   expect(new Set(emitted).size).toBe(7440);
 }, 60_000);
 
-test("Pick-A-Part VA fails closed when a yard search for a capped date is still capped", async () => {
-  const fredericksburg = wrapped(captured).filter((card) =>
-    card.includes("<b>Location: </b> Fredericksburg<"),
+// The live November 22 searches for 2026-11-16 in Fredericksburg: the yard
+// search capped at 500 cards, then the FORD, LAND ROVER and empty DE SOTO
+// make searches.
+const makeLive = z
+  .array(z.object({ url: z.string(), body: z.string() }).strict())
+  .length(4)
+  .parse(
+    JSON.parse(
+      brotliDecompressSync(
+        readFileSync(
+          new URL(
+            "./pickapartva-test-fixtures/make-searches-2026-11-16.json.br",
+            import.meta.url,
+          ),
+        ),
+      ).toString(),
+    ),
   );
-  const calls = serve((url, body) =>
-    url === searchUrl("2026-10-16")
-      ? capped(wrapped(body))
-      : url === searchUrl("2026-10-16", "TT87")
-        ? yardPage(wrapped(capped(fredericksburg)), "TT87")
+const emptyMakeSearch = makeLive[3]?.body ?? "";
+const nativeMakes = parsePickapartvaPage(catalog[0]?.body ?? "", 1).makes;
+type Card = { html: string; record: PickapartvaRecord };
+const cardsOf = (html: string, date = "2026-10-16"): Card[] => {
+  const result = parsePickapartvaSearch(html, date);
+  if (result.status !== "complete")
+    throw new Error("Expected a complete native search");
+  return wrapped(html).map((card, index) => {
+    const record = result.page.records[index];
+    if (!record) throw new Error("Saved search card wrappers changed");
+    return { html: card, record };
+  });
+};
+/**
+ * Fredericksburg's 2026-10-16 donors: the captured search's, plus the ones
+ * the November 12 catalog shows that were gone by the November 19 capture,
+ * so the make searches answer for the same inventory as the catalog.
+ */
+const fredericksburg: Card[] = (() => {
+  const listed = cardsOf(captured).filter(
+    (card) => card.record.yardCode === "TT87",
+  );
+  const stocks = new Set(listed.map((card) => card.record.stock));
+  for (const card of censusCards)
+    if (
+      card.record.setDate === "2026-10-16" &&
+      card.record.yardCode === "TT87" &&
+      !stocks.has(card.record.stock)
+    ) {
+      stocks.add(card.record.stock);
+      listed.push(card);
+    }
+  return listed;
+})();
+const makeUrl = (make: string, date = "2026-10-16") =>
+  `https://pickapartva.com/inventory/${make.replaceAll(" ", "_")}/ANY/?k=1&id=TT87&search=${date}`;
+/** The captured Fredericksburg search narrowed to one make the way the live
+ * 2026-11-16 make searches are, or the live empty answer for that make. */
+function makePage(make: string, cards = fredericksburg) {
+  const path = make.replaceAll(" ", "_");
+  const listed = cards
+    .filter((card) => card.record.make === make)
+    .map((card) => card.html);
+  return listed.length
+    ? yardPage(listed, "TT87")
+        .replaceAll(
+          'action="/inventory/ANY/ANY/"',
+          `action="/inventory/${path}/ANY/"`,
+        )
+        .replace('var setMake = "ANY"', `var setMake = "${path}"`)
+        .replaceAll('var urgID = "ANY"', 'var urgID = "TT87"')
+    : emptyMakeSearch.replace(
+        'var setMake = "DE_SOTO"',
+        `var setMake = "${path}"`,
+      );
+}
+const makePages = new Map(
+  nativeMakes.map((make) => [makeUrl(make), makePage(make)]),
+);
+/** Both the unfiltered and the Fredericksburg 2026-10-16 searches capped. */
+const cappedYard = (url: string, body: string) =>
+  url === searchUrl("2026-10-16")
+    ? capped(wrapped(body))
+    : url === searchUrl("2026-10-16", "TT87")
+      ? yardPage(
+          wrapped(capped(fredericksburg.map((card) => card.html))),
+          "TT87",
+        )
+      : body;
+/** Fredericksburg FORD FOCUS donors set on 2026-10-16 that no catalog page
+ * shows. */
+const padding = (count: number): Card[] =>
+  Array.from({ length: count }, (_, index) => {
+    const id = `PAP97${String(index).padStart(4, "0")}`;
+    const record = {
+      ...synthetic("2026-10-16", 0),
+      cardId: id,
+      stock: id,
+      vin: `1FAHP3FN0AW97${String(index).padStart(4, "0")}`,
+    };
+    return { html: hiddenCard(record), record };
+  });
+
+test("Pick-A-Part VA splits a still-capped yard search by make across checkpointed chunks", async () => {
+  const emitted: PickapartvaCanonicalVehicle[] = [];
+  const onBatch = (batch: PickapartvaCanonicalVehicle[]) =>
+    Effect.sync(() => {
+      emitted.push(...batch);
+    });
+  // The census stops at the capped yard search and checkpoints the split.
+  const calls = serve(cappedYard, makePages);
+  const first = await run(onBatch);
+  expect(calls).toEqual([
+    ...catalog.map((response) => response.url),
+    ...tieDates.map((date) => searchUrl(date)),
+    searchUrl("2026-10-16", "TT87"),
+  ]);
+  expect(emitted).toHaveLength(0);
+  expect(first).toMatchObject({ status: "paused", count: 0 });
+  if (first.cursor.phase !== "makes") throw new Error("Expected a make split");
+  expect(first.cursor.partitions).toEqual([
+    { date: "2026-10-16", id: "TT87", makes: nativeMakes, searches: [] },
+  ]);
+  expect(nativeMakes).toHaveLength(62);
+  // The make searches resume from a checkpoint taken between them.
+  const split = first.cursor.partitions[0];
+  if (!split) throw new Error("Expected a make split");
+  const makeCalls = serve(cappedYard, makePages);
+  const searched = await run(
+    onBatch,
+    parseDurableSourceCursor(
+      "pickapartva",
+      serializeDurableSourceCursor(first.cursor),
+    ),
+  );
+  expect(makeCalls).toEqual(nativeMakes.map((make) => makeUrl(make)));
+  if (searched.cursor.phase !== "makes")
+    throw new Error("Expected a make split");
+  const partial: PickapartvaCursor = {
+    ...searched.cursor,
+    partitions: searched.cursor.partitions.map((entry) => ({
+      ...entry,
+      searches: entry.searches.slice(0, 20),
+    })),
+  };
+  const resumedCalls = serve(cappedYard, makePages);
+  const resumed = await run(
+    onBatch,
+    parseDurableSourceCursor(
+      "pickapartva",
+      serializeDurableSourceCursor(partial),
+    ),
+  );
+  expect(resumedCalls).toEqual(
+    nativeMakes.slice(20).map((make) => makeUrl(make)),
+  );
+  expect(resumed.cursor).toEqual(searched.cursor);
+  expect(emitted).toHaveLength(0);
+  // A checkpoint whose saved make donors changed is refused.
+  expect(
+    PickapartvaCursorSchema.safeParse({
+      ...searched.cursor,
+      partitions: searched.cursor.partitions.map((entry) => ({
+        ...entry,
+        searches: entry.searches.map((search) => ({
+          ...search,
+          records: search.records.map((record) => ({ ...record, row: "1" })),
+        })),
+      })),
+    }).success,
+  ).toBe(false);
+  // The census reads again with the split instead of the capped searches.
+  const censusCalls = serve(cappedYard, makePages);
+  const census = await run(
+    onBatch,
+    parseDurableSourceCursor(
+      "pickapartva",
+      serializeDurableSourceCursor(searched.cursor),
+    ),
+    8,
+  );
+  expect(censusCalls).toEqual([
+    ...catalog.map((response) => response.url),
+    ...tieDates.slice(0, -1).map((date) => searchUrl(date)),
+    searchUrl("2026-10-16", "UU81"),
+    ...[1, 2, 15].map(
+      (page) =>
+        `https://pickapartva.com/inventory/ANY/ANY/?k=1&id=ANY&pagenum=${page}`,
+    ),
+  ]);
+  if (census.cursor.phase !== "pages")
+    throw new Error("Expected a paused checkpoint");
+  expect(census.cursor.searches.map((search) => search.url)).toEqual([
+    ...tieDates.slice(0, -1).map((date) => searchUrl(date)),
+    ...nativeMakes.map((make) => makeUrl(make)),
+    searchUrl("2026-10-16", "UU81"),
+  ]);
+  serve(cappedYard, makePages);
+  const last = await run(
+    onBatch,
+    parseDurableSourceCursor(
+      "pickapartva",
+      serializeDurableSourceCursor(census.cursor),
+    ),
+  );
+  expect(last.status).toBe("complete");
+  const vins = new Set(emitted.map((vehicle) => vehicle.vin));
+  expect(emitted).toHaveLength(7440);
+  expect(vins.size).toBe(7440);
+  for (const vin of [...recoveredOnTie, liveTieDonor.vin])
+    expect(vins.has(vin)).toBe(true);
+  // A Fredericksburg donor recovered by a make search links to that search.
+  const recovered = emitted.filter(
+    (vehicle) =>
+      recoveredOnTie.includes(vehicle.vin) && vehicle.locationCode === "TT87",
+  );
+  expect(recovered.length).toBeGreaterThan(0);
+  for (const vehicle of recovered)
+    expect(vehicle.detailsUrl).toMatch(
+      /^https:\/\/pickapartva\.com\/inventory\/(?!ANY\/)[A-Z0-9_-]+\/ANY\/\?k=1&id=TT87&search=2026-10-16#/,
+    );
+}, 60_000);
+
+test.each<[string, (url: string, body: string) => string, string]>([
+  [
+    "is itself capped",
+    (url, body) =>
+      url === makeUrl("FORD")
+        ? makePage(
+            "FORD",
+            [...fredericksburg, ...padding(500)]
+              .filter((card) => card.record.make === "FORD")
+              .slice(0, 500),
+          )
         : body,
+    "FORD search for 2026-10-16 in TT87 returned 500 cards; completeness is only known for 0 to 499 matched donor cards per make",
+  ],
+  [
+    "lists another make",
+    (url, body) =>
+      url === makeUrl("FORD")
+        ? body.replace("Make/Model :</b> FORD ", "Make/Model :</b> CHEVROLET ")
+        : body,
+    "ignored its selected make FORD",
+  ],
+  [
+    "answers for another make",
+    (url, body) =>
+      url === makeUrl("FORD")
+        ? body.replace('var setMake = "FORD"', 'var setMake = "ANY"')
+        : body,
+    "does not prove its selected make FORD and yard TT87",
+  ],
+  [
+    "answers for another yard",
+    (url, body) =>
+      url === makeUrl("DE SOTO")
+        ? body.replaceAll('var urgID = "TT87"', 'var urgID = "UU81"')
+        : body,
+    "does not prove its selected make DE SOTO and yard TT87",
+  ],
+])(
+  "Pick-A-Part VA fails closed when a make search %s",
+  async (_kind, change, message) => {
+    serve(cappedYard, makePages);
+    const first = await run(() => Effect.void);
+    serve((url, body) => change(url, cappedYard(url, body)), makePages);
+    let callbacks = 0;
+    await expect(
+      run(
+        () =>
+          Effect.sync(() => {
+            callbacks++;
+          }),
+        first.cursor,
+      ),
+    ).rejects.toThrow(message);
+    expect(callbacks).toBe(0);
+  },
+  60_000,
+);
+
+test("Pick-A-Part VA fails closed when the make searches omit a donor the catalog shows", async () => {
+  // A Fredericksburg 2026-10-16 donor the catalog shows, absent from its
+  // make search, so the make totals cannot reconcile.
+  const shown = censusCards.find(
+    (card) =>
+      card.record.setDate === "2026-10-16" &&
+      card.record.yardCode === "TT87" &&
+      nativeMakes.includes(card.record.make),
   );
+  if (!shown) throw new Error("Expected a shown Fredericksburg donor");
+  const url = makeUrl(shown.record.make);
+  const omitted = new Map(makePages).set(
+    url,
+    makePage(
+      shown.record.make,
+      fredericksburg.filter((card) => card.record.stock !== shown.record.stock),
+    ),
+  );
+  serve(cappedYard, omitted);
+  const first = await run(() => Effect.void);
+  serve(cappedYard, omitted);
+  const searched = await run(() => Effect.void, first.cursor);
+  serve(cappedYard, omitted);
   let callbacks = 0;
   await expect(
-    run(() =>
-      Effect.sync(() => {
-        callbacks++;
-      }),
+    run(
+      () =>
+        Effect.sync(() => {
+          callbacks++;
+        }),
+      searched.cursor,
     ),
   ).rejects.toThrow(
-    "set-date search for 2026-10-16 in TT87 returned 500 cards; completeness is only known for 1 to 499",
+    `make searches for 2026-10-16 in TT87 omit 1 donors the catalog shows (first ${shown.record.stock} ${shown.record.make})`,
   );
   expect(callbacks).toBe(0);
-  expect(calls.at(-1)).toBe(searchUrl("2026-10-16", "TT87"));
 }, 60_000);
+
+test("Pick-A-Part VA reads the live 2026-11-16 Fredericksburg make searches", () => {
+  const [yard, ford, landRover, deSoto] = makeLive.map(
+    (response) => response.body,
+  );
+  expect(makeLive.map((response) => response.url)).toEqual([
+    searchUrl("2026-11-16", "TT87"),
+    makeUrl("FORD", "2026-11-16"),
+    makeUrl("LAND ROVER", "2026-11-16"),
+    makeUrl("DE SOTO", "2026-11-16"),
+  ]);
+  const cappedSearch = parsePickapartvaSearch(yard ?? "", "2026-11-16", "TT87");
+  expect(cappedSearch).toMatchObject({ status: "capped", cards: 500 });
+  if (cappedSearch.status !== "capped") throw new Error("Expected capped");
+  expect(cappedSearch.makes).toEqual(nativeMakes);
+  const make = (raw: string, name: string) => {
+    const result = parsePickapartvaSearch(raw, "2026-11-16", "TT87", name);
+    if (result.status !== "complete")
+      throw new Error("Expected a complete native search");
+    return result.page.records;
+  };
+  const fords = make(ford ?? "", "FORD");
+  expect(fords).toHaveLength(83);
+  expect(fords.every((record) => record.make === "FORD")).toBe(true);
+  expect(
+    make(landRover ?? "", "LAND ROVER").map((record) => record.model),
+  ).toEqual(["RANGE ROVER", "RANGE ROVER", "RANGE ROVER SPORT"]);
+  expect(make(deSoto ?? "", "DE SOTO")).toEqual([]);
+  // A make search never stands in for another make, yard or the whole yard.
+  expect(() => make(ford ?? "", "LAND ROVER")).toThrow(
+    "does not prove its selected make LAND ROVER",
+  );
+  expect(() => make(deSoto ?? "", "FORD")).toThrow(
+    "does not prove its selected make FORD",
+  );
+  expect(() =>
+    parsePickapartvaSearch(ford ?? "", "2026-11-16", "UU81", "FORD"),
+  ).toThrow("narrowed physical scope");
+  expect(() =>
+    parsePickapartvaSearch(ford ?? "", "2026-11-16", "TT87"),
+  ).toThrow("inventory form is filtered");
+  expect(() =>
+    parsePickapartvaSearch(deSoto ?? "", "2026-11-16", "TT87"),
+  ).toThrow("search controls are missing");
+});
 
 test("Pick-A-Part VA reads the live 2026-11-18 searches: the unfiltered search is capped and each yard search is complete", () => {
   const [all, fredericksburg, stafford] = live.map((response) => response.body);
@@ -574,7 +913,7 @@ test("Pick-A-Part VA reads the live 2026-11-18 searches: the unfiltered search i
     searchUrl("2026-11-18", "TT87"),
     searchUrl("2026-11-18", "UU81"),
   ]);
-  expect(parsePickapartvaSearch(all ?? "", "2026-11-18")).toEqual({
+  expect(parsePickapartvaSearch(all ?? "", "2026-11-18")).toMatchObject({
     status: "capped",
     cards: 500,
   });
@@ -696,5 +1035,29 @@ test("Pick-A-Part VA set-date search destinations are as narrow as catalog pages
   ).toBeNull();
   expect(
     pickapartvaSearchUrl(searchUrl("2026-10-16"), "2026-10-16", "UU81"),
+  ).toBeNull();
+  // A make split narrows one yard's search through the native make path.
+  expect(
+    pickapartvaSearchUrl(
+      makeUrl("LAND ROVER"),
+      "2026-10-16",
+      "TT87",
+      "LAND ROVER",
+    ),
+  ).toBe(makeUrl("LAND ROVER"));
+  expect(pickapartvaSearchTarget(makeUrl("MERCEDES-BENZ"))).toEqual({
+    date: "2026-10-16",
+    id: "TT87",
+    make: "MERCEDES-BENZ",
+  });
+  for (const url of [
+    makeUrl("FORD").replace("id=TT87", "id=ANY"),
+    makeUrl("FORD").replace("/FORD/", "/ford/"),
+    makeUrl("FORD").replace("/FORD/", "/FORD%2FANY/"),
+    makeUrl("LAND ROVER").replace("LAND_ROVER", "LAND%20ROVER"),
+  ])
+    expect(pickapartvaSearchTarget(url)).toBeNull();
+  expect(
+    pickapartvaSearchUrl(makeUrl("FORD"), "2026-10-16", "TT87"),
   ).toBeNull();
 });

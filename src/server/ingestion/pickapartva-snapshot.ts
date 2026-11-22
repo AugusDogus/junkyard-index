@@ -15,8 +15,9 @@ import {
 } from "./pickapartva-transform";
 import { SourceValidationPolicy } from "./source-validation";
 import {
+  PICKAPARTVA_YARD_CODES,
   pickapartvaSearchHref,
-  pickapartvaSearchScopes,
+  pickapartvaSearchPlan,
   type PickapartvaYardCode,
 } from "./pickapartva-yard-metadata";
 
@@ -158,20 +159,61 @@ export function buildPickapartvaSnapshot(
   const repeats = pickapartvaRepeatSlots(pages);
   const dates = [...new Set(repeats.map((slot) => slot.date))];
   if (
-    JSON.stringify(
-      searches.map((search) => [search.url, search.page.date, search.page.id]),
-    ) !==
-    JSON.stringify(
-      dates.flatMap((date) =>
-        pickapartvaSearchScopes(
-          searches.filter((search) => search.page.date === date).length,
-        ).map((id) => [pickapartvaSearchHref(date, id), date, id]),
-      ),
+    JSON.stringify([...new Set(searches.map((search) => search.page.date))]) !==
+      JSON.stringify(dates) ||
+    !pickapartvaSearchPlan(searches.map((search) => search.url)) ||
+    searches.some(
+      (search) =>
+        pickapartvaSearchHref(
+          search.page.date,
+          search.page.id,
+          search.page.make,
+        ) !== search.url,
     )
   )
     throw new Error(
       `Pick-A-Part VA set-date searches do not match the catalog's repeated Set Dates (${dates.join(", ") || "none"})`,
     );
+  // A yard split by make is complete only when it searched every native make
+  // and listed every donor of that date and yard the catalog shows, so its
+  // make totals add up to the shown donors plus the repeated slots below. The
+  // native make selector omits Tesla: a shown Tesla keeps its catalog slot,
+  // and a hidden one leaves the split short of the repeated slots, which
+  // fails below.
+  const makes = pages[0]?.page.makes ?? [];
+  for (const date of dates)
+    for (const id of PICKAPARTVA_YARD_CODES) {
+      const split = searches.filter(
+        (search) =>
+          search.page.date === date &&
+          search.page.id === id &&
+          search.page.make !== "ANY",
+      );
+      if (!split.length) continue;
+      if (
+        JSON.stringify(split.map((search) => search.page.make)) !==
+        JSON.stringify(makes)
+      )
+        throw new Error(
+          `Pick-A-Part VA make searches for ${date} in ${id} do not cover the native make selector's ${makes.length} makes`,
+        );
+      const listed = new Set(
+        split.flatMap((search) => search.page.records.map(cardKey)),
+      );
+      const missing = pages.flatMap((entry) =>
+        entry.page.records.filter(
+          (record) =>
+            record.setDate === date &&
+            record.yardCode === id &&
+            makes.includes(record.make) &&
+            !listed.has(cardKey(record)),
+        ),
+      );
+      if (missing.length)
+        throw new Error(
+          `Pick-A-Part VA make searches for ${date} in ${id} omit ${missing.length} donors the catalog shows (first ${missing[0]?.stock} ${missing[0]?.make}); the make totals do not reconcile, so completeness is unproven`,
+        );
+    }
   // Pair each repeated slot with one donor its date's search adds, so every
   // catalog slot still accounts for exactly one native donor.
   const replacements = new Map<
@@ -183,11 +225,15 @@ export function buildPickapartvaSnapshot(
   );
   for (const date of dates) {
     const slots = repeats.filter((slot) => slot.date === date);
-    // A date split by yard is the union of its disjoint yard partitions.
+    // A date split by yard or make is the union of its disjoint partitions.
     const found = searches
       .filter((search) => search.page.date === date)
       .flatMap((search) =>
-        search.page.records.map((record) => ({ record, id: search.page.id })),
+        search.page.records.map((record) => ({
+          record,
+          id: search.page.id,
+          make: search.page.make,
+        })),
       );
     const keys = found.map(({ record }) => cardKey(record));
     if (new Set(keys).size !== keys.length)
@@ -204,7 +250,7 @@ export function buildPickapartvaSnapshot(
       if (entry)
         replacements.set(`${slot.page}:${slot.index}`, {
           record: entry.record,
-          listing: { search: date, id: entry.id },
+          listing: { search: date, id: entry.id, make: entry.make },
         });
     });
   }

@@ -4,6 +4,7 @@ import type { PickapartvaRecord } from "./pickapartva-parser";
 import {
   PICKAPARTVA_ORIGIN,
   PICKAPARTVA_YARDS,
+  pickapartvaMakePath,
   type PickapartvaSearchScope,
   type PickapartvaYardCode,
 } from "./pickapartva-yard-metadata";
@@ -54,11 +55,11 @@ function date(raw: string): string | null {
 }
 
 /** Where the donor card was listed: a catalog page number, or the set-date
- * search (across every yard or within one) that recovered a donor the catalog
- * pages hid. */
+ * search (across every yard, within one, or for one make within one) that
+ * recovered a donor the catalog pages hid. */
 export type PickapartvaListing =
   | number
-  | { search: string; id: PickapartvaSearchScope };
+  | { search: string; id: PickapartvaSearchScope; make: string };
 
 export function transformPickapartvaRecord(
   record: PickapartvaRecord,
@@ -109,10 +110,9 @@ export function transformPickapartvaRecord(
           : null,
       space: null,
       detailsUrl:
-        `${PICKAPARTVA_ORIGIN}/inventory/ANY/ANY/?k=1&` +
         (typeof listing === "number"
-          ? `id=ANY&pagenum=${listing}`
-          : `id=${listing.id}&search=${encodeURIComponent(listing.search)}`) +
+          ? `${PICKAPARTVA_ORIGIN}/inventory/ANY/ANY/?k=1&id=ANY&pagenum=${listing}`
+          : `${PICKAPARTVA_ORIGIN}/inventory/${pickapartvaMakePath(listing.make)}/ANY/?k=1&id=${listing.id}&search=${encodeURIComponent(listing.search)}`) +
         (record.cardId ? "#" + encodeURIComponent(record.cardId) : ""),
       partsUrl: null,
       pricesUrl: null,

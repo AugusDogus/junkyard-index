@@ -27,3 +27,25 @@ search page holds:
   Fredericksburg, with Fredericksburg selected and `id=TT87` in the form.
 - `/inventory/ANY/ANY/?k=1&id=UU81&search=2026-11-18`: 169 cards, all
   Stafford, with Stafford selected and `id=UU81` in the form.
+
+`make-searches-2026-11-16.json.br` holds 4 raw native Fredericksburg searches
+for Set Date 2026-11-16 as `{ url, body }`, all HTTP 200. Fredericksburg set
+over 500 donors that day, so its yard search is capped and is split by make:
+
+- `/inventory/ANY/ANY/?k=1&id=TT87&search=2026-11-16`: capped at exactly 500
+  cards, all Fredericksburg (captured November 22, 2026, 14:08 UTC). Repeating
+  it with `&pagenum=2` returned the same 500 cards.
+- `/inventory/FORD/ANY/?k=1&id=TT87&search=2026-11-16`: 83 cards, all FORD,
+  with `var setMake = "FORD"` and the make path as the form action (14:08 UTC).
+- `/inventory/LAND_ROVER/ANY/?k=1&id=TT87&search=2026-11-16`: 3 LAND ROVER
+  cards with `var setMake = "LAND_ROVER"`, which verifies the underscore make
+  path (23:25 UTC).
+- `/inventory/DE_SOTO/ANY/?k=1&id=TT87&search=2026-11-16`: the native empty
+  answer, "No Results Found", with no search form, `var setMake = "DE_SOTO"`
+  and `var urgID = "TT87"` (23:25 UTC).
+
+The make split test serves the November 12 census with the 2026-10-16
+unfiltered and Fredericksburg searches capped. Its make searches are the
+captured Fredericksburg cards of each make, plus the ones the November 12
+catalog shows that were gone by November 19, in the native make page format,
+and the live empty answer for makes with no donors.

@@ -19,6 +19,7 @@ import {
   PICKAPARTVA_MAX_PAGES,
   PICKAPARTVA_ORIGIN,
   PICKAPARTVA_PAGE_SIZE,
+  pickapartvaSearchHref,
   pickapartvaSetDate,
   type PickapartvaSearchScope,
   type PickapartvaYardCode,
@@ -41,6 +42,8 @@ export interface PickapartvaPage {
   lastPage: number;
   nextUrl: string | null;
   records: PickapartvaRecord[];
+  /** The native make selector's makes, which a make split must cover. */
+  makes: string[];
   hash: string;
 }
 export const pickapartvaHash = (value: unknown) =>
@@ -133,6 +136,7 @@ function donor(
   };
 }
 
+/** The native make selector's makes, in native order. */
 function pickapartvaMakes(html: string): string[] {
   const selects = [
     ...html.matchAll(/(<select\b[^>]*>)([\s\S]*?)<\/select>/gi),
@@ -179,15 +183,16 @@ function pickapartvaMakes(html: string): string[] {
     ),
   ]
     .map((match) => pickapartvaText(match[1] ?? ""))
-    .filter((value) => !["ANY", "Choose Make..."].includes(value))
-    .sort((a, b) => b.length - a.length);
+    .filter((value) => !["ANY", "Choose Make..."].includes(value));
 }
 
 function pickapartvaRecords(
   cards: Array<{ tag: string; body: string }>,
   makes: string[],
 ): PickapartvaRecord[] {
-  const records = cards.map((card) => donor(card, makes));
+  // The longest make first, so a longer make is never read as a shorter one.
+  const byLength = [...makes].sort((a, b) => b.length - a.length);
+  const records = cards.map((card) => donor(card, byLength));
   const ids = records.flatMap((record) =>
     record.cardId ? [record.cardId] : [],
   );
@@ -232,6 +237,7 @@ export function parsePickapartvaPage(
     lastPage: control.lastPage,
     nextUrl: control.nextUrl,
     records,
+    makes,
     hash: pickapartvaHash([page, control.lastPage, control.nextUrl, records]),
   };
 }
@@ -239,36 +245,59 @@ export function parsePickapartvaPage(
 export interface PickapartvaSearchPage {
   date: string;
   id: PickapartvaSearchScope;
+  /** `ANY`, or the one make a split yard search selected. */
+  make: string;
   records: PickapartvaRecord[];
   hash: string;
 }
 /** A search page holds at most 500 cards, so a full page proves nothing about
  * further matches: `capped` carries no donors and the caller must narrow the
- * search or fail closed. */
+ * search or fail closed. `makes` are the native makes it can be split by. */
 export type PickapartvaSearchResult =
   | { status: "complete"; page: PickapartvaSearchPage }
-  | { status: "capped"; cards: number };
+  | { status: "capped"; cards: number; makes: string[] };
 
 /**
- * The native search for one Set Date across every yard (`id` ANY) or within
- * one physical yard. It must answer the same owner and make scope as the
- * catalog, select exactly the searched yard, reflect the searched date,
- * publish no continuation and hold only donors set on that date in that yard.
+ * The native search for one Set Date across every yard (`id` ANY), within
+ * one physical yard, or for one make within one yard. It must answer the same
+ * owner as the catalog, select exactly the searched yard and make, reflect the
+ * searched date, publish no continuation and hold only donors of that make set
+ * on that date in that yard. Only a make search may answer with no donors.
  */
 export function parsePickapartvaSearch(
   raw: string,
   date: string,
   id: PickapartvaSearchScope = "ANY",
+  make = "ANY",
 ): PickapartvaSearchResult {
   const html = stripInventoryRawText(raw);
-  if (!unbroken(raw, html) || !pickapartvaSetDate(date))
+  if (
+    !unbroken(raw, html) ||
+    !pickapartvaSetDate(date) ||
+    pickapartvaSearchHref(date, id, make) === null
+  )
     throw new Error(
-      "Pick-A-Part VA set-date search is oversized, truncated or has an invalid date",
+      "Pick-A-Part VA set-date search is oversized, truncated or has an invalid date, yard or make",
     );
-  verifyPickapartvaOwner(html, raw, date, id);
-  verifyPickapartvaSearchTerminal(html);
+  const empty = verifyPickapartvaOwner(html, raw, date, id, make);
   const makes = pickapartvaMakes(html);
   const cards = pickapartvaDivs(html, "card-price");
+  if (empty) {
+    if (
+      cards.length ||
+      [...html.matchAll(/<ul\b[^>]*>/gi)].some(([tag]) =>
+        pickapartvaClass(tag, "pagination"),
+      )
+    )
+      throw new Error(
+        `Pick-A-Part VA ${make} search for ${date} in ${id} reports no results but lists donors or pages`,
+      );
+    return {
+      status: "complete",
+      page: { date, id, make, records: [], hash: pickapartvaHash([date, []]) },
+    };
+  }
+  verifyPickapartvaSearchTerminal(html);
   if (
     cards.length < 1 ||
     pickapartvaDivs(html, "car-details-uPull").length !== cards.length
@@ -277,7 +306,7 @@ export function parsePickapartvaSearch(
       `Pick-A-Part VA set-date search for ${date} in ${id} returned ${cards.length} cards or unmatched donor cards; a repeated Set Date has at least one donor`,
     );
   if (cards.length >= PICKAPARTVA_PAGE_SIZE)
-    return { status: "capped", cards: cards.length };
+    return { status: "capped", cards: cards.length, makes };
   const records = pickapartvaRecords(cards, makes);
   if (records.some((record) => record.setDate !== date))
     throw new Error(
@@ -287,8 +316,12 @@ export function parsePickapartvaSearch(
     throw new Error(
       `Pick-A-Part VA set-date search for ${date} in ${id} returned donors outside ${id}`,
     );
+  if (make !== "ANY" && records.some((record) => record.make !== make))
+    throw new Error(
+      `Pick-A-Part VA set-date search for ${date} in ${id} ignored its selected make ${make}`,
+    );
   return {
     status: "complete",
-    page: { date, id, records, hash: pickapartvaHash([date, records]) },
+    page: { date, id, make, records, hash: pickapartvaHash([date, records]) },
   };
 }
