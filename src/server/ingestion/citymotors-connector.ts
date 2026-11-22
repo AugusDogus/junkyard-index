@@ -56,6 +56,11 @@ const CITYMOTORS_REQUEST_GAP_MS = 1_600;
 /** One GET at its full budget plus the serialized gap that follows it. */
 export const CITYMOTORS_WORST_CASE_REQUEST_MS =
   CITYMOTORS_REQUEST_BUDGET_MS + CITYMOTORS_REQUEST_GAP_MS;
+/**
+ * Time kept after the last GET for census validation, onYards and onBatch,
+ * which run inside the same chunk deadline.
+ */
+export const CITYMOTORS_COMPLETION_RESERVE_MS = 10_000;
 const attempt = <A>(operation: string, run: () => A) =>
   ingestionValidation({
     try: run,
@@ -184,7 +189,10 @@ export function streamCitymotorsInventoryWithRequestGate<E, R>(
     const started = Date.now();
     while (summary.pagesProcessed < maxPages && cursor.phase !== "complete") {
       if (
-        Date.now() - started + CITYMOTORS_WORST_CASE_REQUEST_MS >
+        Date.now() -
+          started +
+          CITYMOTORS_WORST_CASE_REQUEST_MS +
+          CITYMOTORS_COMPLETION_RESERVE_MS >
         CITYMOTORS_CHUNK_DEADLINE_MS
       )
         break;

@@ -87,8 +87,9 @@ request/body deadline and a 2 MiB document limit. The origin can take 12 to 14
 seconds to first byte, so the earlier 20-second budget failed whole chunks.
 Responses must be complete, unredirected HTTP 200 HTML, without content ranges.
 The entire chunk has a three-minute limit. Before each GET the connector pauses
-at the current checkpoint unless one full request budget plus its 1,600 ms gap
-still fits that limit. A 1,600 ms finalizer delay follows success and failure,
+at the current checkpoint unless one full request budget, its 1,600 ms gap and
+a 10-second completion reserve for census validation and callbacks still fit
+that limit. A 1,600 ms finalizer delay follows success and failure,
 including serialized chunk boundaries. No images, scripts, carts or forms are
 requested.
 

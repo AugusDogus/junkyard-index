@@ -3,6 +3,7 @@ import {
   CITYMOTORS_MAX_REQUESTS,
 } from "../src/server/ingestion/citymotors-cursor";
 import type { CitymotorsStreamResult } from "../src/server/ingestion/citymotors-connector";
+import { DURABLE_SOURCE_DEFINITIONS } from "../src/server/ingestion/durable-source";
 
 /** Count/discard only. The caller owns transport, staging and source admission. */
 export async function soakCitymotorsInventory(
@@ -11,7 +12,7 @@ export async function soakCitymotorsInventory(
     maxPages: number,
   ) => Promise<CitymotorsStreamResult>,
   maxRequests = CITYMOTORS_MAX_REQUESTS,
-  chunkRequests = 8,
+  chunkRequests = DURABLE_SOURCE_DEFINITIONS.citymotors.maxPagesPerChunk,
 ): Promise<CitymotorsStreamResult> {
   if (
     !Number.isSafeInteger(maxRequests) ||

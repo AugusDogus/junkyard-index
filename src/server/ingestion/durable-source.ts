@@ -445,7 +445,8 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   },
   citymotors: {
     initialCursor: CitymotorsCursor.initial,
-    // Three worst-case 45 s GETs plus gaps fit the connector's 3-minute deadline.
+    // Three worst-case 45 s GETs plus gaps and the completion reserve fit the
+    // connector's 3-minute deadline.
     maxPagesPerChunk: 3,
     terminal: COMPLETE_PHASE,
   },
