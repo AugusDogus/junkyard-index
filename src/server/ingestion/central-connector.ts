@@ -193,9 +193,15 @@ function advance(state: CentralProgress, raw: string): CentralProgress {
           same(state.root, parseCentralRoot(raw), "official owner");
           break;
         case "directory":
+          // Make badges drift between reads (stale cache versions of the
+          // directory, arrivals during the run), so closing compares only
+          // each make's path and label, in order.
           same(
-            state.makes.map(({ models: _models, ...make }) => make),
-            parseCentralDirectory(raw, "makes"),
+            state.makes.map(({ path, label }) => ({ path, label })),
+            parseCentralDirectory(raw, "makes").map(({ path, label }) => ({
+              path,
+              label,
+            })),
             "make graph",
           );
           break;

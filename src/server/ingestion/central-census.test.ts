@@ -808,43 +808,101 @@ test("Central fails a closing re-read that changes a donor's year, title or dest
   }
 });
 
-test("Central fails a closing make directory whose badges or destinations changed", async () => {
-  for (const change of [
-    (make: CentralControl) => [{ ...make, count: make.count - 1 }],
-    (make: CentralControl) => [{ ...make, count: make.count + 1 }],
-    (make: CentralControl) => [
-      make,
-      { path: "/used-parts/BMW", label: "BMW", count: 1 },
-    ],
-  ]) {
-    const native = yard();
-    const serve = globalThis.fetch;
-    let directories = 0;
-    globalThis.fetch = Object.assign(
-      async (input: string | URL | Request) => {
-        const url =
-          typeof input === "string"
-            ? input
-            : input instanceof URL
-              ? input.href
-              : input.url;
-        if (url !== CENTRAL_MAKES || ++directories === 1) return serve(input);
-        const total = [...native.rows.values()].reduce(
-          (n, l) => n + l.length,
-          0,
-        );
-        return new Response(
-          centralFixtureDirectory(
-            change({ ...centralFixtureMake, count: total }),
-            "makes",
+const otherMake: CentralControl = {
+  path: "/used-parts/BMW",
+  label: "BMW",
+  count: 1,
+};
+const otherModel: CentralControl = {
+  path: "/used-parts/BMW/X5",
+  label: "X5",
+  count: 1,
+};
+type MakeDirectory = (make: CentralControl) => CentralControl[];
+
+/** Serves `first` as the opening make directory and `closing` as every later
+ * one, each given the yard's make with its live badge. `otherMake` lists one
+ * single-card model. */
+function makeDirectories(
+  native: ReturnType<typeof yard>,
+  first: MakeDirectory,
+  closing: MakeDirectory,
+) {
+  const serve = globalThis.fetch;
+  let directories = 0;
+  const html = (body: string) =>
+    new Response(body, {
+      status: 200,
+      headers: { "content-type": "text/html" },
+    });
+  globalThis.fetch = Object.assign(
+    async (input: string | URL | Request) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+      if (url === CENTRAL_ORIGIN + otherMake.path)
+        return html(centralFixtureDirectory([otherModel], "models"));
+      if (url === CENTRAL_ORIGIN + otherModel.path)
+        return html(
+          centralFixtureModelPage(
+            [
+              [
+                "WBAFB33521LH00001",
+                "2001",
+                "BMW X5",
+                "ST1",
+                "/used-parts/BMW/X5/ST1/2001",
+                null,
+              ],
+            ],
+            otherMake,
+            otherModel,
           ),
-          { status: 200, headers: { "content-type": "text/html" } },
         );
-      },
-      { preconnect: originalFetch.preconnect },
+      if (url !== CENTRAL_MAKES) return serve(input);
+      const total = [...native.rows.values()].reduce((n, l) => n + l.length, 0);
+      const make = { ...centralFixtureMake, count: total };
+      return html(
+        centralFixtureDirectory(
+          ++directories === 1 ? first(make) : closing(make),
+          "makes",
+        ),
+      );
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+}
+
+test("Central accepts a closing make directory whose badges drifted", async () => {
+  // Central serves /used-parts/ from several stale cache versions and adds
+  // donors all day, so make badges differ between reads of one run.
+  for (const delta of [-1, 1]) {
+    const native = yard();
+    makeDirectories(
+      native,
+      (make) => [make],
+      (make) => [{ ...make, count: make.count + delta }],
     );
+    const run = await census(native, 600, null);
+    expect(run.vins).toEqual(allVins(native));
+  }
+}, 30_000);
+
+test("Central fails a closing make directory that adds, drops, relabels or reorders a make", async () => {
+  const changes: [MakeDirectory, MakeDirectory][] = [
+    [(make) => [make], (make) => [make, otherMake]],
+    [(make) => [make, otherMake], (make) => [make]],
+    [(make) => [make], (make) => [{ ...make, label: "ACURA CARS" }]],
+    [(make) => [make, otherMake], (make) => [otherMake, make]],
+  ];
+  for (const [first, closing] of changes) {
+    const native = yard();
+    makeDirectories(native, first, closing);
     await expect(census(native, 600, null)).rejects.toThrow(
       "Closing Central make graph changed",
     );
   }
-});
+}, 30_000);
