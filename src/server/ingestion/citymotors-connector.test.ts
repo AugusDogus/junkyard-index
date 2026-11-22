@@ -1,10 +1,15 @@
-import { afterEach, expect, test } from "bun:test";
+import { afterEach, expect, spyOn, test } from "bun:test";
 import { Effect } from "effect";
 import { fetchCitymotorsPage } from "./citymotors-client";
-import { streamCitymotorsInventoryWithRequestGate } from "./citymotors-connector";
+import {
+  CITYMOTORS_CHUNK_DEADLINE_MS,
+  CITYMOTORS_WORST_CASE_REQUEST_MS,
+  streamCitymotorsInventoryWithRequestGate,
+} from "./citymotors-connector";
 import { CitymotorsCursor, CitymotorsCursorSchema } from "./citymotors-cursor";
 import type { CitymotorsCanonicalVehicle } from "./citymotors-transform";
 import { CITYMOTORS_CATALOG } from "./citymotors-yard-metadata";
+import { DURABLE_SOURCE_DEFINITIONS } from "./durable-source";
 import {
   citymotorsFixtureCatalog,
   citymotorsFixtureDetail,
@@ -135,6 +140,42 @@ test("City Motors pause/serialize/resume retains exact prefixes and emits nothin
   expect(requests).toHaveLength(12);
   expect((await run(cursor)).pagesProcessed).toBe(0);
   expect(requests).toHaveLength(12);
+});
+
+test("City Motors durable chunks fit worst-case native GETs inside the chunk deadline", () => {
+  expect(
+    DURABLE_SOURCE_DEFINITIONS.citymotors.maxPagesPerChunk *
+      CITYMOTORS_WORST_CASE_REQUEST_MS,
+  ).toBeLessThanOrEqual(CITYMOTORS_CHUNK_DEADLINE_MS);
+});
+
+test("City Motors pauses before a GET that could outlast the chunk deadline", async () => {
+  const requests = mockInventory();
+  let now = 0;
+  const clock = spyOn(Date, "now").mockImplementation(() => now);
+  try {
+    const result = await Effect.runPromise(
+      streamCitymotorsInventoryWithRequestGate(
+        { maxPages: 32, onBatch: () => Effect.void },
+        (request) =>
+          request.pipe(
+            Effect.ensuring(
+              Effect.sync(() => {
+                now += CITYMOTORS_WORST_CASE_REQUEST_MS;
+              }),
+            ),
+          ),
+      ),
+    );
+    const fitting = Math.floor(
+      CITYMOTORS_CHUNK_DEADLINE_MS / CITYMOTORS_WORST_CASE_REQUEST_MS,
+    );
+    expect(result.status).toBe("paused");
+    expect(result.pagesProcessed).toBe(fitting);
+    expect(requests).toHaveLength(fitting);
+  } finally {
+    clock.mockRestore();
+  }
 });
 
 test("City Motors rejects late catalog drift and excessive required loss before callbacks", async () => {

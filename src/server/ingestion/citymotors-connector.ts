@@ -5,6 +5,7 @@ import type {
   ConnectorChunkStatus,
 } from "./connector-chunk";
 import {
+  CITYMOTORS_REQUEST_BUDGET_MS,
   CitymotorsProviderError,
   fetchCitymotorsPage,
 } from "./citymotors-client";
@@ -50,6 +51,11 @@ export interface CitymotorsStreamResult {
   observedVins: string[];
   accounting: ConnectorChunkAccounting;
 }
+export const CITYMOTORS_CHUNK_DEADLINE_MS = 180_000;
+const CITYMOTORS_REQUEST_GAP_MS = 1_600;
+/** One GET at its full budget plus the serialized gap that follows it. */
+export const CITYMOTORS_WORST_CASE_REQUEST_MS =
+  CITYMOTORS_REQUEST_BUDGET_MS + CITYMOTORS_REQUEST_GAP_MS;
 const attempt = <A>(operation: string, run: () => A) =>
   ingestionValidation({
     try: run,
@@ -177,7 +183,11 @@ export function streamCitymotorsInventoryWithRequestGate<E, R>(
       return { ...summary, status: "complete" as const };
     const started = Date.now();
     while (summary.pagesProcessed < maxPages && cursor.phase !== "complete") {
-      if (Date.now() - started > 150_000) break;
+      if (
+        Date.now() - started + CITYMOTORS_WORST_CASE_REQUEST_MS >
+        CITYMOTORS_CHUNK_DEADLINE_MS
+      )
+        break;
       const current: CitymotorsProgress = cursor;
       const url: string = yield* attempt("next native control", (): string =>
         nextUrl(current),
@@ -216,7 +226,7 @@ export function streamCitymotorsInventoryWithRequestGate<E, R>(
     } satisfies CitymotorsStreamResult;
   }).pipe(
     Effect.timeoutFail({
-      duration: "3 minutes",
+      duration: CITYMOTORS_CHUNK_DEADLINE_MS,
       onTimeout: () =>
         new CitymotorsProviderError({
           operation: "chunk deadline",
@@ -230,6 +240,6 @@ export function streamCitymotorsInventory<E, R>(
   options: CitymotorsOptions<E, R>,
 ) {
   const gate: ProviderRequestGate = (request) =>
-    request.pipe(Effect.ensuring(Effect.sleep("1600 millis")));
+    request.pipe(Effect.ensuring(Effect.sleep(CITYMOTORS_REQUEST_GAP_MS)));
   return streamCitymotorsInventoryWithRequestGate(options, gate);
 }

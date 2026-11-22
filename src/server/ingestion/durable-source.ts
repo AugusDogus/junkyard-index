@@ -445,7 +445,8 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   },
   citymotors: {
     initialCursor: CitymotorsCursor.initial,
-    maxPagesPerChunk: 8,
+    // Three worst-case 45 s GETs plus gaps fit the connector's 3-minute deadline.
+    maxPagesPerChunk: 3,
     terminal: COMPLETE_PHASE,
   },
   awap: {
