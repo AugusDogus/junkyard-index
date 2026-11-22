@@ -173,7 +173,7 @@ test("census survivor rejections name the yard, first differing url and changed 
   });
   expect(changed).toContain("bandmauto closing census changed");
   expect(changed).toContain(
-    `${second.url} changed imageUrl from ${second.imageUrl === undefined ? "absent" : JSON.stringify(second.imageUrl)} to "https://example.com/new.jpg"`,
+    '1 surviving vehicle changed fields, first https://bandmauto.hollanderstores.com/VehicleDealerShowParts/450/71394115 changed imageUrl from "https://d1vnbry5hm94g5.cloudfront.net/7T/JA/ZL/GL/P-T.jpg" to "https://example.com/new.jpg"',
   );
   expect(changed).toContain(`1 of ${page.rows.length} surviving positions`);
   const reordered = hollanderstoresCensusError(page, {
@@ -182,9 +182,17 @@ test("census survivor rejections name the yard, first differing url and changed 
   });
   expect(reordered).toContain("no surviving vehicle fields changed");
   expect(reordered).toContain(
-    `order changed, first at surviving position 0: opening has ${first.url}, closing has ${second.url}`,
+    'order changed, first at surviving position 0: opening has https://bandmauto.hollanderstores.com/VehicleDealerShowParts/450/59713736 (stock "972023", VIN "1GNEK13RXVJ409373"), closing has https://bandmauto.hollanderstores.com/VehicleDealerShowParts/450/71394115 (stock "246021", VIN "3VVMB7AX1RM050109"), different stocks',
   );
   expect(reordered).toContain(`2 of ${page.rows.length} surviving positions`);
+  const sharedStock = { ...second, stock: first.stock };
+  const tieReordered = hollanderstoresCensusError(
+    { ...page, rows: [first, sharedStock, ...rest] },
+    { ...page, rows: [sharedStock, first, ...rest] },
+  );
+  expect(tieReordered).toContain(
+    '(stock "972023", VIN "3VVMB7AX1RM050109"), same stock',
+  );
 });
 
 test("Sprinter decodes publish a WMI make while native makes retain priority", () => {
