@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import {
   IPULLUPULL_MAX_RESPONSE_BYTES,
+  readBoundedResponseText,
   readIPullUPullResponseText,
 } from "./ipullupull-response-text";
 
@@ -52,6 +53,22 @@ test("rejects invalid UTF-8 and releases the reader", async () => {
     readIPullUPullResponseText(response, "CSV", signal()),
   ).rejects.toThrow();
   expect(response.body?.locked).toBe(false);
+});
+
+test("bounded reader stays strict by default and replaces stray bytes only when asked", async () => {
+  const bytes = () => new Uint8Array([0x34, 0xd7, 0x34]);
+  await expect(
+    readBoundedResponseText(new Response(bytes()), "HTML", signal(), 3),
+  ).rejects.toThrow();
+  expect(
+    await readBoundedResponseText(
+      new Response(bytes()),
+      "HTML",
+      signal(),
+      3,
+      "utf-8-replace",
+    ),
+  ).toBe("4\uFFFD4");
 });
 
 test("bounds cumulative chunks, cancels unread bytes, and releases the reader", async () => {
