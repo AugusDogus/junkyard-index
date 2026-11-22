@@ -3,6 +3,7 @@ import { Effect } from "effect";
 import { fetchCitymotorsPage } from "./citymotors-client";
 import {
   CITYMOTORS_CHUNK_DEADLINE_MS,
+  CITYMOTORS_COMPLETION_RESERVE_MS,
   CITYMOTORS_WORST_CASE_REQUEST_MS,
   streamCitymotorsInventoryWithRequestGate,
 } from "./citymotors-connector";
@@ -145,8 +146,44 @@ test("City Motors pause/serialize/resume retains exact prefixes and emits nothin
 test("City Motors durable chunks fit worst-case native GETs inside the chunk deadline", () => {
   expect(
     DURABLE_SOURCE_DEFINITIONS.citymotors.maxPagesPerChunk *
-      CITYMOTORS_WORST_CASE_REQUEST_MS,
+      CITYMOTORS_WORST_CASE_REQUEST_MS +
+      CITYMOTORS_COMPLETION_RESERVE_MS,
   ).toBeLessThanOrEqual(CITYMOTORS_CHUNK_DEADLINE_MS);
+});
+
+test("City Motors starts a GET only when it and the completion reserve fit the chunk deadline", async () => {
+  mockInventory();
+  let now = 0;
+  const starts: number[] = [];
+  const clock = spyOn(Date, "now").mockImplementation(() => now);
+  try {
+    const result = await Effect.runPromise(
+      streamCitymotorsInventoryWithRequestGate(
+        { maxPages: 32, onBatch: () => Effect.void },
+        (request) =>
+          Effect.sync(() => {
+            starts.push(now);
+          }).pipe(
+            Effect.zipRight(request),
+            Effect.ensuring(
+              Effect.sync(() => {
+                now += 42_000;
+              }),
+            ),
+          ),
+      ),
+    );
+    expect(result.status).toBe("paused");
+    expect(starts.length).toBeGreaterThan(0);
+    for (const start of starts)
+      expect(
+        start +
+          CITYMOTORS_WORST_CASE_REQUEST_MS +
+          CITYMOTORS_COMPLETION_RESERVE_MS,
+      ).toBeLessThanOrEqual(CITYMOTORS_CHUNK_DEADLINE_MS);
+  } finally {
+    clock.mockRestore();
+  }
 });
 
 test("City Motors pauses before a GET that could outlast the chunk deadline", async () => {
@@ -168,7 +205,8 @@ test("City Motors pauses before a GET that could outlast the chunk deadline", as
       ),
     );
     const fitting = Math.floor(
-      CITYMOTORS_CHUNK_DEADLINE_MS / CITYMOTORS_WORST_CASE_REQUEST_MS,
+      (CITYMOTORS_CHUNK_DEADLINE_MS - CITYMOTORS_COMPLETION_RESERVE_MS) /
+        CITYMOTORS_WORST_CASE_REQUEST_MS,
     );
     expect(result.status).toBe("paused");
     expect(result.pagesProcessed).toBe(fitting);
