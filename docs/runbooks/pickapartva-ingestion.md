@@ -45,11 +45,16 @@ Normal ingestion uses 15, requiring 18 controls plus one search per tied date. T
 `PickapartvaCursorSchema` validates these states:
 
 - `start`: source `pickapartva` and phase `start`.
+- `makes`: the make splits of yard searches that reached the 500-card cap.
+  Each holds the Set Date, yard, native make list and the completed make
+  searches in that order, with their URLs, hashes and donors. It emits
+  nothing. See [Set Date ties](#set-date-ties).
 - `pages`: whole-snapshot fingerprint, all ordered page URL/hash receipts,
   the set-date search date/URL/hash receipts (empty in earlier checkpoints),
-  `lastPage`, `nextPage` and cumulative `processed`, `emitted`, `rejected` and
-  `duplicates` counters. Rebuilt prefix counters must exactly match before
-  another batch is emitted.
+  the complete make splits those searches used (empty in earlier
+  checkpoints), `lastPage`, `nextPage` and cumulative `processed`,
+  `emitted`, `rejected` and `duplicates` counters. Rebuilt prefix counters
+  must exactly match before another batch is emitted.
 - `complete`: source `pickapartva` and phase `complete`. Replaying it performs
   no requests, callbacks or accounting increments.
 
@@ -76,13 +81,44 @@ connector requests the native search
 every date with repeated cards, in catalog order. A search page must pass the
 same owner, footer, yard selector, make selector and `iisupullurgid` checks,
 reflect the searched date in its form, publish no pagination, hold 1 to 499
-cards, and list only donors set on that date. It must add exactly as many
+cards (0 to 499 for a make search), and list only donors set on that date.
+Together a date's searches must add exactly as many
 unseen donors as the catalog repeated for that date. Otherwise the inventory
 changed between reads, the census fails, and previous inventory is preserved.
 Each recovered donor takes the repeated card's slot, so it is accounted once
 instead of as a duplicate, and its details link is the search URL with its
 stock fragment. If donors repeat while the catalog is no longer ordered by
 Set Date, the census fails because hidden donors cannot be located.
+
+The native search ignores `pagenum` and lists at most 500 cards, newest model
+year first. A search that reaches 500 cards is capped and proves nothing
+about further matches. A capped unfiltered search is split by yard:
+`?k=1&id=TT87&search=YYYY-MM-DD` and `id=UU81`. The unfiltered search is
+skipped when the catalog already shows 500 or more donors of that date. On
+November 22, 2026, Fredericksburg alone held over 500 donors set on
+2026-11-16, so its yard search was capped too. A capped yard search is split
+by make, using every value of the native make selector in order:
+`/inventory/<MAKE>/ANY/?k=1&id=TT87&search=YYYY-MM-DD`, with spaces in the
+make written as underscores (`LAND_ROVER`, verified live). The census stops
+at that yard search with a `makes` checkpoint and no closing reads. Later
+chunks run the make searches, each in its own shared host turn, and
+checkpoint after each one. No new make search starts after 180 seconds of a
+chunk. Once every make is searched, the next chunk reads the census again
+and takes that yard and date from the saved make searches instead of the
+capped searches.
+
+A make search must pass the owner, footer and yard selector checks, carry
+exactly one `var setMake` equal to the make path, name only the searched yard
+in `var urgID`, and list only donors of that make, date and yard. Its form
+action must be the make path. A make with no donors answers with the native
+"No Results Found" page, which has no form and cannot reflect the Set Date.
+The make split must cover the catalog's native make list exactly. It must
+list every donor of that date and yard the catalog shows, so the make totals
+add up to the shown donors plus the repeated slots. The selector omits Tesla:
+a shown Tesla keeps its catalog slot, and a hidden one leaves the split short
+of the repeated slots, so the census fails. A make search that is itself
+capped at 500 cards fails the run, because no narrower native split is
+verified.
 
 ## Required identity and optional metadata
 

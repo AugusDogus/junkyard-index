@@ -8,6 +8,7 @@ import {
 import {
   PICKAPARTVA_MAX_PAGES,
   PICKAPARTVA_YARDS,
+  pickapartvaMakePath,
   pickapartvaPageUrl,
   type PickapartvaSearchScope,
 } from "./pickapartva-yard-metadata";
@@ -22,15 +23,24 @@ const selectedScope = (
     ? selected.every((value) => value === "ANY")
     : selected.length === 1 && selected[0] === id;
 
+const NO_RESULTS = "No Results Found. Try Browsing Our Parts Or Search Again";
+
 /** `search` is the expected native search term: empty for the catalog pages,
  * the Set Date for a set-date search. `id` is the expected physical scope:
- * every yard, or the one yard a split set-date search selects. */
+ * every yard, or the one yard a split set-date search selects. `make` is the
+ * expected make: `ANY`, or the one make a split yard search selects.
+ *
+ * Returns whether the page is a make search's native empty answer. That page
+ * has no search form, so it cannot reflect the Set Date; its make and yard
+ * scripts still must match. The caller's reconciliation against the catalog
+ * covers an empty answer that should have listed donors. */
 export function verifyPickapartvaOwner(
   html: string,
   raw: string,
   search = "",
   id: PickapartvaSearchScope = "ANY",
-) {
+  make = "ANY",
+): boolean {
   const plain = pickapartvaText(html);
   if (
     ![
@@ -91,12 +101,35 @@ export function verifyPickapartvaOwner(
     throw new Error(
       "Pick-A-Part VA inventory selector has changed or narrowed physical scope",
     );
+  if (make !== "ANY") {
+    // The select's `selected` attribute never marks the make; the native
+    // scripts name the make and yard the server applied.
+    const scripts = [...raw.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)]
+      .map((match) => match[1] ?? "")
+      .join("\n");
+    const makes = [...scripts.matchAll(/\bvar\s+setMake\s*=\s*"([^"]*)"/g)].map(
+      (match) => match[1],
+    );
+    const yards = [...scripts.matchAll(/\bvar\s+urgID\s*=\s*"([^"]*)"/g)].map(
+      (match) => match[1],
+    );
+    if (
+      makes.length !== 1 ||
+      makes[0] !== pickapartvaMakePath(make) ||
+      !yards.length ||
+      yards.some((yard) => yard !== id)
+    )
+      throw new Error(
+        `Pick-A-Part VA make search does not prove its selected make ${make} and yard ${id}`,
+      );
+  }
   const forms = [
     ...html.matchAll(/(<form\b[^>]*>)([\s\S]*?)<\/form>/gi),
   ].filter((match) =>
     pickapartvaClass(match[1] ?? "", "iis-upull-search-form"),
   );
-  if (!forms.length)
+  const empty = make !== "ANY" && plain.includes(NO_RESULTS);
+  if (!forms.length && !empty)
     throw new Error("Pick-A-Part VA unfiltered search controls are missing");
   for (const form of forms) {
     const inputs = [...(form[2] ?? "").matchAll(/<input\b[^>]*>/gi)].map(
@@ -107,7 +140,7 @@ export function verifyPickapartvaOwner(
     );
     if (
       inventoryHtmlAttribute(form[1] ?? "", "action") !==
-        "/inventory/ANY/ANY/" ||
+        `/inventory/${pickapartvaMakePath(make)}/ANY/` ||
       inventoryHtmlAttribute(form[1] ?? "", "method")?.toLowerCase() !==
         "get" ||
       JSON.stringify(inputs) !==
@@ -119,6 +152,7 @@ export function verifyPickapartvaOwner(
     )
       throw new Error("Pick-A-Part VA inventory form is filtered or changed");
   }
+  return empty;
 }
 
 export function parsePickapartvaPagination(html: string, page: number) {
