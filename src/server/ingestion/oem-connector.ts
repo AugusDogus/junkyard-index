@@ -22,6 +22,7 @@ import {
   parseOemDonors,
   type OemPage,
 } from "./oem-parser";
+import { oemFields } from "./oem-record";
 import { OemSnapshot } from "./oem-snapshot";
 import {
   OemLocationSchema,
@@ -60,17 +61,29 @@ const same = (expected: unknown, actual: unknown, subject: string) => {
         " changed; restart a complete capture after reviewing drift",
     );
 };
-/** Card identity of a model page: which donors it lists, in order. Optional
- * photos and metadata may refresh between reads without changing a card. */
-const cards = (page: OemPage | undefined) =>
-  page?.records.map((r) => ({
-    ordinal: r.ordinal,
-    cardId: r.cardId,
-    destinations: r.destinations,
-    fields: r.fields.filter((f) =>
-      ["year", "make/model", "vin", "stock"].includes(f.label),
-    ),
-  }));
+/** Card identity of a model page: which VIN-bearing donors it lists, in any
+ * order, plus how many VIN-less cards it lists. The site re-sorts cards of the
+ * same year and edits VIN-less placeholders between reads; neither reaches
+ * the snapshot. Optional photos and metadata may refresh without changing a
+ * card. */
+const cards = (page: OemPage | undefined) => {
+  if (!page) return undefined;
+  const donors = page.records.filter((r) => oemFields(r, "vin").some(Boolean));
+  return {
+    vinless: page.records.length - donors.length,
+    donors: donors
+      .map((r) =>
+        JSON.stringify([
+          r.cardId,
+          r.destinations,
+          r.fields.filter((f) =>
+            ["year", "make/model", "vin", "stock"].includes(f.label),
+          ),
+        ]),
+      )
+      .sort(),
+  };
+};
 export function oemNextUrl(
   state: Exclude<OemState, { phase: "complete" }>,
 ): string {

@@ -219,6 +219,67 @@ describe("OEM resumable native traversal", () => {
     expect(reads).toBe(2);
     expect(batches).toBe(0);
   });
+  test("closing ignores card order and VIN-less placeholder edits but not donor drift", async () => {
+    // A native VIN-less placeholder like stock FBM, whose year the site edits
+    // between reads without adding or removing a donor.
+    const placeholder = (year: string) =>
+      oemDonorExcerpt
+        .replaceAll("10563", "FBM")
+        .replaceAll("2024", year)
+        .replace("1FTMF1KP0RKE76038", "");
+    const firstRead = oemFixtureDocument(
+      oemDonorExcerpt + otherDonors + paddingDonors + placeholder("2013"),
+    );
+    const run = (closingRead: string) => {
+      const seen = { reads: 0, batches: 0 };
+      const opts = options(() => {
+        seen.batches++;
+      });
+      const outcome = Effect.runPromise(
+        streamOemInventory({
+          ...opts,
+          maxPages: 8,
+          readPage: (url) =>
+            url === oemF150.url
+              ? Effect.succeed(seen.reads++ === 0 ? firstRead : closingRead)
+              : opts.readPage(url),
+        }),
+      );
+      return { outcome, seen };
+    };
+    // The same donors re-sorted within their years, and the placeholder's
+    // year edited.
+    const [donor10834, donor10804] = otherDonors.split(/(?=<div id="10804")/);
+    const reordered = run(
+      oemFixtureDocument(
+        (donor10834 ?? "") +
+          paddingDonors
+            .split(/(?=<div id=")/)
+            .reverse()
+            .join("") +
+          oemDonorExcerpt +
+          (donor10804 ?? "") +
+          placeholder("2012"),
+      ),
+    );
+    expect((await reordered.outcome).status).toBe("complete");
+    expect(reordered.seen).toEqual({ reads: 2, batches: 1 });
+
+    for (const closingRead of [
+      // A VIN-bearing donor dropped.
+      firstRead.replace(oemDonorExcerpt, ""),
+      // A VIN-bearing donor's VIN changed.
+      firstRead.replace("1FTMF1KP0RKE76038", "1FTMF1KP0RKE76039"),
+      // The placeholder dropped, which changes the page's card count.
+      firstRead.replace(placeholder("2013"), ""),
+    ]) {
+      const drifted = run(closingRead);
+      await expect(drifted.outcome).rejects.toThrow(
+        "Closing OEM model FORD F150 PICKUP cards changed",
+      );
+      expect(drifted.seen).toEqual({ reads: 2, batches: 0 });
+    }
+  });
   test("model page foreign supplier evidence cannot be hidden by unchanged VINs", async () => {
     let requests = 0,
       batches = 0;
