@@ -1,6 +1,7 @@
 import { ingestionValidation } from "./ingestion-validation";
 import { Effect, RateLimiter } from "effect";
 import {
+  acquireMichigantruckBrowser,
   fetchMichigantruckPage,
   MichigantruckProviderError,
 } from "./michigantruck-client";
@@ -34,6 +35,17 @@ import {
 } from "./michigantruck-yard-metadata";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import type { ProviderRequestGate } from "./provider-http-client";
+import {
+  DocumentTransport,
+  type BrowserOpenError,
+  type BrowserSessions,
+  type LazyDocumentTransport,
+} from "./document-transport";
+import { Config } from "./context";
+import {
+  ProviderChunkClock,
+  type ProviderChunkWallTimeout,
+} from "./provider-chunk-clock";
 
 interface MichigantruckOptions<E, R> {
   startCursor?: MichigantruckCursor;
@@ -59,7 +71,12 @@ const attempt = <A>(operation: string, run: () => A) =>
 export function streamMichigantruckInventoryWithRequestGate<E, R>(
   options: MichigantruckOptions<E, R>,
   gate: ProviderRequestGate,
-) {
+  transport: LazyDocumentTransport = DocumentTransport.nativeLazy,
+): Effect.Effect<
+  MichigantruckStreamResult,
+  E | MichigantruckProviderError | BrowserOpenError | ProviderChunkWallTimeout,
+  R
+> {
   return Effect.gen(function* () {
     const parsed = MichigantruckCursorSchema.safeParse(
       options.startCursor ?? MichigantruckCursor.initial,
@@ -101,7 +118,8 @@ export function streamMichigantruckInventoryWithRequestGate<E, R>(
             "request budget",
             "The 32-request chunk limit was reached; no advanced checkpoint returned",
           );
-        return yield* fetchMichigantruckPage(url, gate);
+        const documents = yield* transport.open;
+        return yield* fetchMichigantruckPage(url, gate, documents);
       });
     const contact = yield* fetchPage(MICHIGANTRUCK_ORIGIN + "/contact/");
     yield* attempt("physical ownership", () => michigantruckDocument(contact));
@@ -267,7 +285,8 @@ export function streamMichigantruckInventoryWithRequestGate<E, R>(
         : [],
     } satisfies MichigantruckStreamResult;
   }).pipe(
-    Effect.timeoutFail({
+    // Waiting for the browser session lease is not provider work.
+    ProviderChunkClock.deadline({
       duration: "3 minutes",
       onTimeout: () =>
         failure(
@@ -277,14 +296,32 @@ export function streamMichigantruckInventoryWithRequestGate<E, R>(
     }),
   );
 }
+/** At most one browser session per chunk, opened by the first request under
+ * the Hyperbrowser session lease and stopped when the chunk ends. `sessions`
+ * defaults to Hyperbrowser. */
 export function streamMichigantruckInventory<E, R>(
   options: MichigantruckOptions<E, R>,
+  sessions?: BrowserSessions,
 ) {
   return Effect.scoped(
-    RateLimiter.make({ limit: 1, interval: "1600 millis" }).pipe(
-      Effect.flatMap((gate) =>
-        streamMichigantruckInventoryWithRequestGate(options, gate),
-      ),
-    ),
+    Effect.gen(function* () {
+      const transport = yield* acquireMichigantruckBrowser(
+        sessions ??
+          DocumentTransport.hyperbrowser(
+            (yield* Config).hyperbrowserApiKey,
+            "michigantruck",
+            "page",
+          ),
+      );
+      const gate = yield* RateLimiter.make({
+        limit: 1,
+        interval: "1600 millis",
+      });
+      return yield* streamMichigantruckInventoryWithRequestGate(
+        options,
+        gate,
+        transport,
+      );
+    }),
   );
 }

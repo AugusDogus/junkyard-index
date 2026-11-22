@@ -1,9 +1,7 @@
 import { Data, Effect } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
-import {
-  fetchProviderResponse,
-  type ProviderRequestGate,
-} from "./provider-http-client";
+import type { ProviderRequestGate } from "./provider-http-client";
+import { DocumentTransport, type BrowserSessions } from "./document-transport";
 import { michigantruckDetailUrl } from "./michigantruck-record";
 import {
   michigantruckPageUrl,
@@ -21,7 +19,46 @@ export class MichigantruckProviderError extends Data.TaggedError(
     return `Michigan Truck ${this.operation}: ${this.cause instanceof Error ? this.cause.message : String(this.cause)}. Reconciliation is blocked and previous inventory is preserved. Inspect the native catalog and restart from a validated checkpoint.`;
   }
 }
-export function fetchMichigantruckPage(url: string, gate: ProviderRequestGate) {
+
+/** The response and its body each get 20 seconds. The transport's status,
+ * range, destination and MIME are checked before any body is read. */
+async function readMichigantruckDocument(
+  url: string,
+  lifetime: AbortSignal,
+  transport: DocumentTransport,
+): Promise<string> {
+  const response = await transport(url, {
+    signal: AbortSignal.any([lifetime, AbortSignal.timeout(20_000)]),
+    headers: { "User-Agent": "JunkyardIndex/1.0", Accept: "text/html" },
+  });
+  const refusal =
+    response.status !== 200 || response.headers.has("content-range")
+      ? "Expected complete HTTP 200, received " + response.status
+      : response.redirected || (response.url && response.url !== url)
+        ? "Native endpoint redirected away from its verified destination"
+        : response.headers
+              .get("content-type")
+              ?.split(";")[0]
+              ?.trim()
+              .toLowerCase() !== "text/html"
+          ? "Expected native HTML content type"
+          : null;
+  if (refusal !== null) {
+    await response.body?.cancel();
+    throw new Error(refusal);
+  }
+  return readIPullUPullResponseText(
+    response,
+    "Michigan Truck",
+    AbortSignal.any([lifetime, AbortSignal.timeout(20_000)]),
+  );
+}
+
+export function fetchMichigantruckPage(
+  url: string,
+  gate: ProviderRequestGate,
+  transport: DocumentTransport = DocumentTransport.native,
+) {
   return Effect.gen(function* () {
     const allowed =
       url === MICHIGANTRUCK_ORIGIN + "/contact/" ||
@@ -37,43 +74,36 @@ export function fetchMichigantruckPage(url: string, gate: ProviderRequestGate) {
           "Request is outside the verified native catalog/detail controls",
         ),
       );
-    const response = yield* fetchProviderResponse({
-      url,
-      context: "Michigan Truck " + url,
-      requestGate: gate,
-      headers: { "User-Agent": "JunkyardIndex/1.0", Accept: "text/html" },
-      retry: {
-        timeoutMs: 20_000,
-        retryLimit: 0,
-        retryNetworkErrors: false,
-        jitter: false,
-      },
-      onResponse: (r) => {
-        if (r.status !== 200 || r.headers.has("content-range"))
-          throw new Error("Expected complete HTTP 200, received " + r.status);
-        if (r.url && r.url !== url)
-          throw new Error(
-            "Native endpoint redirected away from its verified destination",
-          );
-      },
-    });
-    if (
-      response.headers
-        .get("content-type")
-        ?.split(";")[0]
-        ?.trim()
-        .toLowerCase() !== "text/html"
-    )
-      return yield* Effect.fail(new Error("Expected native HTML content type"));
-    return yield* Effect.tryPromise({
-      try: () =>
-        readIPullUPullResponseText(
-          response,
-          "Michigan Truck",
-          AbortSignal.timeout(20_000),
-        ),
-      catch: (cause) => cause,
-    });
+    return yield* gate(
+      Effect.suspend(() => {
+        const lifetime = new AbortController();
+        let pending: Promise<string> | null = null;
+        return Effect.tryPromise({
+          try: (interrupted) => {
+            pending = readMichigantruckDocument(
+              url,
+              AbortSignal.any([lifetime.signal, interrupted]),
+              transport,
+            );
+            return pending;
+          },
+          catch: (cause) => cause,
+        }).pipe(
+          Effect.ensuring(
+            Effect.promise(async () => {
+              lifetime.abort();
+              // The request owns its failure; cleanup only waits for the
+              // transport and body to release.
+              if (pending)
+                await pending.then(
+                  () => undefined,
+                  () => undefined,
+                );
+            }),
+          ),
+        );
+      }),
+    );
   }).pipe(
     Effect.mapError(
       (cause) =>
@@ -81,3 +111,8 @@ export function fetchMichigantruckPage(url: string, gate: ProviderRequestGate) {
     ),
   );
 }
+
+/** Cloudflare refuses native requests from Vercel, so a browser session loads
+ * every document by top-level navigation, as for Big D. */
+export const acquireMichigantruckBrowser = (sessions: BrowserSessions) =>
+  DocumentTransport.acquireBrowser(sessions, "navigation");

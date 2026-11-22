@@ -1,7 +1,7 @@
 # Hyperbrowser sessions
 
-U Pull It Davie, Vander Haags, Big D, Northwest and 603 Auto Salvage load
-documents through Hyperbrowser sessions (`HYPERBROWSER_SOURCES` in
+U Pull It Davie, Vander Haags, Big D, Northwest, 603 Auto Salvage and Michigan
+Truck Parts load documents through Hyperbrowser sessions (`HYPERBROWSER_SOURCES` in
 `src/server/ingestion/hyperbrowser-sessions.ts`). The Hyperbrowser plan caps
 how many sessions the team may keep open at once: 1 on Free, 25 on Startup.
 `HYPERBROWSER_CONCURRENT_SESSIONS` holds that cap; change it with the plan.
