@@ -1,4 +1,7 @@
-import { ingestionValidation } from "./ingestion-validation";
+import {
+  ingestionValidation,
+  validationRejection,
+} from "./ingestion-validation";
 import { Effect, Option } from "effect";
 import {
   fetchPipesControl,
@@ -9,7 +12,9 @@ import {
   inspectPipesCursor,
   PipesCursor,
   PipesCursorSchema,
+  pipesQueryHash,
   pipesReceipt,
+  PIPES_MAX_RESTARTS,
   PIPES_MAX_RUN_BYTES,
   PIPES_MAX_RUN_REQUESTS,
   type PipesCursorProgress,
@@ -93,11 +98,16 @@ function nextControl(cursor: PipesCursor): PipesControl | null {
       return null;
   }
 }
+/** A closing control that differs from the opening crawl is a real source
+ * change (the nightly VinPlus publish), not a corrupt checkpoint. */
+type PipesStep =
+  | { readonly kind: "advanced"; readonly cursor: PipesCursor }
+  | { readonly kind: "changed"; readonly control: string };
 function advance(
   cursor: PipesCursor,
   control: PipesControl,
   raw: string,
-): PipesCursor {
+): PipesStep {
   const progress: PipesCursorProgress = { ...cursor };
   const receipt = pipesReceipt(raw);
   switch (cursor.phase) {
@@ -133,22 +143,36 @@ function advance(
         throw new Error("Unexpected closing native control");
       const page = parsePipesInventory(raw, control.make);
       if (pipesHash(page.makes) !== pipesHash(inspectPipesCursor(cursor).makes))
-        throw new Error(
-          "Native make directory changed during the closing census",
-        );
+        return { kind: "changed", control: "Closing native make directory" };
+      const hash = pipesHash({ make: control.make, rows: page.rows });
+      if (hash !== cursor.native[cursor.closingNative.length]?.hash)
+        return { kind: "changed", control: "Closing native census" };
       progress.closingNative = [
         ...cursor.closingNative,
         {
-          hash: pipesHash({ make: control.make, rows: page.rows }),
+          hash,
           bodyHash: receipt.bodyHash,
           bytes: receipt.bytes,
         },
       ];
       break;
     }
-    case "bookends":
+    case "bookends": {
+      if (control.kind !== "query")
+        throw new Error("Unexpected bookend control");
+      const original =
+        cursor.queries[
+          cursor.bookends.length === 0 ? 0 : cursor.queries.length - 1
+        ];
+      if (!original) throw new Error("Missing original bookend query");
+      if (
+        pipesQueryHash(original.raw, control.pair) !==
+        pipesQueryHash(raw, control.pair)
+      )
+        return { kind: "changed", control: "Query bookend records" };
       progress.bookends = [...cursor.bookends, receipt];
       break;
+    }
     case "closing-context":
       progress.closingContext = [...cursor.closingContext, receipt];
       break;
@@ -182,7 +206,10 @@ function advance(
   const phase = phases[phaseIndex];
   if (!phase)
     throw new Error("Pipes control advanced beyond the terminal phase");
-  return PipesCursor.checkpoint({ ...progress, phase });
+  return {
+    kind: "advanced",
+    cursor: PipesCursor.checkpoint({ ...progress, phase }),
+  };
 }
 
 export function streamPipesInventoryWithRequestGate<E, R>(
@@ -252,10 +279,30 @@ export function streamPipesInventoryWithRequestGate<E, R>(
       );
       if (Option.isNone(page)) break;
       const raw = page.value;
-      cursor = yield* validated("complete control prefix", () =>
+      const step = yield* validated("complete control prefix", () =>
         advance(cursor, control, raw),
       );
       pagesProcessed++;
+      if (step.kind === "advanced") {
+        cursor = step.cursor;
+        continue;
+      }
+      if (cursor.restarts >= PIPES_MAX_RESTARTS)
+        return yield* Effect.fail(
+          validationRejection(
+            new PipesProviderError({
+              operation: "closing source stability",
+              cause:
+                step.control +
+                " still differs from the opening crawl after " +
+                PIPES_MAX_RESTARTS +
+                " in-run restarts, so the source kept changing during every attempt",
+            }),
+          ),
+        );
+      // The restarted crawl rereads every control, so its own closing checks
+      // still prove one complete stable inventory.
+      cursor = yield* validated("restart", () => PipesCursor.restart(cursor));
     }
     if (cursor.phase !== "complete" && pagesProcessed === 0)
       return yield* new PipesProviderError({
@@ -276,11 +323,21 @@ export function streamPipesInventoryWithRequestGate<E, R>(
       pagesProcessed,
       count: result.vehicles.length,
       observedVins: result.observedVins,
-      warnings: result.rejected
-        ? [
-            "Pipes rejected incomplete required identities and quarantined any API-only stocks. Genuine rejected identities supply presence evidence only.",
-          ]
-        : [],
+      warnings: [
+        ...(result.rejected
+          ? [
+              "Pipes rejected incomplete required identities and quarantined any API-only stocks. Genuine rejected identities supply presence evidence only.",
+            ]
+          : []),
+        ...(cursor.restarts
+          ? [
+              "Pipes restarted " +
+                cursor.restarts +
+                (cursor.restarts === 1 ? " time" : " times") +
+                " from the opening controls because the source changed during the crawl; the accepted inventory is the final complete crawl.",
+            ]
+          : []),
+      ],
       accounting: {
         recordsProcessed: result.processed,
         recordsExcluded: 0,

@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import {
   PipesCursor,
   PIPES_MAX_CURSOR_BYTES,
+  PIPES_MAX_RESTARTS,
   pipesReceipt,
 } from "./pipes-cursor";
 import { pipesHash, pipesRecordHash } from "./pipes-parser";
@@ -99,4 +100,18 @@ test("Pipes refuses a legacy checkpoint whose scope did not bind the search dest
   const legacy =
     '{"version":1,"scope":"7256292ca9e27d3a25b784f80cea3454d9137f0b71f172bbe4e2b8556ffc6521","checksum":"5c1ddbb1b2bcfa6be3160037d78b75ab966180520dd1a34f123d293656352c89","opening":[],"native":[],"queries":[],"closingNative":[],"bookends":[],"closingContext":[],"phase":"opening"}';
   expect(() => PipesCursor.parse(legacy)).toThrow();
+});
+test("Pipes keeps checkpoints saved before restarts valid and bounds the restart counter", () => {
+  const legacy = JSON.stringify({
+    ...PipesCursor.initial,
+    source: undefined,
+    restarts: undefined,
+  });
+  expect(legacy).not.toContain("restarts");
+  expect(PipesCursor.parse(legacy)).toEqual(PipesCursor.initial);
+  const restarted = PipesCursor.restart(
+    PipesCursor.restart(PipesCursor.initial),
+  );
+  expect(restarted.restarts).toBe(PIPES_MAX_RESTARTS);
+  expect(() => PipesCursor.restart(restarted)).toThrow();
 });

@@ -17,6 +17,7 @@ import {
   pipesPhotoStock,
   pipesRecordHash,
   type PipesNativeRow,
+  type PipesPair,
   type PipesRecord,
 } from "./pipes-parser";
 import { classifyPipesInventory } from "./pipes-transform";
@@ -35,6 +36,9 @@ import {
 export const PIPES_MAX_CURSOR_BYTES = 1024 * 1024;
 export const PIPES_MAX_RUN_REQUESTS = 512;
 export const PIPES_MAX_RUN_BYTES = 32 * 1024 * 1024;
+/** Closing drift restarts the crawl from its opening controls at most this
+ * many times per run, so a source that keeps changing still fails. */
+export const PIPES_MAX_RESTARTS = 2;
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
 export const PipesRawReceiptSchema = z
   .object({
@@ -89,6 +93,7 @@ const common = {
   closingNative: z.array(closingPage).max(PIPES_MAX_MAKES),
   bookends: z.array(PipesRawReceiptSchema).max(2),
   closingContext: z.array(PipesRawReceiptSchema).max(4),
+  restarts: z.number().int().min(0).max(PIPES_MAX_RESTARTS).default(0),
 };
 const rawCursor = z.discriminatedUnion("phase", [
   z.object({ ...common, phase: z.literal("opening") }).strict(),
@@ -114,10 +119,18 @@ function stateHash(state: Omit<State, "checksum"> | State) {
     closingNative: state.closingNative,
     bookends: state.bookends,
     closingContext: state.closingContext,
+    // Zero is omitted so checkpoints saved before restarts existed keep
+    // their checksum.
+    restarts: state.restarts || undefined,
   });
 }
 export function pipesReceipt(raw: string): PipesRawReceipt {
   return { raw, bodyHash: pipesBodyHash(raw), bytes: Buffer.byteLength(raw) };
+}
+/** Ordered whole-record fingerprints of one query response. Only the
+ * daily-stamped daysInYard is excluded, as for repeated stocks. */
+export function pipesQueryHash(raw: string, pair: PipesPair) {
+  return pipesHash(parsePipesSearch(raw, pair).map(pipesRecordHash));
 }
 function verifyRaw(receipt: PipesRawReceipt) {
   if (
@@ -278,12 +291,13 @@ export function inspectPipesCursor(state: State) {
     const originalIndex = bookendIndexes[index];
     const original =
       originalIndex === undefined ? undefined : state.queries[originalIndex];
+    const pair = originalIndex === undefined ? undefined : pairs[originalIndex];
     if (
       !original ||
-      original.raw !== receipt.raw ||
-      original.bodyHash !== receipt.bodyHash
+      !pair ||
+      pipesQueryHash(original.raw, pair) !== pipesQueryHash(receipt.raw, pair)
     )
-      throw new Error("Pipes exact query bookend whole response changed");
+      throw new Error("Pipes query bookend records changed");
   }
   for (const [index, receipt] of state.closingContext.entries()) {
     verifyRaw(receipt);
@@ -413,10 +427,16 @@ const initial = checkpoint({
   closingNative: [],
   bookends: [],
   closingContext: [],
+  restarts: 0,
 });
 export const PipesCursor = {
   initial,
   checkpoint,
+  /** Discard every receipt and begin again from the opening controls. The
+   * schema bounds the counter, so a further restart fails validation. */
+  restart(cursor: PipesCursor): PipesCursor {
+    return checkpoint({ ...initial, restarts: cursor.restarts + 1 });
+  },
   parse(serialized: string): PipesCursor {
     if (Buffer.byteLength(serialized) > PIPES_MAX_CURSOR_BYTES)
       throw new Error(
