@@ -84,6 +84,8 @@ export interface FetchedDurableSourceChunk<
   yards: Yard[];
   observedVins?: string[];
   checkpointState?: unknown;
+  /** See `ConnectorChunkResult.restart`. */
+  restart?: true;
   failureKind?: "validation";
 }
 

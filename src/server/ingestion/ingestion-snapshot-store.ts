@@ -14,6 +14,9 @@ export interface IngestionSnapshotChunk {
   vehicles: CanonicalVehicle[];
   observedVins: string[];
   checkpointState?: unknown;
+  /** The source crawl started over here: earlier chunks of this source run
+   * no longer describe its inventory. */
+  restart?: true;
 }
 
 export interface IngestionSnapshotStore {
@@ -59,6 +62,7 @@ const SnapshotChunkSchema = z.object({
   vehicles: z.array(CanonicalVehicleSchema),
   observedVins: z.array(z.string().min(1)),
   checkpointState: z.unknown().optional(),
+  restart: z.literal(true).optional(),
 });
 
 const BLOB_PREFIX = "ingestion-runs";
