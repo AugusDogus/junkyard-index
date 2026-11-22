@@ -257,6 +257,19 @@ test("Pipes restarts from the opening controls when the closing native census ch
   expect(callbacks).toBe(1);
   expect(requests()).toBe(20);
 });
+test("Pipes restarts from the opening controls when the make directory changed during the opening census", async () => {
+  const requests = replay(
+    (index, body) =>
+      index === 4 ? pipesTestInventory(undefined, ["CHEVROLET", "FORD"]) : body,
+    200,
+    [...crawl.slice(0, 5), ...crawl],
+  );
+  const { result, callbacks } = await runToEnd();
+  expect(result.count).toBe(1);
+  expect(result.cursor.restarts).toBe(1);
+  expect(callbacks).toBe(1);
+  expect(requests()).toBe(18);
+});
 test("Pipes rejects without callbacks when the source keeps changing after its restarts", async () => {
   const attempt = crawl.slice(0, 7);
   const requests = replay(
@@ -265,7 +278,9 @@ test("Pipes rejects without callbacks when the source keeps changing after its r
     [...attempt, ...attempt, ...attempt],
   );
   const batches = { count: 0 };
-  await expect(runToEnd(batches)).rejects.toThrow("after 2 in-run restarts");
+  const rejection = runToEnd(batches);
+  await expect(rejection).rejects.toThrow("after 2 in-run restarts");
+  await expect(rejection).rejects.toThrow("Closing native census for FORD");
   expect(batches.count).toBe(0);
   expect(requests()).toBe(21);
 });
