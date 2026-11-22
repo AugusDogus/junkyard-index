@@ -1,7 +1,7 @@
 import { and, eq, getTableColumns, notInArray, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { z } from "zod";
-import { RETIRED_INGESTION_SOURCES } from "~/lib/ingestion-source";
+import { HiddenSources } from "~/lib/hidden-source";
 import type { InventoryFilterOptions } from "~/lib/inventory-filter-options";
 import { getYardDetails } from "~/lib/yard-details";
 import { normalizeCanonicalMake } from "~/server/ingestion/normalization";
@@ -26,7 +26,7 @@ function sorted(values: Iterable<string>): string[] {
  * - yards come from `yard_inventory` and `yard` metadata, named with
  *   `getYardDetails` as `projectSearchVehicles` names them;
  * - states and colors read the vehicle table once, in table order.
- * Retired sources are left out, as on the homepage.
+ * Retired and hidden sources are left out, as on the homepage.
  * The table scan is why callers cache this with the daily inventory.
  */
 async function load(database: LibSQLDatabase): Promise<InventoryFilterOptions> {
@@ -52,12 +52,12 @@ async function load(database: LibSQLDatabase): Promise<InventoryFilterOptions> {
           eq(yardTable.code, yardInventory.locationCode),
         ),
       )
-      .where(notInArray(yardInventory.source, [...RETIRED_INGESTION_SOURCES])),
+      .where(notInArray(yardInventory.source, [...HiddenSources.unlisted])),
     database.all(sql`
       select distinct state, color from vehicle not indexed
       where missing_since_at is null
         and source not in (${sql.join(
-          RETIRED_INGESTION_SOURCES.map((source) => sql`${source}`),
+          HiddenSources.unlisted.map((source) => sql`${source}`),
           sql`, `,
         )})
     `),

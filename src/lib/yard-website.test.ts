@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { HiddenSources } from "./hidden-source";
 import { pypYardWebsite, resolveYardWebsite } from "./yard-website";
 
 test("accepts published relative PYP store pages and derives matching yard inventory from vehicle URLs", () => {
@@ -157,3 +158,17 @@ test("Vander Haags resolves physical yards, including London's native Columbus r
     }),
   ).toEqual({ kind: "provider", href: "https://www.vanderhaags.com/map.php" });
 });
+
+for (const source of HiddenSources.list)
+  test(`${source} is hidden, so its yards link to no website`, () => {
+    expect(
+      resolveYardWebsite({
+        source,
+        code: "1",
+        name: "Hidden Yard",
+        state: "VA",
+        websiteUrl: "https://example.com/",
+        inventoryUrl: "https://example.com/inventory/",
+      }),
+    ).toBeNull();
+  });

@@ -4,6 +4,7 @@ import { and, inArray, sql } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "~/lib/db";
 import { cacheInventory } from "~/lib/inventory-cache";
+import { HiddenSources } from "~/lib/hidden-source";
 import { ModelArrivals } from "~/lib/model-arrivals";
 import {
   MakeInventory,
@@ -58,7 +59,7 @@ export const findMake = cache(
 /** One make's live vehicles per yard and raw model, from the snapshot. */
 const getMakeRollup = cacheInventory(
   (makeKey: string) => InventorySnapshot.makeModels(db, makeKey),
-  ["make-rollup-snapshot-v3"],
+  ["make-rollup-snapshot-v3", ...HiddenSources.list],
 );
 
 /** A model's vehicle with the yard it sits in. */
@@ -92,16 +93,18 @@ async function loadModelArrivals(
       ),
     );
   const newest = ModelArrivals.pick(
-    dated.map(
-      ({ availableDate, firstSeenAt, observedArrivalAt, ...candidate }) => ({
-        ...candidate,
-        addedAt: YardInventory.addedAt(
-          availableDate,
-          firstSeenAt.getTime(),
-          observedArrivalAt?.getTime() ?? null,
-        ),
-      }),
-    ),
+    dated
+      .filter(({ source }) => !HiddenSources.has(source))
+      .map(
+        ({ availableDate, firstSeenAt, observedArrivalAt, ...candidate }) => ({
+          ...candidate,
+          addedAt: YardInventory.addedAt(
+            availableDate,
+            firstSeenAt.getTime(),
+            observedArrivalAt?.getTime() ?? null,
+          ),
+        }),
+      ),
     ARRIVALS,
   ).map(({ vin }) => vin);
   if (newest.length === 0) return [];
@@ -145,6 +148,7 @@ async function loadModelArrivals(
 /** One model's most recently set vehicles, across all yards. */
 const getModelArrivals = cacheInventory(loadModelArrivals, [
   "model-arrivals-v5",
+  ...HiddenSources.list,
 ]);
 
 function yardsByKey(yards: readonly RoutedYard[]): Map<string, RoutedYard> {

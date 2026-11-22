@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { DesktopFiltersBar } from "./DesktopFiltersBar";
 import { MobileFilterContent } from "./MobileFilterContent";
 import { AVAILABLE_SOURCES, InventorySourcesFilter } from "./FilterFields";
+import { HiddenSources } from "~/lib/hidden-source";
 import { INGESTION_SOURCES } from "~/lib/ingestion-source";
 
 const emptyFilterOptions = {
@@ -15,7 +16,7 @@ const emptyFilterOptions = {
 const noOp = () => undefined;
 
 describe("search filter visibility", () => {
-  test("offers every registered source, including when selecting all except one", () => {
+  test("offers every registered source but hidden ones, including when selecting all except one", () => {
     const markup = renderToStaticMarkup(
       <InventorySourcesFilter
         idPrefix="test"
@@ -24,7 +25,9 @@ describe("search filter visibility", () => {
       />,
     );
     for (const source of INGESTION_SOURCES) {
-      expect(markup).toContain(`id="test-${source}"`);
+      expect(markup.includes(`id="test-${source}"`)).toBe(
+        !HiddenSources.has(source),
+      );
     }
     expect(AVAILABLE_SOURCES.filter((source) => source !== "row52")).toContain(
       "pullnsave",

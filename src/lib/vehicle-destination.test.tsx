@@ -7,6 +7,7 @@ import { parseNotificationIntentPayload } from "~/server/alerts/notification-int
 import { formatVehicleEmbed } from "./discord-vehicle-embed";
 import { SearchAlertMatch } from "./search-alert-data";
 import { algoliaHitToSearchVehicle } from "./search-vehicles";
+import { HiddenSources } from "./hidden-source";
 import type { DataSource, SearchVehicle } from "./types";
 import { VehicleDestination } from "./vehicle-destination";
 
@@ -310,15 +311,20 @@ describe("manual provider destinations across search, durable alerts and present
       "open Pics and match the stock number",
     );
   });
-  test.each([
-    ["aero", "https://aeroautosalvage.com/vehicle-inventory/"],
-    ["meeks", "https://meeksrecycling.com/pic-and-pull/"],
-    ["ddauto", "https://dd-auto-parts-cars.glide.page/dl/17171d"],
-    ["army", "https://armysauto.com/self-service-inventory/"],
-    ["idipull", "https://ifipull.com/inventory/"],
-    ["littleton", "https://littletonupullit.com/vehicle-inventory"],
-    ["joliet", "https://www.jolietupullit.com/inventory"],
-  ] as const)(
+  // A hidden source links nowhere until it is shown again.
+  test.each(
+    (
+      [
+        ["aero", "https://aeroautosalvage.com/vehicle-inventory/"],
+        ["meeks", "https://meeksrecycling.com/pic-and-pull/"],
+        ["ddauto", "https://dd-auto-parts-cars.glide.page/dl/17171d"],
+        ["army", "https://armysauto.com/self-service-inventory/"],
+        ["idipull", "https://ifipull.com/inventory/"],
+        ["littleton", "https://littletonupullit.com/vehicle-inventory"],
+        ["joliet", "https://www.jolietupullit.com/inventory"],
+      ] as const
+    ).filter(([source]) => !HiddenSources.has(source)),
+  )(
     "%s labels its searchable table honestly across all surfaces",
     async (source, url) => {
       const restored = roundTripNotification(vehicle(source, url));
@@ -642,3 +648,19 @@ describe("arrival dates across search cards and notifications", () => {
     },
   );
 });
+
+for (const source of HiddenSources.list)
+  test(`${source} is hidden, so no surface links to its website`, async () => {
+    const restored = roundTripNotification(
+      vehicle(source, "https://example.com/inventory/"),
+    );
+    expect(VehicleDestination.resolve(restored)).toMatchObject({
+      kind: "unavailable",
+    });
+    const { card, email, discord } = await renderSurfaces(restored);
+    for (const html of [card, email]) {
+      expect(html).not.toContain("example.com");
+      expect(html).not.toContain("Search provider inventory");
+    }
+    expect(discord.url).toBeUndefined();
+  });

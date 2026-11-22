@@ -1,6 +1,7 @@
 import { and, eq, like, max, notInArray, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { z } from "zod";
+import { HiddenSources } from "~/lib/hidden-source";
 import { MakeInventory, type MakeRollupRow } from "~/lib/make-inventory";
 import { VehicleName } from "~/lib/vehicle-name";
 import { InventoryRollup } from "~/server/inventory-rollup";
@@ -131,8 +132,13 @@ async function read<Data>(
   return parse(key, data, schema);
 }
 
+/** Make and model pages leave out hidden sources. */
+function shown(rows: readonly MakeRollupRow[]): MakeRollupRow[] {
+  return rows.filter((row) => !HiddenSources.has(row.source));
+}
+
 async function compute(database: LibSQLDatabase): Promise<InventorySnapshot> {
-  const models = await InventoryRollup.models(database);
+  const models = shown(await InventoryRollup.models(database));
   const counts = new Map<string, number>();
   const makeModels = new Map<string, MakeRollupRow[]>();
   for (const row of models) {
@@ -291,7 +297,8 @@ export const InventorySnapshot = {
   /**
    * One make's live vehicles per yard and raw spelling. A make with no live
    * vehicles has no row, so it has none; a cached make list can briefly still
-   * name it.
+   * name it. Hidden sources are left out even from a snapshot stored before
+   * they were hidden.
    */
   async makeModels(
     database: LibSQLDatabase,
@@ -301,6 +308,6 @@ export const InventorySnapshot = {
     const data = await storedData(database, key);
     return data === null
       ? []
-      : parse(key, data, makeModelsSchema).map(fromTuple);
+      : shown(parse(key, data, makeModelsSchema).map(fromTuple));
   },
 } as const;

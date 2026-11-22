@@ -2,6 +2,7 @@ import { createClient } from "@libsql/client";
 import { expect, test } from "bun:test";
 import { drizzle } from "drizzle-orm/libsql";
 import { readFileSync } from "node:fs";
+import { HiddenSources } from "~/lib/hidden-source";
 import { yard } from "~/schema";
 import { getHomepageYards } from "./homepage-yards";
 
@@ -91,3 +92,34 @@ test("directory joins metadata by source and code without changing active invent
     client.close();
   }
 });
+
+for (const source of HiddenSources.list)
+  test(`${source} is hidden, so the directory and every yard page leave it out`, async () => {
+    const client = createClient({ url: ":memory:" });
+    try {
+      await client.executeMultiple(
+        readFileSync(
+          new URL("../../drizzle/0007_yard_metadata.sql", import.meta.url),
+          "utf8",
+        ),
+      );
+      await client.executeMultiple(`
+        create table vehicle (source text, location_code text, location_name text,
+          location_city text, state_abbr text, lat real, lng real, missing_since_at integer);
+        insert into vehicle values
+          ('pyp', '1', 'Sun Valley', 'Sun Valley', 'CA', 34, -118, null),
+          ('${source}', '1', 'Hidden Yard', 'Martinsville', 'VA', 36, -79, null);
+        alter table vehicle add column details_url text;
+      `);
+      await client.executeMultiple(
+        readFileSync(
+          new URL("../../drizzle/0016_yard_inventory.sql", import.meta.url),
+          "utf8",
+        ),
+      );
+      const yards = await getHomepageYards(drizzle(client));
+      expect(yards.map((entry) => entry.source)).toEqual(["pyp"]);
+    } finally {
+      client.close();
+    }
+  });

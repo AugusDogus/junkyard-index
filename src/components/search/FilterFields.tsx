@@ -12,6 +12,7 @@ import {
 import { Slider } from "~/components/ui/slider";
 import { PLANS } from "~/lib/plans";
 import type { DataSource } from "~/lib/types";
+import { HiddenSources } from "~/lib/hidden-source";
 import { INGESTION_SOURCES } from "~/lib/ingestion-source";
 import { cn } from "~/lib/utils";
 
@@ -112,7 +113,8 @@ const SOURCE_LABELS: Record<DataSource, string> = {
   autorecycler: "AutoRecycler.io",
 };
 
-export const AVAILABLE_SOURCES: readonly DataSource[] = INGESTION_SOURCES;
+export const AVAILABLE_SOURCES: readonly DataSource[] =
+  INGESTION_SOURCES.filter((source) => !HiddenSources.has(source));
 
 interface InventorySourcesFilterProps {
   idPrefix: string;

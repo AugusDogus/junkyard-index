@@ -9,6 +9,7 @@ import { YardBrand, type Chain } from "~/lib/yard-brand";
 import type { YardPath } from "~/lib/yard-path";
 import { getHomepageInventory } from "~/lib/homepage-inventory";
 import { cacheInventory } from "~/lib/inventory-cache";
+import { HiddenSources } from "~/lib/hidden-source";
 import {
   isIngestionSource,
   isRetiredIngestionSource,
@@ -133,7 +134,7 @@ export const getRegionNewCount = cacheInventory(
         and(
           eq(vehicle.stateAbbr, stateAbbr),
           isNull(vehicle.missingSinceAt),
-          notInArray(vehicle.source, [...RETIRED_INGESTION_SOURCES]),
+          notInArray(vehicle.source, [...HiddenSources.unlisted]),
         ),
       );
     return YardInventory.newCount(
@@ -147,7 +148,7 @@ export const getRegionNewCount = cacheInventory(
       new Date().toISOString(),
     );
   },
-  ["region-new-count-v2"],
+  ["region-new-count-v2", ...HiddenSources.list],
 );
 
 /** Every yard with live inventory, with its page path. */
