@@ -50,25 +50,28 @@ test("Pipes read-only soak completes through actual bounded connector chunks", a
   expect(callbacks).toBe(1);
   expect(requests()).toBe(13);
 });
+const context = [
+  pipesTestOwner,
+  pipesTestInventory([]),
+  pipesTestDirections,
+  pipesTestConfig,
+];
+// One complete crawl: context, native, query, closing native, two bookends
+// and closing context.
+const crawl = [
+  ...context,
+  pipesTestInventory(),
+  pipesTestSearch(),
+  pipesTestInventory(),
+  pipesTestSearch(),
+  pipesTestSearch(),
+  ...context,
+];
 function replay(
   change?: (index: number, body: string) => string,
   status = 200,
+  bodies: readonly string[] = crawl,
 ) {
-  const context = [
-    pipesTestOwner,
-    pipesTestInventory([]),
-    pipesTestDirections,
-    pipesTestConfig,
-  ];
-  const bodies = [
-    ...context,
-    pipesTestInventory(),
-    pipesTestSearch(),
-    pipesTestInventory(),
-    pipesTestSearch(),
-    pipesTestSearch(),
-    ...context,
-  ];
   let requests = 0;
   globalThis.fetch = Object.assign(
     async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -188,26 +191,83 @@ for (const budget of [1, 3, 8])
       expect(requests()).toBe(13);
     },
   );
-test("Pipes rejects drift in exact API bookend days without callbacks", async () => {
-  replay((index, body) =>
-    index === 7 ? body.replace('"daysInYard":7', '"daysInYard":8') : body,
-  );
-  let callbacks = 0;
-  await expect(
-    Effect.runPromise(
+async function runToEnd(batches = { count: 0 }) {
+  let cursor = PipesCursor.initial;
+  for (let chunks = 0; chunks < 20; chunks++) {
+    const result = await Effect.runPromise(
       streamPipesInventoryWithRequestGate(
         {
+          startCursor: cursor,
           maxPages: 8,
           onBatch: () =>
             Effect.sync(() => {
-              callbacks++;
+              batches.count++;
             }),
         },
         immediate,
       ),
-    ),
-  ).rejects.toThrow("bookend");
-  expect(callbacks).toBe(0);
+    );
+    cursor = PipesCursor.parse(PipesCursor.serialize(result.cursor));
+    if (result.status === "complete")
+      return { result, callbacks: batches.count };
+  }
+  throw new Error("Pipes replay did not complete within 20 chunks");
+}
+test("Pipes accepts a bookend whose only change is the nightly daysInYard stamp", async () => {
+  // Production run 803fe455 on 2026-11-22: the nightly VinPlus publish
+  // rewrote daysInYard between the first query and its bookend re-read.
+  const requests = replay((index, body) =>
+    index === 7 ? body.replace('"daysInYard":7', '"daysInYard":8') : body,
+  );
+  const { result, callbacks } = await runToEnd();
+  expect(result.count).toBe(1);
+  expect(result.cursor.restarts).toBe(0);
+  expect(callbacks).toBe(1);
+  expect(requests()).toBe(13);
+});
+test("Pipes restarts from the opening controls when a bookend record really changed", async () => {
+  const requests = replay(
+    (index, body) =>
+      index === 7
+        ? body.replace('"vehicleRow":"12"', '"vehicleRow":"13"')
+        : body,
+    200,
+    [...crawl.slice(0, 8), ...crawl],
+  );
+  const { result, callbacks } = await runToEnd();
+  expect(result.count).toBe(1);
+  expect(result.cursor.restarts).toBe(1);
+  expect(result.warnings).toEqual([
+    expect.stringContaining("restarted 1 time"),
+  ]);
+  expect(callbacks).toBe(1);
+  expect(requests()).toBe(21);
+});
+test("Pipes restarts from the opening controls when the closing native census changed", async () => {
+  // Production run 6f920075 on 2026-11-21: the nightly VinPlus publish
+  // removed vehicles between the opening and closing native census.
+  const requests = replay(
+    (index, body) => (index === 6 ? pipesTestInventory([]) : body),
+    200,
+    [...crawl.slice(0, 7), ...crawl],
+  );
+  const { result, callbacks } = await runToEnd();
+  expect(result.count).toBe(1);
+  expect(result.cursor.restarts).toBe(1);
+  expect(callbacks).toBe(1);
+  expect(requests()).toBe(20);
+});
+test("Pipes rejects without callbacks when the source keeps changing after its restarts", async () => {
+  const attempt = crawl.slice(0, 7);
+  const requests = replay(
+    (index, body) => (index % 7 === 6 ? pipesTestInventory([]) : body),
+    200,
+    [...attempt, ...attempt, ...attempt],
+  );
+  const batches = { count: 0 };
+  await expect(runToEnd(batches)).rejects.toThrow("after 2 in-run restarts");
+  expect(batches.count).toBe(0);
+  expect(requests()).toBe(21);
 });
 test("Pipes rejects partial HTTP controls and sibling source cursors", async () => {
   replay(undefined, 206);
