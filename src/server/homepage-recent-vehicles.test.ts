@@ -2,6 +2,7 @@ import { createClient } from "@libsql/client";
 import { expect, test } from "bun:test";
 import { drizzle } from "drizzle-orm/libsql";
 import { readFileSync } from "node:fs";
+import { HiddenSources } from "~/lib/hidden-source";
 import { RecentArrivals } from "~/lib/recent-arrivals";
 import { getRecentHomepageVehicles } from "./homepage-recent-vehicles";
 
@@ -85,3 +86,37 @@ test("varied homepage candidates skip backfills before applying their larger lim
     client.close();
   }
 });
+
+for (const source of HiddenSources.list)
+  test(`${source} is hidden, so its arrivals stay off the homepage`, async () => {
+    const client = createClient({ url: ":memory:" });
+    try {
+      await client.executeMultiple(`
+        create table vehicle (vin text primary key, source text not null,
+          year integer not null, make text not null, model text not null,
+          image_url text, available_date text, location_code text not null,
+          location_city text not null default 'Unknown', state_abbr text not null,
+          first_seen_at integer not null, missing_since_at integer);
+      `);
+      await client.executeMultiple(
+        readFileSync(
+          new URL(
+            "../../drizzle/0017_observed_vehicle_arrival.sql",
+            import.meta.url,
+          ),
+          "utf8",
+        ),
+      );
+      await client.executeMultiple(`
+        insert into yard_arrival_baseline (source, location_code, established_at) values
+          ('pyp', '1', 1000), ('${source}', '1', 1000);
+        insert into vehicle (vin, source, year, make, model, location_code, state_abbr, first_seen_at) values
+          ('A-shown', 'pyp', 2010, 'Ford', 'Focus', '1', 'CA', 2000),
+          ('B-hidden', '${source}', 2012, 'Honda', 'Civic', '1', 'VA', 3000);
+      `);
+      const recent = await getRecentHomepageVehicles(drizzle(client));
+      expect(recent.map((entry) => entry.make)).toEqual(["Ford"]);
+    } finally {
+      client.close();
+    }
+  });

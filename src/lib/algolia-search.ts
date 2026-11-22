@@ -21,6 +21,7 @@ import type {
 } from "algoliasearch";
 import { env } from "~/env";
 import { withDistanceSort } from "~/lib/algolia-distance-sort";
+import { HiddenSources } from "~/lib/hidden-source";
 import { SearchQueryMeter, searchQueryMeter } from "~/lib/search-query-meter";
 import { browserSearchKey } from "~/lib/browser-search-key";
 import { SearchKeyGrant } from "~/lib/search-key-grant";
@@ -104,8 +105,12 @@ const keyedSearchClient: Pick<LiteClient, "search" | "addAlgoliaAgent"> & {
     }
   },
 };
+// Innermost, so every request reaching Algolia, including count and facet
+// requests the wrappers add, leaves out hidden sources.
 const baseSearchClient = withFullServiceCount(
-  withDistanceSort(withSearchCountsCache(keyedSearchClient)),
+  withDistanceSort(
+    withSearchCountsCache(HiddenSources.withSearchClient(keyedSearchClient)),
+  ),
 );
 
 export const primeSearchCounts = baseSearchClient.primeCounts;

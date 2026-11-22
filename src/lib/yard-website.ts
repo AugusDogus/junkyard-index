@@ -1,6 +1,7 @@
 import { VANDERHAAGS_YARDS } from "~/server/ingestion/vanderhaags-yards";
 import { normalizeRegion } from "~/server/ingestion/normalization";
 import { HOLLANDERSTORES_YARDS } from "~/server/ingestion/hollanderstores-yard-metadata";
+import { HiddenSources } from "./hidden-source";
 import { Yard } from "./yard";
 import { URGIIS_TENANTS } from "~/server/ingestion/urgiis-configuration";
 import { UrgiisTenant } from "~/server/ingestion/urgiis-tenant";
@@ -149,6 +150,7 @@ type WebsiteYard = {
 };
 
 export function resolveYardWebsite(yard: WebsiteYard): YardWebsite | null {
+  if (HiddenSources.has(yard.source)) return null;
   const stored =
     yard.source === "pyp"
       ? pypYardWebsite(yard.websiteUrl, yard.code)

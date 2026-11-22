@@ -1,5 +1,6 @@
 "use client";
 
+import { HiddenSources } from "~/lib/hidden-source";
 import { YardService } from "~/lib/yard-service";
 import { YardTypeFilter } from "~/components/search/FilterFields";
 import { useId, useState, useContext } from "react";
@@ -160,6 +161,8 @@ const SOURCES = [
   ["row52", "Row52 / Pick-n-Pull"],
   ["autorecycler", "AutoRecycler.io"],
 ] as const;
+/** The sources the picker offers: every one but hidden sources. */
+const SHOWN_SOURCES = SOURCES.filter(([source]) => !HiddenSources.has(source));
 function filterSummary(key: FilterKey, value: SearchCriteria) {
   if (key === "yardTypes")
     return (
@@ -301,7 +304,7 @@ export function FilterEditor({
                 />
               ) : key === "sources" ? (
                 <div className="se-choice-list">
-                  {SOURCES.map(([source, label]) => (
+                  {SHOWN_SOURCES.map(([source, label]) => (
                     <label key={source}>
                       <input
                         type="checkbox"
@@ -312,7 +315,7 @@ export function FilterEditor({
                         onChange={(e) => {
                           const selected = value.sources.length
                             ? value.sources
-                            : SOURCES.map(([code]) => code);
+                            : SHOWN_SOURCES.map(([code]) => code);
                           const next = e.target.checked
                             ? [...selected, source]
                             : selected.filter((item) => item !== source);
@@ -320,7 +323,9 @@ export function FilterEditor({
                             onChange({
                               ...value,
                               sources:
-                                next.length === SOURCES.length ? [] : next,
+                                next.length === SHOWN_SOURCES.length
+                                  ? []
+                                  : next,
                             });
                         }}
                       />

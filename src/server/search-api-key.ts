@@ -1,5 +1,6 @@
 import { createHash, createHmac } from "node:crypto";
 import { ALGOLIA_SEARCH_INDEX_NAMES, SEARCH_CONFIG } from "~/lib/constants";
+import { HiddenSources } from "~/lib/hidden-source";
 import { isPaidPlanTier, type PlanTier } from "~/lib/plans";
 import type { SearchKeyGrant } from "~/lib/search-key-grant";
 
@@ -15,7 +16,9 @@ export const SEARCH_KEY_LIFETIME_SECONDS = 60 * 60;
  * - reads only this deployment's search indices (the env namespace);
  * - expires after an hour;
  * - carries a per-visitor `userToken`, so the parent key's
- *   `maxQueriesPerIPPerHour` is counted per visitor even behind shared IPs.
+ *   `maxQueriesPerIPPerHour` is counted per visitor even behind shared IPs;
+ * - filters out hidden sources (HiddenSources), which Algolia ANDs with the
+ *   request's own filters, so a hand-made request cannot read them either.
  *
  * Secured keys cannot forbid filters. Algolia applies embedded `filters` in
  * addition to the query's own, so a free key cannot stop a request from
@@ -35,6 +38,9 @@ function restrictions(input: {
       .update(input.visitor)
       .digest("hex")
       .slice(0, 32),
+    ...(HiddenSources.algoliaFilter && {
+      filters: HiddenSources.algoliaFilter,
+    }),
     // Search parameters sit beside the other restrictions in the signed
     // query string, as Algolia's generateSecuredApiKey writes them. Offset
     // pagination is an alternative to page/hitsPerPage, so free keys pin

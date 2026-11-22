@@ -2,6 +2,7 @@ import { createClient } from "@libsql/client";
 import { expect, test } from "bun:test";
 import { drizzle } from "drizzle-orm/libsql";
 import { readFileSync } from "node:fs";
+import { HiddenSources } from "~/lib/hidden-source";
 import {
   InventorySnapshot,
   InventorySnapshotError,
@@ -276,3 +277,40 @@ test("canonical make aliases project into one queryable model snapshot", async (
     client.close();
   }
 });
+
+for (const source of HiddenSources.list)
+  test(`${source} is hidden, so make and model pages neither count nor list it`, async () => {
+    const { client, db, add } = await database();
+    try {
+      await add("A", PYP, [2004, "Honda", "Civic"]);
+      await add("B", [source, "1"], [2008, "Honda", "Civic"]);
+      await InventorySnapshot.project(db, first);
+      expect(await InventorySnapshot.makeCounts(db)).toEqual([
+        { make: "Honda", count: 1 },
+      ]);
+      expect(
+        (await InventorySnapshot.makeModels(db, "HONDA")).map(
+          (row) => row.source,
+        ),
+      ).toEqual(["pyp"]);
+
+      // A snapshot stored before the source was hidden lists it until the
+      // next projection; pages read it without the hidden rows meanwhile.
+      await client.execute({
+        sql: "update inventory_snapshot set data = ? where key = 'v3:make-models:HONDA'",
+        args: [
+          JSON.stringify([
+            ["pyp", "1", "Honda", "Civic", 1, 2004, 2004],
+            [source, "1", "Honda", "Civic", 1, 2008, 2008],
+          ]),
+        ],
+      });
+      expect(
+        (await InventorySnapshot.makeModels(db, "HONDA")).map(
+          (row) => row.source,
+        ),
+      ).toEqual(["pyp"]);
+    } finally {
+      client.close();
+    }
+  });

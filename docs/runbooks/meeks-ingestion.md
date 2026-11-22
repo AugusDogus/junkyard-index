@@ -2,6 +2,11 @@
 
 See the current [source flags and census floors](provider-coverage-go-live.md).
 
+Meeks is hidden from the public site while meeksrecycling.com redirects
+visitors to an unrelated site (since 2026-11-22). Ingestion still runs and
+rejects the defaced owner page. See [hiding a source](hide-source.md) to show
+it again once the canonical owner page returns.
+
 Meeks Pic-N-Pull publishes one own-yard donor catalog at 1205 Virginia Avenue,
 Martinsville, Virginia 24112. The native owner page, full inventory heading and
 independent business marker bind the catalog to this yard. The nearby recycling

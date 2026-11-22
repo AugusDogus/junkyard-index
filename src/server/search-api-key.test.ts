@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { createHmac } from "node:crypto";
 import { algoliasearch } from "algoliasearch";
+import { HiddenSources } from "~/lib/hidden-source";
 import { SearchApiKey } from "./search-api-key";
 
 const NOW = Date.UTC(2026, 10, 20, 12);
@@ -83,6 +84,13 @@ describe("SearchApiKey.mint", () => {
     // Algolia checks the signed timestamp; the browser gets the lifetime.
     expect(params.get("validUntil")).toBe(String(NOW / 1000 + 3600));
     expect(grant.expiresInSeconds).toBe(3600);
+  });
+
+  test("every key excludes the hidden sources from its searches", () => {
+    for (const tier of ["free", "lite", "full"] as const)
+      expect(decode(mint(tier).apiKey).params.get("filters") ?? undefined).toBe(
+        HiddenSources.algoliaFilter,
+      );
   });
 
   test("rate limits count per visitor through a hashed user token", () => {

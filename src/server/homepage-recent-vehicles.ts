@@ -1,5 +1,6 @@
-import { and, asc, desc, eq, gt, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gt, isNull, notInArray } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
+import { HiddenSources } from "~/lib/hidden-source";
 import { vehicle, yardArrivalBaseline } from "~/schema";
 
 const RECENT_VEHICLE_LIMIT = 12;
@@ -34,6 +35,7 @@ export async function getRecentHomepageVehicles(
       and(
         isNull(vehicle.missingSinceAt),
         gt(vehicle.firstSeenAt, yardArrivalBaseline.establishedAt),
+        notInArray(vehicle.source, [...HiddenSources.unlisted]),
       ),
     )
     .orderBy(desc(vehicle.firstSeenAt), asc(vehicle.vin))

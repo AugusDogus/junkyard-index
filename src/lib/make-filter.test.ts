@@ -1,4 +1,6 @@
 import { expect, test } from "bun:test";
+import { combineSearchFilters } from "./compile-search-expression";
+import { HiddenSources } from "./hidden-source";
 import { MakeFilter } from "./make-filter";
 
 test("preserves raw and normalized source makes without broadening other records", () => {
@@ -68,9 +70,13 @@ test("the search client transforms legacy and modern saved refinements through s
           indexName: "vehicles",
           params: expect.objectContaining({
             query: "Sonoma",
-            filters: ready
-              ? `${attribute}:"Chevrolet"`
-              : '(make:"Chevrolet" OR searchTokens:"make=chevrolet")',
+            // Every request also leaves out hidden sources.
+            filters: combineSearchFilters(
+              ready
+                ? `${attribute}:"Chevrolet"`
+                : '(make:"Chevrolet" OR searchTokens:"make=chevrolet")',
+              HiddenSources.algoliaFilter,
+            ),
           }),
         },
       ],

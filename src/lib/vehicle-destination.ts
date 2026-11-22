@@ -1,3 +1,4 @@
+import { HiddenSources } from "./hidden-source";
 import type { DataSource, SearchVehicle } from "./types";
 
 export type VehicleDestination =
@@ -83,6 +84,14 @@ function manualSearchExplanation(source: DataSource): string {
 function resolve(
   vehicle: Pick<SearchVehicle, "source" | "detailsUrl">,
 ): VehicleDestination {
+  // Also covers vehicles of a hidden source in alerts queued before it hid.
+  if (HiddenSources.has(vehicle.source)) {
+    return {
+      kind: "unavailable",
+      explanation:
+        "This yard's website is temporarily unavailable. Use the VIN and yard to identify this vehicle.",
+    };
+  }
   const yardUrl = vehicle.detailsUrl?.trim();
   if (
     vehicle.source === "vinplus" &&
