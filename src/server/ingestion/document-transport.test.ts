@@ -13,6 +13,17 @@ import {
   type LazyDocumentTransport,
 } from "./document-transport";
 import { BrowserSessionError } from "./errors";
+import { fetchMichigantruckPage } from "./michigantruck-client";
+import { streamMichigantruckInventory } from "./michigantruck-connector";
+import {
+  michigantruckTestOwnership,
+  michigantruckTestPage,
+  michigantruckTestRecord,
+} from "./michigantruck-test-fixtures";
+import {
+  MICHIGANTRUCK_CATALOG,
+  MICHIGANTRUCK_ORIGIN,
+} from "./michigantruck-yard-metadata";
 import { fetchNorthwestPage } from "./northwest-client";
 import { streamNorthwestInventory } from "./northwest-connector";
 import {
@@ -190,6 +201,73 @@ test.each([
     ).rejects.toThrow(message);
   },
 );
+
+const MICHIGANTRUCK_CONTACT = MICHIGANTRUCK_ORIGIN + "/contact/";
+
+test.each([
+  [
+    "Cloudflare challenge",
+    {
+      status: 403,
+      headers: { "content-type": "text/html", "cf-mitigated": "challenge" },
+    },
+    "received 403",
+  ],
+  [
+    "partial response",
+    {
+      status: 200,
+      headers: { "content-type": "text/html", "content-range": "bytes 0-9/99" },
+    },
+    "received 200",
+  ],
+  [
+    "foreign MIME",
+    { status: 200, headers: { "content-type": "application/json" } },
+    "Expected native HTML content type",
+  ],
+] as const)(
+  "the Michigan Truck client refuses a browser %s",
+  async (_name, hop, message) => {
+    const { transport } = fakePage("navigation", (url) =>
+      navigation({ ...hop, url, body: html }),
+    );
+    await expect(
+      Effect.runPromise(
+        fetchMichigantruckPage(MICHIGANTRUCK_CONTACT, direct, transport),
+      ),
+    ).rejects.toThrow(message);
+  },
+);
+
+test("the Michigan Truck client refuses a redirected browser navigation", async () => {
+  const { transport } = fakePage("navigation", (url) =>
+    navigation(
+      {
+        status: 200,
+        url: MICHIGANTRUCK_ORIGIN + "/",
+        headers: { "content-type": "text/html" },
+        body: html,
+      },
+      [{ status: 301, url, headers: { location: MICHIGANTRUCK_ORIGIN + "/" } }],
+    ),
+  );
+  await expect(
+    Effect.runPromise(
+      fetchMichigantruckPage(MICHIGANTRUCK_CONTACT, direct, transport),
+    ),
+  ).rejects.toThrow("received 301");
+});
+
+test("the Michigan Truck client reads the exact browser body", async () => {
+  const { transport, log } = fakePage("navigation", ok);
+  expect(
+    await Effect.runPromise(
+      fetchMichigantruckPage(MICHIGANTRUCK_CONTACT, direct, transport),
+    ),
+  ).toBe(html);
+  expect(log).toEqual(["goto " + MICHIGANTRUCK_CONTACT]);
+});
 
 test("navigation without a document response fails closed", async () => {
   const { transport } = fakePage("navigation", () => null);
@@ -660,6 +738,14 @@ test.each([
         Effect.asVoid,
       ),
   ],
+  [
+    "Michigan Truck with an invalid budget",
+    (sessions: BrowserSessions) =>
+      streamMichigantruckInventory(
+        { maxPages: 9, onBatch: ignore },
+        sessions,
+      ).pipe(Effect.asVoid),
+  ],
 ] as const)("%s opens no session", async (_name, run) => {
   const { sessions, events } = fakeSessions(servingPage());
   const exit = await Effect.runPromiseExit(
@@ -682,6 +768,83 @@ test("603 with a complete checkpoint opens no session", async () => {
   );
   expect(result.status).toBe("complete");
   expect(events).toEqual([]);
+});
+
+test("Michigan Truck with a complete checkpoint opens no session", async () => {
+  const { sessions, events } = fakeSessions(servingPage());
+  const result = await Effect.runPromise(
+    streamMichigantruckInventory(
+      {
+        startCursor: { source: "michigantruck", phase: "complete" },
+        onBatch: ignore,
+      },
+      sessions,
+    ).pipe(Effect.provideService(Config, config)),
+  );
+  expect(result.status).toBe("complete");
+  expect(events).toEqual([]);
+});
+
+test("a Michigan Truck chunk loads every document by navigation in one session, never by native fetch", async () => {
+  globalThis.fetch = Object.assign(
+    async () => {
+      throw new Error("Michigan Truck sent a native request");
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  const rows = Array.from({ length: 50 }, (_, index) =>
+    michigantruckTestRecord(index + 1),
+  );
+  const bodies = new Map([
+    [
+      MICHIGANTRUCK_CONTACT,
+      `<html><body>${michigantruckTestOwnership}</body></html>`,
+    ],
+    [MICHIGANTRUCK_CATALOG, michigantruckTestPage(rows, 1)],
+  ]);
+  const loaded: string[] = [];
+  const { sessions, events } = fakeSessions(
+    servingPage((url) => {
+      loaded.push(url);
+      const body = bodies.get(url);
+      return body === undefined
+        ? null
+        : navigation({
+            status: 200,
+            url,
+            headers: { "content-type": "text/html" },
+            body,
+          });
+    }),
+  );
+  let emitted = 0;
+  const result = await Effect.runPromise(
+    streamMichigantruckInventory(
+      {
+        onBatch: (batch) =>
+          Effect.sync(() => {
+            emitted += batch.length;
+          }),
+      },
+      sessions,
+    ).pipe(Effect.provideService(Config, config)),
+  );
+  expect(result).toMatchObject({ status: "paused", pagesProcessed: 1 });
+  expect(emitted).toBe(25);
+  expect(loaded).toEqual([MICHIGANTRUCK_CONTACT, MICHIGANTRUCK_CATALOG]);
+  expect(events).toEqual(lifecycle);
+});
+
+test("a Michigan Truck chunk whose first document is refused stops its session", async () => {
+  const { sessions, events } = fakeSessions(servingPage(refused));
+  await expect(
+    Effect.runPromise(
+      streamMichigantruckInventory({ onBatch: ignore }, sessions).pipe(
+        Effect.provideService(Config, config),
+      ),
+    ),
+  ).rejects.toThrow("received 403");
+  expect(events).toEqual(lifecycle);
 });
 
 test("a Northwest chunk whose first document is refused stops its session", async () => {
@@ -715,6 +878,13 @@ test.each([
     "603",
     (sessions: BrowserSessions) =>
       streamSix03Inventory({ onBatch: ignore }, sessions).pipe(Effect.asVoid),
+  ],
+  [
+    "Michigan Truck",
+    (sessions: BrowserSessions) =>
+      streamMichigantruckInventory({ onBatch: ignore }, sessions).pipe(
+        Effect.asVoid,
+      ),
   ],
 ] as const)(
   "%s defers its chunk while the session lease is busy, without a session or request",

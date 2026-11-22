@@ -28,12 +28,14 @@ Required rejects must remain at most 10% and duplicate vehicles at most 25% of n
 
 The strict cursor retains declared scope, actual continuation URL, page payload hashes, native IDs, normalized identities and cumulative accepted/rejected/excluded/duplicate counters. Every resume rereads and rebuilds the entire retained prefix before new callbacks. A forged counter, identity, hash, URL, photo or ordering fails validation. Callback or transport failure returns no advanced checkpoint. Earlier successful batches remain partial, and completion is never returned after a failure. A complete cursor makes no requests.
 
-Requests use the shared gate and bounded response reader. Non-200, partial, foreign destination, wrong MIME, timeout, abort, decoding and body-length failures end the chunk without retries.
+Requests use the shared gate and bounded response reader. Non-200, partial, redirected or foreign destination, wrong MIME, timeout, abort, decoding and body-length failures end the chunk without retries. A Cloudflare 403 or challenge page is never evidence.
+
+Since the first production run on 2026-11-18, Cloudflare has refused most native requests from Vercel with HTTP 403, while the same request from other networks returns 200. Production chunks open one Hyperbrowser session (stealth, accepted cookies, `us-west`, no proxy, no CAPTCHA solving) and load every document by top-level page navigation, as for Big D. The browser owns cookies and headers. The navigation status, headers and exact body bytes pass through the same checks; a redirected navigation reports its first hop, so it fails as a redirect. The session opens with the chunk's first request, after cursor and budget validation, under the cross-source [Hyperbrowser session lease](hyperbrowser-sessions.md), and is stopped when the chunk ends; a busy lease defers the chunk and waiting for it does not spend the three-minute work budget. A complete cursor opens no session. The page routes every request, which disables the browser HTTP cache, so terminal rereads never compare a cached copy. Images, media and fonts are aborted; each navigation still loads the page's scripts, stylesheets and their XHR requests outside the gate.
 
 ## Saved verification
 
 ```sh
-bun test src/server/ingestion/michigantruck-parser.test.ts src/server/ingestion/michigantruck-record.test.ts src/server/ingestion/michigantruck-connector.test.ts
+bun test src/server/ingestion/michigantruck-parser.test.ts src/server/ingestion/michigantruck-record.test.ts src/server/ingestion/michigantruck-connector.test.ts src/server/ingestion/document-transport.test.ts
 ```
 
 `scripts/soak-michigantruck.ts` accepts a count/discard chunk callback and has no database or Blob access. The saved replay at `.scratchpad/coverage/parallel-ny-nj-de/michigantruck/connector-terminal-replay.json` exercises the actual connector, shared durable codec and soak driver with varied checkpoints. It verifies all 180 native rows: 176 Salvage, four retail exclusions, 173 accepted donors, three required rejects and zero duplicates. It preserves all 173 stock/photo references and 146 real engines. Valid rejected VIN `10T3R0FH8S1051546` supplies presence only. Native engine `Other` on donor 189835 becomes null. The accepted 1979 Ford serial `W80DVEC8987` follows the existing identity rule.
