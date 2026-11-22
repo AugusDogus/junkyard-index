@@ -1285,6 +1285,123 @@ test("provider progress and its resume path checkpoint atomically and use normal
   }
 });
 
+test("a restarted crawl replaces every chunk and count staged before the restart", async () => {
+  const testDatabase = createTestClient();
+  const { client } = testDatabase;
+  try {
+    await client.executeMultiple(TEST_SCHEMA);
+    const store = IngestionSnapshotStore.memory();
+    const repository = createDurableIngestionRepository(
+      drizzle(client),
+      client,
+      store,
+    );
+    await repository.initialize("restart-run");
+    const stale = {
+      ...makeVehicle("1FAHP2J89EG117594"),
+      source: "pullnsave" as const,
+    };
+    const fresh = {
+      ...makeVehicle("1FAHP2J89EG117595"),
+      source: "pullnsave" as const,
+    };
+    await repository.checkpointChunk({
+      runId: "restart-run",
+      requestedCursor: { source: "pullnsave", page: 1 },
+      fetched: {
+        cursor: { source: "pullnsave", page: 2 },
+        status: "paused",
+        pagesProcessed: 1,
+        vehiclesProcessed: 3,
+        uniqueVehicles: 1,
+        duplicateVehicles: 1,
+        rejectedVehicles: 1,
+        errors: [],
+        vehicles: [stale],
+        yards: [],
+        observedVins: ["VIN-STALE"],
+      },
+    });
+    const restarted = await repository.checkpointChunk({
+      runId: "restart-run",
+      requestedCursor: { source: "pullnsave", page: 2 },
+      fetched: {
+        cursor: { source: "pullnsave", page: 3 },
+        status: "paused",
+        restart: true,
+        pagesProcessed: 1,
+        vehiclesProcessed: 1,
+        uniqueVehicles: 1,
+        duplicateVehicles: 0,
+        rejectedVehicles: 0,
+        errors: [],
+        vehicles: [fresh],
+        yards: [],
+        observedVins: [],
+      },
+    });
+    expect(restarted).toMatchObject({
+      count: 1,
+      uniqueVehicles: 1,
+      duplicateVehicles: 0,
+      rejectedVehicles: 0,
+      pagesProcessed: 2,
+    });
+    const staged = await stagedSnapshots(client, store, "restart-run");
+    expect(staged.vins).toEqual([fresh.vin]);
+    expect(staged.observedVins).toEqual([]);
+    // Superseded chunks stay registered for normal run cleanup.
+    expect(store.pathnames()).toHaveLength(2);
+
+    // A restart that stages nothing still supersedes everything before it.
+    const empty = await repository.checkpointChunk({
+      runId: "restart-run",
+      requestedCursor: { source: "pullnsave", page: 3 },
+      fetched: {
+        cursor: { source: "pullnsave", page: 4 },
+        status: "paused",
+        restart: true,
+        pagesProcessed: 1,
+        vehiclesProcessed: 0,
+        uniqueVehicles: 0,
+        duplicateVehicles: 0,
+        rejectedVehicles: 0,
+        errors: [],
+        vehicles: [],
+        yards: [],
+        observedVins: [],
+      },
+    });
+    expect(empty).toMatchObject({ count: 0, uniqueVehicles: 0 });
+    expect((await stagedSnapshots(client, store, "restart-run")).vins).toEqual(
+      [],
+    );
+    const appended = await repository.checkpointChunk({
+      runId: "restart-run",
+      requestedCursor: { source: "pullnsave", page: 4 },
+      fetched: {
+        cursor: { source: "pullnsave", page: 5 },
+        status: "paused",
+        pagesProcessed: 1,
+        vehiclesProcessed: 1,
+        uniqueVehicles: 1,
+        duplicateVehicles: 0,
+        rejectedVehicles: 0,
+        errors: [],
+        vehicles: [fresh],
+        yards: [],
+        observedVins: [],
+      },
+    });
+    expect(appended).toMatchObject({ count: 1, pagesProcessed: 4 });
+    expect((await stagedSnapshots(client, store, "restart-run")).vins).toEqual([
+      fresh.vin,
+    ]);
+  } finally {
+    testDatabase.cleanup();
+  }
+});
+
 test("a first claim inside a daily alert check's window is stamped past it", async () => {
   const { client, cleanup } = createTestClient();
   try {

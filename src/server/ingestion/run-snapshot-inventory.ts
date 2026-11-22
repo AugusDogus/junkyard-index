@@ -41,6 +41,10 @@ export async function loadSourceSnapshot(
   };
   for (const pathname of parseSnapshotChunks(snapshotChunks)) {
     const chunk = await store.load(pathname);
+    if (chunk.restart) {
+      snapshot.vehicles.clear();
+      snapshot.observedVins.clear();
+    }
     for (const vehicle of chunk.vehicles)
       if (!snapshot.vehicles.has(vehicle.vin))
         snapshot.vehicles.set(vehicle.vin, vehicle);

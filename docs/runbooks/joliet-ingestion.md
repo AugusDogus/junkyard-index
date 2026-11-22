@@ -75,6 +75,17 @@ must match the full official table. A context digest includes source identity,
 physical metadata, table, query directory, config and counts. The terminal query
 repeats all five contexts before accepting completion.
 
+Joliet republishes its table and counts overnight, at about 07:30 UTC, while the
+07:00 UTC crawl is still running. When a resumed chunk or the terminal closing
+context finds a different digest, the crawl restarts from query 0 under the new
+context instead of failing. A resumed chunk restarts in place and searches the
+new context's first pair. A terminal change publishes nothing from that chunk and
+leaves a `restart` cursor for the next chunk. A restart discards all stock and
+receipt progress, and its staged chunk carries a restart marker, so publication
+ignores vehicles, observations and counts staged before it. The restart counter
+is part of the checksummed cursor. A run may restart twice; a third change fails
+the source and preserves prior inventory.
+
 The saved scope contains 1,406 unique stocks and 309 exact native pairs. All
 1,406 stocks appear in their own queries. The responses contain 1,893 hits,
 including 487 agreeing cross-query repeats. Total/year/stock/position/date parity
@@ -118,8 +129,9 @@ snapshots can reconcile inventory.
 
 ## Checkpoints and recovery
 
-Strict cursors have `start`, `queries` and `complete` phases. A query cursor
-stores the owner/scope digest, next query index, pair count, native response
+Strict cursors have `start`, `queries`, `restart` and `complete` phases. A
+`restart` cursor holds only the restart count. A query cursor stores the
+owner/scope digest, restart count, next query index, pair count, native response
 receipts and cumulative per-stock identity/status/fingerprint/first-query state.
 A checksum binds every resume field independently of JSON property order. This
 detects corruption of trusted durable state and does not authenticate arbitrary
@@ -137,8 +149,8 @@ Requests use the shared provider gate at 1.6 seconds, zero automatic retries,
 HTTP 200 bodies with the verified endpoint, expected MIME, valid UTF-8 and a
 maximum of 4 MiB are accepted. Redirects, partial ranges and length mismatches
 fail. On failure, prior accepted inventory remains intact. Inspect the source
-and resume the last validated checkpoint. Changed source context requires a new
-complete crawl.
+and resume the last validated checkpoint. Changed source context starts a new
+complete crawl in the same run, at most twice.
 
 ## Saved verification
 

@@ -27,6 +27,9 @@ export interface ConnectorChunkResult<
   /** Opaque, validated provider progress, stored privately with this checkpoint.
    * Cursors using this protocol have a statePath field replaced atomically. */
   checkpointState?: unknown;
+  /** The crawl started over in this chunk. Its vehicles, observations and
+   * counts replace everything earlier chunks of the run staged. */
+  restart?: true;
   failureKind?: "validation";
 }
 

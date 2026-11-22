@@ -7,6 +7,7 @@ import {
   type JolietContext,
 } from "./joliet-client";
 import {
+  JOLIET_MAX_RESTARTS,
   JolietCursor,
   JolietCursorSchema,
   type JolietSeen,
@@ -47,14 +48,34 @@ interface JolietOptions<E, R> {
 export type JolietStreamResult = ConnectorChunkResult<"joliet", JolietCursor>;
 type QueryCursor = Extract<JolietCursor, { phase: "queries" }>;
 
-function validateResume(cursor: QueryCursor, context: JolietContext): void {
+const CONTEXT_CHANGED =
+  "Official Joliet owner, native table, public config or active counts changed during the crawl";
+const RESTARTED =
+  "Joliet restarted the crawl from its first query because the official owner, native table, public config or active counts changed; earlier chunks of this run are superseded.";
+
+/** Throws once a run has used every restart, so a source that keeps changing
+ * still fails instead of crawling forever. */
+function requireRestart(restarts: number): void {
+  if (restarts >= JOLIET_MAX_RESTARTS)
+    throw new Error(
+      CONTEXT_CHANGED + " after " + JOLIET_MAX_RESTARTS + " restarts",
+    );
+}
+
+/** The overnight publish replaces the official table and counts. A crawl it
+ * overtakes starts over under the new context; one that did not must still
+ * bind every checkpointed stock to the current table. */
+function resumeOrRestart(
+  cursor: QueryCursor,
+  context: JolietContext,
+): "resume" | "restart" {
   if (
     cursor.contextHash !== context.hash ||
     cursor.pairCount !== context.pairs.length
-  )
-    throw new Error(
-      "Official Joliet owner, native table, public config or active counts changed during the crawl",
-    );
+  ) {
+    requireRestart(cursor.restarts);
+    return "restart";
+  }
   const rows = new Map(context.rows.map((row) => [row.stock, row]));
   for (const entry of cursor.seen) {
     const row = rows.get(entry.stock);
@@ -66,6 +87,7 @@ function validateResume(cursor: QueryCursor, context: JolietContext): void {
         "Checkpoint stock/year or VIN/serial does not bind to the current official Joliet table",
       );
   }
+  return "resume";
 }
 
 /** Native model matching overlaps. An agreeing repeat supplies coverage only;
@@ -213,17 +235,20 @@ export function streamJolietInventoryWithRequestGate<E, R>(
     // turn to advance. Nothing here touches chunk state.
     const opening = yield* Effect.gen(function* () {
       const context = yield* fetchJolietContext(gate);
-      if (initial.phase === "queries")
-        yield* validateJoliet("durable scope", () =>
-          validateResume(initial, context),
-        );
-      const pair = context.pairs[resumeQuery];
+      const restart =
+        initial.phase === "queries" &&
+        (yield* validateJoliet("durable scope", () =>
+          resumeOrRestart(initial, context),
+        )) === "restart";
+      // A restart searches the new context's first pair under that context.
+      const start = restart ? 0 : resumeQuery;
+      const pair = context.pairs[start];
       const search = pair ? yield* fetchJolietSearch(pair, gate) : null;
       const closing =
-        (pair ? resumeQuery + 1 : resumeQuery) >= context.pairs.length
+        (pair ? start + 1 : start) >= context.pairs.length
           ? yield* fetchJolietContext(gate)
           : null;
-      return { context, search, closing };
+      return { context, search, closing, restart };
     }).pipe(
       sharedProviderHostTurn(
         JOLIET_SEARCH_URL,
@@ -232,19 +257,19 @@ export function streamJolietInventoryWithRequestGate<E, R>(
           : CONTEXT_REQUESTS + 1,
       ),
     );
-    const { context } = opening;
+    const { context, restart } = opening;
+    const restarts =
+      (initial.phase === "start" ? 0 : initial.restarts) + (restart ? 1 : 0);
+    // A restart discards all progress made under the superseded context.
+    const resumed = initial.phase === "queries" && !restart ? initial : null;
     const seen = new Map<string, JolietSeen>(
-      (initial.phase === "queries" ? initial.seen : []).map((entry) => [
-        entry.stock,
-        entry,
-      ]),
+      (resumed?.seen ?? []).map((entry) => [entry.stock, entry]),
     );
     const vins = new Map<string, string>();
     for (const entry of seen.values())
       if (entry.vin) vins.set(entry.vin, entry.stock);
-    const receipts: QueryCursor["receipts"] =
-      initial.phase === "queries" ? [...initial.receipts] : [];
-    let nextQuery = resumeQuery;
+    const receipts: QueryCursor["receipts"] = [...(resumed?.receipts ?? [])];
+    let nextQuery = resumed?.nextQuery ?? 0;
     const vehicles: JolietCanonicalVehicle[] = [];
     const observedVins: string[] = [];
     const warnings: string[] = [];
@@ -313,6 +338,29 @@ export function streamJolietInventoryWithRequestGate<E, R>(
     }
     const terminal = nextQuery === context.pairs.length;
     if (terminal) {
+      if (closing === null)
+        return yield* new JolietProviderError({
+          operation: "terminal scope",
+          cause: "The last native query was read without its closing context",
+        });
+      if (closing.hash !== context.hash) {
+        // The crawl cannot prove the closing inventory, so nothing it read is
+        // published. The next chunk crawls the new context from query 0.
+        const cursor = yield* validateJoliet("terminal scope", () => {
+          requireRestart(restarts);
+          return JolietCursorSchema.parse({
+            source: "joliet",
+            phase: "restart",
+            restarts: restarts + 1,
+          });
+        });
+        return {
+          ...summary,
+          cursor,
+          restart: true,
+          warnings: [RESTARTED],
+        } satisfies JolietStreamResult;
+      }
       yield* validateJoliet("terminal coverage and quality", () => {
         const rows = new Set(context.rows.map((row) => row.stock));
         const htmlOnly = context.rows
@@ -362,23 +410,13 @@ export function streamJolietInventoryWithRequestGate<E, R>(
               " active donors exceeds the unchanged 10% rejection limit or leaves no valid donors",
           );
       });
-      if (closing === null)
-        return yield* new JolietProviderError({
-          operation: "terminal scope",
-          cause: "The last native query was read without its closing context",
-        });
-      if (closing.hash !== context.hash)
-        return yield* new JolietProviderError({
-          operation: "terminal scope",
-          cause:
-            "Official owner, native table, public config or active counts changed during the crawl",
-        });
     }
     const cursor = yield* validateJoliet("next checkpoint", () =>
       terminal
         ? JolietCursorSchema.parse({ source: "joliet", phase: "complete" })
         : JolietCursor.checkpoint({
             contextHash: context.hash,
+            restarts,
             pairCount: context.pairs.length,
             nextQuery,
             seen: [...seen.values()],
@@ -393,9 +431,11 @@ export function streamJolietInventoryWithRequestGate<E, R>(
       ...summary,
       status: terminal ? "complete" : "paused",
       cursor,
+      ...(restart ? { restart: true } : {}),
       count: vehicles.length,
       observedVins,
       warnings: [
+        ...(restart ? [RESTARTED] : []),
         ...warnings,
         ...(rejected
           ? [

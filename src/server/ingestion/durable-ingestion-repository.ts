@@ -667,14 +667,23 @@ export function createDurableIngestionRepository(
         ...parseIngestionErrors(current.errors),
         ...params.fetched.errors,
       ]);
+      // A restarted crawl's counts start over with its snapshot.
+      const prior = params.fetched.restart
+        ? {
+            vehiclesProcessed: 0,
+            uniqueVehicles: 0,
+            duplicateVehicles: 0,
+            rejectedVehicles: 0,
+          }
+        : current;
       const vehiclesProcessed =
-        current.vehiclesProcessed + params.fetched.vehiclesProcessed;
+        prior.vehiclesProcessed + params.fetched.vehiclesProcessed;
       const uniqueVehicles =
-        current.uniqueVehicles + params.fetched.uniqueVehicles;
+        prior.uniqueVehicles + params.fetched.uniqueVehicles;
       const duplicateVehicles =
-        current.duplicateVehicles + params.fetched.duplicateVehicles;
+        prior.duplicateVehicles + params.fetched.duplicateVehicles;
       const rejectedVehicles =
-        current.rejectedVehicles + params.fetched.rejectedVehicles;
+        prior.rejectedVehicles + params.fetched.rejectedVehicles;
       const pagesProcessed =
         current.pagesProcessed + params.fetched.pagesProcessed;
       const terminal = params.fetched.status !== "paused";
@@ -689,11 +698,14 @@ export function createDurableIngestionRepository(
       );
       const statements: InStatement[] = [];
       // Stage the chunk before the guarded checkpoint that records it. A lost
-      // race leaves an unreferenced blob, which is deleted below.
+      // race leaves an unreferenced blob, which is deleted below. A restart
+      // chunk is always staged: its marker supersedes the earlier chunks,
+      // which stay registered for cleanup and Workflow cursor references.
       const snapshotPathname =
         params.fetched.vehicles.length > 0 ||
         observedVins.length > 0 ||
-        params.fetched.checkpointState !== undefined
+        params.fetched.checkpointState !== undefined ||
+        params.fetched.restart
           ? await snapshotStore.put({
               runId: params.runId,
               source,
@@ -701,6 +713,7 @@ export function createDurableIngestionRepository(
                 vehicles: params.fetched.vehicles,
                 observedVins,
                 checkpointState: params.fetched.checkpointState,
+                ...(params.fetched.restart ? { restart: true } : {}),
               },
             })
           : null;

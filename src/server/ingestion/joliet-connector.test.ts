@@ -4,7 +4,11 @@ import { z } from "zod";
 import { soakJolietInventory } from "../../../scripts/soak-joliet";
 import { fetchJolietContext } from "./joliet-client";
 import { streamJolietInventoryWithRequestGate } from "./joliet-connector";
-import { JolietCursor, JolietCursorSchema } from "./joliet-cursor";
+import {
+  JOLIET_MAX_RESTARTS,
+  JolietCursor,
+  JolietCursorSchema,
+} from "./joliet-cursor";
 import {
   jolietPairKey,
   parseJolietInventory,
@@ -64,13 +68,19 @@ const querySchema = z
   .strict();
 function mock(
   options: {
-    records?: readonly JolietRecord[];
+    /** Fixed records, or the records published as of each context read. */
+    records?:
+      | readonly JolietRecord[]
+      | ((ordinal: number) => readonly JolietRecord[]);
     searches?: Map<string, readonly JolietRecord[]>;
     rewrite?: (body: string, kind: Kind, ordinal: number) => string;
     response?: (body: string, kind: Kind) => Response;
   } = {},
 ) {
-  const records = options.records ?? [jolietTestRecord, second];
+  const published = (ordinal: number) =>
+    typeof options.records === "function"
+      ? options.records(ordinal)
+      : (options.records ?? [jolietTestRecord, second]);
   const requests: Kind[] = [];
   let contexts = 0;
   globalThis.fetch = Object.assign(
@@ -90,13 +100,13 @@ function mock(
         body = jolietTestContact;
       } else if (url === JOLIET_INVENTORY_URL) {
         kind = "inventory";
-        body = jolietTestInventory(records);
+        body = jolietTestInventory(published(contexts));
       } else if (url === JOLIET_CONFIG_URL) {
         kind = "config";
         body = jolietTestConfig;
       } else if (url === JOLIET_ANALYTICS_URL) {
         kind = "analytics";
-        body = jolietTestAnalytics(records);
+        body = jolietTestAnalytics(published(contexts));
       } else if (url === JOLIET_SEARCH_URL) {
         kind = "search";
         expect(init?.method).toBe("POST");
@@ -106,7 +116,7 @@ function mock(
         const pair = { make: query.make, model: query.model };
         body = jolietTestSearch(
           options.searches?.get(jolietPairKey(pair)) ??
-            records.filter(
+            published(contexts).filter(
               (record) =>
                 record.make === pair.make && record.model === pair.model,
             ),
@@ -524,6 +534,7 @@ test("Joliet rejects corrupted prior fingerprints and receipts before HTTP", asy
   const variants = [
     { ...cursor, nextQuery: cursor.nextQuery + 1 },
     { ...cursor, contextHash: "f".repeat(64) },
+    { ...cursor, restarts: 1 },
     { ...cursor, seen: [] },
     {
       ...cursor,
@@ -549,14 +560,20 @@ test("Joliet rejects corrupted prior fingerprints and receipts before HTTP", asy
   }
 });
 
-test("Joliet rejects owner/scope drift on resume and at terminal closing", async () => {
+test("Joliet rejects owner/scope drift on resume after its last restart and at terminal closing", async () => {
   mock();
   const first = await run(undefined, 1);
+  if (first.cursor.phase !== "queries")
+    throw new Error("Expected query checkpoint");
+  const exhausted = JolietCursor.checkpoint({
+    ...first.cursor,
+    restarts: JOLIET_MAX_RESTARTS,
+  });
   mock({
     rewrite: (body, kind) =>
       kind === "inventory" ? body.replace("<td>99</td>", "<td>98</td>") : body,
   });
-  await expect(run(first.cursor)).rejects.toThrow("changed during the crawl");
+  await expect(run(exhausted)).rejects.toThrow("changed during the crawl");
   mock({
     rewrite: (body, kind, ordinal) =>
       kind === "contact" && ordinal === 2
@@ -572,6 +589,158 @@ test("Joliet rejects owner/scope drift on resume and at terminal closing", async
     ),
   ).rejects.toThrow("physical contact ownership");
   expect(callbacks).toBe(0);
+});
+
+const third = {
+  ...jolietTestRecord,
+  stock: "STK075104",
+  vin: "1FAHP2J89EG117596",
+  model: "FOCUS",
+};
+/** Records whose official table and counts change with each context read. */
+const republished = (ordinal: number) => [
+  jolietTestRecord,
+  second,
+  {
+    ...third,
+    stock: "STK07511" + String(ordinal),
+    vin: "1FAHP2J89EG11760" + String(ordinal),
+  },
+];
+/** Runs one chunk and stages its vehicles as the durable repository does: a
+ * restart chunk supersedes everything staged before it. */
+async function stageChunk(
+  staged: readonly string[],
+  cursor: JolietCursor,
+  maxPages: number,
+) {
+  const batch: JolietCanonicalVehicle[] = [];
+  const result = await run(
+    JolietCursorSchema.parse(JSON.parse(JSON.stringify(cursor))),
+    maxPages,
+    (vehicles) =>
+      Effect.sync(() => {
+        batch.push(...vehicles);
+      }),
+  );
+  return {
+    result,
+    staged: [
+      ...(result.restart ? [] : staged),
+      ...batch.map((vehicle) => vehicle.vin),
+    ],
+  };
+}
+
+test("Joliet restarts from query 0 when the official context changes between chunks", async () => {
+  const before = [jolietTestRecord, second, third];
+  const firstPair = parseJolietInventory(jolietTestInventory(before)).pairs[0];
+  const removed = before.find((record) => record.model === firstPair?.model);
+  if (!removed) throw new Error("Missing first-query fixture");
+  const after = [
+    ...before.filter((record) => record !== removed),
+    {
+      ...jolietTestRecord,
+      stock: "STK075105",
+      vin: "1FAHP2J89EG117597",
+      model: "ESCAPE",
+    },
+  ];
+  // The overnight publish lands between the first and second chunks.
+  mock({ records: (ordinal) => (ordinal < 2 ? before : after) });
+  let { result, staged } = await stageChunk([], JolietCursor.initial, 1);
+  expect(result.restart).toBeUndefined();
+  expect(staged).toEqual([removed.vin]);
+
+  ({ result, staged } = await stageChunk(staged, result.cursor, 1));
+  expect(result.restart).toBe(true);
+  expect(result.cursor).toMatchObject({
+    phase: "queries",
+    restarts: 1,
+    nextQuery: 1,
+  });
+  // The restart searched the new context's first pair, not the old resume pair.
+  const restartPair = parseJolietInventory(jolietTestInventory(after)).pairs[0];
+  if (result.cursor.phase !== "queries")
+    throw new Error("Expected query checkpoint");
+  expect(result.cursor.seen.map((entry) => entry.stock)).toEqual(
+    after
+      .filter((record) => record.model === restartPair?.model)
+      .map((record) => record.stock),
+  );
+  expect(result.warnings?.join(" ")).toContain("restarted");
+
+  while (result.status === "paused")
+    ({ result, staged } = await stageChunk(staged, result.cursor, 16));
+  expect(result.status).toBe("complete");
+  expect(result.restart).toBeUndefined();
+  expect(staged.sort()).toEqual(after.map((record) => record.vin).sort());
+  expect(staged).not.toContain(removed.vin);
+});
+
+test("Joliet restarts when the terminal closing context differs and publishes only the new context", async () => {
+  const before = [jolietTestRecord, second];
+  const after = [
+    jolietTestRecord,
+    { ...second, stock: "STK075106", vin: "1FAHP2J89EG117598" },
+  ];
+  // The publish lands after the last search and before its closing context.
+  mock({ records: (ordinal) => (ordinal < 2 ? before : after) });
+  let { result, staged } = await stageChunk([], JolietCursor.initial, 16);
+  expect(result).toMatchObject({
+    status: "paused",
+    restart: true,
+    count: 0,
+    observedVins: [],
+    cursor: { source: "joliet", phase: "restart", restarts: 1 },
+    accounting: {
+      recordsProcessed: 0,
+      recordsExcluded: 0,
+      recordsRejected: 0,
+      duplicateVehicles: 0,
+    },
+  });
+  expect(staged).toEqual([]);
+
+  ({ result, staged } = await stageChunk(staged, result.cursor, 16));
+  expect(result.status).toBe("complete");
+  expect(result.restart).toBeUndefined();
+  expect(staged.sort()).toEqual(after.map((record) => record.vin).sort());
+});
+
+test("Joliet fails on a third context change between chunks", async () => {
+  mock({ records: republished });
+  let cursor = (await run(undefined, 1)).cursor;
+  for (const restarts of [1, 2]) {
+    const result = await run(cursor, 1);
+    expect(result.restart).toBe(true);
+    expect(result.cursor).toMatchObject({ phase: "queries", restarts });
+    cursor = result.cursor;
+  }
+  let callbacks = 0;
+  await expect(
+    run(cursor, 1, () =>
+      Effect.sync(() => {
+        callbacks++;
+      }),
+    ),
+  ).rejects.toThrow("changed during the crawl");
+  expect(callbacks).toBe(0);
+});
+
+test("Joliet fails on a third terminal closing change", async () => {
+  mock({ records: republished });
+  let cursor: JolietCursor = JolietCursor.initial;
+  for (const restarts of [1, 2]) {
+    const result = await run(cursor, 16);
+    expect(result.cursor).toEqual({
+      source: "joliet",
+      phase: "restart",
+      restarts,
+    });
+    cursor = result.cursor;
+  }
+  await expect(run(cursor, 16)).rejects.toThrow("changed during the crawl");
 });
 
 test("Joliet failing callbacks cannot advance the caller checkpoint", async () => {

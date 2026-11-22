@@ -38,8 +38,13 @@ const seenSchema = z.discriminatedUnion("status", [
     .strict(),
 ]);
 export type JolietSeen = z.infer<typeof seenSchema>;
+/** Restarts one run may take after the official context changes mid-crawl.
+ * A source that keeps changing still fails instead of crawling forever. */
+export const JOLIET_MAX_RESTARTS = 2;
+const restarts = z.number().int().min(0).max(JOLIET_MAX_RESTARTS);
 interface JolietProgress {
   contextHash: string;
+  restarts: number;
   nextQuery: number;
   pairCount: number;
   seen: readonly JolietSeen[];
@@ -50,6 +55,8 @@ interface JolietProgress {
  */
 function progressHash(progress: JolietProgress): string {
   return jolietHash({
+    // Omitted at zero so checkpoints written before restarts keep their hash.
+    ...(progress.restarts ? { restarts: progress.restarts } : {}),
     contextHash: progress.contextHash,
     nextQuery: progress.nextQuery,
     pairCount: progress.pairCount,
@@ -79,6 +86,7 @@ export const JolietCursorSchema = z
         phase: z.literal("queries"),
         contextHash: hash,
         progressHash: hash,
+        restarts: restarts.default(0),
         nextQuery: z
           .number()
           .int()
@@ -102,6 +110,14 @@ export const JolietCursorSchema = z
           )
           .min(1)
           .max(JOLIET_MAX_QUERIES - 1),
+      })
+      .strict(),
+    // The official context changed; the next chunk crawls it from query 0.
+    z
+      .object({
+        source: z.literal("joliet"),
+        phase: z.literal("restart"),
+        restarts: restarts.min(1),
       })
       .strict(),
     z

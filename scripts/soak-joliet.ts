@@ -54,6 +54,18 @@ export async function soakJolietInventory(
       throw new Error(
         "Joliet soak status disagrees with terminal cursor evidence",
       );
+    // A restarted crawl supersedes every earlier chunk's inventory.
+    if (chunk.restart) {
+      summary.count = 0;
+      observed.clear();
+      if (summary.accounting)
+        summary.accounting = {
+          recordsProcessed: 0,
+          recordsExcluded: 0,
+          recordsRejected: 0,
+          duplicateVehicles: 0,
+        };
+    }
     summary.count += chunk.count;
     summary.pagesProcessed += chunk.pagesProcessed;
     summary.errors.push(...chunk.errors);
