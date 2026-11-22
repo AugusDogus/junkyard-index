@@ -1,11 +1,18 @@
 import { Effect } from "effect";
-import { readIPullUPullResponseText } from "./ipullupull-response-text";
+import {
+  readBoundedResponseText,
+  type ResponseTextDecoding,
+} from "./ipullupull-response-text";
 import { heavyTruckPartsHostSlot } from "./heavytruckparts-host-slot";
 import {
   fetchProviderResponse,
   type ProviderRequestGate,
 } from "./provider-http-client";
 
+// Pages declare UTF-8 but carry stray windows-1252 bytes, such as 0xD7 in
+// Crest's "4x4" description. Completeness rests on the census guards, not on
+// rejecting a malformed character.
+export const HTP_TEXT_DECODING: ResponseTextDecoding = "utf-8-replace";
 // All three sources share this local gate and the deployed Redis host lease.
 const serial = Effect.runSync(Effect.makeSemaphore(1));
 export const heavyTruckPartsRequestGate: ProviderRequestGate = (request) =>
@@ -55,11 +62,12 @@ export function fetchHeavyTruckPartsPage(
         }
         return yield* Effect.tryPromise({
           try: () =>
-            readIPullUPullResponseText(
+            readBoundedResponseText(
               response,
               label + " inventory",
               AbortSignal.timeout(25_000),
               2 * 1024 * 1024,
+              HTP_TEXT_DECODING,
             ),
           catch: (cause) => cause,
         });

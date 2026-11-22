@@ -43,6 +43,8 @@ import {
   type HtpVehicle,
 } from "./heavytruckparts-snapshot";
 import { IngestionSourceFlags } from "./ingestion-source-flags";
+import { HTP_TEXT_DECODING } from "./heavytruckparts-client";
+import { decodeResponseText } from "./ipullupull-response-text";
 import type { HtpSupplier } from "./heavytruckparts-yard-metadata";
 import {
   parseDurableSourceCursor,
@@ -83,7 +85,8 @@ function fixtureBytes(key: string): Buffer {
 function read(key: string): string {
   const cached = bodies.get(key);
   if (cached !== undefined) return cached;
-  const raw = fixtureBytes(key).toString();
+  // Decode exactly as the client does, so a strict client fails these replays.
+  const raw = decodeResponseText(fixtureBytes(key), HTP_TEXT_DECODING);
   bodies.set(key, raw);
   return raw;
 }
@@ -550,6 +553,36 @@ describe("HeavyTruckParts marketplace", () => {
       expect(result._tag).toBe("Failure");
     }
   });
+  test("2026-11-22 Crest store page with stray windows-1252 bytes decodes through the client", async () => {
+    const crest = HTP_SUPPLIERS.find((s) => s.code === "crest");
+    if (!crest) throw new Error("Crest supplier missing");
+    // The original bytes declare UTF-8 but carry 0xD7 for the x in "4x4".
+    const bytes = fixtureBytes("crest-store");
+    expect(() =>
+      new TextDecoder("utf-8", { fatal: true }).decode(bytes),
+    ).toThrow();
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = Object.assign(
+      async () =>
+        new Response(new Uint8Array(bytes), {
+          headers: {
+            "content-type": "text/html; charset=UTF-8",
+            "content-length": String(bytes.byteLength),
+          },
+        }),
+      { preconnect: originalFetch.preconnect },
+    );
+    try {
+      const raw = await Effect.runPromise(fetchHtpPage(htpStoreUrl(crest)));
+      expect(raw).toBe(new TextDecoder("utf-8").decode(bytes));
+      expect(raw).toContain("4�4");
+      expect(parseHtpStore(raw, crest)).toBe(
+        parseHtpStore(read("crest-store"), crest),
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  }, 10000);
   test("2026-11-19 Request Info item control is not a second destination, and year ties overlap pages", () => {
     const live = z
       .object({

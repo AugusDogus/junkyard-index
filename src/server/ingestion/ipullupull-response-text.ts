@@ -21,12 +21,26 @@ export async function readIPullUPullResponseText(
   return readBoundedResponseText(response, context, signal, maximumBytes);
 }
 
+/** `utf-8-fatal` rejects malformed bytes. `utf-8-replace` substitutes U+FFFD,
+ * only for a source whose declared UTF-8 pages carry stray single-byte text. */
+export type ResponseTextDecoding = "utf-8-fatal" | "utf-8-replace";
+
+export function decodeResponseText(
+  bytes: Uint8Array,
+  decoding: ResponseTextDecoding,
+): string {
+  return new TextDecoder("utf-8", {
+    fatal: decoding === "utf-8-fatal",
+  }).decode(bytes);
+}
+
 /** Complete UTF-8 reader with an explicit provider-owned streaming bound. */
 export async function readBoundedResponseText(
   response: Pick<Response, "body" | "headers">,
   context: string,
   signal: AbortSignal,
   maximumBytes: number,
+  decoding: ResponseTextDecoding = "utf-8-fatal",
 ): Promise<string> {
   if (!Number.isSafeInteger(maximumBytes) || maximumBytes < 1)
     throw new Error(
@@ -57,9 +71,7 @@ export async function readBoundedResponseText(
       throw new Error(
         `Incomplete ${context}: received ${bytes} bytes, expected ${length}; retry the request.`,
       );
-    return new TextDecoder("utf-8", { fatal: true }).decode(
-      Buffer.concat(chunks),
-    );
+    return decodeResponseText(Buffer.concat(chunks), decoding);
   };
   let abort = () => {};
   const aborted = new Promise<never>((_resolve, reject) => {
