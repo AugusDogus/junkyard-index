@@ -380,7 +380,7 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   },
   michigantruck: {
     initialCursor: MichigantruckCursor.initial,
-    maxPagesPerChunk: 1,
+    maxPagesPerChunk: 8,
     terminal: COMPLETE_PHASE,
   },
   joliet: {
