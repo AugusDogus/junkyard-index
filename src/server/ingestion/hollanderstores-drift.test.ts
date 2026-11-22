@@ -156,6 +156,37 @@ test("census turnover accepts the exact per-yard limit and rejects one more remo
   }
 });
 
+test("census survivor rejections name the yard, first differing url and changed fields", () => {
+  const index = HOLLANDERSTORES_YARDS.findIndex(
+    (yard) => yard.code === "bandmauto",
+  );
+  const page = parseHollanderstoresPage(fixture("bandmauto"), index);
+  const [first, second, ...rest] = page.rows;
+  if (!first || !second) throw new Error("Expected two saved bandmauto rows");
+  const changed = hollanderstoresCensusError(page, {
+    ...page,
+    rows: [
+      first,
+      { ...second, imageUrl: "https://example.com/new.jpg" },
+      ...rest,
+    ],
+  });
+  expect(changed).toContain("bandmauto closing census changed");
+  expect(changed).toContain(
+    `${second.url} changed imageUrl from ${second.imageUrl === undefined ? "absent" : JSON.stringify(second.imageUrl)} to "https://example.com/new.jpg"`,
+  );
+  expect(changed).toContain(`1 of ${page.rows.length} surviving positions`);
+  const reordered = hollanderstoresCensusError(page, {
+    ...page,
+    rows: [second, first, ...rest],
+  });
+  expect(reordered).toContain("no surviving vehicle fields changed");
+  expect(reordered).toContain(
+    `order changed, first at surviving position 0: opening has ${first.url}, closing has ${second.url}`,
+  );
+  expect(reordered).toContain(`2 of ${page.rows.length} surviving positions`);
+});
+
 test("Sprinter decodes publish a WMI make while native makes retain priority", () => {
   expect(wd2.SearchCriteria).toBe("WMI:WD2");
   expect(wd2.Results.flatMap((row) => row.Make.split(", "))).toContain(

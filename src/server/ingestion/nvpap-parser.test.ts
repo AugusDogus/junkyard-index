@@ -185,6 +185,59 @@ test.each([{ stock: "" }, { stock: "[" }, { stock: "H133425" }])(
     ).toThrow("contradictory yard, year, VIN, stock or model identity");
   },
 );
+function parseFailure(raw: string, year = 1981): string {
+  try {
+    parseNvpapPage(raw, "1074", year);
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+  throw new Error("Expected the Nevada page to be rejected");
+}
+test("Nevada identity rejections name the failed check and the row evidence", () => {
+  const message = parseFailure(
+    nvpapTestResponse([nvpapTestRecord], "1074").replace(
+      "CHEVROLET CHEVROLET 10 VAN",
+      "CHEVROLET CHEVROLET 20 VAN",
+    ),
+  );
+  expect(message).toContain("row 0 failed the model cell check");
+  expect(message).toContain(
+    'JSON {"make":"CHEVROLET","model":"CHEVROLET 10 VAN","year":1981,"vin":"2GCEG25H8B4121375","unlabeled":22,"store":1074}',
+  );
+  expect(message).toContain(
+    'HTML cells stock ["L133425"], year ["1981"], model ["CHEVROLET CHEVROLET 20 VAN"], store ["Las Vegas"], VIN buttons ["2GCEG25H8B4121375"]',
+  );
+  expect(message).toContain("previously published Nevada inventory");
+});
+test.each([
+  {
+    raw: nvpapTestResponse([{ ...nvpapTestRecord, stock: "" }], "1074"),
+    year: 1981,
+    check: "stock format",
+  },
+  {
+    raw: nvpapTestResponse([{ ...nvpapTestRecord, stock: "H133425" }], "1074"),
+    year: 1981,
+    check: "stock yard prefix",
+  },
+  {
+    raw: nvpapTestResponse([nvpapTestRecord], "1074"),
+    year: 1982,
+    check: "requested year",
+  },
+  {
+    raw: nvpapTestResponse([nvpapTestRecord], "1074").replace(
+      'data-pt1-vin="2GCEG25H8B4121375"',
+      'data-pt1-vin="1GCEG25H8B4121375"',
+    ),
+    year: 1981,
+    check: "VIN button value",
+  },
+])("Nevada names the $check identity check", ({ raw, year, check }) => {
+  expect(parseFailure(raw, year)).toContain(
+    "row 0 failed the " + check + " check",
+  );
+});
 test("Nevada rejects repeated source stock identities", () => {
   expect(() =>
     parseNvpapPage(

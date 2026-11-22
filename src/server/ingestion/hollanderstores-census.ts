@@ -1,4 +1,15 @@
-import type { HollanderstoresPage } from "./hollanderstores-parser";
+import {
+  HollanderstoresRowSchema,
+  type HollanderstoresPage,
+  type HollanderstoresRow,
+} from "./hollanderstores-parser";
+
+const rowFields = HollanderstoresRowSchema.keyof().options;
+
+function fieldValue(row: HollanderstoresRow, field: keyof HollanderstoresRow) {
+  const value = row[field];
+  return value === undefined ? "absent" : JSON.stringify(value);
+}
 
 /** Bound identity turnover, not just net count change. The saved drift-history
  * captures lose 1-3 vehicles per yard. Allow 3 or 1% (rounded down), whichever
@@ -18,10 +29,45 @@ export function hollanderstoresCensusError(
   // Turnover may add or remove rows, but surviving records must retain their
   // fields, destinations and relative order. Reordered duplicate stocks remain
   // unqualified, as in the saved OK Auto Parts captures.
-  if (
-    JSON.stringify(opening.rows.filter((row) => closingUrls.has(row.url))) !==
-    JSON.stringify(closing.rows.filter((row) => openingUrls.has(row.url)))
-  )
-    return `${opening.yard} closing census changed surviving vehicle fields or order. Previous inventory and the last validated checkpoint are preserved. Inspect the captures and restart with a fresh opening census.`;
-  return null;
+  const openingSurvivors = opening.rows.filter((row) =>
+    closingUrls.has(row.url),
+  );
+  const closingSurvivors = closing.rows.filter((row) =>
+    openingUrls.has(row.url),
+  );
+  if (JSON.stringify(openingSurvivors) === JSON.stringify(closingSurvivors))
+    return null;
+  // The rest only explains the rejection: which fields changed, where order
+  // first diverges, and how many surviving positions differ.
+  const closingByUrl = new Map(closingSurvivors.map((row) => [row.url, row]));
+  const fieldChanges = openingSurvivors.flatMap((before) => {
+    const after = closingByUrl.get(before.url);
+    if (!after) return [];
+    const fields = rowFields.filter(
+      (field) => fieldValue(before, field) !== fieldValue(after, field),
+    );
+    return fields.length === 0 ? [] : [{ before, after, fields }];
+  });
+  const firstChange = fieldChanges[0];
+  const fieldPart = firstChange
+    ? `${fieldChanges.length} surviving vehicles changed fields, first ${firstChange.before.url} changed ` +
+      firstChange.fields
+        .map(
+          (field) =>
+            `${field} from ${fieldValue(firstChange.before, field)} to ${fieldValue(firstChange.after, field)}`,
+        )
+        .join(", ")
+    : "no surviving vehicle fields changed";
+  const position = openingSurvivors.findIndex(
+    (row, index) => row.url !== closingSurvivors[index]?.url,
+  );
+  const orderPart =
+    position === -1
+      ? "relative order is unchanged"
+      : `order changed, first at surviving position ${position}: opening has ${openingSurvivors[position]?.url}, closing has ${closingSurvivors[position]?.url}`;
+  const differing = openingSurvivors.filter(
+    (row, index) =>
+      JSON.stringify(row) !== JSON.stringify(closingSurvivors[index]),
+  ).length;
+  return `${opening.yard} closing census changed surviving vehicle fields or order: ${fieldPart}; ${orderPart} (${differing} of ${openingSurvivors.length} surviving positions differ). Previous inventory and the last validated checkpoint are preserved. Compare these vehicles in the opening and closing captures, then restart with a fresh opening census.`;
 }
