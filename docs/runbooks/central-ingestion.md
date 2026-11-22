@@ -84,8 +84,11 @@ arrivals can count cards the badge has since caught up with. Such a page is
 never stored as confirmed and is read again next run while it lists less than
 its expected count. A re-read at or below its badge must repeat exactly, so a
 short page is confirmed only by an identical re-read. The make directory must
-repeat exactly. On November 21, 2026 two
-runs failed closing on pure arrivals (S10.S15.SONOMA went from 20 to 21 cards
+repeat every make path and label in the same order; a make that appears,
+disappears, is relabelled or moves fails the run. Make badges may differ:
+`/used-parts/` is served from more than one stale cache version and the yard
+adds donors all day, and the November 22, 2026 run failed closing on moved
+make badges alone. On November 21, 2026 two runs failed closing on pure arrivals (S10.S15.SONOMA went from 20 to 21 cards
 with no VIN removed). A model's
 expected count is its badge plus a sticky surplus (44 saved models list
 surplus cards): it is lowered only after six run days of lower reads, or twelve when the badge rose by at least the missing cards during that window, which looks like arrival lag; a surplus lowered by time while the page still lists less stays as a ceiling, so closing still re-reads any read below it, see [Incremental model census](model-census.md). A page below its
