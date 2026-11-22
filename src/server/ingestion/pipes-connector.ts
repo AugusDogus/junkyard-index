@@ -98,7 +98,7 @@ function nextControl(cursor: PipesCursor): PipesControl | null {
       return null;
   }
 }
-/** A closing control that differs from the opening crawl is a real source
+/** A control that differs from earlier in the same crawl is a real source
  * change (the nightly VinPlus publish), not a corrupt checkpoint. */
 type PipesStep =
   | { readonly kind: "advanced"; readonly cursor: PipesCursor }
@@ -120,9 +120,11 @@ function advance(
       const page = parsePipesInventory(raw, control.make);
       const opening = inspectPipesCursor(cursor);
       if (pipesHash(page.makes) !== pipesHash(opening.makes))
-        throw new Error(
-          "Native make directory changed during the opening census",
-        );
+        return {
+          kind: "changed",
+          control:
+            "Opening native make directory on the " + control.make + " page",
+        };
       progress.native = [
         ...cursor.native,
         {
@@ -143,10 +145,17 @@ function advance(
         throw new Error("Unexpected closing native control");
       const page = parsePipesInventory(raw, control.make);
       if (pipesHash(page.makes) !== pipesHash(inspectPipesCursor(cursor).makes))
-        return { kind: "changed", control: "Closing native make directory" };
+        return {
+          kind: "changed",
+          control:
+            "Closing native make directory on the " + control.make + " page",
+        };
       const hash = pipesHash({ make: control.make, rows: page.rows });
       if (hash !== cursor.native[cursor.closingNative.length]?.hash)
-        return { kind: "changed", control: "Closing native census" };
+        return {
+          kind: "changed",
+          control: "Closing native census for " + control.make,
+        };
       progress.closingNative = [
         ...cursor.closingNative,
         {
@@ -169,7 +178,14 @@ function advance(
         pipesQueryHash(original.raw, control.pair) !==
         pipesQueryHash(raw, control.pair)
       )
-        return { kind: "changed", control: "Query bookend records" };
+        return {
+          kind: "changed",
+          control:
+            "Query bookend records for " +
+            control.pair.make +
+            " " +
+            control.pair.model,
+        };
       progress.bookends = [...cursor.bookends, receipt];
       break;
     }
@@ -296,7 +312,7 @@ export function streamPipesInventoryWithRequestGate<E, R>(
                 step.control +
                 " still differs from the opening crawl after " +
                 PIPES_MAX_RESTARTS +
-                " in-run restarts, so the source kept changing during every attempt",
+                " in-run restarts, so the source kept changing during every attempt. No callbacks ran. The source retries on its next daily run; if this repeats, check whether the nightly VinPlus publish moved past 08:15 UTC",
             }),
           ),
         );
