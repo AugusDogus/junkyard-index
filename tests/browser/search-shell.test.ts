@@ -91,7 +91,11 @@ async function open(query: string, width = 1440, height = 900) {
               !query.includes("fixtureRenewedTier=full"))
               ? "free"
               : "full",
-          hiddenSources: [],
+          // fixtureRenewedHidden=meeks: meeks was hidden after the page
+          // rendered, so only a renewed key carries it.
+          hiddenSources: query.includes("fixtureRenewedHidden=meeks")
+            ? ["meeks"]
+            : [],
         },
       });
     return route.fulfill({
@@ -622,6 +626,79 @@ test("a key Algolia refuses is replaced once and the search retried", async () =
         () => document.documentElement.dataset.sawSearchError ?? null,
       ),
     ).toBeNull();
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
+
+test("a renewed key that hides meeks filters the next search and drops it from the picker", async () => {
+  const { page } = await open(
+    "q=pagination&fixtureKey=rejected&fixtureRenewedHidden=meeks",
+  );
+  const openSourcesPicker = async () => {
+    const picker = page.getByRole("button", { name: /^Inventory sources/ });
+    if (!(await picker.isVisible()))
+      await page.getByRole("button", { name: /^Filters/ }).click();
+    await picker.click();
+  };
+  const meeksOption = () =>
+    page.getByRole("checkbox", { name: "Meeks Pic-N-Pull", exact: true });
+  const sentFilters = async (query: string) =>
+    z
+      .array(
+        z.object({
+          params: z.object({
+            query: z.string().optional(),
+            filters: z.string().optional(),
+          }),
+        }),
+      )
+      .parse(
+        JSON.parse(
+          await page.evaluate(
+            () => document.documentElement.dataset.searchQueryLog ?? "[]",
+          ),
+        ),
+      )
+      .filter(({ params }) => params.query === query)
+      .map(({ params }) => params.filters ?? "");
+  const search = async (query: string) => {
+    await page.getByRole("searchbox").fill(query);
+    await page.getByRole("searchbox").press("Enter");
+  };
+  try {
+    // The rendered key hides nothing, so the picker offers meeks.
+    await openSourcesPicker();
+    await meeksOption().waitFor();
+    await page.keyboard.press("Escape");
+    await meeksOption().waitFor({ state: "detached" });
+
+    // Algolia refuses the rendered key; the renewed one hides meeks.
+    await search("pagination2");
+    await page.waitForFunction(
+      () =>
+        document.documentElement.dataset.searchApiKey === "fixture-fetched-key",
+    );
+    // The retried search was built before the renewal.
+    expect(await sentFilters("pagination2")).not.toContainEqual(
+      expect.stringContaining('NOT source:"meeks"'),
+    );
+
+    await search("pagination3");
+    await page.waitForFunction(() =>
+      (document.documentElement.dataset.searchQueryLog ?? "").includes(
+        '"query":"pagination3"',
+      ),
+    );
+    const next = await sentFilters("pagination3");
+    expect(next.length).toBeGreaterThan(0);
+    for (const filters of next) expect(filters).toContain('NOT source:"meeks"');
+
+    await openSourcesPicker();
+    await page
+      .getByRole("checkbox", { name: "Pick Your Part (PYP)", exact: true })
+      .waitFor();
+    expect(await meeksOption().count()).toBe(0);
   } finally {
     await closePage(page);
   }
