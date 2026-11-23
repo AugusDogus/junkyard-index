@@ -8,7 +8,8 @@ const URGIIS_TENANT_BLOCKED_CATEGORY =
   "vehicle-ingestion-urgiis-tenant-blocked";
 
 /** A blocked URG IIS tenant publishes nothing while the rest of the source
- * does, so its yards keep their previous inventory unrefreshed. Report each
+ * does, so its yards keep only what they last published (nothing for a yard
+ * that never published) and are not refreshed. Report each
  * tenant a chunk newly blocks; the source itself is not rejected for it. */
 export function recordUrgiisBlockedTenant(params: {
   runId: string;
@@ -27,7 +28,7 @@ export function recordUrgiisBlockedTenant(params: {
   if (!done || !("blocked" in done)) return;
   try {
     (params.captureMessage ?? Sentry.captureMessage)(
-      `urgiis tenant ${done.code} blocked; its yards keep their previous inventory`,
+      `urgiis tenant ${done.code} blocked; its yards are not refreshed, and any that never published stay missing`,
       {
         level: "warning",
         fingerprint: [URGIIS_TENANT_BLOCKED_CATEGORY, done.code],

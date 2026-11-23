@@ -167,6 +167,42 @@ for (const status of [403, 429] as const) {
   });
 }
 
+test("a URG IIS block records who refused it and only stops its tenant", async () => {
+  const page = "<title>Just a moment...</title>\n" + "x".repeat(2_000);
+  const fetch = spyOn(globalThis, "fetch").mockResolvedValue(
+    new Response(page, {
+      status: 403,
+      headers: {
+        "content-type": "text/html",
+        server: "cloudflare",
+        "cf-ray": "8f00000000000000-ORD",
+        "cf-mitigated": "challenge",
+      },
+    }),
+  );
+  try {
+    const result = await Effect.runPromise(
+      readUrgiisPage(tenant.origin + tenant.makesPath, tenant).pipe(
+        Effect.either,
+      ),
+    );
+    if (result._tag !== "Left") throw new Error("Expected blocked response");
+    if (result.left instanceof ProviderTurnDeferred) throw result.left;
+    expect(result.left.kind).toBe("blocked");
+    const message = result.left.message;
+    expect(message).toContain("server=cloudflare");
+    expect(message).toContain("cf-ray=8f00000000000000-ORD");
+    expect(message).toContain("cf-mitigated=challenge");
+    expect(message).toContain("<title>Just a moment...</title> xxx");
+    expect(message).not.toContain("x".repeat(600));
+    expect(message).toContain("without one only this tenant stops");
+    expect(message).not.toContain("the source stops");
+    expect(fetch).toHaveBeenCalledTimes(1);
+  } finally {
+    fetch.mockRestore();
+  }
+});
+
 test("a URG IIS read whose retry cannot get a shared host turn in this chunk ends with its failure", async () => {
   // Under 07:00 contention a failing page's retries cannot all get turns in
   // one chunk. Ending the read with its failure lets the connector defer the
