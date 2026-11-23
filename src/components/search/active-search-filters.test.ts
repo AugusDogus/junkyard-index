@@ -3,6 +3,7 @@ import {
   ActiveSearchFilter,
   type ActiveSearchFilterInput,
 } from "./active-search-filters";
+import { HiddenSources } from "~/lib/hidden-source";
 
 const none: ActiveSearchFilterInput = {
   arrivalWindow: undefined,
@@ -20,7 +21,9 @@ const none: ActiveSearchFilterInput = {
 };
 
 const labels = (input: Partial<ActiveSearchFilterInput>) =>
-  ActiveSearchFilter.list({ ...none, ...input }).map(ActiveSearchFilter.label);
+  ActiveSearchFilter.list({ ...none, ...input }).map((filter) =>
+    ActiveSearchFilter.label(filter, HiddenSources.none),
+  );
 
 describe("active search filters", () => {
   test("the default search has no active filters", () => {
@@ -71,6 +74,21 @@ describe("active search filters", () => {
 
   test("one source reads as its name, never as a count of one", () => {
     expect(labels({ sources: ["pyp"] })).toEqual(["LKQ Pick Your Part"]);
+  });
+
+  test("hidden sources leave the sources chip's name and count", () => {
+    const [filter] = ActiveSearchFilter.list({
+      ...none,
+      sources: ["pyp", "meeks"],
+    });
+    expect(filter).toBeDefined();
+    if (filter === undefined) return;
+    expect(ActiveSearchFilter.label(filter, HiddenSources.of(["meeks"]))).toBe(
+      "LKQ Pick Your Part",
+    );
+    expect(ActiveSearchFilter.label(filter, HiddenSources.none)).toBe(
+      "2 sources",
+    );
   });
 
   test("lists filters in a stable order, one per kind", () => {
