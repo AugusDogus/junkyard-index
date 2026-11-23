@@ -73,6 +73,17 @@ export const env = createEnv({
       .string()
       .regex(/^[1-9][0-9]{0,2}$/)
       .optional(),
+    // Kernel (remote browser for sources that browser-providers.ts or a URG
+    // IIS tenant's transport assigns to it). Optional: a source assigned to
+    // Kernel fails its browser opens with a clear error while it is unset.
+    KERNEL_API_KEY: z.string().optional(),
+    // The Kernel plan's concurrent browser limit (5 on Developer); unset means
+    // 5. Read by src/server/ingestion/kernel-sessions.ts, validated here too
+    // so a bad value fails the build.
+    KERNEL_CONCURRENT_SESSIONS: z
+      .string()
+      .regex(/^[1-9][0-9]{0,2}$/)
+      .optional(),
     // Vercel Blob (private store for staged ingestion snapshot chunks)
     BLOB_READ_WRITE_TOKEN: z.string(),
     PORTLESS_URL: z.string().url().optional(),
@@ -139,6 +150,8 @@ export const env = createEnv({
     HYPERBROWSER_API_KEY: process.env.HYPERBROWSER_API_KEY,
     HYPERBROWSER_CONCURRENT_SESSIONS:
       process.env.HYPERBROWSER_CONCURRENT_SESSIONS,
+    KERNEL_API_KEY: process.env.KERNEL_API_KEY,
+    KERNEL_CONCURRENT_SESSIONS: process.env.KERNEL_CONCURRENT_SESSIONS,
     BLOB_READ_WRITE_TOKEN: process.env.BLOB_READ_WRITE_TOKEN,
     PORTLESS_URL: process.env.PORTLESS_URL,
     VERCEL_PROJECT_PRODUCTION_URL: process.env.VERCEL_PROJECT_PRODUCTION_URL,

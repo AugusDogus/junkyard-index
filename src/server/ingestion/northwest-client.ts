@@ -6,6 +6,7 @@ import type { ProviderRequestGate } from "./provider-http-client";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import {
   DocumentTransport,
+  type BrowserProviderKeys,
   type BrowserSessions,
   type LazyDocumentTransport,
 } from "./document-transport";
@@ -165,8 +166,9 @@ export const northwestRequestGate: ProviderRequestGate = (request) =>
 export const acquireNorthwestBrowser = (sessions: BrowserSessions) =>
   DocumentTransport.acquireBrowser(sessions, "fetch");
 
-/** Northwest's Hyperbrowser sessions, under the session lease. Northwest is a
- * URG lane, and the URG plugin's own requests are what the lane meters, so
- * its pages load no subresources that reach the site. */
-export const northwestHyperbrowser = (apiKey: string) =>
-  DocumentTransport.hyperbrowser(apiKey, "northwest", "none");
+/** Northwest's browser sessions from its provider in `BROWSER_PROVIDERS`,
+ * under that provider's session lease. Northwest is a URG lane, and the URG
+ * plugin's own requests are what the lane meters, so its pages load no
+ * subresources that reach the site. */
+export const northwestBrowserSessions = (keys: BrowserProviderKeys) =>
+  DocumentTransport.sourceSessions("northwest", keys, "none");

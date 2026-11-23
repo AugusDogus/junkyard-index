@@ -28,14 +28,15 @@ Run a count-only soak with:
 bun run soak:sources -- --sources=urgiis --max-pages=30000
 ```
 
-That soak is a cold census of every tenant, and it spends Hyperbrowser credits:
-the 11 [browser tenants](#transport) take about 3,900 paid sessions and about
-1,700 credits (see [Measured cost](#measured-cost)), and it needs
-`HYPERBROWSER_API_KEY`. A local soak takes no session lease, so on the Free
-plan it holds the plan's only session and production Hyperbrowser chunks defer
-while it runs; never run it during the 07:00 UTC ingestion window. To soak or
-measure some tenants only, name them (the run is then a census of those
-tenants alone):
+That soak is a cold census of every tenant, and it spends Kernel usage: the 11
+[Kernel tenants](#transport) take about 3,900 browsers and 19 to 34
+browser-hours ($1.11 to $2.04 of the $5 monthly credit; see
+[Measured cost](#measured-cost)), and it needs `KERNEL_API_KEY` (the soak
+refuses to start without the keys its tenants' providers need). A local soak
+takes no session lease, so its browser counts against the plan's 5 concurrent
+browsers alongside production's; never run it during the 07:00 UTC ingestion
+window. To soak or measure some tenants only, name them (the run is then a
+census of those tenants alone):
 
 ```sh
 bun run soak:sources -- --sources=urgiis --urgiis-tenants=mars
@@ -123,151 +124,151 @@ passes that check.
 ## Transport
 
 Each tenant in `URGIIS_TENANTS` (`src/server/ingestion/urgiis-configuration.ts`)
-names its `transport`.
+names its `transport`: `native`, or the browser provider that opens its
+sessions (`kernel` or `hyperbrowser`; see
+[browser-providers.md](browser-providers.md)).
 
 - `native` (9 tenants: eagle, linders, chuckran, ace-st-paul, chucks, higgins,
   lambert, norbs, stroud): server `fetch` with the headers and cookie above.
-- `browser` (11 tenants: united, ace-iowa, lentini, dings, bishops, central-nh,
-  premier, junior-sinn, revolution, az, mars): a Hyperbrowser session. Since
-  November 19 Cloudflare has answered these with HTTP 403, without Retry-After,
-  at `/parts/makes/` from Vercel on every run, after the owner page succeeded,
-  while the same requests from other networks return HTTP 200. They held about
-  37,500 donors in the saved censuses and had never published. On November 23
-  one Hyperbrowser session (stealth, no proxy, `us-west`) read the owner and
-  makes pages of all 11 with HTTP 200 and their make menus, including mars with
-  the browser's own Chrome profile.
+- `kernel` (11 tenants: united, ace-iowa, lentini, dings, bishops, central-nh,
+  premier, junior-sinn, revolution, az, mars): a Kernel stealth headless
+  browser. Since November 19 Cloudflare has answered these with HTTP 403,
+  without Retry-After, at `/parts/makes/` from Vercel on every run, after the
+  owner page succeeded, while the same requests from other networks return
+  HTTP 200. They held about 37,500 donors in the saved censuses and had never
+  published. On November 23 a Hyperbrowser session (stealth, no proxy,
+  `us-west`) and then Kernel browsers (stealth, headless, one per tenant, the
+  production transport) read the owner and makes pages of all 11 with HTTP 200
+  and their make menus, including mars with the browser's own Chrome profile.
+- `hyperbrowser`: no tenant today. Moving a tenant between providers is its
+  `transport` line.
 
-A browser tenant's chunk opens at most one session, under the
-[Hyperbrowser session lease](hyperbrowser-sessions.md), and stops it when the
-chunk ends. The chunk takes the lease before its first URG turn and opens the
-session inside that turn, with the first request. That request navigates to the
-page; later pages are same-origin in-page `fetch()` with manual redirects. The
-page loads no subresources that reach the site, only the plugin documents the
-URG gate meters. The browser supplies its own User-Agent, headers and cookies
-(it passed without `urg_hv`); the configured request timeout also bounds the
-in-page load. Every other rule is unchanged: one URG turn per request with the
-3.5-second gap, the tenant's pacing, retries, the 4 MiB cap, and the status,
-URL, MIME, range, supplier, ownership, closing and admission checks. A native
-tenant's chunk takes no lease and opens no session.
+A browser tenant's chunk opens at most one browser, under its provider's
+session lease, and deletes it when the chunk ends. The chunk takes the lease
+before its first URG turn and opens the browser inside that turn, with the
+first request. That request navigates to the page; later pages are same-origin
+in-page `fetch()` with manual redirects. The page loads no subresources that
+reach the site, only the plugin documents the URG gate meters. The browser
+supplies its own User-Agent, headers and cookies (it passed without `urg_hv`);
+the configured request timeout also bounds the in-page load. Every other rule
+is unchanged: one URG turn per request with the 3.5-second gap, the tenant's
+pacing, retries, the 4 MiB cap, and the status, URL, MIME, range, supplier,
+ownership, closing and admission checks. A native tenant's chunk takes no
+lease and opens no browser.
 
-Opening the session inside the first URG turn is a deliberate trade-off, as
-for Northwest: no session is billed while the chunk queues for that turn, but
+Opening the browser inside the first URG turn is a deliberate trade-off, as
+for Northwest: no browser is billed while the chunk queues for that turn, but
 the turn (one of the four URG places and its host lane) is held through the
-session create and CDP connect, about 3 seconds typically (connect may take up
-to 45 seconds), with no request in flight. At about 700 sessions a day (below)
+browser create and CDP connect, a few seconds typically (connect may take up
+to 45 seconds), with no request in flight. At about 700 browsers a day (below)
 that is roughly 35 minutes of URG turn time a day, and about 3.3 hours over a
 cold census. The turn's 110-second bound covers the open and the request
 together, so a slow connect before a slow 90-second page can exceed it; that
 attempt fails and is retried like any other transport failure.
 
-When the browser cannot be used, only browser tenants are affected:
+When the browser cannot be used, only that provider's tenants are affected:
 
-- The lease is busy (another Hyperbrowser source holds the plan's only
-  session): the chunk is deferred five minutes and retried from its cursor. A
-  URG chunk never waits for the lease (see
-  [Session lease](hyperbrowser-sessions.md#session-lease)).
-- Hyperbrowser refuses with "Maximum number of active sessions": the chunk is
-  deferred the same way.
-- The session cannot be created (no credits left, invalid key, outage): the
-  page fails like any other read, so after three reads in separate chunks that
+- The lease is busy (every place in the provider's lane group is held): the
+  chunk is deferred five minutes and retried from its cursor. A URG chunk
+  never waits for the lease (see
+  [Session lease](hyperbrowser-sessions.md#session-lease)). URG IIS is the only
+  Kernel source today, so its own lease is never busy in production.
+- Kernel refuses the create with HTTP 429 (`org_limit_exceeded`: the plan's 5
+  concurrent browsers are in use outside the lease, such as a local soak or
+  another client of the same account; or the create rate limit) or 529 (no
+  Kernel capacity): the chunk is deferred the same way.
+- The browser cannot be created for any other reason (spending cap or used-up
+  credit, HTTP 403; invalid key; outage; `KERNEL_API_KEY` unset): the page
+  fails like any other read, so after three reads in separate chunks that
   tenant blocks and the remaining tenants, native and browser, still publish.
-  Every Hyperbrowser source fails the same way when credits run out.
+  A missing key sends no Kernel request and says so in the blocked warning.
 
 The transport is not part of the qualification scope that cursors and accepted
 census history bind (`UrgiisTenant.qualification`). To change a tenant's
 transport, edit its `transport` field and the transport list in
 `urgiis-connector.test.ts`; no checkpoint restarts and its census history keeps
-carrying. Move a tenant to `browser` only with evidence that Vercel's egress is
-refused while other networks are not (the blocked warning records `server`,
-`cf-ray` and `cf-mitigated`), and back to `native` only after a native read
-from Vercel succeeds.
+carrying. Move a tenant to a browser provider only with evidence that Vercel's
+egress is refused while other networks are not (the blocked warning records
+`server`, `cf-ray` and `cf-mitigated`), and back to `native` only after a
+native read from Vercel succeeds.
 
 ### Measured cost
 
-A browser tenant's chunk bills one session from its open to the chunk's end.
+A browser tenant's chunk bills one browser from its open to the chunk's end.
 Tenants with a 40-second request timeout read three pages per chunk. The seven
 with a 90-second timeout (bishops, central-nh, premier, junior-sinn,
 revolution, az and mars) start every model page in a fresh chunk, so each
-model read opens its own session; only their owner, makes, arrivals and menu
-pages share chunks. Two tenants were crawled end to end on November 23 from a
-workstation through Hyperbrowser with the production connector and transport
-(count-only cold censuses, no database writes, every request under the shared
-URG gate). Every dings request was a complete HTTP 200 on its first attempt;
-mars read its 60 pages with no failed-page warning:
+model read opens its own browser; only their owner, makes, arrivals and menu
+pages share chunks. Each run below crawled one tenant end to end from a
+workstation with the production connector and transport (count-only cold
+censuses, no database writes, every request under the shared URG gate):
 
-| Tenant (timeout) | Requests (saved estimate) | Sessions | Accepted (saved census) | Wall time | Billed minutes | Credits | Credits per request |
-| ---------------- | ------------------------: | -------: | ----------------------: | --------: | -------------: | ------: | ------------------: |
-| dings (40 s)     |                 324 (323) |      108 |           1,125 (1,110) |  35.1 min |          34.88 |   58.13 |               0.179 |
-| mars (90 s)      |                   60 (60) |       48 |               379 (381) |  10.2 min |          10.05 |   16.76 |               0.279 |
+| Run (November 23)   | Requests (saved estimate) | Browsers | Accepted (saved census) | Wall time | Billed seconds | Billed seconds per request |
+| ------------------- | ------------------------: | -------: | ----------------------: | --------: | -------------: | -------------------------: |
+| dings, Kernel       |                 324 (323) |      113 |           1,125 (1,110) |  32.8 min |          2,316 |                       7.15 |
+| dings, Hyperbrowser |                 324 (323) |      108 |           1,125 (1,110) |  35.1 min |          2,093 |                       6.46 |
+| mars, Hyperbrowser  |                   60 (60) |       48 |               379 (381) |  10.2 min |            603 |                      10.05 |
 
-Ding's rejected 100 of 1,236 observations, merged 11 duplicates and left 4 of
-1,246 advertised donors platform-unreachable (0.32%); Mars rejected 30 of 415
-observations and merged 6 duplicates. Hyperbrowser bills per second with no
-minimum (`team.getCreditInfo` moved 1,163 to 1,221 for dings and 1,239 to
-1,256 for mars). Fitting both runs gives about **7.7 billed seconds per session
-plus 3.9 per request**; the session share covers the open (about 3 seconds)
-and the pacing a chunk spends with its session open. The projections below
-apply that fit to each tenant class: 40-second tenants at one session per
-three requests, 90-second tenants at one session per model read plus one per
-three other pages. That is about 690 sessions on a first-week incremental day,
-1,520 on a recovery day and 3,890 for a full census. Mars is the smallest
-90-second tenant, so a slower 90-second site bills more per request than the
-fit.
+Both dings runs read every request as a complete HTTP 200, rejected 100 of
+1,236 observations, merged 11 duplicates and left 4 of 1,246 advertised donors
+platform-unreachable (0.32%). Kernel's uptime is from `GET /browsers`
+(`usage.uptime_ms`); Hyperbrowser's from its credits. Owner and makes requests
+for the other 10 tenants through Kernel (one browser each, 20 requests) billed
+187 seconds.
 
-A local run takes no URG turns. In production a chunk's session stays open
-while its later pages queue for URG turns, so production can bill more. The
-upper bound charges each request the whole production URG time per page (14.2
-seconds on November 23, 1,694 pages in 402 minutes, including queueing and
-time between chunks with no session) plus 3 seconds to open each session.
+Fitting the two Hyperbrowser runs gives 7.7 billed seconds per session plus 3.9
+per request. Kernel billed 10.7% more than Hyperbrowser on the same dings
+crawl, so the projections scale that fit by 1.107: **8.5 seconds per browser
+plus 4.3 per request**, with 40-second tenants at one browser per three
+requests and 90-second tenants at one per model read plus one per three other
+pages. The upper bound charges each request the whole production URG time per
+page (14.2 seconds on November 23, 1,694 pages in 402 minutes, including
+queueing and time between chunks with no browser) plus 3 seconds to open each
+browser. Kernel bills $0.0000166667 per headless browser-second (about $0.06 an
+hour), so the Developer plan's $5 monthly credit is 83.3 browser-hours.
 
-| Browser tenants (11)                      | Requests | Sessions |    Measured fit |      Upper bound |
-| ----------------------------------------- | -------: | -------: | --------------: | ---------------: |
-| Incremental day, first-week mean          |    1,437 |      690 |     304 credits |      625 credits |
-| Incremental day, steady state (about)     |    1,640 |      790 |     347 credits |      713 credits |
-| 30 incremental days                       |          |          | 9,100 to 10,400 | 18,800 to 21,400 |
-| Full census (first run after merge, cold) |    7,808 |    3,890 |   1,677 credits |    3,404 credits |
-| Recovery day once in the census           |    2,635 |    1,520 |     610 credits |    1,166 credits |
+| Kernel tenants (11)                       | Requests | Browsers |                  Measured fit |                     Upper bound |
+| ----------------------------------------- | -------: | -------: | ----------------------------: | ------------------------------: |
+| Incremental day, first-week mean          |    1,437 |      690 |                3.36 h ($0.20) |                  6.24 h ($0.37) |
+| Incremental day, steady state (about)     |    1,640 |      790 |                3.84 h ($0.23) |                  7.13 h ($0.43) |
+| 30 incremental days                       |          |          | 101 to 115 h ($6.04 to $6.91) | 187 to 214 h ($11.24 to $12.83) |
+| Full census (first run after merge, cold) |    7,808 |    3,890 |                18.6 h ($1.11) |                  34.0 h ($2.04) |
+| Recovery day once in the census           |    2,635 |    1,520 |                 6.8 h ($0.41) |                  11.7 h ($0.70) |
 
-Lentini's full census is 3,969 of the 7,808 requests (712 credits at the fit).
-The other Hyperbrowser sources used 199 credits on November 22 (190 sessions,
-120 minutes, all between 07:00 and 09:13 UTC).
+**Against the $5 credit.** A steady month at the fit is 101 to 115 hours, 17 to
+32 hours more than the credit covers, so the credit lasts about 22 to 25 days
+(12 to 13 at the upper bound). The first month also pays for the full census:
+the credit then covers the census plus about 17 to 19 incremental days (7 to 8
+at the upper bound). Past the credit, a month at the fit costs $1.04 to $1.91
+more ($6.24 to $7.83 at the upper bound), if Kernel bills it.
 
-**Free plan (5,000 credits).** 3,744 credits remained at 19:50 UTC on November 23. The other sources need about 1,400 of them through November 30, leaving
-about 2,340: the first full census (about 1,680) plus about two incremental
-days. At that pace the free credits run out around November 27 or 28, and
-sooner at the upper bound. Without credits every Hyperbrowser source stops
-publishing, not just these tenants. Merge only after the upgrade to Startup.
-
-**Startup (30,000 credits a month).** About 6,000 for the other sources plus
-9,100 to 10,400 for these tenants is 15,100 to 16,400 a month (24,800 to
-27,400 at the upper bound), and a full census adds 1,700 to 3,400. Only a month
-with a full census at the upper bound would reach the 30,000 limit (about
-30,800); watch the balance on the admin budgets page after the first week.
+**When the credit runs out.** Kernel does not document whether the free plan
+bills usage past its credit or refuses new browsers. If it bills, nothing
+changes but the invoice; set an organization spending cap in Kernel to bound
+it. If it refuses (HTTP 403, as at a spending cap), every Kernel tenant's
+browser open fails, so each Kernel tenant blocks after three reads while the 9
+native tenants still publish, until the next monthly period. Either way no
+chunk crashes and no published inventory is lost. URG IIS no longer needs
+Hyperbrowser, and the Hyperbrowser Startup upgrade recommended for these
+tenants is withdrawn.
 
 ### Daily schedule
 
-The run starts at 07:00 UTC. The 11 browser tenants add about 180 billed
-minutes a day at the measured fit (375 at the upper bound) to the other
-sources' 120, so total browser time is 5.0 to 8.3 hours a day, well within the
-24 hours before the next run, and the URG source fits its one-day incremental
-deadline: the native tenants took 402 minutes on November 23, and the
-browser tenants add about 1,437 × 14.2 s + 690 × 3 s ≈ 375 minutes. The first
-run after merge is a recovery run (these tenants are not in the accepted
-census): about 7,808 browser and 2,661 native requests, about 45 hours at 14.2
-seconds per page plus 3 seconds per session, inside its three-day deadline.
+The run starts at 07:00 UTC. The URG source fits its one-day incremental
+deadline: the native tenants took 402 minutes on November 23, and the Kernel
+tenants add about 1,437 × 14.2 s + 690 × 3 s ≈ 375 minutes at the upper bound.
+The first run after merge is a recovery run (these tenants are not in the
+accepted census): about 7,808 browser and 2,661 native requests, about 45
+hours at 14.2 seconds per page plus 3 seconds per browser, inside its
+three-day deadline.
 
-With the Free plan's one concurrent session the tenants still fit, but they
-contend for the lease. URG reaches united, its first browser tenant, after
-eagle, linders and chuckran, about 100 minutes after 07:00, while the other
-sources may still hold the session until about 09:15. A URG chunk never waits
-for the lease, so each busy moment costs it a five-minute deferral, typically
-tens of minutes a day. On the multi-day first run, the next morning's sources
-hold the session for about two hours, close to the three hours without an
-advance after which the URG attempt fails and retries later. Startup's 25
-concurrent sessions remove this contention: all seven Hyperbrowser sources hold
-a place at once, so no chunk waits or defers for the lease, and credits do not
-change. After the upgrade set `HYPERBROWSER_CONCURRENT_SESSIONS=25` in Vercel
-and redeploy.
+URG reads one tenant per chunk, so it holds at most one Kernel browser, and it
+is the only Kernel source, so its lease never waits on the other browser
+sources: their Hyperbrowser sessions are a separate lane group and account. The
+Developer plan's 5 concurrent browsers are shared with anything else on the
+account (local soaks, manual probes, other clients of the same key); if they
+fill all 5, URG chunks defer five minutes on Kernel's refusal. Keep local
+Kernel work out of the 07:00 UTC window.
 
 ## Incremental daily census
 

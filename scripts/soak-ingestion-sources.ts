@@ -79,6 +79,10 @@ import { streamPontiacInventory } from "../src/server/ingestion/pontiac-connecto
 import { soakPontiacInventory } from "./soak-pontiac";
 import { streamVanderHaagsInventory } from "../src/server/ingestion/vanderhaags-connector";
 import { HYPERBROWSER_SOURCES as HYPERBROWSER_SOURCE_LIST } from "../src/server/ingestion/hyperbrowser-sessions";
+import {
+  BROWSER_PROVIDERS,
+  type BrowserProvider,
+} from "../src/server/ingestion/browser-providers";
 import { soakVanderHaagsInventory } from "./soak-vanderhaags";
 import { streamAeroInventory } from "../src/server/ingestion/aero-connector";
 import { streamChesterfieldInventory } from "../src/server/ingestion/chesterfield-connector";
@@ -252,6 +256,35 @@ interface SourceResult {
 const HYPERBROWSER_SOURCES: ReadonlySet<IngestionSource> = new Set(
   HYPERBROWSER_SOURCE_LIST,
 );
+
+/** The browser providers `source` opens sessions from in this soak. */
+function soakBrowserProviders(
+  source: IngestionSource,
+  config: SoakConfig,
+): readonly BrowserProvider[] {
+  switch (source) {
+    case "urgiis":
+      return [
+        ...new Set(
+          config.urgiisTenants.flatMap((tenant) =>
+            tenant.transport === "native" ? [] : [tenant.transport],
+          ),
+        ),
+      ];
+    case "bigd":
+    case "northwest":
+    case "six03":
+    case "michigantruck":
+      return [BROWSER_PROVIDERS[source]];
+    default:
+      return HYPERBROWSER_SOURCES.has(source) ? ["hyperbrowser"] : [];
+  }
+}
+
+const PROVIDER_KEYS: Readonly<Record<BrowserProvider, string>> = {
+  hyperbrowser: "HYPERBROWSER_API_KEY",
+  kernel: "KERNEL_API_KEY",
+};
 const requestMetrics = new SourceSoakMetrics();
 
 function positiveInteger(value: string, flag: string): number {
@@ -377,13 +410,16 @@ function sleep(milliseconds: number): Promise<void> {
 async function main(): Promise<void> {
   const config = parseArgs(process.argv.slice(2));
   const hyperbrowserApiKey = process.env.HYPERBROWSER_API_KEY;
-  if (
-    config.sources.some((source) => HYPERBROWSER_SOURCES.has(source)) &&
-    !hyperbrowserApiKey
-  ) {
-    throw new Error(
-      `HYPERBROWSER_API_KEY is required to soak ${[...HYPERBROWSER_SOURCES].join(", ")}, which open a paid Hyperbrowser session per chunk. Set it, or leave those sources out of --sources.`,
+  const kernelApiKey = process.env.KERNEL_API_KEY;
+  for (const provider of ["hyperbrowser", "kernel"] as const) {
+    const sources = config.sources.filter((source) =>
+      soakBrowserProviders(source, config).includes(provider),
     );
+    const key = PROVIDER_KEYS[provider];
+    if (sources.length > 0 && !process.env[key])
+      throw new Error(
+        `${key} is required to soak ${sources.join(", ")}, which open a paid ${provider} browser per chunk. Set it, or leave those sources (or URG IIS tenants on ${provider}) out of the soak.`,
+      );
   }
 
   const temporaryDirectory = mkdtempSync(
@@ -465,6 +501,7 @@ async function main(): Promise<void> {
           Effect.provideService(Config, {
             betterStackHeartbeatUrl: undefined,
             hyperbrowserApiKey: hyperbrowserApiKey ?? "unused",
+            kernelApiKey,
           }),
           Effect.provideService(Database, localDatabase),
         ),

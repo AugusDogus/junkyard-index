@@ -8,6 +8,8 @@ export class Database extends Context.Tag("ingestion/Database")<
 export interface IngestionConfig {
   betterStackHeartbeatUrl: string | undefined;
   hyperbrowserApiKey: string;
+  /** Unset fails every Kernel browser create with `KernelKeyMissing`. */
+  kernelApiKey: string | undefined;
 }
 
 export class Config extends Context.Tag("ingestion/Config")<

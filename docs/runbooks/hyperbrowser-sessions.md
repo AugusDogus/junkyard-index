@@ -1,10 +1,13 @@
 # Hyperbrowser sessions
 
-U Pull It Davie, Vander Haags, Big D, Northwest, 603 Auto Salvage, Michigan
-Truck Parts and the URG IIS tenants whose `transport` is `browser` load
-documents through Hyperbrowser sessions (`HYPERBROWSER_SOURCES` in
-`src/server/ingestion/hyperbrowser-sessions.ts`; the URG tenants are listed in
-[urgiis-ingestion.md](urgiis-ingestion.md#transport)). The Hyperbrowser plan
+U Pull It Davie, Vander Haags, Big D, Northwest, 603 Auto Salvage and Michigan
+Truck Parts load documents through Hyperbrowser sessions, and so would any URG
+IIS tenant whose `transport` is `hyperbrowser` (none today; the 11 URG browser
+tenants use Kernel). `HYPERBROWSER_SOURCES` in
+`src/server/ingestion/hyperbrowser-sessions.ts` lists every source that may
+take the lease; [browser-providers.md](browser-providers.md) says which
+provider each source uses and how to move one. The Kernel lease works the same
+way in its own `kernel` lane group. The Hyperbrowser plan
 caps how many sessions the team may keep open at once: 1 on Free, 25 on
 Startup. The `HYPERBROWSER_CONCURRENT_SESSIONS` environment variable holds that
 cap (unset means 1); set it in Vercel when the plan changes and redeploy, with
@@ -30,8 +33,8 @@ these sources one at a time instead.
   work deadline. It lasts only while the chunk's remaining work allowance still
   fits before its turn horizon; then the chunk is deferred and retried five
   minutes later from the same cursor. A URG IIS chunk's eight-minute work
-  allowance never fits its six-minute wall limit, so it never waits: it takes a
-  free place at once or defers. A source that defers for three hours without
+  allowance never fits its six-minute wall limit, so it never waits for a
+  Hyperbrowser or Kernel lease: it takes a free place at once or defers. A source that defers for three hours without
   advancing fails for that attempt.
 - A session that cannot be created for any other reason (an invalid key, no
   credits left, an outage) fails the chunk's read. For URG IIS that is the
@@ -68,14 +71,12 @@ horizon.
 ## Credits
 
 Hyperbrowser bills session time per second, 100 credits per browser-hour, with
-no per-session minimum. The sources other than URG IIS used 199 credits on
-November 22, 2026 (190 sessions, 120 minutes, 07:00 to 09:13 UTC). The 11 URG
-IIS browser tenants measured 0.179 credits per request at three pages per
-session (dings) and 0.279 where every model page opens its own session (mars,
-one of the seven 90-second tenants). Together that is about 690 sessions and
-304 to 347 credits a day incremental, and 3,890 sessions and 1,680 credits for
-a full census; the [URG IIS measured cost](urgiis-ingestion.md#measured-cost)
-has the per-class projection, its upper bound and the Free and Startup plan
-math. Read the
+no per-session minimum. The Hyperbrowser sources used 199 credits on November
+22, 2026 (190 sessions, 120 minutes, 07:00 to 09:13 UTC); at that rate a
+month is about 6,000, more than the Free plan's 5,000. URG IIS does not use
+Hyperbrowser (its 11 browser tenants use Kernel; see
+[URG IIS measured cost](urgiis-ingestion.md#measured-cost)), so the Startup
+upgrade once recommended for them is withdrawn; whether these six sources need
+it is decided on their own use. Read the
 balance with `team.getCreditInfo()` and per-session use with `sessions.list`
 (`creditsUsed`), or on the admin budgets page.

@@ -9,7 +9,7 @@ import {
   NorthwestProviderError,
   acquireNorthwestBrowser,
   fetchNorthwestPage,
-  northwestHyperbrowser,
+  northwestBrowserSessions,
 } from "./northwest-client";
 import {
   NorthwestCursor,
@@ -341,7 +341,7 @@ export function streamNorthwestInventory<E, R>(
   return Effect.scoped(
     Effect.gen(function* () {
       const transport = yield* acquireNorthwestBrowser(
-        sessions ?? northwestHyperbrowser((yield* Config).hyperbrowserApiKey),
+        sessions ?? northwestBrowserSessions(yield* Config),
       );
       return yield* streamNorthwestInventoryWithRequestGate(
         options,

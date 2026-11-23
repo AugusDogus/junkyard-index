@@ -2,10 +2,10 @@ import type { UrgiisTenant } from "./urgiis-tenant";
 
 // Data-only qualification contracts, shared with workflows and yard website UI.
 // Never import provider implementations here.
-// Every tenant names its transport. `browser` tenants are the ones whose
-// Cloudflare refuses Vercel egress with HTTP 403 at their makes page while
-// other networks get HTTP 200; see "Transport" in
-// docs/runbooks/urgiis-ingestion.md before changing one.
+// Every tenant names its transport: `native`, or the browser provider
+// (`kernel` or `hyperbrowser`) for tenants whose Cloudflare refuses Vercel
+// egress with HTTP 403 at their makes page while other networks get HTTP 200;
+// see "Transport" in docs/runbooks/urgiis-ingestion.md before changing one.
 const standard = {
   pathStyle: "parts",
   makesPath: "/parts/makes/",
@@ -167,7 +167,7 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
   {
     ...standard,
     code: "united",
-    transport: "browser",
+    transport: "kernel",
     origin: "https://unitedautorecyclers.com",
     urgid: "NE02",
     arrivalsPath: "/latest-arrivals/",
@@ -197,7 +197,7 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
   {
     ...standard,
     code: "ace-iowa",
-    transport: "browser",
+    transport: "kernel",
     origin: "https://aceautorecyclers.com",
     urgid: "OO76",
     arrivalsPath: "/latest-arrivals/",
@@ -237,7 +237,7 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
   {
     ...standard,
     code: "lentini",
-    transport: "browser",
+    transport: "kernel",
     origin: "https://www.las-parts.com",
     urgid: "NJ29,II08,NJ12",
     arrivalsPath: "/recent-arrivals/",
@@ -292,7 +292,7 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
   {
     ...standard,
     code: "dings",
-    transport: "browser",
+    transport: "kernel",
     origin: "https://dingsautoparts.com",
     urgid: "CT05",
     arrivalsPath: "/latest-arrivals/",
@@ -322,7 +322,7 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
   {
     ...standard,
     code: "bishops",
-    transport: "browser",
+    transport: "kernel",
     origin: "https://bishopsautoparts.com",
     urgid: "AA74",
     arrivalsPath: null,
@@ -444,7 +444,7 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
   {
     ...standard,
     code: "central-nh",
-    transport: "browser",
+    transport: "kernel",
     origin: "https://centralautorecyclers.com",
     urgid: "FF27",
     arrivalsPath: "/latest-arrivals-2/",
@@ -507,7 +507,7 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
   {
     ...standard,
     code: "premier",
-    transport: "browser",
+    transport: "kernel",
     origin: "https://premierauto-parts.com",
     urgid: "MI23",
     arrivalsPath: "/latest-arrivals/",
@@ -539,7 +539,7 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
   {
     ...standard,
     code: "junior-sinn",
-    transport: "browser",
+    transport: "kernel",
     origin: "https://www.juniorsinnautoparts.com",
     urgid: "MO24",
     arrivalsPath: "/latest-arrivals/",
@@ -571,7 +571,7 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
   {
     ...standard,
     code: "revolution",
-    transport: "browser",
+    transport: "kernel",
     origin: "https://revolutionautoparts.com",
     urgid: "NC74",
     arrivalsPath: null,
@@ -599,7 +599,7 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
   {
     ...standard,
     code: "az",
-    transport: "browser",
+    transport: "kernel",
     origin: "https://a-zautoparts.com",
     urgid: "OK09",
     arrivalsPath: "/latest-arrivals/",
@@ -685,7 +685,7 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
   {
     ...standard,
     code: "mars",
-    transport: "browser",
+    transport: "kernel",
     origin: "https://swaptheuniverse.com",
     urgid: "OH25",
     arrivalsPath: "/recent-arrivals/",

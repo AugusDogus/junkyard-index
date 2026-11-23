@@ -7,12 +7,24 @@ import {
   Scope,
   SynchronizedRef,
 } from "effect";
+import {
+  BROWSER_PROVIDERS,
+  type BrowserProvider,
+  type BrowserSource,
+} from "./browser-providers";
 import { BrowserSessionError } from "./errors";
 import {
+  HYPERBROWSER_SESSION_TIMEOUT_MINUTES,
   HyperbrowserSessions,
   type HyperbrowserSource,
 } from "./hyperbrowser-sessions";
 import { IPULLUPULL_MAX_RESPONSE_BYTES } from "./ipullupull-response-text";
+import {
+  KERNEL_SESSION_TIMEOUT_SECONDS,
+  KernelKeyMissing,
+  KernelSessions,
+  type KernelSource,
+} from "./kernel-sessions";
 import type {
   ProviderCapacityDeferred,
   ProviderTurnDeferred,
@@ -275,6 +287,9 @@ export interface BrowserConnection {
 
 /** The remote browser calls behind one session, replaceable in tests. */
 export interface BrowserSessions {
+  /** Whose account the sessions are billed to, which decides how a refused
+   * create is classified. */
+  readonly provider: BrowserProvider;
   /** Holds a place among the account's concurrent sessions for the enclosing
    * scope, without starting a session. */
   readonly lease: Effect.Effect<
@@ -387,6 +402,7 @@ function hyperbrowser(
   let built: Hyperbrowser | undefined;
   const client = () => (built ??= new Hyperbrowser({ apiKey }));
   return {
+    provider: "hyperbrowser",
     lease: HyperbrowserSessions.lease(source),
     create: async () =>
       HyperbrowserSessions.create(client(), {
@@ -397,25 +413,113 @@ function hyperbrowser(
         region: "us-west",
       }),
     stop: async (id) => client().sessions.stop(id),
-    connect: async (wsEndpoint) => {
-      const connected = await chromium.connectOverCDP(wsEndpoint, {
-        timeout: CDP_CONNECT_TIMEOUT_MS,
-      });
-      try {
-        const context =
-          connected.contexts()[0] ?? (await connected.newContext());
-        const page = context.pages()[0] ?? (await context.newPage());
-        return {
-          page: await preparePage(page, subresources),
-          close: () => connected.close(),
-        };
-      } catch (cause) {
-        await connected.close().catch(() => undefined);
-        throw cause;
-      }
-    },
+    connect: (wsEndpoint) => connectPage(wsEndpoint, subresources),
   };
 }
+
+/** `source`'s Kernel browsers, under the Kernel session lease: stealth
+ * (Kernel's managed proxy and CAPTCHA solver) and headless. Their pages load
+ * `subresources` besides the transport's documents. Without `apiKey` every
+ * create fails with `KernelKeyMissing` and no request is sent, so a source
+ * configured for Kernel fails closed instead of falling back. */
+function kernel(
+  apiKey: string | undefined,
+  source: KernelSource,
+  subresources: BrowserSubresources,
+): BrowserSessions {
+  const key = () => {
+    if (apiKey === undefined || apiKey === "")
+      throw new KernelKeyMissing({ source });
+    return apiKey;
+  };
+  return {
+    provider: "kernel",
+    lease: KernelSessions.lease(source),
+    create: async () => KernelSessions.create(key()),
+    stop: async (id) => KernelSessions.stop(key(), id),
+    connect: (wsEndpoint) => connectPage(wsEndpoint, subresources),
+  };
+}
+
+async function connectPage(
+  wsEndpoint: string,
+  subresources: BrowserSubresources,
+): Promise<BrowserConnection> {
+  const connected = await chromium.connectOverCDP(wsEndpoint, {
+    timeout: CDP_CONNECT_TIMEOUT_MS,
+  });
+  try {
+    const context = connected.contexts()[0] ?? (await connected.newContext());
+    const page = context.pages()[0] ?? (await context.newPage());
+    return {
+      page: await preparePage(page, subresources),
+      close: () => connected.close(),
+    };
+  } catch (cause) {
+    await connected.close().catch(() => undefined);
+    throw cause;
+  }
+}
+
+/** The API keys a browser provider's sessions need; the ingestion `Config`
+ * carries them. */
+export interface BrowserProviderKeys {
+  readonly hyperbrowserApiKey: string;
+  readonly kernelApiKey: string | undefined;
+}
+
+/** `provider`'s sessions for `source`. */
+function providerSessions(
+  provider: BrowserProvider,
+  keys: BrowserProviderKeys,
+  source: HyperbrowserSource & KernelSource,
+  subresources: BrowserSubresources,
+): BrowserSessions {
+  switch (provider) {
+    case "hyperbrowser":
+      return hyperbrowser(keys.hyperbrowserApiKey, source, subresources);
+    case "kernel":
+      return kernel(keys.kernelApiKey, source, subresources);
+  }
+}
+
+/** `source`'s sessions from the provider `BROWSER_PROVIDERS` chooses. */
+function sourceSessions(
+  source: BrowserSource,
+  keys: BrowserProviderKeys,
+  subresources: BrowserSubresources,
+): BrowserSessions {
+  return providerSessions(
+    BROWSER_PROVIDERS[source],
+    keys,
+    source,
+    subresources,
+  );
+}
+
+/** How each provider's refusals and leftovers are reported. */
+const PROVIDERS: Readonly<
+  Record<
+    BrowserProvider,
+    {
+      readonly capacityDeferral: (
+        cause: unknown,
+      ) => ProviderCapacityDeferred | null;
+      readonly unstopped: (id: string, cause: unknown) => string;
+    }
+  >
+> = {
+  hyperbrowser: {
+    capacityDeferral: HyperbrowserSessions.capacityDeferral,
+    unstopped: (id, cause) =>
+      `Hyperbrowser session ${id} did not stop: ${String(cause)}. Hyperbrowser ends it ${HYPERBROWSER_SESSION_TIMEOUT_MINUTES} minutes after it started; stop it in the Hyperbrowser dashboard to end billing sooner.`,
+  },
+  kernel: {
+    capacityDeferral: KernelSessions.capacityDeferral,
+    unstopped: (id, cause) =>
+      `Kernel browser ${id} was not deleted: ${String(cause)}. Kernel deletes it ${KERNEL_SESSION_TIMEOUT_SECONDS} seconds after its CDP connection closed; delete it with DELETE /browsers/${id} or in the Kernel dashboard to end billing sooner.`,
+  },
+};
 
 /** One session page for the enclosing scope, stopped when it closes. The
  * plan's concurrent session refusal defers the chunk. A failed open stops the
@@ -452,14 +556,14 @@ function openPage(
       Effect.tryPromise({
         try: () => sessions.create(),
         catch: (cause) =>
-          HyperbrowserSessions.capacityDeferral(cause) ??
+          PROVIDERS[sessions.provider].capacityDeferral(cause) ??
           new BrowserSessionError({ phase: "open", cause }),
       }),
       (s) =>
         Effect.tryPromise(() => sessions.stop(s.id)).pipe(
           Effect.catchAll((cause) =>
             Effect.logWarning(
-              `Hyperbrowser session ${s.id} did not stop: ${String(cause.error)}. Hyperbrowser ends it at its session timeout; stop it in the Hyperbrowser dashboard to end billing sooner.`,
+              PROVIDERS[sessions.provider].unstopped(s.id, cause.error),
             ),
           ),
         ),
@@ -524,5 +628,8 @@ export const DocumentTransport = {
   browser,
   preparePage,
   hyperbrowser,
+  kernel,
+  providerSessions,
+  sourceSessions,
   acquireBrowser,
 } as const;

@@ -12,7 +12,9 @@ import {
   type BrowserSessions,
   type LazyDocumentTransport,
 } from "./document-transport";
+import { BROWSER_PROVIDERS, type BrowserProvider } from "./browser-providers";
 import { BrowserSessionError } from "./errors";
+import { KernelApiError, KernelKeyMissing } from "./kernel-sessions";
 import { fetchMichigantruckPage } from "./michigantruck-client";
 import { streamMichigantruckInventory } from "./michigantruck-connector";
 import {
@@ -601,6 +603,7 @@ function fakeSessions(
   page: BrowserDocumentPage,
   connectFailure: Error | null = null,
   options: {
+    provider?: BrowserProvider;
     lease?: BrowserSessions["lease"];
     createFailure?: Error;
   } = {},
@@ -608,6 +611,7 @@ function fakeSessions(
   const events: string[] = [];
   let created = 0;
   const sessions: BrowserSessions = {
+    provider: options.provider ?? "hyperbrowser",
     lease:
       options.lease ??
       Effect.acquireRelease(
@@ -778,7 +782,11 @@ test("a failed browser connection stops its session before the next use creates 
   expect(events.slice(5)).toEqual(["disconnect", "stop s2", "release"]);
 });
 
-const config = { betterStackHeartbeatUrl: undefined, hyperbrowserApiKey: "" };
+const config = {
+  betterStackHeartbeatUrl: undefined,
+  hyperbrowserApiKey: "",
+  kernelApiKey: undefined,
+};
 const ignore = () => Effect.void;
 
 test.each([
@@ -1119,4 +1127,100 @@ test("Northwest opens its transport inside the request gate and keeps open defer
     }),
   ).catch((error: unknown) => error);
   expect(ProviderChunkClock.deferralOf(deferred)).toBe(busy);
+});
+
+test("Kernel's concurrent browser refusal defers the chunk and releases the lease", async () => {
+  // As Kernel answered a sixth browser on the Developer plan, Nov 23.
+  const refusal = new KernelApiError({
+    operation: "create",
+    status: 429,
+    code: "org_limit_exceeded",
+    detail:
+      "org limit exceeded for unified_concurrent_sessions: limit=5, utilization=5, requested=1",
+  });
+  const { sessions, events } = fakeSessions(servingPage(), null, {
+    provider: "kernel",
+    createFailure: refusal,
+  });
+  const failure = await Effect.runPromise(
+    streamSix03Inventory({ onBatch: ignore }, sessions).pipe(
+      Effect.provideService(Config, config),
+    ),
+  ).catch((error: unknown) => error);
+  expect(ProviderChunkClock.deferralOf(failure)).toBeInstanceOf(
+    ProviderCapacityDeferred,
+  );
+  expect(events).toEqual(["lease", "release"]);
+});
+
+test("a refusal is classified by the provider that sent it", async () => {
+  // Hyperbrowser's rules do not know Kernel's error, so only the sessions'
+  // own provider decides whether a refusal defers.
+  const refusal = new KernelApiError({
+    operation: "create",
+    status: 429,
+    code: "org_limit_exceeded",
+    detail: "limit=5",
+  });
+  const { sessions } = fakeSessions(servingPage(), null, {
+    provider: "hyperbrowser",
+    createFailure: refusal,
+  });
+  const exit = await Effect.runPromiseExit(
+    Effect.scoped(
+      acquireBigdBrowser(sessions).pipe(
+        Effect.flatMap((transport) => transport.open),
+      ),
+    ),
+  );
+  expect(exit).toEqual(
+    Exit.fail(new BrowserSessionError({ phase: "open", cause: refusal })),
+  );
+});
+
+test("a source configured for Kernel without KERNEL_API_KEY fails its open with a clear error and sends no Kernel request", async () => {
+  const sent: string[] = [];
+  globalThis.fetch = Object.assign(
+    async (input: Parameters<typeof fetch>[0]) => {
+      sent.push(input instanceof Request ? input.url : String(input));
+      throw new Error("unexpected request");
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  const sessions = DocumentTransport.kernel(undefined, "bigd", "page");
+  expect(sessions.provider).toBe("kernel");
+  const exit = await Effect.runPromiseExit(
+    Effect.scoped(
+      acquireBigdBrowser({ ...sessions, lease: Effect.void }).pipe(
+        Effect.flatMap((transport) => transport.open),
+      ),
+    ),
+  );
+  expect(exit).toEqual(
+    Exit.fail(
+      new BrowserSessionError({
+        phase: "open",
+        cause: new KernelKeyMissing({ source: "bigd" }),
+      }),
+    ),
+  );
+  expect(new KernelKeyMissing({ source: "bigd" }).message).toContain(
+    "KERNEL_API_KEY is not set, but bigd is configured to open Kernel browser sessions",
+  );
+  expect(sent).toEqual([]);
+});
+
+test("each browser source opens sessions from the provider BROWSER_PROVIDERS names", () => {
+  const keys = { hyperbrowserApiKey: "h", kernelApiKey: "k" };
+  for (const source of ["bigd", "northwest", "six03", "michigantruck"] as const)
+    expect(
+      DocumentTransport.sourceSessions(source, keys, "page").provider,
+    ).toBe(BROWSER_PROVIDERS[source]);
+  expect(
+    DocumentTransport.providerSessions("kernel", keys, "bigd", "page").provider,
+  ).toBe("kernel");
+  expect(
+    DocumentTransport.providerSessions("hyperbrowser", keys, "bigd", "page")
+      .provider,
+  ).toBe("hyperbrowser");
 });

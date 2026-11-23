@@ -86,7 +86,7 @@ export class ProviderTurnDeferred extends Data.TaggedError(
 }
 
 /**
- * A provider account refused new work because its concurrency limit is in
+ * A provider refused new work because a concurrency or capacity limit is in
  * use, such as a browser service's concurrent session cap. Nothing from the
  * chunk was accepted, so the source retries the same cursor after its usual
  * deferral delay.
@@ -95,7 +95,7 @@ export class ProviderCapacityDeferred extends Data.TaggedError(
   "ProviderCapacityDeferred",
 )<{ provider: string; detail: string }> {
   override get message() {
-    return `${this.provider} refused new work because the account's concurrency limit is in use: ${this.detail} Nothing from this chunk was accepted and the last validated checkpoint is preserved; the source retries this chunk after its deferral delay.`;
+    return `${this.provider} refused new work because a concurrency or capacity limit is in use: ${this.detail} Nothing from this chunk was accepted and the last validated checkpoint is preserved; the source retries this chunk after its deferral delay.`;
   }
 }
 

@@ -172,11 +172,7 @@ export function streamBigdInventory<E, R>(
     Effect.gen(function* () {
       const transport = yield* acquireBigdBrowser(
         sessions ??
-          DocumentTransport.hyperbrowser(
-            (yield* Config).hyperbrowserApiKey,
-            "bigd",
-            "page",
-          ),
+          DocumentTransport.sourceSessions("bigd", yield* Config, "page"),
       );
       return yield* streamBigdInventoryWithRequestGate(
         options,

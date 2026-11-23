@@ -369,11 +369,7 @@ export function streamSix03Inventory<E, R>(
     Effect.gen(function* () {
       const transport = yield* acquireSix03Browser(
         sessions ??
-          DocumentTransport.hyperbrowser(
-            (yield* Config).hyperbrowserApiKey,
-            "six03",
-            "page",
-          ),
+          DocumentTransport.sourceSessions("six03", yield* Config, "page"),
       );
       const limit = yield* RateLimiter.make({
         limit: 1,

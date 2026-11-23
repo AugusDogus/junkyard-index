@@ -52,8 +52,8 @@ import {
 import {
   acquireUrgiisBrowser,
   readUrgiisPage,
+  urgiisBrowserSessions,
   urgiisError,
-  urgiisHyperbrowser,
   URGIIS_NATIVE_TRANSPORT,
   type UrgiisError,
 } from "./urgiis-client";
@@ -68,6 +68,7 @@ import type {
   LazyDocumentTransport,
 } from "./document-transport";
 import type { UrgiisTransport } from "./urgiis-tenant";
+import type { BrowserProvider } from "./browser-providers";
 
 export interface UrgiisOptions<E, R> extends UrgiisCensusHistory {
   startCursor?: unknown;
@@ -769,23 +770,27 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
   );
 }
 /** Reads each tenant through its configured transport. A chunk reads one
- * tenant, so a browser tenant's chunk opens at most one browser session, with
- * its first request under the Hyperbrowser session lease, and stops it when
- * the chunk ends; a native tenant's chunk takes neither. `sessions` defaults
- * to Hyperbrowser. */
+ * tenant, so a browser tenant's chunk opens at most one session from its
+ * provider, with its first request under that provider's session lease, and
+ * stops it when the chunk ends; a native tenant's chunk takes neither.
+ * `sessions` replaces each provider's sessions in tests. */
 export function streamUrgiisInventoryFromProvider<E, R>(
   options: Omit<UrgiisOptions<E, R>, "readPage">,
-  sessions?: BrowserSessions,
+  sessions?: (provider: BrowserProvider) => BrowserSessions,
 ) {
   return Effect.scoped(
     Effect.gen(function* () {
+      const keys = yield* Config;
+      const browser = (provider: BrowserProvider) =>
+        acquireUrgiisBrowser(
+          sessions?.(provider) ?? urgiisBrowserSessions(provider, keys),
+        );
       const transports: Readonly<
         Record<UrgiisTransport, LazyDocumentTransport>
       > = {
         native: URGIIS_NATIVE_TRANSPORT,
-        browser: yield* acquireUrgiisBrowser(
-          sessions ?? urgiisHyperbrowser((yield* Config).hyperbrowserApiKey),
-        ),
+        hyperbrowser: yield* browser("hyperbrowser"),
+        kernel: yield* browser("kernel"),
       };
       return yield* streamUrgiisInventory({
         ...options,

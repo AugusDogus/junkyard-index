@@ -307,9 +307,9 @@ export function streamMichigantruckInventory<E, R>(
     Effect.gen(function* () {
       const transport = yield* acquireMichigantruckBrowser(
         sessions ??
-          DocumentTransport.hyperbrowser(
-            (yield* Config).hyperbrowserApiKey,
+          DocumentTransport.sourceSessions(
             "michigantruck",
+            yield* Config,
             "page",
           ),
       );

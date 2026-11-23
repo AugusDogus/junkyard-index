@@ -10,10 +10,12 @@ import { BrowserSessionError } from "./errors";
 import {
   DocumentTransport,
   type BrowserOpenError,
+  type BrowserProviderKeys,
   type BrowserSessions,
   type DocumentResponse,
   type LazyDocumentTransport,
 } from "./document-transport";
+import type { BrowserProvider } from "./browser-providers";
 import { parseRetryAfterMs } from "./provider-http-client";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import { iisOwnedUrl, iisBrowsePath } from "./urgiis-catalog";
@@ -108,16 +110,18 @@ export const URGIIS_NATIVE_TRANSPORT: LazyDocumentTransport =
 export const acquireUrgiisBrowser = (sessions: BrowserSessions) =>
   DocumentTransport.acquireBrowser(sessions, "fetch");
 
-/** URG IIS Hyperbrowser sessions, under the session lease. Every tenant is a
- * URG lane, and the URG plugin's own requests are what the lane meters, so
+/** URG IIS sessions from `provider`, under its session lease. Every tenant is
+ * a URG lane, and the URG plugin's own requests are what the lane meters, so
  * its pages load no subresources that reach the site. */
-export const urgiisHyperbrowser = (apiKey: string) =>
-  DocumentTransport.hyperbrowser(apiKey, "urgiis", "none");
+export const urgiisBrowserSessions = (
+  provider: BrowserProvider,
+  keys: BrowserProviderKeys,
+) => DocumentTransport.providerSessions(provider, keys, "urgiis", "none");
 
 /**
  * One tenant page, each attempt in its own shared host turn. `transport`
  * takes its session lease before the first turn (the lock order in
- * `HyperbrowserSessions`) and opens its session inside that turn.
+ * `HyperbrowserSessions`, which `KernelSessions` shares) and opens its session inside that turn.
  */
 export function readUrgiisPage(
   url: string,

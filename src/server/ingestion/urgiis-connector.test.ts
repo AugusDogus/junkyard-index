@@ -20,6 +20,8 @@ import type {
   BrowserDocumentPage,
   BrowserSessions,
 } from "./document-transport";
+import type { BrowserProvider } from "./browser-providers";
+import { KernelApiError, KernelSessions } from "./kernel-sessions";
 import { BrowserSessionError } from "./errors";
 import { HyperbrowserSessions } from "./hyperbrowser-sessions";
 import {
@@ -31,11 +33,11 @@ import { withProviderHostLease } from "./provider-host-slot";
 import { URGIIS_TENANTS } from "./urgiis-configuration";
 import { UrgiisCensus } from "./urgiis-census";
 
-// A placeholder key; the Hyperbrowser client is built only when a session
-// opens, which the fixtures replace.
+// Placeholder keys; a browser session opens only through the fixtures.
 const config = {
   betterStackHeartbeatUrl: undefined,
   hyperbrowserApiKey: "unused",
+  kernelApiKey: "unused",
 };
 
 const tenant: UrgiisTenant = {
@@ -1395,12 +1397,12 @@ test("a tenant below its admission floor blocks only that tenant", async () => {
   expect(published).toEqual([healthy.code]);
 });
 
-test("the tenants Cloudflare refuses from Vercel read through browser sessions and every other tenant stays native", () => {
+test("the tenants Cloudflare refuses from Vercel read through Kernel browsers and every other tenant stays native", () => {
   // Each returned HTTP 403 without Retry-After at its makes page on every
-  // production run since Nov 19 and HTTP 200 from other networks and from
-  // Hyperbrowser (probed Nov 23).
+  // production run since Nov 19 and HTTP 200 from other networks, from
+  // Hyperbrowser and from Kernel stealth browsers (probed Nov 23).
   expect(
-    URGIIS_TENANTS.filter((t) => t.transport === "browser").map((t) => t.code),
+    URGIIS_TENANTS.filter((t) => t.transport === "kernel").map((t) => t.code),
   ).toEqual([
     "united",
     "ace-iowa",
@@ -1414,6 +1416,9 @@ test("the tenants Cloudflare refuses from Vercel read through browser sessions a
     "az",
     "mars",
   ]);
+  expect(URGIIS_TENANTS.filter((t) => t.transport === "hyperbrowser")).toEqual(
+    [],
+  );
   expect(
     URGIIS_TENANTS.filter((t) => t.transport === "native").map((t) => t.code),
   ).toEqual([
@@ -1433,7 +1438,7 @@ const BROWSER_ORIGIN = "https://browser.example";
 const browserSite: UrgiisTenant = {
   ...tenant,
   code: "browser",
-  transport: "browser",
+  transport: "kernel",
   origin: BROWSER_ORIGIN,
   pacingMs: 1,
   yard: { ...tenant.yard, code: "browser" },
@@ -1495,13 +1500,22 @@ function browserPage() {
  * lease taken after a URG turn fails the test. */
 function browserSessions(
   page: BrowserDocumentPage,
-  options: { lease?: BrowserSessions["lease"]; createFailure?: Error } = {},
+  options: {
+    provider?: BrowserProvider;
+    lease?: BrowserSessions["lease"];
+    createFailure?: Error;
+  } = {},
 ) {
   const events: string[] = [];
   let created = 0;
-  const { group: _group, ...policy } = HyperbrowserSessions.policy("urgiis");
+  const provider = options.provider ?? "kernel";
+  const { group: _group, ...policy } =
+    provider === "kernel"
+      ? KernelSessions.policy("urgiis")
+      : HyperbrowserSessions.policy("urgiis");
   void _group;
   const sessions: BrowserSessions = {
+    provider,
     lease:
       options.lease ??
       withProviderHostLease(policy, {
@@ -1566,6 +1580,18 @@ function serveNative() {
   return native;
 }
 
+/** Sessions of a provider no tenant in the test uses: any use fails it. */
+const unusable = (provider: BrowserProvider): BrowserSessions => {
+  const used = () => new Error(`A tenant opened unused ${provider} sessions`);
+  return {
+    provider,
+    lease: Effect.die(used()),
+    create: () => Promise.reject(used()),
+    stop: () => Promise.reject(used()),
+    connect: () => Promise.reject(used()),
+  };
+};
+
 const providerChunk = (
   tenants: readonly UrgiisTenant[],
   sessions: BrowserSessions,
@@ -1583,7 +1609,8 @@ const providerChunk = (
         onBatch: (batch) =>
           Effect.sync(() => onBatch(batch.map((v) => v.locationCode))),
       },
-      sessions,
+      (provider) =>
+        provider === sessions.provider ? sessions : unusable(provider),
     ).pipe(Effect.provideService(Config, config)),
     { turnWaitMs: 0 },
   );
@@ -1680,32 +1707,57 @@ test("a busy session lease defers a browser tenant's chunk without a session or 
   expect(browser.events).toEqual([]);
 });
 
-test("the plan's concurrent session refusal defers a browser tenant's chunk and releases the lease", async () => {
-  serveNative();
-  // As @hyperbrowser/sdk 0.83 throws it.
-  const refusal = Object.assign(
-    new Error(
-      "[Hyperbrowser]: Maximum number of active sessions (1) reached. Please close some sessions before creating new ones.",
+test.each([
+  [
+    "Kernel",
+    browserSite,
+    "kernel",
+    // As Kernel answered a sixth browser on the Developer plan, Nov 23.
+    new KernelApiError({
+      operation: "create",
+      status: 429,
+      code: "org_limit_exceeded",
+      detail:
+        "org limit exceeded for unified_concurrent_sessions: limit=5, utilization=5, requested=1",
+    }),
+  ],
+  [
+    "Hyperbrowser",
+    { ...browserSite, transport: "hyperbrowser" },
+    "hyperbrowser",
+    // As @hyperbrowser/sdk 0.83 throws it.
+    Object.assign(
+      new Error(
+        "[Hyperbrowser]: Maximum number of active sessions (1) reached. Please close some sessions before creating new ones.",
+      ),
+      { name: "HyperbrowserError", statusCode: 429 },
     ),
-    { name: "HyperbrowserError", statusCode: 429 },
-  );
-  const { page, log } = browserPage();
-  const browser = browserSessions(page, { createFailure: refusal });
-  const deferred = await providerChunk([browserSite], browser.sessions);
-  expect(
-    Either.isLeft(deferred.result) &&
-      ProviderChunkClock.deferralOf(deferred.result.left),
-  ).toBeInstanceOf(ProviderCapacityDeferred);
-  expect(browser.events).toEqual(["lease", "refused", "release"]);
-  expect(log).toEqual([]);
-});
+  ],
+] as const)(
+  "%s's concurrent session refusal defers a browser tenant's chunk and releases the lease",
+  async (_name, site, provider, refusal) => {
+    serveNative();
+    const { page, log } = browserPage();
+    const browser = browserSessions(page, { provider, createFailure: refusal });
+    const deferred = await providerChunk([site], browser.sessions);
+    expect(
+      Either.isLeft(deferred.result) &&
+        ProviderChunkClock.deferralOf(deferred.result.left),
+    ).toBeInstanceOf(ProviderCapacityDeferred);
+    expect(browser.events).toEqual(["lease", "refused", "release"]);
+    expect(log).toEqual([]);
+  },
+);
 
 test("a browser session that cannot open, as when credits run out, blocks only its tenant and native tenants publish", async () => {
   serveNative();
-  const outOfCredits = Object.assign(
-    new Error("[Hyperbrowser]: Insufficient credits"),
-    { name: "HyperbrowserError", statusCode: 402 },
-  );
+  // Kernel refuses new browsers with HTTP 403 at a spending cap.
+  const outOfCredits = new KernelApiError({
+    operation: "create",
+    status: 403,
+    code: "forbidden",
+    detail: "spending cap reached",
+  });
   const { page, log } = browserPage();
   const browser = browserSessions(page, { createFailure: outOfCredits });
   const { cursor, published, lifecycles } = await crawlProvider(
@@ -1734,7 +1786,7 @@ test("a browser session that cannot open, as when credits run out, blocks only i
 test("a tenant's transport is outside its qualification scope, so switching it keeps checkpoints and census history", async () => {
   const flip = (t: UrgiisTenant): UrgiisTenant => ({
     ...t,
-    transport: t.transport === "native" ? "browser" : "native",
+    transport: t.transport === "native" ? "kernel" : "native",
   });
   expect(UrgiisCursor.initial(URGIIS_TENANTS.map(flip)).scope).toBe(
     UrgiisCursor.initial(URGIIS_TENANTS).scope,
@@ -1755,7 +1807,7 @@ test("a tenant's transport is outside its qualification scope, so switching it k
   ).not.toThrow();
 });
 
-test("native tenants publish without a usable Hyperbrowser key, since only a browser tenant's first request creates the client", async () => {
+test("native tenants publish without usable browser keys, since only a browser tenant's first request creates a session", async () => {
   serveNative();
   const saved = process.env.HYPERBROWSER_API_KEY;
   delete process.env.HYPERBROWSER_API_KEY;
@@ -1777,7 +1829,11 @@ test("native tenants publish without a usable Hyperbrowser key, since only a bro
               published.push(...batch.map((v) => v.locationCode)),
             ),
         }).pipe(
-          Effect.provideService(Config, { ...config, hyperbrowserApiKey: "" }),
+          Effect.provideService(Config, {
+            ...config,
+            hyperbrowserApiKey: "",
+            kernelApiKey: undefined,
+          }),
         ),
         { turnWaitMs: 0 },
       );
@@ -1790,4 +1846,90 @@ test("native tenants publish without a usable Hyperbrowser key, since only a bro
   } finally {
     if (saved !== undefined) process.env.HYPERBROWSER_API_KEY = saved;
   }
+});
+
+test("each browser tenant opens its sessions from its own provider, under that provider's lease", async () => {
+  serveNative();
+  const kernel = browserSessions(browserPage().page);
+  const hyperbrowser = browserSessions(browserPage().page, {
+    provider: "hyperbrowser",
+  });
+  const hyperbrowserSite: UrgiisTenant = {
+    ...browserSite,
+    code: "hyperbrowser-site",
+    transport: "hyperbrowser",
+    yard: { ...browserSite.yard, code: "hyperbrowser-site" },
+  };
+  const both = { kernel: kernel.sessions, hyperbrowser: hyperbrowser.sessions };
+  const kernelChunk = await runWithQueuedHost(
+    streamUrgiisInventoryFromProvider(
+      { tenants: [browserSite], maxPages: 3, onBatch: () => Effect.void },
+      (provider) => both[provider],
+    ).pipe(Effect.provideService(Config, config)),
+    { turnWaitMs: 0 },
+  );
+  expect(Either.isRight(kernelChunk.result)).toBe(true);
+  expect(kernel.events).toEqual(SESSION);
+  expect(hyperbrowser.events).toEqual([]);
+  const hyperbrowserChunk = await runWithQueuedHost(
+    streamUrgiisInventoryFromProvider(
+      { tenants: [hyperbrowserSite], maxPages: 3, onBatch: () => Effect.void },
+      (provider) => both[provider],
+    ).pipe(Effect.provideService(Config, config)),
+    { turnWaitMs: 0 },
+  );
+  expect(Either.isRight(hyperbrowserChunk.result)).toBe(true);
+  expect(kernel.events).toEqual(SESSION);
+  expect(hyperbrowser.events).toEqual(SESSION);
+});
+
+test("a Kernel tenant without KERNEL_API_KEY fails closed: no browser, no request, and only its tenant blocks", async () => {
+  const native = serveNative();
+  const served = globalThis.fetch;
+  const kernelCalls: string[] = [];
+  globalThis.fetch = Object.assign(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.startsWith("https://api.onkernel.com")) {
+        kernelCalls.push(url);
+        throw new Error("A Kernel API request was sent without a key");
+      }
+      return served(input, init);
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  const tenants = [browserSite, nativeSite];
+  let cursor = UrgiisCursor.initial(tenants);
+  let state: unknown;
+  for (let chunks = 0; cursor.phase !== "complete"; chunks++) {
+    if (chunks > 40)
+      throw new Error("The crawl did not reach terminal evidence");
+    const run = await runWithQueuedHost(
+      streamUrgiisInventoryFromProvider({
+        tenants,
+        startCursor: cursor,
+        censusState: state,
+        maxPages: 3,
+        onBatch: () => Effect.void,
+      }).pipe(
+        Effect.provideService(Config, { ...config, kernelApiKey: undefined }),
+      ),
+      { turnWaitMs: 0 },
+    );
+    if (Either.isLeft(run.result)) throw run.result.left;
+    state = run.result.right.checkpointState ?? state;
+    cursor = UrgiisCursor.fromWire(
+      UrgiisCursor.serialize(run.result.right.cursor, tenants),
+      tenants,
+    );
+  }
+  expect(cursor.completed).toEqual([
+    {
+      code: browserSite.code,
+      blocked: expect.stringContaining("KERNEL_API_KEY is not set"),
+    },
+    { code: nativeSite.code, accepted: 1 },
+  ]);
+  expect(kernelCalls).toEqual([]);
+  expect(native.some((url) => url.startsWith(BROWSER_ORIGIN))).toBe(false);
 });

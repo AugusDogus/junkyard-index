@@ -1,4 +1,5 @@
 import type { Yard } from "~/lib/yard";
+import type { BrowserProvider } from "./browser-providers";
 import type { UrgiisSite } from "./urgiis-schema";
 export type UrgiisYard = Omit<
   Yard,
@@ -12,10 +13,10 @@ export type UrgiisYard = Omit<
   lng: number;
 };
 /** How a tenant's requests reach its site. `native`: server fetch with the
- * tenant's headers and cookie. `browser`: a Hyperbrowser session under the
- * session lease, for sites whose CDN refuses the deployment's egress; the
- * browser owns cookies and headers. */
-export type UrgiisTransport = "native" | "browser";
+ * tenant's headers and cookie. A browser provider: a remote browser from that
+ * provider under its session lease, for sites whose CDN refuses the
+ * deployment's egress; the browser owns cookies and headers. */
+export type UrgiisTransport = "native" | BrowserProvider;
 export interface UrgiisTenant extends UrgiisSite {
   code: string;
   transport: UrgiisTransport;
