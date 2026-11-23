@@ -18,17 +18,20 @@ export interface SourceSnapshot {
   observedVins: Set<string>;
 }
 
-/** Final run inventory: one vehicle per VIN from its highest-priority source. */
+/**
+ * Final run inventory: one vehicle per VIN from its highest-priority source.
+ * Read-only because a process reuses it across reconciliation steps.
+ */
 export interface RunSnapshotInventory {
-  vehicles: Map<string, CanonicalVehicle>;
+  readonly vehicles: ReadonlyMap<string, CanonicalVehicle>;
   /** VINs ordered for cursor-based reconciliation batches. */
-  vins: string[];
-  observedVins: Set<string>;
+  readonly vins: readonly string[];
+  readonly observedVins: ReadonlySet<string>;
   /** Observations ordered for bounded VIN lookups during missing reconciliation. */
-  observedVinOrder: string[];
-  acceptedSources: Set<IngestionSource>;
-  preservedUrgiisYards: Set<string>;
-  preservedAutorecyclerYards: Set<string>;
+  readonly observedVinOrder: readonly string[];
+  readonly acceptedSources: ReadonlySet<IngestionSource>;
+  readonly preservedUrgiisYards: ReadonlySet<string>;
+  readonly preservedAutorecyclerYards: ReadonlySet<string>;
 }
 
 export async function loadSourceSnapshot(
@@ -53,6 +56,18 @@ export async function loadSourceSnapshot(
   return snapshot;
 }
 
+/**
+ * The last inventory built from each store. One run commits at a time, and
+ * its next reconciliation step usually runs in the same process, so reusing
+ * it skips reloading every chunk: a Hollander run stages about 550 chunks
+ * that each carry its ~19 MiB census checkpoint, which takes minutes to load.
+ */
+const lastInventory = new WeakMap<
+  IngestionSnapshotStore,
+  { runId: string; key: string; inventory: RunSnapshotInventory }
+>();
+
+/** Loads the run's accepted inventory, reusing the process's last load of it. */
 export async function loadRunSnapshotInventory(params: {
   runId: string;
   database: LibSQLDatabase;
@@ -80,32 +95,50 @@ export async function loadRunSnapshotInventory(params: {
         reconciliationSourcePriority(a.source) -
         reconciliationSourcePriority(b.source),
     );
-  const inventory: RunSnapshotInventory = {
-    preservedUrgiisYards: new Set(),
-    vehicles: new Map(),
-    vins: [],
-    observedVinOrder: [],
-    observedVins: new Set(),
-    acceptedSources: new Set(accepted.map((row) => row.source)),
-    preservedAutorecyclerYards: new Set(),
-  };
+  // Snapshot chunks are immutable blobs under unique pathnames, so the
+  // accepted rows identify the inventory exactly.
+  const key = JSON.stringify([params.runId, accepted]);
+  const cached = lastInventory.get(params.store);
+  if (cached?.key === key) return cached.inventory;
+  lastInventory.delete(params.store);
+
+  const vehicles = new Map<string, CanonicalVehicle>();
+  const observedVins = new Set<string>();
+  let preservedUrgiisYards: ReadonlySet<string> = new Set();
+  const preservedAutorecyclerYards = new Set<string>();
   for (const row of accepted) {
     if (row.source === "urgiis" && row.nextCursor)
-      inventory.preservedUrgiisYards = urgiisPublication(
+      preservedUrgiisYards = urgiisPublication(
         parseDurableSourceCursor("urgiis", row.nextCursor),
       ).preservedYards;
     if (row.source === "autorecycler" && row.nextCursor) {
       const cursor = parseDurableSourceCursor("autorecycler", row.nextCursor);
       if (cursor.phase === "complete")
         for (const code of cursor.freshness?.preservedYards ?? [])
-          inventory.preservedAutorecyclerYards.add(code);
+          preservedAutorecyclerYards.add(code);
     }
     const snapshot = await loadSourceSnapshot(params.store, row.snapshotChunks);
     for (const [vin, vehicle] of snapshot.vehicles)
-      if (!inventory.vehicles.has(vin)) inventory.vehicles.set(vin, vehicle);
-    for (const vin of snapshot.observedVins) inventory.observedVins.add(vin);
+      if (!vehicles.has(vin)) vehicles.set(vin, vehicle);
+    for (const vin of snapshot.observedVins) observedVins.add(vin);
   }
-  inventory.vins = [...inventory.vehicles.keys()].sort();
-  inventory.observedVinOrder = [...inventory.observedVins].sort();
+  const inventory: RunSnapshotInventory = {
+    vehicles,
+    vins: [...vehicles.keys()].sort(),
+    observedVins,
+    observedVinOrder: [...observedVins].sort(),
+    acceptedSources: new Set(accepted.map((row) => row.source)),
+    preservedUrgiisYards,
+    preservedAutorecyclerYards,
+  };
+  lastInventory.set(params.store, { runId: params.runId, key, inventory });
   return inventory;
+}
+
+/** Drops a run's reused inventory once its reconciliation stops pausing. */
+export function forgetRunSnapshotInventory(
+  store: IngestionSnapshotStore,
+  runId: string,
+) {
+  if (lastInventory.get(store)?.runId === runId) lastInventory.delete(store);
 }
