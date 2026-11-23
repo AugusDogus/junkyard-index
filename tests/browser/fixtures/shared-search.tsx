@@ -15,7 +15,7 @@ import superjson from "superjson";
 import { SearchPageContent } from "~/components/search/SearchPageContent";
 import type { SearchKeyGrant } from "~/lib/search-key-grant";
 import { SearchServerRender } from "~/lib/search-server-render";
-import { api } from "~/trpc/react";
+import { api, type RouterOutputs } from "~/trpc/react";
 import { serverSearches } from "./shared-search-client";
 
 const params = new URLSearchParams(
@@ -98,9 +98,36 @@ queryClient.setQueryData(
   getQueryKey(api.user.getLocationPreference, undefined, "query"),
   { hasPreference: false },
 );
+// fixtureSaved=1 gives the account one saved search, so Saved shows.
+const savedSearches: RouterOutputs["savedSearches"]["list"] =
+  params.get("fixtureSaved") === "1"
+    ? [
+        {
+          id: "saved-venza",
+          userId: "test-user",
+          name: "Venza donor",
+          query: "venza",
+          filters: {},
+          emailAlertsEnabled: false,
+          discordAlertsEnabled: false,
+          searchMatchVersion: 1,
+          emailConfigVersion: 1,
+          discordConfigVersion: 1,
+          emailStartSequence: 0,
+          discordStartSequence: 0,
+          lastMatchedPublicationSequence: 0,
+          lastCheckedAt: null,
+          alertQuarantinedAt: null,
+          alertQuarantineReason: null,
+          processingLock: null,
+          createdAt: new Date(0),
+          updatedAt: new Date(0),
+        },
+      ]
+    : [];
 queryClient.setQueryData(
   getQueryKey(api.savedSearches.list, undefined, "query"),
-  [],
+  savedSearches,
 );
 queryClient.setQueryData(
   getQueryKey(api.user.getNotificationSettings, undefined, "query"),

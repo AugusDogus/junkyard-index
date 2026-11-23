@@ -5,7 +5,13 @@ import type { SearchArea } from "~/lib/search-area";
 
 import type { YardType } from "~/lib/yard-service";
 
-import { Bookmark, ChevronDown, ExternalLink, Lock, Mail } from "lucide-react";
+import {
+  BookmarkPlus,
+  ChevronDown,
+  ExternalLink,
+  Lock,
+  Mail,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -367,10 +373,12 @@ export function SaveSearchDialog({
         }
       }}
     >
-      <Bookmark className={compact || iconOnly ? "h-3.5 w-3.5" : "h-4 w-4"} />
+      <BookmarkPlus
+        className={compact || iconOnly ? "h-3.5 w-3.5" : "h-4 w-4"}
+      />
       {!iconOnly && (
         <span className={responsive ? "sr-only md:not-sr-only" : undefined}>
-          {isNavigatingToAuth ? "Redirecting..." : "Save Search"}
+          {isNavigatingToAuth ? "Redirecting..." : "Save search"}
         </span>
       )}
     </Button>

@@ -51,8 +51,10 @@ interface SearchResultsListModel {
 }
 
 interface EmptySearchResultsModel {
-  activeFilterCount: number;
-  clearAllFilters(): void;
+  /** Drops the filters other than yard scope, so the search only widens. */
+  clearFilters: (() => void) | null;
+  /** Widens a yard scope narrower than every yard. */
+  includeAllYards: (() => void) | null;
   isLoggedIn: boolean;
   query: string;
   filters: SaveSearchFilters;
@@ -152,21 +154,16 @@ function SearchResultsHeader({
         {model.status.kind === "loading" ? (
           <Skeleton className="h-6 w-40" />
         ) : (
-          <>
-            <h2
-              ref={headingRef}
-              tabIndex={-1}
-              className="text-base font-semibold tabular-nums sm:text-lg"
-            >
-              {model.status.totalCount.toLocaleString()}{" "}
-              {model.status.totalCount === 1 ? "vehicle" : "vehicles"}
-            </h2>
-            {model.status.visibleCount !== null && (
-              <span className="text-muted-foreground text-sm tabular-nums">
-                Showing {model.status.visibleCount.toLocaleString()}
-              </span>
-            )}
-          </>
+          <h2
+            ref={headingRef}
+            tabIndex={-1}
+            className="text-base font-semibold tabular-nums sm:text-lg"
+          >
+            {model.status.visibleCount !== null &&
+              `${model.status.visibleCount.toLocaleString()} of `}
+            {model.status.totalCount.toLocaleString()}{" "}
+            {model.status.totalCount === 1 ? "vehicle" : "vehicles"}
+          </h2>
         )}
       </div>
       {showsHint && fullServiceSuggestion ? (
@@ -197,12 +194,17 @@ function FullServiceHint({
 }) {
   return (
     <p className="text-muted-foreground text-sm text-pretty tabular-nums">
-      Also {suggestion.extraCount.toLocaleString()} at full-service yards.{" "}
+      <span className="sm:hidden">
+        +{suggestion.extraCount.toLocaleString()} full-service.
+      </span>
+      <span className="hidden sm:inline">
+        Also {suggestion.extraCount.toLocaleString()} at full-service yards.
+      </span>{" "}
       <Button
         type="button"
         variant="link"
         // The inline link keeps a 44px touch target on phones.
-        className="text-foreground relative h-auto p-0 text-sm font-semibold underline underline-offset-2 after:absolute after:-inset-x-1 after:-inset-y-3 after:content-[''] sm:after:hidden"
+        className="text-foreground relative h-auto p-0 text-sm font-semibold whitespace-nowrap underline underline-offset-2 after:absolute after:-inset-x-1 after:-inset-y-3 after:content-[''] sm:after:hidden"
         onClick={suggestion.showThem}
       >
         Show them
@@ -378,26 +380,43 @@ function SearchResultsPanelContent({
           <p className="text-muted-foreground mt-2 max-w-md text-sm text-pretty">
             No vehicles match this search. Try nearby years or remove a search
             term.
-            {model.activeFilterCount > 0 && (
+            {(model.clearFilters || model.includeAllYards) && (
               <>
                 {" "}
-                You can also clear filters
-                {(model.filters.yardTypes?.length ?? 0) > 0 &&
-                  " or include more yard types"}
+                You can also{" "}
+                {model.clearFilters && model.includeAllYards
+                  ? "clear filters or include all yards"
+                  : model.clearFilters
+                    ? "clear filters"
+                    : "include all yards"}
                 .
               </>
             )}
           </p>
 
-          {model.activeFilterCount > 0 && (
-            <Button
-              onClick={model.clearAllFilters}
-              variant="outline"
-              size="sm"
-              className="mt-5"
-            >
-              Clear filters
-            </Button>
+          {(model.clearFilters || model.includeAllYards) && (
+            <div className="mt-5 flex flex-wrap gap-2">
+              {model.clearFilters && (
+                <Button
+                  onClick={model.clearFilters}
+                  variant="outline"
+                  size="sm"
+                  className="min-h-11 sm:min-h-8"
+                >
+                  Clear filters
+                </Button>
+              )}
+              {model.includeAllYards && (
+                <Button
+                  onClick={model.includeAllYards}
+                  variant="outline"
+                  size="sm"
+                  className="min-h-11 sm:min-h-8"
+                >
+                  Include all yards
+                </Button>
+              )}
+            </div>
           )}
 
           <p className="text-muted-foreground mt-8 text-xs">

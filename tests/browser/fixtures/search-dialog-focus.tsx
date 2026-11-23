@@ -24,6 +24,8 @@ function Fixture() {
       <MobileFiltersDrawer
         {...filters}
         activeFilterCount={0}
+        defaultScopeLabel="Self-service yards"
+        resultCount={null}
         onAdvancedSearch={() => setOpen(true)}
         clearAllFilters={() => {}}
         onMakesChange={() => {}}

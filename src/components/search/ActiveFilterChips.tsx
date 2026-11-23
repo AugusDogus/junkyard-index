@@ -44,15 +44,19 @@ export function ActiveFilterChips({
               </button>
             );
           })}
-          <Button
-            type="button"
-            variant="link"
-            size="sm"
-            className="text-muted-foreground hover:text-foreground h-8 px-1 text-xs"
-            onClick={onClearAll}
-          >
-            Clear all
-          </Button>
+          {/* One chip clears with its own x. Phones clear all from the
+              Filters drawer, so the chips keep to one line above results. */}
+          {filters.length > 1 && (
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              className="text-muted-foreground hover:text-foreground hidden h-8 px-0 text-xs sm:inline-flex"
+              onClick={onClearAll}
+            >
+              Clear all
+            </Button>
+          )}
         </div>
       )}
       {notice}

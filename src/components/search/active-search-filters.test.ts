@@ -69,6 +69,10 @@ describe("active search filters", () => {
     expect(labels({ sources: ["pyp", "rtp"] })).toEqual(["2 sources"]);
   });
 
+  test("one source reads as its name, never as a count of one", () => {
+    expect(labels({ sources: ["pyp"] })).toEqual(["LKQ Pick Your Part"]);
+  });
+
   test("lists filters in a stable order, one per kind", () => {
     expect(
       ActiveSearchFilter.list({

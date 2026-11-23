@@ -15,7 +15,6 @@ import type { DataSource } from "~/lib/types";
 import { useHiddenSources } from "~/components/HiddenSourcesContext";
 import { HiddenSources } from "~/lib/hidden-source";
 import { INGESTION_SOURCES } from "~/lib/ingestion-source";
-import { cn } from "~/lib/utils";
 
 const SOURCE_LABELS: Record<DataSource, string> = {
   pyp: "Pick Your Part (PYP)",
@@ -239,16 +238,23 @@ export function YearRangeFilter({
 export function AdvancedFiltersUpsell({
   layout = "stacked",
 }: {
-  layout?: "stacked" | "inline";
+  /** `line` is one muted sentence, for the calm Filters panel and drawer. */
+  layout?: "stacked" | "line";
 }) {
+  if (layout === "line")
+    return (
+      <p className="text-muted-foreground text-sm text-pretty">
+        Make, state, color, yard and source filters come with Lite.{" "}
+        <Link
+          href="/pricing"
+          className="text-foreground font-semibold whitespace-nowrap underline underline-offset-2"
+        >
+          Compare plans
+        </Link>
+      </p>
+    );
   return (
-    <div
-      className={cn(
-        "flex flex-col items-start gap-4 py-2",
-        layout === "inline" &&
-          "sm:flex-row sm:items-center sm:justify-between sm:gap-6",
-      )}
-    >
+    <div className="flex flex-col items-start gap-4 py-2">
       <div className="flex max-w-sm flex-col gap-2">
         <h3 className="text-base font-semibold">Filter the full inventory</h3>
         <p className="text-muted-foreground text-sm leading-6">

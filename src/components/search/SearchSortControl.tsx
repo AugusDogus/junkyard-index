@@ -34,16 +34,18 @@ export function SearchSortControl({
   const Icon =
     value === "distance"
       ? MapPin
-      : value.startsWith("year-")
-        ? ArrowUpDown
-        : Calendar;
+      : value === "newest" || value === "oldest"
+        ? Calendar
+        : ArrowUpDown;
   return (
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger
-        className="md:min-w-44"
+        // The toolbar's outline treatment: no fill, the same border and weight.
+        className="border-ink text-ink hover:bg-ink hover:text-paper dark:hover:bg-ink border-2 bg-transparent font-extrabold shadow-none md:min-w-44 dark:bg-transparent [&_svg]:text-current"
         aria-label={`Sort vehicles: ${compact} (${label})`}
       >
-        <Icon className="text-muted-foreground" aria-hidden="true" />
+        {/* Phones drop the icon to keep the toolbar on one row. */}
+        <Icon className="max-md:hidden" aria-hidden="true" />
         <span className="md:hidden">{compact}</span>
         <span className="hidden md:inline">{label}</span>
       </SelectTrigger>

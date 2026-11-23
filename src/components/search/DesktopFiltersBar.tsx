@@ -26,9 +26,9 @@ import type { SearchFilterOptions } from "./search-filter-options";
 import { SearchableCheckboxList } from "./SearchableCheckboxList";
 
 interface DesktopFiltersBarProps {
-  advancedSearchControl?: ReactNode;
   activeFilterCount: number;
-  clearAllFilters: () => void;
+  /** What the search covers with no filters, such as "Self-service yards". */
+  defaultScopeLabel: string;
   makes: string[];
   colors: string[];
   states: string[];
@@ -99,9 +99,8 @@ function FilterPopover({
 }
 
 export function DesktopFiltersBar({
-  advancedSearchControl,
   activeFilterCount,
-  clearAllFilters,
+  defaultScopeLabel,
   makes,
   colors,
   states,
@@ -140,153 +139,130 @@ export function DesktopFiltersBar({
       <p id="desktop-filters-status" className="sr-only">
         {activeFilterCount > 0
           ? `${activeFilterCount} active filters`
-          : "Showing all inventory"}
+          : defaultScopeLabel}
       </p>
 
-      <div className="flex items-start gap-4">
-        <div className="min-w-0 flex-1">
-          <div className="mb-2">
+      {/* Year is free; the rest of the row comes with a paid plan. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <FilterPopover
+          title="Year"
+          summary={`${yearRange[0]} to ${yearRange[1]}`}
+          active={hasYearFilter}
+          description="Set the earliest and latest model years."
+        >
+          <YearRangeFilter
+            yearRange={yearRange}
+            onYearRangeChange={onYearRangeChange}
+            minimumYear={yearRangeLimits.min}
+            maximumYear={yearRangeLimits.max}
+          />
+        </FilterPopover>
+        {canUseAdvancedFilters && (
+          <>
             <FilterPopover
-              title="Year"
-              summary={`${yearRange[0]} to ${yearRange[1]}`}
-              active={hasYearFilter}
-              description="Set the earliest and latest model years."
+              title="Make"
+              summary={selectionSummary(makes, "makes")}
+              active={makes.length > 0}
+              description="Choose one or more vehicle makes."
             >
-              <YearRangeFilter
-                yearRange={yearRange}
-                onYearRangeChange={onYearRangeChange}
-                minimumYear={yearRangeLimits.min}
-                maximumYear={yearRangeLimits.max}
+              <SearchableCheckboxList
+                name="desktop-make"
+                label="Make"
+                options={filterOptions.makes}
+                feedback={filterOptionsFeedback}
+                selected={makes}
+                onChange={onMakesChange}
+                searchPlaceholder="Search makes"
+                searchThreshold={10}
+                maxHeight={260}
               />
             </FilterPopover>
-          </div>
-          {canUseAdvancedFilters ? (
-            <div className="flex flex-wrap gap-2">
-              <FilterPopover
-                title="Make"
-                summary={selectionSummary(makes, "makes")}
-                active={makes.length > 0}
-                description="Choose one or more vehicle makes."
-              >
-                <SearchableCheckboxList
-                  name="desktop-make"
-                  label="Make"
-                  options={filterOptions.makes}
-                  feedback={filterOptionsFeedback}
-                  selected={makes}
-                  onChange={onMakesChange}
-                  searchPlaceholder="Search makes"
-                  searchThreshold={10}
-                  maxHeight={260}
-                />
-              </FilterPopover>
 
-              <FilterPopover
-                title="State"
-                summary={selectionSummary(states, "states")}
-                active={states.length > 0}
-                description="Limit inventory to specific states."
-              >
+            <FilterPopover
+              title="State"
+              summary={selectionSummary(states, "states")}
+              active={states.length > 0}
+              description="Limit inventory to specific states."
+            >
+              <SearchableCheckboxList
+                name="desktop-state"
+                label="State"
+                options={filterOptions.states}
+                feedback={filterOptionsFeedback}
+                selected={states}
+                onChange={onStatesChange}
+                searchPlaceholder="Search states"
+                searchThreshold={6}
+                maxHeight={280}
+              />
+            </FilterPopover>
+
+            <FilterPopover
+              title="Salvage yard"
+              summary={selectionSummary(salvageYards, "salvage yards")}
+              active={salvageYards.length > 0}
+              description="Search inventory at individual yards."
+            >
+              <div className="flex flex-col gap-2">
                 <SearchableCheckboxList
-                  name="desktop-state"
-                  label="State"
-                  options={filterOptions.states}
+                  name="desktop-yard"
+                  label="Salvage yard"
+                  options={filterOptions.salvageYards}
                   feedback={filterOptionsFeedback}
-                  selected={states}
-                  onChange={onStatesChange}
-                  searchPlaceholder="Search states"
+                  selected={salvageYards}
+                  onChange={onSalvageYardsChange}
+                  searchPlaceholder="Search yards"
                   searchThreshold={6}
                   maxHeight={280}
                 />
-              </FilterPopover>
-
-              <FilterPopover
-                title="Salvage yard"
-                summary={selectionSummary(salvageYards, "salvage yards")}
-                active={salvageYards.length > 0}
-                description="Search inventory at individual yards."
-              >
-                <div className="flex flex-col gap-2">
-                  <SearchableCheckboxList
-                    name="desktop-yard"
-                    label="Salvage yard"
-                    options={filterOptions.salvageYards}
-                    feedback={filterOptionsFeedback}
-                    selected={salvageYards}
-                    onChange={onSalvageYardsChange}
-                    searchPlaceholder="Search yards"
-                    searchThreshold={6}
-                    maxHeight={280}
-                  />
-                  <Button
-                    asChild
-                    variant="link"
-                    size="sm"
-                    className="self-start"
+                <Button asChild variant="link" size="sm" className="self-start">
+                  <Link
+                    href="/request-yard"
+                    onClick={() =>
+                      trackRequestYardClick({ location: "lot_filter" })
+                    }
                   >
-                    <Link
-                      href="/request-yard"
-                      onClick={() =>
-                        trackRequestYardClick({ location: "lot_filter" })
-                      }
-                    >
-                      Request a missing yard
-                    </Link>
-                  </Button>
-                </div>
-              </FilterPopover>
+                    Request a missing yard
+                  </Link>
+                </Button>
+              </div>
+            </FilterPopover>
 
-              <FilterPopover
-                title="Color"
-                summary={selectionSummary(colors, "colors")}
-                active={colors.length > 0}
-                description="Choose one or more vehicle colors."
-              >
-                <SearchableCheckboxList
-                  name="desktop-color"
-                  label="Color"
-                  options={filterOptions.colors}
-                  feedback={filterOptionsFeedback}
-                  selected={colors}
-                  onChange={onColorsChange}
-                  searchPlaceholder="Search colors"
-                  searchThreshold={12}
-                  maxHeight={260}
-                />
-              </FilterPopover>
-
-              <FilterPopover
-                title="Inventory sources"
-                summary={`${HiddenSources.shown(hiddenSources, sources).length} of ${availableSources(hiddenSources).length}`}
-                active={sources.length > 0}
-                description="Choose which inventory networks to include."
-              >
-                <InventorySourcesFilter
-                  idPrefix="desktop-source"
-                  sources={sources}
-                  onSourcesChange={onSourcesChange}
-                />
-              </FilterPopover>
-            </div>
-          ) : (
-            <AdvancedFiltersUpsell layout="inline" />
-          )}
-        </div>
-
-        <div className="flex shrink-0 items-center gap-3">
-          {advancedSearchControl}
-          {activeFilterCount > 0 && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={clearAllFilters}
+            <FilterPopover
+              title="Color"
+              summary={selectionSummary(colors, "colors")}
+              active={colors.length > 0}
+              description="Choose one or more vehicle colors."
             >
-              Clear
-            </Button>
-          )}
-        </div>
+              <SearchableCheckboxList
+                name="desktop-color"
+                label="Color"
+                options={filterOptions.colors}
+                feedback={filterOptionsFeedback}
+                selected={colors}
+                onChange={onColorsChange}
+                searchPlaceholder="Search colors"
+                searchThreshold={12}
+                maxHeight={260}
+              />
+            </FilterPopover>
+
+            <FilterPopover
+              title="Inventory sources"
+              summary={`${HiddenSources.shown(hiddenSources, sources).length} of ${availableSources(hiddenSources).length}`}
+              active={sources.length > 0}
+              description="Choose which inventory networks to include."
+            >
+              <InventorySourcesFilter
+                idPrefix="desktop-source"
+                sources={sources}
+                onSourcesChange={onSourcesChange}
+              />
+            </FilterPopover>
+          </>
+        )}
       </div>
+      {!canUseAdvancedFilters && <AdvancedFiltersUpsell layout="line" />}
     </section>
   );
 }

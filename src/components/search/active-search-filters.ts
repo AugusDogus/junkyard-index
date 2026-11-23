@@ -1,5 +1,6 @@
 import { ARRIVAL_WINDOWS, type ArrivalWindow } from "~/lib/arrival-window";
 import { HiddenSources } from "~/lib/hidden-source";
+import { INGESTION_SOURCE_DISPLAY_NAMES } from "~/lib/ingestion-source";
 import type { DataSource } from "~/lib/types";
 import type { YardType } from "~/lib/yard-service";
 
@@ -103,8 +104,15 @@ function label(filter: ActiveSearchFilter): string {
       return filter.range[0] === filter.range[1]
         ? String(filter.range[0])
         : `${filter.range[0]} to ${filter.range[1]}`;
-    case "sources":
-      return `${HiddenSources.shown(filter.sources).length} sources`;
+    case "sources": {
+      // Hidden sources still filter, so count them when nothing else shows.
+      const shown = HiddenSources.shown(filter.sources);
+      const named = shown.length > 0 ? shown : filter.sources;
+      const only = named.length === 1 ? named[0] : undefined;
+      return only === undefined
+        ? `${named.length} sources`
+        : INGESTION_SOURCE_DISPLAY_NAMES[only];
+    }
     case "makes":
     case "colors":
     case "states":

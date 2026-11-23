@@ -4,6 +4,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { HiddenSourcesProvider } from "~/components/HiddenSourcesContext";
 import { DesktopFiltersBar } from "./DesktopFiltersBar";
 import { MobileFilterContent } from "./MobileFilterContent";
+import {
+  AdvancedSearchButton,
+  AdvancedSearchGroup,
+} from "./SearchScopeFilters";
 import { availableSources, InventorySourcesFilter } from "./FilterFields";
 import { HiddenSources } from "~/lib/hidden-source";
 import { INGESTION_SOURCES } from "~/lib/ingestion-source";
@@ -94,9 +98,8 @@ describe("search filter visibility", () => {
   test("keeps the desktop make filter visible when the current search has no facet values", () => {
     const markup = render(
       <DesktopFiltersBar
-        advancedSearchControl={<button type="button">Advanced search</button>}
         activeFilterCount={1}
-        clearAllFilters={noOp}
+        defaultScopeLabel="Self-service yards"
         makes={[]}
         colors={[]}
         states={[]}
@@ -116,19 +119,13 @@ describe("search filter visibility", () => {
     );
 
     expect(markup).toContain(">Make<");
-    expect(markup).toContain(">Advanced search</button>");
   });
 
   test("shows an advanced search upgrade action without paid filter access", () => {
     const markup = render(
       <DesktopFiltersBar
-        advancedSearchControl={
-          <button aria-label="Advanced search, upgrade required" type="button">
-            Advanced search
-          </button>
-        }
         activeFilterCount={0}
-        clearAllFilters={noOp}
+        defaultScopeLabel="Self-service yards"
         makes={[]}
         colors={[]}
         states={[]}
@@ -149,8 +146,19 @@ describe("search filter visibility", () => {
 
     expect(markup).toContain(">Year<");
     expect(markup).not.toContain(">State<");
-    expect(markup).toContain("upgrade required");
-    expect(markup).toContain("Advanced search");
+    expect(markup).toContain(
+      "Make, state, color, yard and source filters come with Lite.",
+    );
+    expect(markup).not.toContain("Filter the full inventory");
+    const advanced = renderToStaticMarkup(
+      <AdvancedSearchGroup locked>
+        <AdvancedSearchButton locked />
+      </AdvancedSearchGroup>,
+    );
+    expect(advanced).toContain(">Advanced<");
+    expect(advanced).toContain(
+      'aria-label="Advanced search, upgrade required"',
+    );
   });
 
   for (const canUseAdvancedFilters of [false, true])
