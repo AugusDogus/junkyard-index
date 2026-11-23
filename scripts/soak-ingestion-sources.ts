@@ -260,6 +260,8 @@ function soakBrowserProvider(source: IngestionSource): BrowserProvider | null {
   switch (source) {
     case "bigd":
     case "northwest":
+    case "vanderhaags":
+    case "upullitdavie":
     case "six03":
     case "michigantruck":
       return BROWSER_PROVIDERS[source];

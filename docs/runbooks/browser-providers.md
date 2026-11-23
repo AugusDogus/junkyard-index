@@ -3,8 +3,9 @@
 Sources whose sites refuse the deployment's egress read their documents
 through a remote browser. Kernel (kernel.sh) is the long-term provider.
 Hyperbrowser's free credits were a one-time grant and will run out, so every
-browser source moves to Kernel; Hyperbrowser stays available as a one-line
-fallback until the last source has moved.
+live browser source opens Kernel browsers since November 23, 2026. Only the
+retired 603 and Michigan Truck are still set to Hyperbrowser, and it stays
+available as a one-line fallback for any source.
 
 | Provider     | Sessions module                                 | Key                               | Concurrency                                           | Lease group    |
 | ------------ | ----------------------------------------------- | --------------------------------- | ----------------------------------------------------- | -------------- |
@@ -21,27 +22,40 @@ so a value that is not a whole number from 1 to 999 fails the build.
 
 ## Who uses which
 
-| Source               | Chosen in                                     | Provider     |
-| -------------------- | --------------------------------------------- | ------------ |
-| Big D                | `BROWSER_PROVIDERS` in `browser-providers.ts` | Kernel       |
-| Northwest            | same                                          | Kernel       |
-| 603 Auto Salvage     | same (retired: paused and hidden)             | Hyperbrowser |
-| Michigan Truck Parts | same (retired: paused and hidden)             | Hyperbrowser |
-| U Pull It Davie      | its own session module                        | Hyperbrowser |
-| Vander Haags         | its own session module                        | Hyperbrowser |
+All sources are chosen in `BROWSER_PROVIDERS` in `browser-providers.ts`.
+
+| Source               | Page driven by                                   | Provider     |
+| -------------------- | ------------------------------------------------ | ------------ |
+| Big D                | `DocumentTransport` (navigation)                 | Kernel       |
+| Northwest            | `DocumentTransport` (fetch)                      | Kernel       |
+| Vander Haags         | `vanderhaags-browser-session.ts`                 | Kernel       |
+| U Pull It Davie      | `upullit-davie-browser-session.ts`               | Kernel       |
+| 603 Auto Salvage     | `DocumentTransport` (retired: paused and hidden) | Hyperbrowser |
+| Michigan Truck Parts | `DocumentTransport` (retired: paused and hidden) | Hyperbrowser |
 
 The choice is typed (`BrowserProvider = "hyperbrowser" | "kernel"`) and is not
 part of any cursor scope, so moving a source keeps in-flight checkpoints and
-accepted history. U Pull It Davie and Vander Haags keep their own Hyperbrowser
-session code (profiles, page scripts); moving either needs code, not a
-one-line change. URG IIS reads natively: the Cloudflare-blocked tenants were
-cut instead ([URG IIS](urgiis-ingestion.md)).
+accepted history. Vander Haags and U Pull It Davie drive their own page (a
+rendered WAF navigation and in-page fetch, or an in-page JSON API), so they
+take only the session lifecycle: `DocumentTransport.sourceBrowsers(source,
+config)` gives the chosen provider's lease, create and stop, and
+`DocumentTransport.acquireSession` starts the session with the same refusal
+classification and stop-on-close as the transport. Their pages are not
+routed, so they load every subresource as before. URG IIS reads natively: the
+Cloudflare-blocked tenants were cut instead ([URG IIS](urgiis-ingestion.md)).
+
+`@hyperbrowser/sdk`, `HYPERBROWSER_API_KEY` (still required by `src/env.js`),
+`hyperbrowser-sessions.ts`, the Hyperbrowser half of `document-transport.ts`
+and the admin Hyperbrowser budget page remain for the fallback and the two
+retired sources; no live source is configured to use them.
 
 ## Moving a source, or falling back
 
 1. Change the source's value in `BROWSER_PROVIDERS` and the pinned map in
    `browser-providers.test.ts`. Falling back to Hyperbrowser is the same
-   one-line change in the other direction.
+   one-line change in the other direction, for Vander Haags and U Pull It
+   Davie too (stealth, accepted cookies, `us-west`, no proxy, no CAPTCHA
+   solving).
 2. Make sure the provider's key is set in Vercel (Production and Preview). A
    source on Kernel without `KERNEL_API_KEY` never falls back on its own: its
    browser open fails with "KERNEL_API_KEY is not set, but <source> is

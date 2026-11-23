@@ -38,12 +38,14 @@ export const KERNEL_CONCURRENT_SESSIONS = KernelConcurrency.parse(
   process.env.KERNEL_CONCURRENT_SESSIONS,
 );
 
-/** Every ingestion source that can open Kernel browsers through
- * `DocumentTransport`. A source must be listed to take the session lease;
- * `browser-providers.ts` chooses which of them do. */
+/** Every ingestion source that can open Kernel browsers. A source must be
+ * listed to take the session lease; `browser-providers.ts` chooses which of
+ * them do. */
 export const KERNEL_SOURCES = [
   "bigd",
   "northwest",
+  "vanderhaags",
+  "upullitdavie",
   "six03",
   "michigantruck",
 ] as const;

@@ -1,7 +1,9 @@
-import { Hyperbrowser } from "@hyperbrowser/sdk";
 import { chromium } from "playwright-core";
 import { Effect } from "effect";
-import { HyperbrowserSessions } from "./hyperbrowser-sessions";
+import {
+  DocumentTransport,
+  type BrowserSessionLifecycle,
+} from "./document-transport";
 import {
   VANDERHAAGS_CATALOG_PATH,
   VANDERHAAGS_ORIGIN,
@@ -14,33 +16,13 @@ export interface VanderHaagsPageSource<E = Error> {
   fetchPage(path: string): Effect.Effect<string, E>;
 }
 
-/** One session for the enclosing scope, opened under the Hyperbrowser
- * session lease and stopped before the lease is released. A busy lease or
- * plan defers the chunk. */
-export function acquireVanderHaagsSession(apiKey: string) {
+/** One session for the enclosing scope from `sessions` (the provider
+ * `BROWSER_PROVIDERS` chooses), opened under its session lease and stopped
+ * before the lease is released. A busy lease or plan defers the chunk. */
+export function acquireVanderHaagsSession(sessions: BrowserSessionLifecycle) {
   return Effect.gen(function* () {
-    const client = new Hyperbrowser({ apiKey });
-    yield* HyperbrowserSessions.lease("vanderhaags");
-    const session = yield* Effect.acquireRelease(
-      Effect.tryPromise({
-        try: () =>
-          HyperbrowserSessions.create(client, {
-            useStealth: true,
-            solveCaptchas: false,
-            acceptCookies: true,
-            region: "us-west",
-          }),
-        catch: (cause) =>
-          HyperbrowserSessions.capacityDeferral(cause) ??
-          new Error(
-            "Vander Haags browser session create failed: " +
-              (cause instanceof Error ? cause.message : String(cause)),
-            { cause },
-          ),
-      }),
-      (s) =>
-        Effect.tryPromise(() => client.sessions.stop(s.id)).pipe(Effect.orDie),
-    );
+    yield* sessions.lease;
+    const session = yield* DocumentTransport.acquireSession(sessions);
     const browser = yield* Effect.acquireRelease(
       Effect.tryPromise(() =>
         chromium.connectOverCDP(session.wsEndpoint, { timeout: 45_000 }),

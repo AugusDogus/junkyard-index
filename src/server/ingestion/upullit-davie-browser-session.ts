@@ -1,13 +1,10 @@
-import { Hyperbrowser } from "@hyperbrowser/sdk";
-import {
-  chromium,
-  type Browser,
-  type BrowserContext,
-  type Page,
-} from "playwright-core";
+import { chromium, type Browser, type Page } from "playwright-core";
 import { Effect, Schema, Scope } from "effect";
+import {
+  DocumentTransport,
+  type BrowserSessionLifecycle,
+} from "./document-transport";
 import { BrowserSessionError } from "./errors";
-import { HyperbrowserSessions } from "./hyperbrowser-sessions";
 import type {
   ProviderCapacityDeferred,
   ProviderTurnDeferred,
@@ -20,7 +17,6 @@ import {
 
 const CDP_CONNECT_TIMEOUT_MS = 45_000;
 const BROWSER_REQUEST_TIMEOUT_MS = 30_000;
-const HYPERBROWSER_REGION = "us-west" as const;
 
 export interface UpullitDavieBrowserSession {
   fetchPage(
@@ -28,140 +24,82 @@ export interface UpullitDavieBrowserSession {
   ): Effect.Effect<UpullitDaviePage, BrowserSessionError>;
 }
 
-interface ManagedUpullitDavieSession {
-  readonly session: UpullitDavieBrowserSession;
-  readonly close: Effect.Effect<void, BrowserSessionError>;
-}
-
-interface MutableSessionState {
-  readonly client: Hyperbrowser;
-  browser: Browser | null;
-  context: BrowserContext | null;
-  page: Page | null;
-  sessionId: string | null;
-}
-
 function toError(cause: unknown): Error {
   return cause instanceof Error ? cause : new Error(String(cause));
 }
 
-/** One session for the enclosing scope, opened under the Hyperbrowser
- * session lease. The session closes before the lease is released. A busy
- * lease or plan defers the chunk. */
+/** One session for the enclosing scope from `sessions` (the provider
+ * `BROWSER_PROVIDERS` chooses), opened under its session lease. The browser
+ * disconnects and the session stops before the lease is released, also when
+ * opening fails. A busy lease or plan defers the chunk. */
 export function acquireUpullitDavieSession(
-  apiKey: string,
+  sessions: BrowserSessionLifecycle,
 ): Effect.Effect<
   UpullitDavieBrowserSession,
   BrowserSessionError | ProviderTurnDeferred | ProviderCapacityDeferred,
   Scope.Scope
 > {
-  return HyperbrowserSessions.lease("upullitdavie").pipe(
-    Effect.andThen(
-      Effect.acquireRelease(openSession(apiKey), (managed) =>
-        managed.close.pipe(Effect.catchAll(() => Effect.void)),
-      ),
-    ),
-    Effect.map((managed) => managed.session),
-  );
-}
-
-function openSession(
-  apiKey: string,
-): Effect.Effect<
-  ManagedUpullitDavieSession,
-  BrowserSessionError | ProviderCapacityDeferred
-> {
   return Effect.gen(function* () {
-    const state: MutableSessionState = {
-      client: new Hyperbrowser({ apiKey }),
-      browser: null,
-      context: null,
-      page: null,
-      sessionId: null,
-    };
-
-    yield* doOpen(state).pipe(
-      Effect.tapError(() =>
-        doClose(state).pipe(Effect.catchAll(() => Effect.void)),
-      ),
+    yield* sessions.lease;
+    const session = yield* DocumentTransport.acquireSession(sessions);
+    const browser = yield* Effect.acquireRelease(
+      Effect.tryPromise({
+        try: () =>
+          chromium.connectOverCDP(session.wsEndpoint, {
+            timeout: CDP_CONNECT_TIMEOUT_MS,
+          }),
+        catch: (cause) => new BrowserSessionError({ phase: "open", cause }),
+      }),
+      (connected) =>
+        Effect.promise(() => connected.close().catch(() => undefined)),
+    );
+    const page = yield* openInventory(browser).pipe(
       Effect.mapError(
-        (cause) =>
-          HyperbrowserSessions.capacityDeferral(cause) ??
-          new BrowserSessionError({ phase: "open", cause }),
+        (cause) => new BrowserSessionError({ phase: "open", cause }),
       ),
     );
-
-    const close = doClose(state).pipe(
-      Effect.mapError(
-        (cause) => new BrowserSessionError({ phase: "close", cause }),
-      ),
-    );
-    const session: UpullitDavieBrowserSession = {
+    return {
       fetchPage: (pageNumber) =>
-        doFetchPage(state, pageNumber).pipe(
+        doFetchPage(page, pageNumber).pipe(
           Effect.mapError(
             (cause) => new BrowserSessionError({ phase: "fetch", cause }),
           ),
         ),
     };
-
-    return { session, close };
   });
 }
 
-function doOpen(state: MutableSessionState): Effect.Effect<void, unknown> {
+function openInventory(browser: Browser): Effect.Effect<Page, Error> {
   return Effect.gen(function* () {
-    const session = yield* Effect.tryPromise({
-      try: () =>
-        HyperbrowserSessions.create(state.client, {
-          useStealth: true,
-          acceptCookies: true,
-          region: HYPERBROWSER_REGION,
-        }),
-      // Keep the SDK error, which `capacityDeferral` recognizes.
-      catch: toError,
-    });
-    state.sessionId = session.id;
-
-    const browser = yield* Effect.tryPromise({
-      try: () =>
-        chromium.connectOverCDP(session.wsEndpoint, {
-          timeout: CDP_CONNECT_TIMEOUT_MS,
-        }),
-      catch: toError,
-    });
-    state.browser = browser;
-
     const context =
       browser.contexts()[0] ??
-      (yield* Effect.tryPromise(() => browser.newContext()));
-    state.context = context;
-
+      (yield* Effect.tryPromise({
+        try: () => browser.newContext(),
+        catch: toError,
+      }));
     const page =
-      context.pages()[0] ?? (yield* Effect.tryPromise(() => context.newPage()));
-    state.page = page;
-
-    yield* Effect.tryPromise(() =>
-      page.goto(`${UPULLIT_DAVIE_ORIGIN}/inventory`, {
-        waitUntil: "networkidle",
-        timeout: 60_000,
-      }),
-    );
-  }).pipe(Effect.asVoid);
+      context.pages()[0] ??
+      (yield* Effect.tryPromise({
+        try: () => context.newPage(),
+        catch: toError,
+      }));
+    yield* Effect.tryPromise({
+      try: () =>
+        page.goto(`${UPULLIT_DAVIE_ORIGIN}/inventory`, {
+          waitUntil: "networkidle",
+          timeout: 60_000,
+        }),
+      catch: toError,
+    });
+    return page;
+  });
 }
 
 function doFetchPage(
-  state: MutableSessionState,
+  page: Page,
   pageNumber: number,
 ): Effect.Effect<UpullitDaviePage, unknown> {
   return Effect.gen(function* () {
-    const page = state.page;
-    if (!page) {
-      return yield* Effect.fail(
-        new Error("U Pull It Davie browser session is not open"),
-      );
-    }
-
     const result = yield* Effect.tryPromise(() =>
       page.evaluate(
         async ({ requestedPage, timeoutMs }) => {
@@ -219,35 +157,4 @@ function doFetchPage(
       ),
     );
   });
-}
-
-function doClose(state: MutableSessionState): Effect.Effect<void, unknown> {
-  return Effect.gen(function* () {
-    const page = state.page;
-    if (page) {
-      yield* Effect.tryPromise(() => page.close().catch(() => undefined));
-    }
-    const context = state.context;
-    if (context) {
-      yield* Effect.tryPromise(() => context.close().catch(() => undefined));
-    }
-    const browser = state.browser;
-    if (browser) {
-      yield* Effect.tryPromise(() => browser.close().catch(() => undefined));
-    }
-    state.page = null;
-    state.context = null;
-    state.browser = null;
-
-    const sessionId = state.sessionId;
-    if (sessionId) {
-      yield* Effect.logInfo(
-        `[U Pull It Davie] Hyperbrowser session: https://app.hyperbrowser.ai/sessions/${sessionId}`,
-      );
-      yield* Effect.tryPromise(() =>
-        state.client.sessions.stop(sessionId).catch(() => undefined),
-      );
-      state.sessionId = null;
-    }
-  }).pipe(Effect.asVoid);
 }

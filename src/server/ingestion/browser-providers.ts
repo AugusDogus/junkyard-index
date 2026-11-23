@@ -4,9 +4,16 @@
  * own account, session lease group and concurrency limit. */
 export type BrowserProvider = "hyperbrowser" | "kernel";
 
-/** Sources that read their documents through one `DocumentTransport` browser
- * per chunk and choose its provider as a whole. */
-export type BrowserSource = "bigd" | "northwest" | "six03" | "michigantruck";
+/** Sources that open one remote browser per chunk and choose its provider as
+ * a whole: through a `DocumentTransport` page, or, for Vander Haags and U Pull
+ * It Davie, a page their own session module drives over CDP. */
+export type BrowserSource =
+  | "bigd"
+  | "northwest"
+  | "vanderhaags"
+  | "upullitdavie"
+  | "six03"
+  | "michigantruck";
 
 /**
  * Which provider opens each source's browsers. Moving a source is this one
@@ -20,6 +27,8 @@ export const BROWSER_PROVIDERS: Readonly<
 > = {
   bigd: "kernel",
   northwest: "kernel",
+  vanderhaags: "kernel",
+  upullitdavie: "kernel",
   six03: "hyperbrowser",
   michigantruck: "hyperbrowser",
 };

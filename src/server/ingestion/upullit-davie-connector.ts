@@ -3,6 +3,7 @@ import { Effect } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import { UpullitDavieCursorState } from "./durable-cursor";
 import { Config } from "./context";
+import { DocumentTransport } from "./document-transport";
 import { ProviderChunkClock } from "./provider-chunk-clock";
 import {
   UpullitDavieCatalog,
@@ -39,7 +40,7 @@ export function streamUpullitDavieInventory<E, R>(options: {
     return yield* Effect.scoped(
       Effect.gen(function* () {
         const source = yield* acquireUpullitDavieSession(
-          config.hyperbrowserApiKey,
+          DocumentTransport.sourceBrowsers("upullitdavie", config),
         );
         return yield* streamUpullitDavieInventoryFromSource(options, source);
       }),

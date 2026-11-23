@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { Effect } from "effect";
 import { Config } from "./context";
+import { DocumentTransport } from "./document-transport";
 import { ProviderChunkClock } from "./provider-chunk-clock";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import { ingestionValidation } from "./ingestion-validation";
@@ -422,7 +423,7 @@ export function streamVanderHaagsInventory<E, R>(options: Options<E, R>) {
     Effect.gen(function* () {
       const config = yield* Config;
       const source = yield* acquireVanderHaagsSession(
-        config.hyperbrowserApiKey,
+        DocumentTransport.sourceBrowsers("vanderhaags", config),
       );
       return yield* streamVanderHaagsInventoryFromSource(options, source);
     }),

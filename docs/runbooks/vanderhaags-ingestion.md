@@ -99,13 +99,19 @@ checkpoints take the documented incompatible-history cold fallback.
 
 ## Transport and request budget
 
-Plain HTTP encounters AWS WAF 202. A normal Hyperbrowser browser navigation
-loads its JavaScript cookie, using stealth, accepted cookies and `us-west`.
-CAPTCHA solving is explicitly disabled. A 403 or 429 stops the session's host
-requests. The first rendered catalog is reused; later documents use same-origin
-browser fetch. Requests are serial with a 1.6-second gap. Each checkpoint opens
-its session under the cross-source
-[Hyperbrowser session lease](hyperbrowser-sessions.md); a busy lease defers it.
+Plain HTTP encounters AWS WAF 202. A normal browser navigation loads its
+JavaScript cookie. Since November 23, 2026 the browser is a Kernel browser
+(`BROWSER_PROVIDERS`; stealth, headless, direct egress), as for Big D and
+Northwest ([browser providers](browser-providers.md)). Kernel's `stealth`
+also enables its CAPTCHA solver, which Hyperbrowser had explicitly disabled
+for this host; the WAF served no CAPTCHA in the go-live soak, which passed
+with a plain navigation. Hyperbrowser (stealth, accepted cookies, `us-west`,
+no CAPTCHA solving) remains the one-line fallback. A 403 or 429 stops the
+session's host requests. The first rendered catalog is reused; later
+documents use same-origin browser fetch. Requests are serial with a
+1.6-second gap. Each checkpoint opens its browser under the provider's
+cross-source [session lease](hyperbrowser-sessions.md#session-lease); a busy
+lease, a full plan or a Kernel spending cap defers it.
 
 Each checkpoint permits 12 detail requests by default (maximum 24), plus a fresh
 five-page national catalog enumeration, within four minutes. Carried records do
