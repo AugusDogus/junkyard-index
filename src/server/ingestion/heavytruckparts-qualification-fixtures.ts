@@ -63,9 +63,9 @@ export const HTP_REJECTED_SUPPLIERS = [
   },
 ] as const satisfies readonly HtpSupplier[];
 
-// CA Truck Parts qualified on November 15, 2026, but by November 23 its cards
-// and item pages no longer publish a native VIN, so every row is an identity
-// reject. Two rows mention a VIN only in free text and two have none, so it
+// CA Truck Parts qualified on November 15, 2026, but by November 23 no catalog
+// card publishes a native VIN and the sampled item pages (1600, 1602) have
+// none, so every row is an identity reject. Two rows mention a VIN only in free text and two have none, so it
 // stays out rather than admitting a supplier that cannot prove identity.
 export const HTP_NO_VIN_SUPPLIER = {
   code: "catruck",
