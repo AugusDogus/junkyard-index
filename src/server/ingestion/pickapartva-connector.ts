@@ -94,11 +94,20 @@ const attempt = <A>(operation: string, run: () => A) =>
 export const PICKAPARTVA_MAKE_CHUNK_SOFT_MS = 180_000;
 
 /**
+ * How long saved make searches stand in for a capped yard search. Later
+ * chunks re-read the catalog but not the make searches, so a stale split
+ * could pass reconciliation after one hidden donor left and another took its
+ * Set Date. A split older than this, or dated in the future, fails the run.
+ */
+export const PICKAPARTVA_MAKE_SPLIT_LIFETIME_MS = 60 * 60_000;
+
+/**
  * Runs the pending make searches of capped yard searches, one shared host
- * turn each, and checkpoints after each one, so a split of every native make
- * never has to fit one chunk. Returns the advanced `makes` checkpoint. A make
- * search that is itself capped fails closed: no narrower native split is
- * verified.
+ * turn each, so a split of every native make never has to fit one chunk.
+ * Returns the advanced `makes` checkpoint when the chunk ends: after the
+ * soft stop, a deferred turn or the last make. A failed make search discards
+ * the chunk's progress. A make search that is itself capped fails closed: no
+ * narrower native split is verified.
  */
 function searchPickapartvaMakes(
   splits: readonly PickapartvaMakeSplit[],
@@ -210,6 +219,17 @@ export function streamPickapartvaInventoryWithRequestGate<E, R>(
       parsed.data.phase === "makes" || parsed.data.phase === "pages"
         ? parsed.data.partitions
         : [];
+    const now = yield* Clock.currentTimeMillis;
+    const stale = splits.find(
+      (split) =>
+        now < split.startedAt ||
+        now - split.startedAt > PICKAPARTVA_MAKE_SPLIT_LIFETIME_MS,
+    );
+    if (stale)
+      return yield* failure(
+        "make split lifetime",
+        `The make split for ${stale.date} in ${stale.id} started at ${new Date(stale.startedAt).toISOString()}, outside the last ${PICKAPARTVA_MAKE_SPLIT_LIFETIME_MS / 60_000} minutes, so its saved make searches no longer prove the current inventory. Restart the source from the start cursor`,
+      );
     if (
       parsed.data.phase === "makes" &&
       !splits.every(pickapartvaMakeSplitComplete)
@@ -319,6 +339,7 @@ export function streamPickapartvaInventoryWithRequestGate<E, R>(
               id,
               makes: yard.result.makes,
               searches: [],
+              startedAt: yield* Clock.currentTimeMillis,
             };
             return { status: "split", splits: [...splits, pending] } as const;
           }

@@ -46,8 +46,9 @@ Normal ingestion uses 15, requiring 18 controls plus one search per tied date. T
 
 - `start`: source `pickapartva` and phase `start`.
 - `makes`: the make splits of yard searches that reached the 500-card cap.
-  Each holds the Set Date, yard, native make list and the completed make
-  searches in that order, with their URLs, hashes and donors. It emits
+  Each holds the Set Date, yard, native make list, the epoch milliseconds of
+  the capped yard search (`startedAt`) and the completed make searches in
+  that order, with their URLs, hashes and donors. It emits
   nothing. See [Set Date ties](#set-date-ties).
 - `pages`: whole-snapshot fingerprint, all ordered page URL/hash receipts,
   the set-date search date/URL/hash receipts (empty in earlier checkpoints),
@@ -101,11 +102,20 @@ by make, using every value of the native make selector in order:
 `/inventory/<MAKE>/ANY/?k=1&id=TT87&search=YYYY-MM-DD`, with spaces in the
 make written as underscores (`LAND_ROVER`, verified live). The census stops
 at that yard search with a `makes` checkpoint and no closing reads. Later
-chunks run the make searches, each in its own shared host turn, and
-checkpoint after each one. No new make search starts after 180 seconds of a
-chunk. Once every make is searched, the next chunk reads the census again
-and takes that yard and date from the saved make searches instead of the
-capped searches.
+chunks run the make searches, each in its own shared host turn. No new make
+search starts after 180 seconds of a chunk, and a turn deferred after at
+least one make search ends the chunk too. The checkpoint is written when the
+chunk ends, so a failed make search discards that chunk's make searches and
+the retry starts from the chunk's starting checkpoint. Once every make is
+searched, the next chunk reads the census again and takes that yard and date
+from the saved make searches instead of the capped searches.
+
+The saved make searches are not read again, so they are trusted for 60
+minutes from the capped yard search (`startedAt` in each split). A chunk that
+finds a split older than that, or dated in the future, fails before any
+request, in the `makes` and `pages` phases alike. Otherwise a hidden donor
+removed while another hidden donor took its Set Date could still reconcile.
+Restart the source from the start cursor.
 
 A make search must pass the owner, footer and yard selector checks, carry
 exactly one `var setMake` equal to the make path, name only the searched yard
