@@ -70,6 +70,11 @@ export type SourceControlActionDependencies = {
   }) => Promise<void>;
   /** Expires the cached hidden list and the pages built from it. */
   expireHiddenSources: () => void;
+  /**
+   * Reads the expired list once, so the first public request after a hide
+   * or show finds it cached instead of reading the database.
+   */
+  prewarmHiddenSources: () => Promise<void>;
 };
 
 const VERB: Record<SourceControlInput["kind"], string> = {
@@ -211,6 +216,15 @@ export const SourceControlAction = {
           status: result.status === "unchanged" ? "unchanged" : "done",
           message: `${name} is ${state}; that is saved. The site's pages could not be told, so they may take up to a day to change. Repeat the same change in a minute to try again.`,
         };
+      }
+      try {
+        await deps.prewarmHiddenSources();
+      } catch (error) {
+        // The list is expired, so the next page request reads it instead.
+        console.error(
+          `Admin control "${input.kind}" on ${input.source} was saved and the cached hidden list expired, but reloading it failed; the next page request reads it from the database`,
+          error,
+        );
       }
       return result;
     } catch (error) {

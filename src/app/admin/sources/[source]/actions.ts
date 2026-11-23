@@ -4,7 +4,10 @@ import { updateTag } from "next/cache";
 import { db } from "~/lib/db";
 import { requireAdmin } from "~/server/admin/require-admin";
 import { startManualIngestionRun } from "~/server/ingestion/manual-ingestion-run-runtime";
-import { SOURCE_CONTROL_CACHE_TAG } from "~/server/source-control/hidden-sources-loader";
+import {
+  getHiddenSources,
+  SOURCE_CONTROL_CACHE_TAG,
+} from "~/server/source-control/hidden-sources-loader";
 import { IngestionPause } from "~/server/source-control/ingestion-pause";
 import {
   SourceControlAction,
@@ -27,6 +30,9 @@ export async function applySourceControl(
       startRun: (source) => startManualIngestionRun(source, "admin"),
       logRun: (entry) => SourceControlRepository.logRun(db, entry),
       expireHiddenSources: () => updateTag(SOURCE_CONTROL_CACHE_TAG),
+      prewarmHiddenSources: async () => {
+        await getHiddenSources();
+      },
     },
     userId,
     input,
