@@ -100,3 +100,35 @@ lifetime, the same as the pages that read it.
   tagged `source-control`) and the admin action.
 - The browser gets the list with its search key (`SearchKeyGrant.hiddenSources`)
   and passes it down through `HiddenSourcesProvider`.
+
+## Rolling back past this change
+
+Builds from before the admin controls ignore `source_control`: they hide
+only the sources in the old `HIDDEN_SOURCES` constant in
+`src/lib/hidden-source.ts` (Meeks) and pause only by Vercel flag. A rollback
+would show every source hidden from `/admin` and run every source paused
+there. Prefer rolling forward with a fix. If you must roll back:
+
+1. List what `/admin` controls:
+
+   ```sql
+   select source, ingestion, visibility, hidden_reason from source_control
+   where ingestion = 'paused' or visibility = 'hidden';
+   ```
+
+2. Add each hidden source to `HIDDEN_SOURCES` in the build you roll back to,
+   with its reason, and deploy that build.
+3. Serve false for each paused source's `ingestion-source-<source>` Vercel
+   flag.
+
+The table and its rows stay; migrations do not run backwards, and a later
+roll forward reads them again.
+
+Make and model pages read the inventory snapshot by version. This change
+stores `v4` (every source, filtered when read); older builds read `v3`
+(hidden sources left out when stored). Each build writes only its own
+version, and a deploy computes it only when it is missing. After a rollback,
+`v3` shows counts from before this change shipped until the next accepted
+ingestion run recomputes it, and a roll forward likewise shows the `v4` of
+the last run before the rollback. To refresh at once, run
+`bun run inventory:project --force` with that database's credentials.
