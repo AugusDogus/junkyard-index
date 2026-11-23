@@ -170,9 +170,10 @@ export const KernelSessions = {
       ),
     ),
 
-  /** Creates a stealth headless browser (managed proxy and CAPTCHA solver,
-   * 1 GiB, Kernel's default region) that Kernel deletes after the inactivity
-   * timeout. */
+  /** Creates a stealth headless browser (CAPTCHA solver, 1 GiB, Kernel's
+   * default region) that Kernel deletes after the inactivity timeout. Egress
+   * is direct, as Hyperbrowser ran: Kernel's default stealth proxy returned
+   * 502s and in-page network errors on Northwest (November 23, 2026). */
   create: async (
     apiKey: string,
     request: typeof fetch = fetch,
@@ -187,6 +188,7 @@ export const KernelSessions = {
         stealth: true,
         headless: true,
         timeout_seconds: KERNEL_SESSION_TIMEOUT_SECONDS,
+        proxy: { mode: "direct" },
       }),
       signal: AbortSignal.timeout(KERNEL_REQUEST_TIMEOUT_MS),
     });

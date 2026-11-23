@@ -66,7 +66,7 @@ const json = (status: number, body: unknown) =>
     headers: { "content-type": "application/json" },
   });
 
-test("a browser is created stealth and headless with the inactivity timeout, and its CDP URL is returned", async () => {
+test("a browser is created stealth and headless with direct egress and the inactivity timeout, and its CDP URL is returned", async () => {
   const { request, requests } = recording(() =>
     json(200, {
       session_id: "k1",
@@ -85,10 +85,14 @@ test("a browser is created stealth and headless with the inactivity timeout, and
   expect(new Headers(created?.init.headers).get("authorization")).toBe(
     "Bearer key",
   );
+  // Kernel's stealth proxy returned 502s and in-page network errors on
+  // Northwest (November 23, 2026 soaks); direct egress, as Hyperbrowser ran,
+  // read every page.
   expect(JSON.parse(String(created?.init.body))).toEqual({
     stealth: true,
     headless: true,
     timeout_seconds: KERNEL_SESSION_TIMEOUT_SECONDS,
+    proxy: { mode: "direct" },
   });
 });
 
