@@ -1,6 +1,12 @@
 import { afterEach, expect, test } from "bun:test";
 import { Effect } from "effect";
 import { soakSix03Inventory } from "../../../scripts/soak-six03";
+import {
+  isDurableSourceCursorTerminal,
+  parseDurableSourceCursor,
+  serializeDurableSourceCursor,
+} from "./durable-source";
+import { ModelCensus } from "./model-census";
 import { streamSix03InventoryWithRequestGate } from "./six03-connector";
 import {
   Six03Cursor,
@@ -136,6 +142,25 @@ test("603 replays every saved native control through serialized 8-page checkpoin
     SIX03_ORIGIN + pending[0]?.[0],
     SIX03_ORIGIN + pending.at(-1)?.[0],
   ]);
+  // Without a previous census the run is cold and publishes a census of
+  // every fetched donor for the next run to carry.
+  expect(summary.warnings).toContain(
+    "603 donor census: Read 1023 of 1023 model pages (cold 1023); carried 0.",
+  );
+  if (summary.cursor.phase !== "complete" || !summary.cursor.census)
+    throw new Error("Expected a terminal 603 census");
+  expect(summary.cursor.census.models).toHaveLength(1023);
+  const wire = serializeDurableSourceCursor(summary.cursor);
+  expect(
+    serializeDurableSourceCursor(parseDurableSourceCursor("six03", wire)),
+  ).toBe(wire);
+  expect(isDurableSourceCursorTerminal("six03", wire)).toBe(true);
+  expect(
+    isDurableSourceCursorTerminal(
+      "six03",
+      serializeDurableSourceCursor(closingState()),
+    ),
+  ).toBe(false);
 }, 120_000);
 
 test("603 refuses invalid page budgets and checkpoint versions before issuing HTTP", async () => {
@@ -193,6 +218,7 @@ function closingState(): Six03Progress {
     catalog,
     details,
     requests: details.length + 2,
+    day: ModelCensus.day(Date.parse("2026-11-22")),
   });
   return cachedClosing;
 }

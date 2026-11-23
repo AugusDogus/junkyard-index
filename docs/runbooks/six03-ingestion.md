@@ -57,6 +57,35 @@ produce null metadata. Excerpts have no donor image claim. Generic yard images
 and logos are not donor photos. No per-row current-parts, residence, date or
 optional-field requirement is imposed on this native own-yard catalog.
 
+## Incremental donor census
+
+Donor articles use the shared [incremental model census](model-census.md).
+Each donor the catalog lists without an embedded excerpt is one census entry
+with a count of one; its key is the card path plus a hash of the whole
+catalog card (path, make, year, title and heading). Every run still reads the contact page and the complete
+catalog, so membership is exact each run: a sold donor drops out and a new or
+changed card is fetched (reason `new`). An unchanged card carries its last
+accepted article and is fetched again in its sweep slice, so every article is
+at most six run days old. After a missed, failed or rejected run, and on a
+cold start (no census, another contract, unreadable cursor), every article is
+fetched. The census is seeded from the terminal cursor of the newest accepted
+publication. A donor article lists exactly one donor, so no page is ever
+short and the badge and replay floors cannot fall below 100%; the snapshot
+floor and ratios below still decide acceptance. The census contract
+(`incremental-donor-census-v1` in `six03-cursor.ts`) must be bumped whenever
+`parseSix03Detail`, the detail projection or the census key changes, so carried
+articles from the old parser are fetched again.
+
+The progress cursor binds the run day and previous census in its checksum, so
+a run in progress across the deploy that introduced them fails its next chunk
+once and the next run starts a cold census. No data is lost, but that day's
+spent requests are. Deploy such cursor changes outside 603's daily run window.
+
+| Run                   | Native GETs                                                     |
+| --------------------- | --------------------------------------------------------------- |
+| Cold, gap or recovery | 1,029 (2 opening, 1,023 donors, 4 closing)                      |
+| Daily, steady state   | 166 to 186, plus one per new or changed card (160 to 180 swept) |
+
 ## Bounded execution
 
 `streamSix03Inventory` uses serial requests with at least 1.6 seconds after
@@ -84,17 +113,20 @@ scripts, stylesheets and their XHR requests, outside the request gate; in-page
 | Complete UTF-8 HTML body       | 2 MiB                  |
 | Native GETs per chunk          | 1 to 8                 |
 | Chunk lifetime                 | 3 minutes              |
-| Serialized cursor              | 1 MiB                  |
+| Serialized cursor              | 4 MiB                  |
 | Native roster                  | At most 1,200 controls |
 | Total GET units                | At most 1,210          |
 
 The cursor strictly validates source, version, scope, checksum, native projection
-fingerprints, ordered detail membership, phase and request accounting. It stores
-compact native claims, not raw HTML or canonical vehicle arrays. Serialize with
-`Six03Cursor.serialize` and restore with `Six03Cursor.parse`.
+fingerprints, ordered detail membership, phase, run day, previous census,
+carried evidence and request accounting. It stores compact native claims, not
+raw HTML or canonical vehicle arrays. Serialize with `Six03Cursor.serialize`
+and restore with `Six03Cursor.parse`.
 
 Closing controls recheck contact identity, ordered roster/local reveal graph,
-embedded observations, and first/last fetched donor projections. Nothing is
+embedded observations, and the projections of the first and last donors
+fetched this run (or, when every donor carried, the first and last carried
+donors against their live pages). Nothing is
 emitted before those controls and complete quality checks pass: no vehicles,
 yard callback, rejected VIN presence or accounting. A failure leaves the caller's
 last accepted checkpoint and prior inventory intact. Resume that checkpoint

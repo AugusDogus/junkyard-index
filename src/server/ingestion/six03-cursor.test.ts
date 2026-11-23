@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { ModelCensus } from "./model-census";
 import {
   Six03Cursor,
   Six03CursorSchema,
@@ -29,6 +30,7 @@ const state = Six03Cursor.checkpoint({
   catalog,
   details: records,
   requests: 4,
+  day: ModelCensus.day(Date.parse("2026-11-22")),
 });
 
 test("603 checkpoint round trips exact native projections with strict source, version, scope and unknown-field rejection", () => {
@@ -43,7 +45,7 @@ test("603 checkpoint round trips exact native projections with strict source, ve
     expect(Six03CursorSchema.safeParse(altered).success).toBe(false);
   expect(() =>
     Six03Cursor.parse(" ".repeat(SIX03_MAX_CURSOR_BYTES + 1)),
-  ).toThrow("1 MiB");
+  ).toThrow("4 MiB");
   expect(() => Six03Cursor.parse("{broken")).toThrow();
 });
 

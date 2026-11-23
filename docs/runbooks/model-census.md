@@ -1,9 +1,10 @@
 # Incremental model census (URG parts connectors)
 
 `src/server/ingestion/model-census.ts` is shared by the A Plus, Aviation, Chaz,
-Central, Northwest, Calton, Denton, OEM, Jim's Import and Scotts connectors.
-Each connector's runbook gives its own counts and floors; this page states the
-shared rules.
+Central, Northwest, Calton, Denton, OEM, Jim's Import, Scotts and 603
+connectors. Each connector's runbook gives its own counts and floors; this
+page states the shared rules. 603 has no model pages: each donor article is
+one census entry with a count of one (see its runbook).
 
 ## What a run reads
 
