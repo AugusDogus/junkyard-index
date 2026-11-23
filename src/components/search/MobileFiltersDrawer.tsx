@@ -1,6 +1,5 @@
 "use client";
 
-import type { YardType } from "~/lib/yard-service";
 import { Filter, LockKeyhole } from "lucide-react";
 import { useRef, type ReactNode } from "react";
 import { Button } from "~/components/ui/button";
@@ -21,6 +20,8 @@ import type { SearchFilterOptions } from "./search-filter-options";
 
 interface MobileFiltersDrawerProps {
   onAdvancedSearch: () => void;
+  /** Arrival, distance and yard type, shown above the other filters. */
+  scope?: ReactNode;
   activeFilterCount: number;
   clearAllFilters: () => void;
   makes: string[];
@@ -28,7 +29,6 @@ interface MobileFiltersDrawerProps {
   states: string[];
   salvageYards: string[];
   sources: DataSource[];
-  yardTypes: YardType[];
   yearRange: [number, number];
   filterOptions: SearchFilterOptions;
   filterOptionsFeedback?: ReactNode;
@@ -37,18 +37,17 @@ interface MobileFiltersDrawerProps {
   onStatesChange: (states: string[]) => void;
   onSalvageYardsChange: (salvageYards: string[]) => void;
   onSourcesChange: (sources: DataSource[]) => void;
-  onYardTypesChange: (types: YardType[]) => void;
   onYearRangeChange: (range: [number, number]) => void;
   yearRangeLimits?: {
     min: number;
     max: number;
   };
   canUseAdvancedFilters: boolean;
-  iconOnly?: boolean;
 }
 
 export function MobileFiltersDrawer({
   onAdvancedSearch,
+  scope,
   activeFilterCount,
   clearAllFilters,
   makes,
@@ -56,7 +55,6 @@ export function MobileFiltersDrawer({
   states,
   salvageYards,
   sources,
-  yardTypes,
   yearRange,
   filterOptions,
   filterOptionsFeedback,
@@ -65,29 +63,18 @@ export function MobileFiltersDrawer({
   onStatesChange,
   onSalvageYardsChange,
   onSourcesChange,
-  onYardTypesChange,
   onYearRangeChange,
   yearRangeLimits,
   canUseAdvancedFilters,
-  iconOnly,
 }: MobileFiltersDrawerProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const openAdvancedOnClose = useRef(false);
   return (
     <Drawer autoFocus>
       <DrawerTrigger asChild>
-        <Button
-          ref={triggerRef}
-          variant="outline"
-          size={iconOnly ? "sm" : "default"}
-          aria-label={
-            iconOnly
-              ? `Filters${activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}`
-              : undefined
-          }
-        >
+        <Button ref={triggerRef} variant="outline">
           <Filter data-icon="inline-start" />
-          {!iconOnly && "Filters"}
+          Filters
           {activeFilterCount > 0 && (
             <span className="tabular-nums">({activeFilterCount})</span>
           )}
@@ -113,7 +100,7 @@ export function MobileFiltersDrawer({
               <DrawerDescription className="tabular-nums">
                 {activeFilterCount > 0
                   ? `${activeFilterCount} active`
-                  : "Showing all inventory"}
+                  : "No filters applied"}
               </DrawerDescription>
             </div>
             {activeFilterCount > 0 && (
@@ -146,13 +133,13 @@ export function MobileFiltersDrawer({
         </DrawerHeader>
         <Separator />
         <div className="min-h-0 flex-1 overflow-y-auto px-4">
+          {scope && <div className="border-b py-4">{scope}</div>}
           <MobileFilterContent
             makes={makes}
             colors={colors}
             states={states}
             salvageYards={salvageYards}
             sources={sources}
-            yardTypes={yardTypes}
             yearRange={yearRange}
             filterOptions={filterOptions}
             filterOptionsFeedback={filterOptionsFeedback}
@@ -161,7 +148,6 @@ export function MobileFiltersDrawer({
             onStatesChange={onStatesChange}
             onSalvageYardsChange={onSalvageYardsChange}
             onSourcesChange={onSourcesChange}
-            onYardTypesChange={onYardTypesChange}
             onYearRangeChange={onYearRangeChange}
             yearRangeLimits={yearRangeLimits}
             canUseAdvancedFilters={canUseAdvancedFilters}

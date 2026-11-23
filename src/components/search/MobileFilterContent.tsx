@@ -1,4 +1,3 @@
-import type { YardType } from "~/lib/yard-service";
 import { ChevronDown, Plus } from "lucide-react";
 import Link from "next/link";
 import { useRef, useState, type ReactNode } from "react";
@@ -22,7 +21,6 @@ import {
   AdvancedFiltersUpsell,
   availableSources,
   InventorySourcesFilter,
-  YardTypeFilter,
   YearRangeFilter,
 } from "./FilterFields";
 import type { SearchFilterOptions } from "./search-filter-options";
@@ -30,7 +28,6 @@ import { SearchableCheckboxList } from "./SearchableCheckboxList";
 
 const FILTER_SECTIONS = [
   "sources",
-  "yardTypes",
   "makes",
   "yearRange",
   "colors",
@@ -40,7 +37,6 @@ const FILTER_SECTIONS = [
 type FilterSectionKey = (typeof FILTER_SECTIONS)[number];
 const FILTER_LABELS: Record<FilterSectionKey, string> = {
   sources: "Inventory sources",
-  yardTypes: "Yard type",
   makes: "Make",
   yearRange: "Year",
   colors: "Color",
@@ -59,7 +55,6 @@ interface MobileFilterContentProps {
   states: string[];
   salvageYards: string[];
   sources: DataSource[];
-  yardTypes: YardType[];
   yearRange: [number, number];
   filterOptions: SearchFilterOptions;
   /** Loading or error state for `filterOptions`, shown in each list. */
@@ -69,7 +64,6 @@ interface MobileFilterContentProps {
   onStatesChange: (states: string[]) => void;
   onSalvageYardsChange: (salvageYards: string[]) => void;
   onSourcesChange: (sources: DataSource[]) => void;
-  onYardTypesChange: (types: YardType[]) => void;
   onYearRangeChange: (range: [number, number]) => void;
   yearRangeLimits?: {
     min: number;
@@ -130,7 +124,6 @@ export function MobileFilterContent({
   states,
   salvageYards,
   sources,
-  yardTypes,
   yearRange,
   filterOptions,
   filterOptionsFeedback,
@@ -139,7 +132,6 @@ export function MobileFilterContent({
   onStatesChange,
   onSalvageYardsChange,
   onSourcesChange,
-  onYardTypesChange,
   onYearRangeChange,
   yearRangeLimits,
   canUseAdvancedFilters,
@@ -155,7 +147,6 @@ export function MobileFilterContent({
   const primarySectionsOpen = defaultOpenSections === "primary";
   const selectedSections: Record<FilterSectionKey, boolean> = {
     sources: sources.length > 0,
-    yardTypes: yardTypes.length > 0,
     makes: makes.length > 0,
     yearRange: hasYearFilter,
     colors: colors.length > 0,
@@ -185,21 +176,6 @@ export function MobileFilterContent({
   return (
     <div className="flex flex-col gap-3">
       <div className="divide-border flex flex-col divide-y">
-        <FilterSection
-          id={`${idPrefix}-yardTypes-section`}
-          visible={isVisible("yardTypes")}
-          title="Yard type"
-          summary={
-            yardTypes.length ? `${yardTypes.length} selected` : "All yards"
-          }
-          defaultOpen={allSectionsOpen || addedSections.includes("yardTypes")}
-        >
-          <YardTypeFilter
-            idPrefix={`${idPrefix}-yard-type`}
-            yardTypes={yardTypes}
-            onYardTypesChange={onYardTypesChange}
-          />
-        </FilterSection>
         <FilterSection
           id={`${idPrefix}-sources-section`}
           visible={isVisible("sources")}

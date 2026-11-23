@@ -23,7 +23,6 @@ import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { AnalyticsEvents } from "~/lib/analytics-events";
-import { cn } from "~/lib/utils";
 import type { PlanAccessState } from "~/lib/plan-access";
 import type { SearchFailure } from "~/lib/search-failure";
 import { trackRequestYardClick } from "~/lib/track-request-yard-click";
@@ -36,7 +35,6 @@ export type SearchResultsHeaderModel = {
         kind: "ready";
         totalCount: number;
         visibleCount: number | null;
-        processingTimeMS: number;
       };
   actions: ReactNode;
 };
@@ -88,7 +86,6 @@ export function resolveSearchResultsPanelModel(input: {
   };
   header: {
     actions: ReactNode;
-    processingTimeMS: number;
     visibleCount: number | null;
   };
   loading: Pick<SearchResultsListModel, "showMore">;
@@ -118,7 +115,6 @@ export function resolveSearchResultsPanelModel(input: {
             kind: "ready",
             totalCount: lifecycle.searchResult.totalCount,
             visibleCount: input.header.visibleCount,
-            processingTimeMS: input.header.processingTimeMS,
           },
       actions: input.header.actions,
     },
@@ -146,46 +142,30 @@ function SearchResultsHeader({
   headingRef: RefObject<HTMLHeadingElement | null>;
   fullServiceSuggestion?: FullServiceSuggestion;
 }) {
-  // One row: the count and timing on the left, the full-service hint or the
-  // header actions on the right. The h2's grandparent is this row. On phones
-  // the hint takes the space the timing would, so the row stays at most
-  // three lines (count, hint, button) even for a five-digit count at 360px.
+  // One short line: the count, then the full-service line or header actions.
+  // The h2's grandparent is this row.
   const showsHint =
     fullServiceSuggestion?.kind === "hint" && model.status.kind === "ready";
   return (
-    <div className="mb-4 flex flex-col gap-2 border-b pb-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-6">
+    <div className="mb-4 flex flex-col gap-1 border-b pb-3 sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-x-5">
       <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
         {model.status.kind === "loading" ? (
-          <>
-            <Skeleton className="h-6 w-40" />
-            <Skeleton className="h-4 w-28" />
-          </>
+          <Skeleton className="h-6 w-40" />
         ) : (
           <>
             <h2
               ref={headingRef}
               tabIndex={-1}
-              className="text-base font-semibold tabular-nums sm:text-xl"
+              className="text-base font-semibold tabular-nums sm:text-lg"
             >
               {model.status.totalCount.toLocaleString()}{" "}
               {model.status.totalCount === 1 ? "vehicle" : "vehicles"}
-              {fullServiceSuggestion && (
-                <>
-                  {" at self-service"}
-                  <WideOnly> yards</WideOnly>
-                </>
-              )}
             </h2>
-            <span
-              className={cn(
-                "text-muted-foreground text-sm tabular-nums",
-                showsHint && "hidden sm:inline",
-              )}
-            >
-              {model.status.visibleCount === null
-                ? `Results in ${model.status.processingTimeMS} ms`
-                : `Showing ${model.status.visibleCount.toLocaleString()} · ${model.status.processingTimeMS} ms`}
-            </span>
+            {model.status.visibleCount !== null && (
+              <span className="text-muted-foreground text-sm tabular-nums">
+                Showing {model.status.visibleCount.toLocaleString()}
+              </span>
+            )}
           </>
         )}
       </div>
@@ -209,44 +189,25 @@ function extraVehiclesText(extraCount: number) {
   return `+${extraCount.toLocaleString()} more ${extraCount === 1 ? "vehicle" : "vehicles"} at full-service yards.`;
 }
 
-/**
- * Shown from sm up. On phones only screen readers read it, so the accessible
- * text is the same at every width and a long count still fits one line.
- */
-function WideOnly({ children }: { children: string }) {
-  return <span className="sr-only sm:not-sr-only">{children}</span>;
-}
-
-/** Beside the count when some self-service vehicles matched. */
+/** One quiet line after the count when some self-service vehicles matched. */
 function FullServiceHint({
   suggestion,
 }: {
   suggestion: FullServiceSuggestion;
 }) {
-  const { extraCount } = suggestion;
-  // From sm up the second sentence takes its own line, so the hint is two
-  // short lines beside the button rather than one line too wide for the row.
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-      <p className="text-muted-foreground text-sm text-pretty tabular-nums">
-        +{extraCount.toLocaleString()} more{" "}
-        {extraCount === 1 ? "vehicle" : "vehicles"} at full-service
-        <WideOnly> yards</WideOnly>.
-        <span className="hidden sm:block">
-          {" "}
-          They pull the parts for you, so call first.
-        </span>
-      </p>
+    <p className="text-muted-foreground text-sm text-pretty tabular-nums">
+      Also {suggestion.extraCount.toLocaleString()} at full-service yards.{" "}
       <Button
         type="button"
-        variant="outline"
-        size="sm"
-        className="min-h-11 self-start sm:min-h-9 sm:self-auto"
+        variant="link"
+        // The inline link keeps a 44px touch target on phones.
+        className="text-foreground relative h-auto p-0 text-sm font-semibold underline underline-offset-2 after:absolute after:-inset-x-1 after:-inset-y-3 after:content-[''] sm:after:hidden"
         onClick={suggestion.showThem}
       >
-        Show full-service results
+        Show them
       </Button>
-    </div>
+    </p>
   );
 }
 

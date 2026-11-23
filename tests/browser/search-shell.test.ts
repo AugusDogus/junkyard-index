@@ -103,7 +103,11 @@ async function open(query: string, width = 1440, height = 900) {
       body:
         url.pathname === "/app.js"
           ? script
-          : html.replace("</head>", `<style>${stylesheet}</style></head>`),
+          : // The padding stands in for the site header the toolbar sticks under.
+            html.replace(
+              "</head>",
+              `<style>${stylesheet}body{padding-top:6.375rem}</style></head>`,
+            ),
     });
   });
   // tRPC lookups the fixture does not seed go to this origin. Hold them
@@ -223,6 +227,7 @@ test("visitor pages include a free radius and stop after 24 results", async () =
   );
   try {
     expect(html).toContain('"aroundRadius":160934');
+    await page.getByRole("button", { name: /^Filters/ }).click();
     expect(
       await page
         .getByRole("combobox", { name: "Distance radius", exact: true })
@@ -818,6 +823,7 @@ test("signed-in pagination survives sort switches and rows do not overlap after 
 test("a shared distance URL remains selected without opening a dialog", async () => {
   const { page } = await open("q=pagination&sort=distance&fixtureGuest=1");
   try {
+    await page.getByRole("button", { name: /^Filters/ }).click();
     await page
       .getByRole("button", { name: "Distance location", exact: true })
       .waitFor();

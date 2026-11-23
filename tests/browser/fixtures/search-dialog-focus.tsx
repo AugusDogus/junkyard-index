@@ -31,7 +31,6 @@ function Fixture() {
         onStatesChange={() => {}}
         onSalvageYardsChange={() => {}}
         onSourcesChange={() => {}}
-        onYardTypesChange={() => {}}
         onYearRangeChange={() => {}}
       />
       <AdvancedSearchDialog
