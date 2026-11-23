@@ -201,34 +201,91 @@ test("Scotts rejects corrupted and oversized checkpoints before transport", asyn
   expect(requested).toEqual([]);
 });
 
-test("Scotts closing rejects a make directory change before staging", async () => {
-  const { pages } = fixture();
-  const opening = await Effect.runPromise(
-    streamScottsInventoryWithRequestGate(
-      { maxPages: 4, onBatch: () => Effect.void },
-      gate,
-    ),
-  );
-  const makes = pages.get(SCOTTS_MAKES);
-  if (!makes) throw new Error("Make directory fixture missing");
-  pages.set(
-    SCOTTS_MAKES,
-    makes.replace(
-      '<span class="aps-make-link__count">800</span>',
-      '<span class="aps-make-link__count">801</span>',
-    ),
-  );
-  await expect(
-    Effect.runPromise(
+test("Scotts closing accepts a make directory whose badges drifted", async () => {
+  // Runs take hours and donors arrive or leave meanwhile, so make badges can
+  // differ between the opening and closing directory reads.
+  for (const count of ["799", "801"]) {
+    const { pages } = fixture();
+    const opening = await Effect.runPromise(
+      streamScottsInventoryWithRequestGate(
+        { maxPages: 4, onBatch: () => Effect.void },
+        gate,
+      ),
+    );
+    const makes = pages.get(SCOTTS_MAKES);
+    if (!makes) throw new Error("Make directory fixture missing");
+    pages.set(
+      SCOTTS_MAKES,
+      makes.replace(
+        '<span class="aps-make-link__count">800</span>',
+        `<span class="aps-make-link__count">${count}</span>`,
+      ),
+    );
+    let emitted = 0;
+    const result = await Effect.runPromise(
       streamScottsInventoryWithRequestGate(
         {
           startCursor: opening.cursor,
-          onBatch: () => Effect.die("Changed catalog must not emit"),
+          onBatch: (batch) =>
+            Effect.sync(() => {
+              emitted += batch.length;
+            }),
         },
         gate,
       ),
-    ),
-  ).rejects.toThrow("make graph changed");
+    );
+    expect(result.status).toBe("complete");
+    expect(emitted).toBe(800);
+  }
+});
+
+test("Scotts closing rejects a make directory that adds, drops, relabels or reorders a make", async () => {
+  const other = `<a class="aps-make-link" href="${SCOTTS_ORIGIN}/used-parts/BMW"><span class="aps-make-link__label">BMW</span><span class="aps-make-link__count">1</span></a>`;
+  const acura = (label: string) =>
+    `<a class="aps-make-link" href="${SCOTTS_ORIGIN}/used-parts/ACURA"><span class="aps-make-link__label">${label}</span><span class="aps-make-link__count">800</span></a>`;
+  const changes: [string, string][] = [
+    [acura("ACURA"), acura("ACURA") + other],
+    [acura("ACURA") + other, acura("ACURA")],
+    [acura("ACURA"), acura("ACURA CARS")],
+    [acura("ACURA") + other, other + acura("ACURA")],
+  ];
+  for (const [first, closing] of changes) {
+    const { pages } = fixture();
+    pages.set(SCOTTS_MAKES, document(first));
+    pages.set(
+      SCOTTS_ORIGIN + "/used-parts/BMW",
+      directory("model", "/used-parts/BMW/X5", "X5"),
+    );
+    pages.set(
+      SCOTTS_ORIGIN + "/used-parts/BMW/X5",
+      document(
+        `<h1>Used BMW X5</h1><p>Some vehicles may not show parts available if we haven't parted them out yet.</p><div class="aps-la-grid"><div class="aps-la-card-wrapper"><div class="aps-la-card-premium" id="B1"><a class="aps-la-card-link-premium" href="${SCOTTS_ORIGIN}/used-parts/BMW/X5/B1/2001"><h3 class="aps-la-title-premium">BMW X5</h3><p class="aps-la-subtitle-premium--vin">VIN: WBAFB33521LH00001</p><div class="aps-la-right-val-premium"><span>Year</span>2001</div></a></div></div></div>`,
+      ),
+    );
+    let cursor: Cursor = ScottsCursor.initial;
+    while (cursor.phase !== "closing" && cursor.phase !== "complete")
+      cursor = (
+        await Effect.runPromise(
+          streamScottsInventoryWithRequestGate(
+            { startCursor: cursor, maxPages: 1, onBatch: () => Effect.void },
+            gate,
+          ),
+        )
+      ).cursor;
+    expect(cursor.phase).toBe("closing");
+    pages.set(SCOTTS_MAKES, document(closing));
+    await expect(
+      Effect.runPromise(
+        streamScottsInventoryWithRequestGate(
+          {
+            startCursor: cursor,
+            onBatch: () => Effect.die("Changed catalog must not emit"),
+          },
+          gate,
+        ),
+      ),
+    ).rejects.toThrow("make graph changed");
+  }
 });
 
 test("Scotts completes a full crawl when every request waits two minutes for a shared host turn", async () => {

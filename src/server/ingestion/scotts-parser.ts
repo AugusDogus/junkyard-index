@@ -228,6 +228,18 @@ export function parseScottsModel(
   model: ScottsControl,
 ): ScottsPage {
   const html = inventory(raw);
+  // Menus list only badged models, so the native explicit empty (which has no
+  // scope banner) always contradicts its badge and still fails the run.
+  if (
+    scottsDivs(html, "aps-no-results-block").some((block) =>
+      scottsText(block.body).includes(
+        "No Results.. Try Browsing Our Parts Or Search Again",
+      ),
+    )
+  )
+    throw new Error(
+      `Scotts ${make.label} ${model.label} advertises ${model.count} donors but returned the native "No Results" page. The source may have served a transient empty or moved the model route; re-request ${model.path} before changing the parser`,
+    );
   if (
     !scottsText(html).includes(
       "Some vehicles may not show parts available if we haven't parted them out yet.",

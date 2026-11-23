@@ -84,6 +84,19 @@ test("Scotts refuses source, physical identity, scope and document boundary chan
   ).toThrow("directory");
 });
 
+test("Scotts names a badged model that returns the native No Results page", () => {
+  // Nov 23: SATURN/VUE, badged 3 in its make menu, returned a page without
+  // the scope banner and failed only as "scope assertion changed"; hours
+  // later it listed the same three donors.
+  const vue = { path: "/used-parts/SATURN/VUE", label: "VUE", count: 3 };
+  const saturn = { path: "/used-parts/SATURN", label: "SATURN", count: 7 };
+  expect(() =>
+    parseScottsModel(scottsFixture("no-results"), saturn, vue),
+  ).toThrow(
+    'Scotts SATURN VUE advertises 3 donors but returned the native "No Results" page',
+  );
+});
+
 test("Scotts refuses unclassified continuation, omitted cards and foreign destinations", () => {
   const raw = scottsFixture("cl");
   for (const control of [
