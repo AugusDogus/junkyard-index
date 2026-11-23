@@ -228,7 +228,7 @@ export const TERMINAL_CURSOR_FIXTURES: {
   urgiis: {
     kind: "wire",
     terminal:
-      '{"source":"urgiis","version":2,"scope":"87e659d3","startedAt":1,"asOf":1,"statePath":"ingestion-runs/next/urgiis/f6735335-28a9-470d-9247-7ce99d84d0d4.json.gz","stateHash":"offline-census","requests":0,"bytes":0,"completed":[{"code":"eagle","accepted":482},{"code":"linders","accepted":1091},{"code":"chuckran","accepted":1223},{"code":"united","accepted":4118},{"code":"ace-iowa","accepted":508},{"code":"lentini","accepted":1117},{"code":"dings","accepted":370},{"code":"bishops","accepted":1120},{"code":"ace-st-paul","accepted":1005},{"code":"chucks","accepted":867},{"code":"central-nh","accepted":825},{"code":"higgins","accepted":492},{"code":"premier","accepted":856},{"code":"junior-sinn","accepted":1104},{"code":"revolution","accepted":1728},{"code":"az","accepted":579},{"code":"lambert","accepted":2995},{"code":"norbs","accepted":2954},{"code":"mars","accepted":127},{"code":"stroud","accepted":1093}],"phase":"complete","checksum":"e1-a56471da"}',
+      '{"source":"urgiis","version":2,"scope":"b1b88aa3","startedAt":1,"asOf":1,"statePath":"ingestion-runs/next/urgiis/f6735335-28a9-470d-9247-7ce99d84d0d4.json.gz","stateHash":"offline-census","requests":0,"bytes":0,"completed":[{"code":"eagle","accepted":482},{"code":"linders","accepted":1091},{"code":"chuckran","accepted":1223},{"code":"ace-st-paul","accepted":1005},{"code":"chucks","accepted":867},{"code":"higgins","accepted":492},{"code":"lambert","accepted":2995},{"code":"norbs","accepted":2954},{"code":"stroud","accepted":1093}],"phase":"complete","checksum":"e1-894fb61f"}',
   },
   harrys: {
     kind: "wire",
