@@ -50,9 +50,7 @@ describe("search routing", () => {
           location,
           routeState: routing.stateMapping.stateToRoute(state),
         }),
-      ).toBe(
-        "https://example.com/search?yardTypes%5B%5D=self_service&sort=distance",
-      );
+      ).toBe("https://example.com/search?sort=distance");
     }
     expect(getSearchSortIndex("distance")).toBe("vehicles_distance");
     expect(getSearchSortKey("vehicles_distance")).toBe("distance");
@@ -376,4 +374,62 @@ test("free arrival links retain repeated yard scope, year, and window", () => {
   expect(written.searchParams.getAll("yards[]")).toEqual([
     "RTP Pick-A-Part - Hebron, KY",
   ]);
+});
+
+describe("default yard scope stays out of the URL", () => {
+  const routing = createSearchRouting("vehicles", true, true);
+  function rewrite(href: string) {
+    const location = new URL(href);
+    return routing.router.createURL({
+      location,
+      routeState: routing.stateMapping.stateToRoute(
+        routing.stateMapping.routeToState(
+          routing.router.parseURL({ location }),
+        ),
+      ),
+    });
+  }
+
+  test("the default search writes plain /search", () => {
+    expect(rewrite("https://example.com/search")).toBe(
+      "https://example.com/search",
+    );
+  });
+
+  test("legacy self-service links keep self-service and drop the parameter", () => {
+    const href = "https://example.com/search?yardTypes%5B%5D=self_service";
+    expect(
+      routing.stateMapping.routeToState(
+        routing.router.parseURL({ location: new URL(href) }),
+      ).vehicles?.refinementList,
+    ).toEqual({ yardTypes: ["self_service"] });
+    expect(rewrite(href)).toBe("https://example.com/search");
+  });
+
+  test("non-default yard choices stay in the URL", () => {
+    for (const [href, expected] of [
+      [
+        "https://example.com/search?yardTypes=all",
+        "https://example.com/search?yardTypes%5B%5D=all",
+      ],
+      [
+        "https://example.com/search?yardTypes%5B%5D=full_service",
+        "https://example.com/search?yardTypes%5B%5D=full_service",
+      ],
+      [
+        "https://example.com/search?yardTypes%5B%5D=self_service&yardTypes%5B%5D=full_service",
+        "https://example.com/search?yardTypes%5B%5D=self_service&yardTypes%5B%5D=full_service",
+      ],
+    ] as const)
+      expect(rewrite(href)).toBe(expected);
+  });
+
+  test("an expression that owns its yard types writes no yard parameter", () => {
+    const url = new URL("https://example.com/search?syntax=expression");
+    url.searchParams.set("q", "yardType:full_service");
+    const written = new URL(rewrite(url.href));
+    expect(written.searchParams.has("yardTypes")).toBe(false);
+    expect(written.searchParams.has("yardTypes[]")).toBe(false);
+    expect(written.searchParams.get("q")).toBe("yardType:full_service");
+  });
 });

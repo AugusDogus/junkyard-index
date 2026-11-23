@@ -171,7 +171,9 @@ for (const search of [
         "RTP Pick-A-Part - Hebron, KY",
         "RTP Pick-A-Part - Lexington, KY",
       ]);
-      expect(params.getAll("yardTypes[]")).toEqual(["self_service"]);
+      // The self-service default is the absence of a yard parameter.
+      expect(params.has("yardTypes[]")).toBe(false);
+      expect(params.has("yardTypes")).toBe(false);
       expect(await historyLength(page)).toBe(length);
     } finally {
       await closePage(page);

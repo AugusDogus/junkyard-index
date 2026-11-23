@@ -454,14 +454,18 @@ export function createSearchRouting(
           if (typeof state[key] === "number")
             params.set(key, String(state[key]));
         }
+        // Only a non-default yard scope is written. `all` stays explicit so a
+        // reload cannot reapply the self-service default.
         if (Array.isArray(state.yardTypes) && state.yardTypes.length) {
-          SearchFilterUrl.write(
-            params,
-            "yardTypes",
-            state.yardTypes.filter(
-              (value): value is string => typeof value === "string",
-            ),
-          );
+          const types = state.yardTypes.includes("all")
+            ? []
+            : sanitizeYardTypes(state.yardTypes);
+          if (!SearchYardSelection.isImplied(params, types))
+            SearchFilterUrl.write(
+              params,
+              "yardTypes",
+              types.length ? types : ["all"],
+            );
         }
         if (state.sort) params.set("sort", String(state.sort));
 
@@ -550,9 +554,20 @@ export function createSearchRouting(
       push(url: string) {
         SearchInputHistory.write(url, (href) => {
           const location = new URL(href);
-          // Query expressions can themselves select yard types. Exclude the
-          // query before parsing so those edits are still treated as typing.
-          location.searchParams.delete("q");
+          // URLs omit the yard scope their query implies. Spell it out, then
+          // exclude the query: expression edits that select yard types are
+          // still treated as typing.
+          const params = location.searchParams;
+          const selection = SearchYardSelection.fromUrl(params);
+          if (selection.kind !== "explicit") {
+            const types = SearchYardSelection.effectiveTypes(selection);
+            SearchFilterUrl.write(
+              params,
+              "yardTypes",
+              types.length ? types : ["all"],
+            );
+          }
+          params.delete("q");
           const state = routing.stateMapping.routeToState(
             routing.router.parseURL({ location }),
           );
