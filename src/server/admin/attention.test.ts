@@ -38,6 +38,7 @@ function summary(overrides: Partial<SourceSummary>): SourceSummary {
     },
     consecutiveFailures: 2,
     lastAcceptedAt: null,
+    stale: false,
     publishedVehicles: null,
     vehicleChange: null,
     stuck: null,
@@ -65,6 +66,7 @@ describe("Attention.collect", () => {
             {
               errors: JSON.stringify(["Pyp timed out after 20000ms"]),
               validationErrors: null,
+              runErrors: null,
             },
           ],
         ]),
@@ -74,6 +76,57 @@ describe("Attention.collect", () => {
         title: "LKQ Pick Your Part failed its last 2 runs",
         detail: "The yard's website was too slow to answer in time.",
         raw: "Pyp timed out after 20000ms",
+        href: "/admin/sources/pyp",
+      },
+    ]);
+  });
+
+  test("lists a stale source after a single failure, once, with why", () => {
+    expect(
+      Attention.collect({
+        ...quiet,
+        sources: [summary({ consecutiveFailures: 1, stale: true })],
+        latestErrors: new Map([
+          [
+            "source-run-1",
+            {
+              errors: JSON.stringify(["Pyp timed out after 20000ms"]),
+              validationErrors: null,
+              runErrors: JSON.stringify(["Pyp timed out after 20000ms"]),
+            },
+          ],
+        ]),
+      }),
+    ).toEqual([
+      {
+        title:
+          "LKQ Pick Your Part has not been updated for over 36 hours (its last run failed)",
+        detail: "The yard's website was too slow to answer in time.",
+        raw: "Pyp timed out after 20000ms",
+        href: "/admin/sources/pyp",
+      },
+    ]);
+  });
+
+  test("lists a stale source with no recent runs", () => {
+    expect(
+      Attention.collect({
+        ...quiet,
+        sources: [
+          summary({
+            state: "stale",
+            stale: true,
+            consecutiveFailures: 0,
+            latestRun: null,
+          }),
+        ],
+      }),
+    ).toEqual([
+      {
+        title: "LKQ Pick Your Part has not been updated for over 36 hours",
+        detail:
+          "No run of it has been accepted since, so its vehicles on the site may be out of date.",
+        raw: null,
         href: "/admin/sources/pyp",
       },
     ]);

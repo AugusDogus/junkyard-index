@@ -1,22 +1,20 @@
-import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { AdminNav } from "~/components/admin/AdminNav";
 import { AppProviders } from "~/components/AppProviders";
 import { PageShell } from "~/components/PageShell";
-import { readAdminAccess, requireAdmin } from "~/server/admin/require-admin";
+import { adminMetadata, requireAdmin } from "~/server/admin/require-admin";
 
 // Every request checks the session; nothing here is cached or prerendered.
 export const dynamic = "force-dynamic";
 
-// For non-admins this adds nothing, so their 404 carries the same title and
-// tags as any other missing page. Throwing here instead would drop them all.
-export async function generateMetadata(): Promise<Metadata> {
-  const access = await readAdminAccess();
-  if (access.status === "denied") return {};
-  return {
+// For non-admins this and every admin page's metadata add nothing, so their
+// 404 carries the same title and tags as any other missing page. Throwing
+// here instead would drop them all.
+export function generateMetadata() {
+  return adminMetadata({
     title: { default: "Admin", template: "%s | Admin" },
     robots: { index: false, follow: false },
-  };
+  });
 }
 
 export default async function AdminLayout({

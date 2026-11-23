@@ -27,7 +27,13 @@ describe("AlertCheckOverview.load", () => {
         startedAt: new Date(30),
         completedAt: null,
         channels: {
-          discord: { delivered: 0, waiting: 2, retrying: 0, cancelled: 0 },
+          discord: {
+            delivered: 0,
+            waiting: 2,
+            retrying: 0,
+            cancelled: 0,
+            other: 0,
+          },
         },
       },
       {
@@ -37,11 +43,59 @@ describe("AlertCheckOverview.load", () => {
         startedAt: new Date(10),
         completedAt: new Date(20),
         channels: {
-          email: { delivered: 2, waiting: 0, retrying: 1, cancelled: 0 },
-          discord: { delivered: 0, waiting: 0, retrying: 0, cancelled: 1 },
+          email: {
+            delivered: 2,
+            waiting: 0,
+            retrying: 1,
+            cancelled: 0,
+            other: 0,
+          },
+          discord: {
+            delivered: 0,
+            waiting: 0,
+            retrying: 0,
+            cancelled: 1,
+            other: 0,
+          },
         },
       },
     ]);
+  });
+
+  test("counts statuses it does not know as other, so totals stay complete", () => {
+    expect(
+      AlertCheckOverview.summarize(
+        [
+          {
+            id: "check",
+            day: "2026-11-22",
+            status: "complete",
+            startedAt: new Date(1),
+            completedAt: new Date(2),
+          },
+        ],
+        [
+          {
+            alertCheckId: "check",
+            channel: "email",
+            status: "failed",
+            intents: 3,
+          },
+          {
+            alertCheckId: "check",
+            channel: "email",
+            status: "delivered",
+            intents: 1,
+          },
+        ],
+      )[0]?.channels.email,
+    ).toEqual({
+      delivered: 1,
+      waiting: 0,
+      retrying: 0,
+      cancelled: 0,
+      other: 3,
+    });
   });
 
   test("reads nothing more without checks", async () => {

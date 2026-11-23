@@ -115,6 +115,7 @@ export function WhenLoaded<Value>({
 
 export const SOURCE_STATE_LABELS: Record<SourceState, string> = {
   failing: "Failing",
+  stale: "Out of date",
   running: "Running",
   paused: "Paused",
   waiting: "Not updated yet today",
@@ -124,6 +125,7 @@ export const SOURCE_STATE_LABELS: Record<SourceState, string> = {
 
 const STATE_VARIANTS = {
   failing: "destructive",
+  stale: "destructive",
   running: "secondary",
   paused: "outline",
   waiting: "outline",

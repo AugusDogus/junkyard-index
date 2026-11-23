@@ -1,4 +1,4 @@
-import { desc, eq, gt, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import type { IngestionSource } from "~/lib/ingestion-source";
 import { ingestionRun, ingestionSourceRun, yardInventory } from "~/schema";
@@ -37,6 +37,7 @@ function errorColumns(chars: number) {
     validationErrors: sql<
       string | null
     >`substr(${ingestionSourceRun.validationErrors}, 1, ${chars})`,
+    runErrors: sql<string | null>`substr(${ingestionRun.errors}, 1, ${chars})`,
   };
 }
 
@@ -55,6 +56,24 @@ export const SourceRunRepository = {
       .where(gt(ingestionSourceRun.startedAt, since));
   },
 
+  /** One source's runs started after `since`. */
+  recentForSource(
+    database: LibSQLDatabase,
+    source: IngestionSource,
+    since: Date,
+  ): Promise<SourceRun[]> {
+    return database
+      .select(runColumns)
+      .from(ingestionSourceRun)
+      .innerJoin(ingestionRun, eq(ingestionRun.id, ingestionSourceRun.runId))
+      .where(
+        and(
+          eq(ingestionSourceRun.source, source),
+          gt(ingestionSourceRun.startedAt, since),
+        ),
+      );
+  },
+
   /** The first `ERROR_EXCERPT_CHARS` of each listed run's error text. */
   async errorExcerpts(
     database: LibSQLDatabase,
@@ -67,6 +86,7 @@ export const SourceRunRepository = {
         ...errorColumns(ERROR_EXCERPT_CHARS),
       })
       .from(ingestionSourceRun)
+      .innerJoin(ingestionRun, eq(ingestionRun.id, ingestionSourceRun.runId))
       .where(inArray(ingestionSourceRun.id, [...sourceRunIds]));
     return new Map(rows.map(({ id, ...errors }) => [id, errors]));
   },
@@ -87,6 +107,7 @@ export const SourceRunRepository = {
         errorsCutOff: sql<boolean>`(
           coalesce(length(${ingestionSourceRun.errors}), 0) > ${ERROR_TEXT_LIMIT_CHARS}
           or coalesce(length(${ingestionSourceRun.validationErrors}), 0) > ${ERROR_TEXT_LIMIT_CHARS}
+          or coalesce(length(${ingestionRun.errors}), 0) > ${ERROR_TEXT_LIMIT_CHARS}
         )`.mapWith(Boolean),
       })
       .from(ingestionSourceRun)

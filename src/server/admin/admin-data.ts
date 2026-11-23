@@ -24,12 +24,16 @@ import {
   type SourceFlagsReading,
   type SourceSummary,
 } from "./source-overview";
-import type { SourceRun, SourceRunErrors } from "./source-run";
+import type { SourceRunErrors } from "./source-run";
 import { SourceRunRepository } from "./source-run-repository";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Days of runs and alert checks the dashboard reads. */
 export const ADMIN_WINDOW_DAYS = 14;
+function windowStart(now: Date): Date {
+  return new Date(now.getTime() - ADMIN_WINDOW_DAYS * DAY_MS);
+}
+
 /** Runs a source's page lists. */
 export const SOURCE_PAGE_RUNS = 14;
 /** Search publications the search page lists. */
@@ -100,10 +104,7 @@ export type SourceDetailData = {
 
 async function loadSources(now: Date): Promise<SourcesData> {
   const [runs, activeRuns, publishedCounts, flags] = await Promise.all([
-    SourceRunRepository.recent(
-      db,
-      new Date(now.getTime() - ADMIN_WINDOW_DAYS * DAY_MS),
-    ),
+    SourceRunRepository.recent(db, windowStart(now)),
     SourceRunRepository.activeRuns(db),
     SourceRunRepository.publishedCounts(db),
     readSourceFlags(),
@@ -161,8 +162,9 @@ async function loadSearch(now: Date): Promise<SearchData> {
 
 async function loadAlerts(now: Date): Promise<AlertsData> {
   const mode = await SearchAlertsFlag.mode();
+  // Today and the 13 ingestion days before it.
   const sinceDay = IngestionDay.key(
-    new Date(now.getTime() - ADMIN_WINDOW_DAYS * DAY_MS),
+    new Date(now.getTime() - (ADMIN_WINDOW_DAYS - 1) * DAY_MS),
   );
   const [inputs, checks] = await Promise.all([
     AlertStatus.load(db, now, mode, DELIVERY_LEASE_MS),
@@ -175,16 +177,19 @@ async function loadSource(
   source: IngestionSource,
   now: Date,
 ): Promise<SourceDetailData> {
-  const [runs, activeRuns, publishedCounts, flags] = await Promise.all([
-    SourceRunRepository.forSource(db, source, SOURCE_PAGE_RUNS),
-    SourceRunRepository.activeRuns(db),
-    SourceRunRepository.publishedCounts(db),
-    readSourceFlags(),
-  ]);
-  const ownRuns: SourceRun[] = runs;
+  // The summary reads the same window as the sources list, so both pages
+  // agree; the run list shows the newest runs whatever their age.
+  const [windowRuns, runs, activeRuns, publishedCounts, flags] =
+    await Promise.all([
+      SourceRunRepository.recentForSource(db, source, windowStart(now)),
+      SourceRunRepository.forSource(db, source, SOURCE_PAGE_RUNS),
+      SourceRunRepository.activeRuns(db),
+      SourceRunRepository.publishedCounts(db),
+      readSourceFlags(),
+    ]);
   const summary = SourceOverview.build({
     now,
-    runs: ownRuns,
+    runs: windowRuns,
     activeRuns,
     publishedCounts,
     flags,

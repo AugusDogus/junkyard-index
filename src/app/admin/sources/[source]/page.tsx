@@ -21,7 +21,11 @@ import {
   INGESTION_SOURCE_DISPLAY_NAMES,
   isIngestionSource,
 } from "~/lib/ingestion-source";
-import { AdminData, SOURCE_PAGE_RUNS } from "~/server/admin/admin-data";
+import {
+  ADMIN_WINDOW_DAYS,
+  AdminData,
+  SOURCE_PAGE_RUNS,
+} from "~/server/admin/admin-data";
 import { readAdminAccess, requireAdmin } from "~/server/admin/require-admin";
 import { SourceRun } from "~/server/admin/source-run";
 import { IngestionSourceFlags } from "~/server/ingestion/ingestion-source-flags";
@@ -63,7 +67,7 @@ export default async function AdminSourcePage({ params }: Params) {
           <>
             <AdminSection
               title="Status"
-              description="Failures and the last accepted run count only the runs listed below."
+              description={`Failures and the last accepted run count the last ${ADMIN_WINDOW_DAYS} days, as on the sources page.`}
             >
               <DetailList
                 rows={[
@@ -85,7 +89,12 @@ export default async function AdminSourcePage({ params }: Params) {
                   },
                   {
                     label: "Last accepted",
-                    value: <AdminTime date={summary.lastAcceptedAt} />,
+                    value: (
+                      <AdminTime
+                        date={summary.lastAcceptedAt}
+                        empty={`None in ${ADMIN_WINDOW_DAYS} days`}
+                      />
+                    ),
                   },
                   ...(summary.stuck === null
                     ? []

@@ -19,11 +19,13 @@ async function database() {
     activeSlot?: number | null;
     publishedAt?: number | null;
     errors?: string | null;
+    runErrors?: string | null;
+    acceptanceStatus?: string;
   }) => {
     await client.execute({
       sql: `insert into ingestion_run
-        (id, source, status, stage, active_slot, started_at, last_progress_at, inventory_published_at)
-        values (?, ?, ?, 'released', ?, ?, ?, ?)`,
+        (id, source, status, stage, active_slot, started_at, last_progress_at, inventory_published_at, errors)
+        values (?, ?, ?, 'released', ?, ?, ?, ?, ?)`,
       args: [
         params.id,
         params.source,
@@ -32,6 +34,7 @@ async function database() {
         params.startedAt,
         params.startedAt,
         params.publishedAt ?? null,
+        params.runErrors ?? null,
       ],
     });
     await client.execute({
@@ -43,7 +46,7 @@ async function database() {
         params.id,
         params.source,
         params.errors ? "error" : "success",
-        params.errors ? "rejected" : "accepted",
+        params.acceptanceStatus ?? (params.errors ? "rejected" : "accepted"),
         params.errors ?? null,
         params.startedAt,
         params.startedAt + 1000,
@@ -96,8 +99,62 @@ describe("SourceRunRepository", () => {
     expect(excerpts.get("b-source")).toEqual({
       errors: null,
       validationErrors: null,
+      runErrors: null,
     });
     expect(await SourceRunRepository.errorExcerpts(db, [])).toEqual(new Map());
+  });
+
+  test("errorExcerpts and forSource read an expired run's error from its ingestion run", async () => {
+    const { db, addRun } = await database();
+    const expired = JSON.stringify([
+      "The staged snapshot expired after waiting more than 24 hours for the commit turn.",
+    ]);
+    await addRun({
+      id: "expired",
+      source: "pyp",
+      startedAt: now,
+      status: "error",
+      acceptanceStatus: "expired",
+      runErrors: expired,
+    });
+    expect(
+      (await SourceRunRepository.errorExcerpts(db, ["expired-source"])).get(
+        "expired-source",
+      ),
+    ).toEqual({ errors: null, validationErrors: null, runErrors: expired });
+    const [run] = await SourceRunRepository.forSource(db, "pyp", 1);
+    expect(run).toMatchObject({
+      acceptanceStatus: "expired",
+      runStatus: "error",
+      runErrors: expired,
+      errorsCutOff: false,
+    });
+  });
+
+  test("forSource marks run errors over the limit as cut off", async () => {
+    const { db, addRun } = await database();
+    await addRun({
+      id: "big",
+      source: "pyp",
+      startedAt: now,
+      runErrors: JSON.stringify(["z".repeat(ERROR_TEXT_LIMIT_CHARS)]),
+    });
+    const [run] = await SourceRunRepository.forSource(db, "pyp", 1);
+    expect(run?.errorsCutOff).toBe(true);
+    expect(run?.runErrors?.length).toBe(ERROR_TEXT_LIMIT_CHARS);
+  });
+
+  test("recentForSource reads one source's runs inside the window only", async () => {
+    const { db, addRun } = await database();
+    await addRun({ id: "old", source: "pyp", startedAt: now - 20 * DAY });
+    await addRun({ id: "new", source: "pyp", startedAt: now - DAY });
+    await addRun({ id: "other", source: "row52", startedAt: now - DAY });
+    const runs = await SourceRunRepository.recentForSource(
+      db,
+      "pyp",
+      new Date(now - 14 * DAY),
+    );
+    expect(runs.map((run) => run.runId)).toEqual(["new"]);
   });
 
   test("forSource reads the source's newest runs, newest first, up to the limit", async () => {
