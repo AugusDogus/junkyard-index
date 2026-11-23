@@ -396,3 +396,86 @@ test("Pratt retries a transient failure and returns its checkpoint before slow p
   expect(run.requests).toHaveLength(7);
   expect(run.batches).toHaveLength(1);
 }, 120_000);
+
+test("Pratt returns its checkpoint instead of backing off past the work deadline after a late transient failure", async () => {
+  // Two production failures on 2026-11-22 were request timeouts. A slow or
+  // timed-out attempt late in a chunk must not leave a backoff and another
+  // attempt running past the three-minute work deadline.
+  const run = harness();
+  type Answer = { hang: true } | { hang: false; status: number; ms: number };
+  const plans = new Map<string, Answer[]>([
+    [
+      PRATT_ORIGIN + "/",
+      [
+        { hang: true },
+        { hang: true },
+        { hang: false, status: 200, ms: 19_000 },
+      ],
+    ],
+    [
+      PRATT_ARRIVALS,
+      [{ hang: true }, { hang: false, status: 200, ms: 19_000 }],
+    ],
+    [PRATT_MAKES, [{ hang: false, status: 503, ms: 8_000 }, { hang: true }]],
+  ]);
+  const answering = new Map<string, number>();
+  globalThis.fetch = Object.assign(
+    async (input: string | URL | Request, init?: RequestInit) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+      run.requests.push(url);
+      const answer = plans.get(url)?.shift() ?? {
+        hang: false,
+        status: 200,
+        ms: 1_000,
+      };
+      if (answer.hang)
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () =>
+            reject(init.signal?.reason),
+          );
+        });
+      answering.set(url, answer.ms);
+      if (answer.status !== 200)
+        return new Response("busy", { status: answer.status });
+      const body = run.documents.get(url);
+      if (body === undefined)
+        throw new Error("Unexpected fixture request " + url);
+      return new Response(body, { headers: { "content-type": "text/html" } });
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  const requestMs = (url: string) => answering.get(url) ?? 0;
+  const first = await runWithQueuedHost(
+    streamPrattInventoryFromProvider({ ...run.options, maxPages: 8 }),
+    { turnWaitMs: 0, requestMs },
+  );
+  if (Either.isLeft(first.result)) throw first.result.left;
+  expect(first.result.right.status).toBe("paused");
+  expect(first.result.right.pagesProcessed).toBe(2);
+  expect(first.elapsedMs).toBeLessThanOrEqual(3 * 60_000);
+  expect(run.batches).toEqual([]);
+  const wire = PrattCursor.serialize(
+    first.result.right.cursor,
+    prattFixtureContract,
+  );
+  if (!wire.ok) throw new Error(wire.error.message);
+  const resumed = PrattCursor.fromWire(wire.value, prattFixtureContract);
+  if (!resumed.ok) throw new Error(resumed.error.message);
+  const second = await runWithQueuedHost(
+    streamPrattInventoryFromProvider({
+      ...run.options,
+      startCursor: resumed.value,
+      maxPages: 8,
+    }),
+    { turnWaitMs: 0, requestMs },
+  );
+  if (Either.isLeft(second.result)) throw second.result.left;
+  expect(second.result.right.status).toBe("complete");
+  expect(second.result.right.count).toBe(61);
+  expect(run.batches).toHaveLength(1);
+}, 120_000);
