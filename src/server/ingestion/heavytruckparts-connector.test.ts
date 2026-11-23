@@ -12,6 +12,7 @@ import {
   htpYearUrl,
 } from "./heavytruckparts-yard-metadata";
 import {
+  HTP_NO_VIN_SUPPLIER,
   HTP_REJECTED_SUPPLIERS,
   HTP_RETAIL_SUPPLIER,
 } from "./heavytruckparts-qualification-fixtures";
@@ -215,7 +216,7 @@ describe("HeavyTruckParts marketplace", () => {
   test("complete saved native rosters reconcile to each independent store count", () => {
     const censuses = HTP_SUPPLIERS.map(census);
     const snapshot = htpSnapshot(censuses, null);
-    expect(new Set(snapshot.vehicles.map((v) => v.stateAbbr)).size).toBe(6);
+    expect(new Set(snapshot.vehicles.map((v) => v.stateAbbr)).size).toBe(5);
     expect(
       snapshot.vehicles.every(
         (v) =>
@@ -225,9 +226,9 @@ describe("HeavyTruckParts marketplace", () => {
           v.lng !== 0,
       ),
     ).toBe(true);
-    expect(snapshot.vehicles).toHaveLength(838);
+    expect(snapshot.vehicles).toHaveLength(834);
     expect(snapshot.accounting).toEqual({
-      recordsProcessed: 1125,
+      recordsProcessed: 1121,
       recordsRejected: 20,
       recordsExcluded: 256,
       duplicateVehicles: 11,
@@ -255,9 +256,40 @@ describe("HeavyTruckParts marketplace", () => {
     expect(
       results.find((r) => r.s.code === "american")?.snapshot.vehicles,
     ).toHaveLength(3);
-    expect(
-      results.find((r) => r.s.code === "catruck")?.snapshot.vehicles,
-    ).toHaveLength(4);
+  });
+  test("CA Truck Parts stays out after its native VIN field disappeared", () => {
+    const ca = HTP_NO_VIN_SUPPLIER;
+    expect(HTP_SUPPLIERS.map((s) => s.supplier)).not.toContain(ca.supplier);
+    // November 15: every card carried a native VIN attribute and qualified.
+    const c = census(ca);
+    const before = htpRoster(ca, c.pages, c.fills, c.total);
+    expect(before.map((r) => r.vin.length)).toEqual([17, 17, 17, 17]);
+    expect(htpSupplierSnapshot(ca, before).vehicles).toHaveLength(4);
+    // November 23: the same four items, with no VIN attribute on any card.
+    const after = parseHtpCatalog(
+      decodeResponseText(
+        gunzipSync(
+          readFileSync(
+            new URL(
+              "./heavytruckparts-test-fixtures/catruck-desc-1-2026-11-23.html.gz",
+              import.meta.url,
+            ),
+          ),
+        ),
+        HTP_TEXT_DECODING,
+      ),
+      ca,
+      "DESC",
+      1,
+      c.total,
+    ).records;
+    expect(after.map((r) => r.id).sort()).toEqual(
+      before.map((r) => r.id).sort(),
+    );
+    expect(after.every((r) => r.vin === "")).toBe(true);
+    expect(() => htpSupplierSnapshot(ca, after)).toThrow(
+      "HTP catruck supplier quality failed: 0 accepted, 4 rejected, 0 excluded, 0 duplicates",
+    );
   });
   test("saved Please Call dealer stock and Crest running firetruck stay out", () => {
     const bw = HTP_RETAIL_SUPPLIER;

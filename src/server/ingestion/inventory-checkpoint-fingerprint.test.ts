@@ -32,8 +32,9 @@ describe("inventory checkpoint fingerprint", () => {
     ).toBe("81724db4");
     expect(HollanderstoresCursor.initial().scope).toBe("3548ddf2");
     expect(HollanderstoresCursor.initial().checksum).toBe("8412e6e5");
-    expect(HeavytruckpartsCursor.initial().scope).toBe("f922c2d3");
-    expect(HeavytruckpartsCursor.initial().checksum).toBe("f854b3d3");
+    // The HTP scope binds the supplier roster, so a roster change moves it.
+    expect(HeavytruckpartsCursor.initial().scope).toBe("bd65a259");
+    expect(HeavytruckpartsCursor.initial().checksum).toBe("561abaee");
   });
 
   test("matches the code-point loop on surrogate pairs and lone halves", () => {
