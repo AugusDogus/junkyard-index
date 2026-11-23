@@ -18,7 +18,7 @@ Single-yard catalogs reject unexpected supplier photo codes. Shared-pool tenants
 
 Only explicitly qualified part-bin stocks may be excluded when native VIN claims and yard photographs are absent. Older numeric-stock donors with missing VINs remain rejects. A real VIN claim or yard photograph overrides the bin exclusion. Nationwide's requested blank-VIN exclusion is supported independently. Exclusions never dilute the 10% rejection denominator. Duplicates must stay at or below 25%. Each tenant has an absolute floor; multi-yard tenants also require each yard's floor. Published per-yard inventory must retain at least 50% of its preceding persisted, non-missing count. Final durable validation reapplies every physical yard floor after source-wide deduplication. Source-wide validation also repeats the usual floor, duplicate, rejection and preceding-run checks.
 
-Native requests use a current browser User-Agent, normal headers, an explicit public verification cookie where qualified; browser tenants leave headers and cookies to the browser (see [Transport](#transport)). Every request uses manual redirects, a combined request/body timeout, a 4 MiB body cap, and a shared serial gate that waits at least two seconds after responses, including failures. HTTP requests percent-encode parentheses in model names while checkpoints and destinations retain the published links. There are two paced retries with exponential backoff for ordinary transport failures. HTTP 403/429 stops the tenant immediately without transport retries. A positive Retry-After checkpoints a durable wait on the same frontier; otherwise only that tenant is blocked for the run. Each chunk allows three native pages and eight minutes. Tenants with request timeouts above 60 seconds start model requests in a fresh chunk, and every deferral returns its checkpoint immediately. Incremental runs reserve the last eight minutes of their one-day limit for chunk completion. A cold census with no compatible accepted history has a separate three-day limit and cannot carry or defer old model evidence. Its persistent run-start clock does not move between tenants or retries. Whole runs allow 30,000 successful native requests and 8 GiB of response bodies. Retries are additionally bounded per page. Checkpoints are capped at 16 MiB, bind the complete tenant qualification contract and retain only the current tenant's evidence plus the completed prefix. Completed cursors make no further requests.
+Native requests use a current browser User-Agent, normal headers, an explicit public verification cookie where qualified; browser tenants leave headers and cookies to the browser (see [Transport](#transport)). Every request refuses redirects: native requests and in-page fetches use manual redirects, and a browser navigation, which follows a redirect before it can be refused, is reported as its first hop so the status check refuses it. Every request has a combined request/body timeout, a 4 MiB body cap, and a shared serial gate that waits at least two seconds after responses, including failures. HTTP requests percent-encode parentheses in model names while checkpoints and destinations retain the published links. There are two paced retries with exponential backoff for ordinary transport failures. HTTP 403/429 stops the tenant immediately without transport retries. A positive Retry-After checkpoints a durable wait on the same frontier; otherwise only that tenant is blocked for the run. Each chunk allows three native pages and eight minutes. Tenants with request timeouts above 60 seconds start model requests in a fresh chunk, and every deferral returns its checkpoint immediately. Incremental runs reserve the last eight minutes of their one-day limit for chunk completion. A cold census with no compatible accepted history has a separate three-day limit and cannot carry or defer old model evidence. Its persistent run-start clock does not move between tenants or retries. Whole runs allow 30,000 successful native requests and 8 GiB of response bodies. Retries are additionally bounded per page. Checkpoints are capped at 16 MiB, bind the complete tenant qualification contract and retain only the current tenant's evidence plus the completed prefix. Completed cursors make no further requests.
 
 Transport/body failures retry the same page twice after four- and eight-second backoffs, with normal response pacing on every attempt. The durable workflow retries a failed chunk twice from its last persisted cursor, allowing up to nine attempts at a failing page within the chunk deadlines. No donor is emitted before closing validation, and exhausted source failures preserve published inventory. For HTTP 403/429 with Retry-After, URG persists `retryAt` in its cursor and uses the existing durable workflow wait before retrying that same page. No other model is requested during the cooldown. Without Retry-After only that tenant is blocked. Ordinary exhausted model failures follow the bounded deferral rules below. A failed page that cannot defer (any page in a cold census, a non-model page, or a model without carryable evidence) is read again in the next chunk, with the failure count in the cursor; after three failed reads in separate chunks only its tenant is blocked. A page that declares no supplier (`var urgid`) is read again the same way; on the third read it fails the supplier check. The scheduler allows three source attempts per ingestion day, at least two hours between their start times, then tries again on a later day. The delay is measured from the prior start, so a long census can become eligible again immediately after failure. This avoids permanent source disablement, but exhausting chunk retries can require an expensive full recrawl. Chunk-budget pauses preserve progress; they are not network-error cooldowns.
 
@@ -26,6 +26,19 @@ Run a count-only soak with:
 
 ```sh
 bun run soak:sources -- --sources=urgiis --max-pages=30000
+```
+
+That soak is a cold census of every tenant, and it spends Hyperbrowser credits:
+the 11 [browser tenants](#transport) take about 3,900 paid sessions and about
+1,700 credits (see [Measured cost](#measured-cost)), and it needs
+`HYPERBROWSER_API_KEY`. A local soak takes no session lease, so on the Free
+plan it holds the plan's only session and production Hyperbrowser chunks defer
+while it runs; never run it during the 07:00 UTC ingestion window. To soak or
+measure some tenants only, name them (the run is then a census of those
+tenants alone):
+
+```sh
+bun run soak:sources -- --sources=urgiis --urgiis-tenants=mars
 ```
 
 The soak serializes each checkpoint, reports accepted/rejected/excluded/duplicate counts, and writes no canonical inventory. A capped soak stays incomplete. On a failed guard, retain published inventory and inspect the named request, tenant, raw response and checkpoint. Restart after directory or qualification drift. Never force reconciliation from an incomplete cursor.
@@ -137,6 +150,16 @@ in-page load. Every other rule is unchanged: one URG turn per request with the
 URL, MIME, range, supplier, ownership, closing and admission checks. A native
 tenant's chunk takes no lease and opens no session.
 
+Opening the session inside the first URG turn is a deliberate trade-off, as
+for Northwest: no session is billed while the chunk queues for that turn, but
+the turn (one of the four URG places and its host lane) is held through the
+session create and CDP connect, about 3 seconds typically (connect may take up
+to 45 seconds), with no request in flight. At about 700 sessions a day (below)
+that is roughly 35 minutes of URG turn time a day, and about 3.3 hours over a
+cold census. The turn's 110-second bound covers the open and the request
+together, so a slow connect before a slow 90-second page can exceed it; that
+attempt fails and is retried like any other transport failure.
+
 When the browser cannot be used, only browser tenants are affected:
 
 - The lease is busy (another Hyperbrowser source holds the plan's only
@@ -161,57 +184,77 @@ from Vercel succeeds.
 
 ### Measured cost
 
-On November 23 Ding's was crawled end to end from a workstation through
-Hyperbrowser with the production connector and transport (count-only, no
-database writes, every request under the shared URG gate). It was a cold
-census: 324 requests (saved estimate 323), every one complete HTTP 200 on its
-first attempt, 108 three-page chunks and 108 sessions. It accepted 1,125 donors
-(saved census 1,110), rejected 100 of 1,236 observations, merged 11 duplicates,
-and left 4 of 1,246 advertised donors platform-unreachable (0.32%). Wall time
-was 35.1 minutes. Hyperbrowser billed 34.88 session minutes, 58.13 credits
-(per second, no minimum; `team.getCreditInfo` moved 1,163 to 1,221): **6.46
-billed seconds, 0.179 credits per request**, including about 3 seconds to open
-each chunk's session.
+A browser tenant's chunk bills one session from its open to the chunk's end.
+Tenants with a 40-second request timeout read three pages per chunk. The seven
+with a 90-second timeout (bishops, central-nh, premier, junior-sinn,
+revolution, az and mars) start every model page in a fresh chunk, so each
+model read opens its own session; only their owner, makes, arrivals and menu
+pages share chunks. Two tenants were crawled end to end on November 23 from a
+workstation through Hyperbrowser with the production connector and transport
+(count-only cold censuses, no database writes, every request under the shared
+URG gate). Every dings request was a complete HTTP 200 on its first attempt;
+mars read its 60 pages with no failed-page warning:
+
+| Tenant (timeout) | Requests (saved estimate) | Sessions | Accepted (saved census) | Wall time | Billed minutes | Credits | Credits per request |
+| ---------------- | ------------------------: | -------: | ----------------------: | --------: | -------------: | ------: | ------------------: |
+| dings (40 s)     |                 324 (323) |      108 |           1,125 (1,110) |  35.1 min |          34.88 |   58.13 |               0.179 |
+| mars (90 s)      |                   60 (60) |       48 |               379 (381) |  10.2 min |          10.05 |   16.76 |               0.279 |
+
+Ding's rejected 100 of 1,236 observations, merged 11 duplicates and left 4 of
+1,246 advertised donors platform-unreachable (0.32%); Mars rejected 30 of 415
+observations and merged 6 duplicates. Hyperbrowser bills per second with no
+minimum (`team.getCreditInfo` moved 1,163 to 1,221 for dings and 1,239 to
+1,256 for mars). Fitting both runs gives about **7.7 billed seconds per session
+plus 3.9 per request**; the session share covers the open (about 3 seconds)
+and the pacing a chunk spends with its session open. The projections below
+apply that fit to each tenant class: 40-second tenants at one session per
+three requests, 90-second tenants at one session per model read plus one per
+three other pages. That is about 690 sessions on a first-week incremental day,
+1,520 on a recovery day and 3,890 for a full census. Mars is the smallest
+90-second tenant, so a slower 90-second site bills more per request than the
+fit.
 
 A local run takes no URG turns. In production a chunk's session stays open
-while its later pages queue for URG turns, so production can bill more per
-request. The upper bound below charges each request the whole production URG
-time per page (14.2 seconds on November 23, 1,694 pages in 402 minutes,
-including queueing and time between chunks with no session).
+while its later pages queue for URG turns, so production can bill more. The
+upper bound charges each request the whole production URG time per page (14.2
+seconds on November 23, 1,694 pages in 402 minutes, including queueing and
+time between chunks with no session) plus 3 seconds to open each session.
 
-| Browser tenants (11)                      | Requests |  Measured rate | Upper bound (14.2 s) |
-| ----------------------------------------- | -------: | -------------: | -------------------: |
-| Incremental day, first-week mean          |    1,437 |    258 credits |          567 credits |
-| Incremental day, steady state (about)     |    1,640 |    294 credits |          647 credits |
-| 30 incremental days                       |          | 7,700 to 8,800 |     17,000 to 19,400 |
-| Full census (first run after merge, cold) |    7,808 |  1,401 credits |        3,080 credits |
-| Recovery day once in the census           |    2,635 |    473 credits |        1,039 credits |
+| Browser tenants (11)                      | Requests | Sessions |    Measured fit |      Upper bound |
+| ----------------------------------------- | -------: | -------: | --------------: | ---------------: |
+| Incremental day, first-week mean          |    1,437 |      690 |     304 credits |      625 credits |
+| Incremental day, steady state (about)     |    1,640 |      790 |     347 credits |      713 credits |
+| 30 incremental days                       |          |          | 9,100 to 10,400 | 18,800 to 21,400 |
+| Full census (first run after merge, cold) |    7,808 |    3,890 |   1,677 credits |    3,404 credits |
+| Recovery day once in the census           |    2,635 |    1,520 |     610 credits |    1,166 credits |
 
-Lentini's full census is 3,969 of the 7,808 requests (712 credits measured).
+Lentini's full census is 3,969 of the 7,808 requests (712 credits at the fit).
 The other Hyperbrowser sources used 199 credits on November 22 (190 sessions,
 120 minutes, all between 07:00 and 09:13 UTC).
 
-**Free plan (5,000 credits).** 3,779 credits remained at 19:17 UTC on November 23. The other sources need about 1,400 of them through November 30, leaving
-about 2,380: the first full census (about 1,400) plus three to four incremental
-days. At that pace the free credits run out around November 28 or 29, and
+**Free plan (5,000 credits).** 3,744 credits remained at 19:50 UTC on November 23. The other sources need about 1,400 of them through November 30, leaving
+about 2,340: the first full census (about 1,680) plus about two incremental
+days. At that pace the free credits run out around November 27 or 28, and
 sooner at the upper bound. Without credits every Hyperbrowser source stops
 publishing, not just these tenants. Merge only after the upgrade to Startup.
 
 **Startup (30,000 credits a month).** About 6,000 for the other sources plus
-7,700 to 8,800 for these tenants is 13,700 to 14,800 a month (23,000 to 25,400
-at the upper bound), and a full census adds 1,400 to 3,100.
+9,100 to 10,400 for these tenants is 15,100 to 16,400 a month (24,800 to
+27,400 at the upper bound), and a full census adds 1,700 to 3,400. Only a month
+with a full census at the upper bound would reach the 30,000 limit (about
+30,800); watch the balance on the admin budgets page after the first week.
 
 ### Daily schedule
 
-The run starts at 07:00 UTC. The 11 browser tenants add about 155 billed
-minutes a day at the measured rate (340 at the upper bound) to the other
-sources' 120, so total browser time is 4.6 to 7.7 hours a day, well within the
+The run starts at 07:00 UTC. The 11 browser tenants add about 180 billed
+minutes a day at the measured fit (375 at the upper bound) to the other
+sources' 120, so total browser time is 5.0 to 8.3 hours a day, well within the
 24 hours before the next run, and the URG source fits its one-day incremental
 deadline: the native tenants took 402 minutes on November 23, and the
-browser tenants add about 1,437 × 14.2 s ≈ 340 minutes. The first run after
-merge is a recovery run (these tenants are not in the accepted census): about
-7,808 browser and 2,661 native requests, about 41 hours at 14.2 seconds per
-page, inside its three-day deadline.
+browser tenants add about 1,437 × 14.2 s + 690 × 3 s ≈ 375 minutes. The first
+run after merge is a recovery run (these tenants are not in the accepted
+census): about 7,808 browser and 2,661 native requests, about 45 hours at 14.2
+seconds per page plus 3 seconds per session, inside its three-day deadline.
 
 With the Free plan's one concurrent session the tenants still fit, but they
 contend for the lease. URG reaches united, its first browser tenant, after

@@ -23,7 +23,9 @@ these sources one at a time instead.
 
 - A chunk takes the lease with its first request and only then creates its
   session. When the chunk ends, the session stops first and the lease is
-  released after it, on success, failure or interruption.
+  released after it, on success, failure or interruption. A session whose
+  connection fails is stopped at once, before a retry creates another, so a
+  chunk never holds more than one session.
 - Waiting holds no session. It is queue time, so it does not spend the chunk's
   work deadline. It lasts only while the chunk's remaining work allowance still
   fits before its turn horizon; then the chunk is deferred and retried five
@@ -68,9 +70,12 @@ horizon.
 Hyperbrowser bills session time per second, 100 credits per browser-hour, with
 no per-session minimum. The sources other than URG IIS used 199 credits on
 November 22, 2026 (190 sessions, 120 minutes, 07:00 to 09:13 UTC). The 11 URG
-IIS browser tenants measured 0.179 credits per request, about 258 to 294
-credits a day incremental and 1,400 for a full census; the
-[URG IIS transport section](urgiis-ingestion.md#measured-cost) has the
-projection, its upper bound and the Free and Startup plan math. Read the
+IIS browser tenants measured 0.179 credits per request at three pages per
+session (dings) and 0.279 where every model page opens its own session (mars,
+one of the seven 90-second tenants). Together that is about 690 sessions and
+304 to 347 credits a day incremental, and 3,890 sessions and 1,680 credits for
+a full census; the [URG IIS measured cost](urgiis-ingestion.md#measured-cost)
+has the per-class projection, its upper bound and the Free and Startup plan
+math. Read the
 balance with `team.getCreditInfo()` and per-session use with `sessions.list`
 (`creditsUsed`), or on the admin budgets page.

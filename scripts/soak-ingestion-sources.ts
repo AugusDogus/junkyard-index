@@ -20,7 +20,9 @@ import { soakHeavytruckpartsInventory } from "./soak-heavytruckparts";
 import { streamVinplusInventory } from "../src/server/ingestion/vinplus-connector";
 import { soakVinplusInventory } from "./soak-vinplus";
 import { streamUrgiisInventoryFromProvider } from "../src/server/ingestion/urgiis-connector";
-import { soakUrgiisInventory } from "./soak-urgiis";
+import { soakUrgiisInventory, urgiisSoakTenants } from "./soak-urgiis";
+import { URGIIS_TENANTS } from "../src/server/ingestion/urgiis-configuration";
+import type { UrgiisTenant } from "../src/server/ingestion/urgiis-tenant";
 import { streamCstruckInventory } from "../src/server/ingestion/cstruck-connector";
 import { soakCstruckInventory } from "./soak-cstruck";
 /**
@@ -225,6 +227,7 @@ interface SoakConfig {
   pauseSeconds: number;
   pullapartRequestsPerSecond: number | undefined;
   gopullitIntervalMs: number | undefined;
+  urgiisTenants: readonly UrgiisTenant[];
 }
 
 interface SourceResult {
@@ -288,6 +291,7 @@ function parseArgs(argv: string[]): SoakConfig {
   let pauseSeconds = 30;
   let pullapartRequestsPerSecond: number | undefined;
   let gopullitIntervalMs: number | undefined;
+  let urgiisTenants: readonly UrgiisTenant[] = URGIIS_TENANTS;
 
   for (const arg of argv) {
     if (arg === "--help" || arg === "-h") {
@@ -303,6 +307,8 @@ Options:
   --pause-seconds=30           Delay between cycles
   --pullapart-rps=6            Override Pull-A-Part inventory requests/second
   --gopullit-interval-ms=1250  Override delay between GO Pull-It requests
+  --urgiis-tenants=dings,mars  URG IIS tenants to crawl (default: all); each
+                               browser tenant's chunk is a paid session
 `);
       process.exit(0);
     }
@@ -342,6 +348,10 @@ Options:
       );
       continue;
     }
+    if (arg.startsWith("--urgiis-tenants=")) {
+      urgiisTenants = urgiisSoakTenants(arg.slice("--urgiis-tenants=".length));
+      continue;
+    }
     throw new Error(`Unknown argument: ${arg}`);
   }
 
@@ -352,6 +362,7 @@ Options:
     pauseSeconds,
     pullapartRequestsPerSecond,
     gopullitIntervalMs,
+    urgiisTenants,
   };
 }
 
@@ -1121,6 +1132,7 @@ async function main(): Promise<void> {
               (cursor, maxPages, censusState) =>
                 runProgram(
                   streamUrgiisInventoryFromProvider({
+                    tenants: config.urgiisTenants,
                     startCursor: cursor,
                     censusState,
                     maxPages,
@@ -1128,6 +1140,7 @@ async function main(): Promise<void> {
                   }),
                 ),
               config.maxPages,
+              config.urgiisTenants,
             );
           case "allied":
             return soakAlliedInventory(
