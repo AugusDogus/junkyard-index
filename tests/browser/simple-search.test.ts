@@ -148,7 +148,8 @@ for (const viewport of VIEWPORTS) {
             name: button.textContent,
             pressed: button.getAttribute("aria-pressed"),
             fontSize: getComputedStyle(button).fontSize,
-            height: button.getBoundingClientRect().height,
+            // Layout height: the drawer may still be animating its transform.
+            height: button instanceof HTMLElement ? button.offsetHeight : 0,
             fits: button.scrollWidth <= button.clientWidth,
           })),
         );
