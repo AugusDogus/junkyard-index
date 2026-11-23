@@ -92,8 +92,8 @@ test("stores make counts and each make's models", async () => {
 
     // Every raw spelling counts, as the make list groups them itself.
     expect(
-      (await InventorySnapshot.makeCounts(db)).sort((a, b) =>
-        a.make.localeCompare(b.make),
+      (await InventorySnapshot.makeCounts(db, HiddenSources.none)).sort(
+        (a, b) => a.make.localeCompare(b.make),
       ),
     ).toEqual([
       { make: "Honda", count: 2 },
@@ -151,12 +151,12 @@ test("rewrites only changed rows and drops makes that left inventory", async () 
     await add("D", PYP, [2006, "Honda", "Civic"]);
     await InventorySnapshot.project(db, later);
 
-    expect(await updatedAt("v3:make-models:HONDA")).toBe(later.getTime());
-    expect(await updatedAt("v3:make-models:TOYOTA")).toBe(first.getTime());
+    expect(await updatedAt("v4:make-models:HONDA")).toBe(later.getTime());
+    expect(await updatedAt("v4:make-models:TOYOTA")).toBe(first.getTime());
     expect(
       await InventorySnapshot.makeModels(db, "VOLKSWAGEN", HiddenSources.none),
     ).toEqual([]);
-    expect(await InventorySnapshot.makeCounts(db)).toEqual(
+    expect(await InventorySnapshot.makeCounts(db, HiddenSources.none)).toEqual(
       expect.arrayContaining([{ make: "Honda", count: 2 }]),
     );
   } finally {
@@ -171,7 +171,7 @@ test("leaves other versions' snapshots to the deployments that read them", async
     await client.executeMultiple(`
       insert into inventory_snapshot values ('v0:yards', '[]', 0);
       insert into inventory_snapshot values ('v1:make-models:FORD', '[]', 0);
-      insert into inventory_snapshot values ('v3:make-models:FORD', '[]', 0);
+      insert into inventory_snapshot values ('v4:make-models:FORD', '[]', 0);
     `);
     await InventorySnapshot.project(db, first);
     const keys = await client.execute(
@@ -181,8 +181,9 @@ test("leaves other versions' snapshots to the deployments that read them", async
     expect(keys.rows.map((row) => row.key)).toEqual([
       "v0:yards",
       "v1:make-models:FORD",
-      "v3:make-counts",
-      "v3:make-models:HONDA",
+      "v4:make-counts",
+      "v4:make-models:HONDA",
+      "v4:make-source-counts",
     ]);
   } finally {
     client.close();
@@ -219,7 +220,7 @@ test("ensure computes the snapshot only when it is missing", async () => {
     // Present: the pass keeps it current, so a deploy leaves it alone.
     await add("B", PYP, [2006, "Honda", "Civic"]);
     expect(await InventorySnapshot.ensure(db, later)).toBe("current");
-    expect(await InventorySnapshot.makeCounts(db)).toEqual([
+    expect(await InventorySnapshot.makeCounts(db, HiddenSources.none)).toEqual([
       { make: "Honda", count: 1 },
     ]);
   } finally {
@@ -230,11 +231,15 @@ test("ensure computes the snapshot only when it is missing", async () => {
 test("explains a missing snapshot and how to store it", async () => {
   const { client, db } = await database();
   try {
-    const error = await InventorySnapshot.makeCounts(db).catch(
-      (caught: unknown) => caught,
-    );
+    const error = await InventorySnapshot.makeCounts(
+      db,
+      HiddenSources.none,
+    ).catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(InventorySnapshotError);
-    expect(error).toMatchObject({ key: "v3:make-counts", reason: "missing" });
+    expect(error).toMatchObject({
+      key: "v4:make-source-counts",
+      reason: "missing",
+    });
     expect(String(error)).toContain("bun run inventory:project");
   } finally {
     client.close();
@@ -245,10 +250,12 @@ test("rejects a stored snapshot of another shape", async () => {
   const { client, db } = await database();
   try {
     await client.execute(
-      `insert into inventory_snapshot values ('v3:make-counts', '[{"make":1}]', 0)`,
+      `insert into inventory_snapshot values ('v4:make-source-counts', '[["Honda",1]]', 0)`,
     );
-    await expect(InventorySnapshot.makeCounts(db)).rejects.toMatchObject({
-      key: "v3:make-counts",
+    await expect(
+      InventorySnapshot.makeCounts(db, HiddenSources.none),
+    ).rejects.toMatchObject({
+      key: "v4:make-source-counts",
       reason: "invalid",
     });
   } finally {
@@ -294,47 +301,51 @@ test("canonical make aliases project into one queryable model snapshot", async (
   }
 });
 
-for (const source of ["meeks"] as const)
-  test(`${source} is hidden, so make and model pages neither count nor list it`, async () => {
-    const { client, db, add } = await database();
-    try {
-      await add("A", PYP, [2004, "Honda", "Civic"]);
-      await add("B", [source, "1"], [2008, "Honda", "Civic"]);
-      await InventorySnapshot.project(db, first);
-      expect(await InventorySnapshot.makeCounts(db)).toEqual([
-        { make: "Honda", count: 1 },
-      ]);
-      expect(
-        (
-          await InventorySnapshot.makeModels(
-            db,
-            "HONDA",
-            HiddenSources.of([source]),
-          )
-        ).map((row) => row.source),
-      ).toEqual(["pyp"]);
+test("hiding or showing a source applies to make totals and model lists with no new projection", async () => {
+  const { client, db, add } = await database();
+  try {
+    await add("A", PYP, [2004, "Honda", "Civic"]);
+    // Meeks is hidden when the snapshot is computed, as production seeds it.
+    await add("B", ["meeks", "1"], [2008, "Honda", "Civic"]);
+    await add("C", ["meeks", "1"], [2009, "Ford", "Focus"]);
+    await InventorySnapshot.project(db, first);
+    const sources = async (hidden: HiddenSources) =>
+      (await InventorySnapshot.makeModels(db, "HONDA", hidden)).map(
+        (row) => row.source,
+      );
 
-      // A snapshot stored before the source was hidden lists it until the
-      // next projection; pages read it without the hidden rows meanwhile.
-      await client.execute({
-        sql: "update inventory_snapshot set data = ? where key = 'v3:make-models:HONDA'",
-        args: [
-          JSON.stringify([
-            ["pyp", "1", "Honda", "Civic", 1, 2004, 2004],
-            [source, "1", "Honda", "Civic", 1, 2008, 2008],
-          ]),
-        ],
-      });
-      expect(
-        (
-          await InventorySnapshot.makeModels(
-            db,
-            "HONDA",
-            HiddenSources.of([source]),
-          )
-        ).map((row) => row.source),
-      ).toEqual(["pyp"]);
-    } finally {
-      client.close();
-    }
-  });
+    const meeksHidden = HiddenSources.of(["meeks"]);
+    expect(await InventorySnapshot.makeCounts(db, meeksHidden)).toEqual([
+      { make: "Honda", count: 1 },
+    ]);
+    expect(await sources(meeksHidden)).toEqual(["pyp"]);
+
+    // Shown again: it is back on the next read.
+    expect(
+      (await InventorySnapshot.makeCounts(db, HiddenSources.none)).sort(
+        (a, b) => a.make.localeCompare(b.make),
+      ),
+    ).toEqual([
+      { make: "Ford", count: 1 },
+      { make: "Honda", count: 2 },
+    ]);
+    expect((await sources(HiddenSources.none)).sort()).toEqual([
+      "meeks",
+      "pyp",
+    ]);
+
+    // Hidden later: it leaves on the next read.
+    const pypHidden = HiddenSources.of(["pyp"]);
+    expect(
+      (await InventorySnapshot.makeCounts(db, pypHidden)).sort((a, b) =>
+        a.make.localeCompare(b.make),
+      ),
+    ).toEqual([
+      { make: "Ford", count: 1 },
+      { make: "Honda", count: 1 },
+    ]);
+    expect(await sources(pypHidden)).toEqual(["meeks"]);
+  } finally {
+    client.close();
+  }
+});

@@ -25,15 +25,20 @@ import { vehicle } from "~/schema";
 // arrivals query below reads only its model's rows via vehicle_make_model_idx.
 const LIVE_BY_MAKE = sql`+${vehicle.missingSinceAt} is null`;
 
-/** Live vehicles per raw make, from the stored inventory snapshot. */
+/**
+ * Live vehicles per raw make, from the stored inventory snapshot. The hidden
+ * list is an argument, so a hide or show reads a fresh entry.
+ */
 const getMakeCounts = cacheInventory(
-  () => InventorySnapshot.makeCounts(db),
-  ["make-counts-snapshot-v3"],
+  (hiddenList: readonly string[]) =>
+    InventorySnapshot.makeCounts(db, HiddenSources.of(hiddenList)),
+  ["make-counts-snapshot-v4"],
 );
 
 /** Every make with live vehicles, most first. */
 export const getMakes = cache(
-  async (): Promise<MakeEntry[]> => MakeInventory.makes(await getMakeCounts()),
+  async (): Promise<MakeEntry[]> =>
+    MakeInventory.makes(await getMakeCounts((await getHiddenSources()).list)),
 );
 
 /** Each make's URL slug, by make key, for linking from yard pages. */

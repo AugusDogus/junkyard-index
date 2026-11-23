@@ -5,7 +5,6 @@ import { HiddenSources } from "~/lib/hidden-source";
 import { MakeInventory, type MakeRollupRow } from "~/lib/make-inventory";
 import { VehicleName } from "~/lib/vehicle-name";
 import { InventoryRollup } from "~/server/inventory-rollup";
-import { SourceControlRepository } from "~/server/source-control/source-control-repository";
 import {
   ingestionProjectorCheckpoint,
   ingestionRun,
@@ -21,19 +20,28 @@ export type MakeCount = { make: string; count: number };
  */
 export type InventorySnapshot = {
   makeCounts: MakeCount[];
+  /** Live vehicles per raw make spelling and source. */
+  makeSourceCounts: MakeSourceCount[];
   /** Each make's rollup rows, by make key. */
   makeModels: ReadonlyMap<string, MakeRollupRow[]>;
 };
+
+/** Live vehicles under one raw make spelling at one source. */
+type MakeSourceCount = { make: string; source: string; count: number };
 
 // Bump when a stored shape changes: deploys then find the new keys missing
 // and compute them. Each version reads and writes only its own keys, so a
 // deployment still serving the old version, or one rolled back to, keeps its
 // rows; delete a retired version's rows by hand.
 // v3 regroups the source make aliases introduced with search schema 11.
-const SNAPSHOT_VERSION = "v3";
+// v4 keeps hidden sources in the stored rows and adds per-source make counts,
+// so reads leave hidden sources out and a hide or show applies at once.
+const SNAPSHOT_VERSION = "v4";
 // The publication this version's snapshot reflects, written with its rows.
 const CHECKPOINT_NAME = `inventory-snapshot:${SNAPSHOT_VERSION}`;
+// Totals with every source, the shape `modelUrls` reads across versions.
 const MAKE_COUNTS_KEY = `${SNAPSHOT_VERSION}:make-counts`;
+const MAKE_SOURCE_COUNTS_KEY = `${SNAPSHOT_VERSION}:make-source-counts`;
 function makeModelsKey(makeKey: string): string {
   return `${SNAPSHOT_VERSION}:make-models:${makeKey}`;
 }
@@ -55,6 +63,10 @@ const makeModelsSchema = z.array(
   ]),
 );
 type MakeModelTuple = z.infer<typeof makeModelsSchema>[number];
+// [make, source, count], as tuples for the same reason.
+const makeSourceCountsSchema = z.array(
+  z.tuple([z.string(), z.string(), z.number().int()]),
+);
 
 function toTuple(row: MakeRollupRow): MakeModelTuple {
   return [
@@ -134,27 +146,30 @@ async function read<Data>(
 }
 
 /** Make and model pages leave out hidden sources. */
-function shown(
-  rows: readonly MakeRollupRow[],
+function shown<Row extends { source: string }>(
+  rows: readonly Row[],
   hidden: HiddenSources,
-): MakeRollupRow[] {
+): Row[] {
   return rows.filter((row) => !HiddenSources.has(hidden, row.source));
 }
 
+function addCount<Key>(counts: Map<Key, number>, key: Key, count: number) {
+  counts.set(key, (counts.get(key) ?? 0) + count);
+}
+
 /**
- * Reads the hidden list straight from `source_control`: projection runs in
- * workflows and scripts, outside a request and its caches.
+ * Stores every source, hidden ones included: reads filter with the hidden
+ * list of the moment, so showing a source again needs no new projection.
  */
 async function compute(database: LibSQLDatabase): Promise<InventorySnapshot> {
-  const [rows, hidden] = await Promise.all([
-    InventoryRollup.models(database),
-    SourceControlRepository.hiddenSources(database),
-  ]);
-  const models = shown(rows, hidden);
   const counts = new Map<string, number>();
+  const sourceCounts = new Map<string, Map<string, number>>();
   const makeModels = new Map<string, MakeRollupRow[]>();
-  for (const row of models) {
-    counts.set(row.make, (counts.get(row.make) ?? 0) + row.count);
+  for (const row of await InventoryRollup.models(database)) {
+    addCount(counts, row.make, row.count);
+    const bySource = sourceCounts.get(row.make) ?? new Map<string, number>();
+    addCount(bySource, row.source, row.count);
+    sourceCounts.set(row.make, bySource);
     const key = VehicleName.makeKey(row.make);
     if (!key) continue;
     const rows = makeModels.get(key) ?? [];
@@ -162,7 +177,10 @@ async function compute(database: LibSQLDatabase): Promise<InventorySnapshot> {
     makeModels.set(key, rows);
   }
   const makeCounts = [...counts].map(([make, count]) => ({ make, count }));
-  return { makeCounts, makeModels };
+  const makeSourceCounts = [...sourceCounts].flatMap(([make, bySource]) =>
+    [...bySource].map(([source, count]) => ({ make, source, count })),
+  );
+  return { makeCounts, makeSourceCounts, makeModels };
 }
 
 /**
@@ -179,6 +197,17 @@ async function write(
     {
       key: MAKE_COUNTS_KEY,
       data: JSON.stringify(snapshot.makeCounts),
+      updatedAt: now,
+    },
+    {
+      key: MAKE_SOURCE_COUNTS_KEY,
+      data: JSON.stringify(
+        snapshot.makeSourceCounts.map(({ make, source, count }) => [
+          make,
+          source,
+          count,
+        ]),
+      ),
       updatedAt: now,
     },
     ...[...snapshot.makeModels].map(([makeKey, rollup]) => ({
@@ -301,16 +330,33 @@ export const InventorySnapshot = {
     return "projected";
   },
 
-  /** Live vehicles per raw make spelling. */
-  makeCounts(database: LibSQLDatabase): Promise<MakeCount[]> {
-    return read(database, MAKE_COUNTS_KEY, makeCountsSchema);
+  /**
+   * Live vehicles per raw make spelling, leaving out hidden sources. The
+   * hidden list is applied here, so a hide or show needs no new projection.
+   */
+  async makeCounts(
+    database: LibSQLDatabase,
+    hidden: HiddenSources,
+  ): Promise<MakeCount[]> {
+    const rows = await read(
+      database,
+      MAKE_SOURCE_COUNTS_KEY,
+      makeSourceCountsSchema,
+    );
+    const counts = new Map<string, number>();
+    for (const { make, count } of shown(
+      rows.map(([make, source, count]) => ({ make, source, count })),
+      hidden,
+    ))
+      addCount(counts, make, count);
+    return [...counts].map(([make, count]) => ({ make, count }));
   },
 
   /**
    * One make's live vehicles per yard and raw spelling. A make with no live
    * vehicles has no row, so it has none; a cached make list can briefly still
-   * name it. Hidden sources are left out even from a snapshot stored before
-   * they were hidden.
+   * name it. Hidden sources are left out at read time, so a hide or show
+   * applies at once.
    */
   async makeModels(
     database: LibSQLDatabase,
