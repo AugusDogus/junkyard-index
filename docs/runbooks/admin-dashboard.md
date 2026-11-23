@@ -111,9 +111,8 @@ Every change applies without a deploy, shows a result message in plain words
   Resuming here does not turn the Vercel flag back on: change that in
   Vercel. `/api/status` lists paused sources instead of checking them.
 - **Public site: Hide from site / Show on site.** Hiding asks for a reason
-  and a confirm step. Pages and new searches change at once, open search
-  pages within 15 minutes, and make totals on `/cars` at the next inventory
-  update. See [hide-source.md](hide-source.md) for every surface.
+  and a confirm step; showing asks to confirm too. Pages and new searches
+  change at once, and open search pages within 15 minutes. See [hide-source.md](hide-source.md) for every surface.
 - **Run now.** Asks to confirm, then starts one run of the source outside the
   daily pass, the same as the cron-secret route. It counts as one of today's
   attempts. It is refused, with the reason, when the source is retired,

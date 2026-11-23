@@ -81,7 +81,7 @@ const VERB: Record<SourceControlInput["kind"], string> = {
 };
 
 const HIDE_DELAY =
-  "Pages and new searches change at once; a search page someone already has open changes within 15 minutes, and make totals on /cars at the next inventory update.";
+  "Pages and new searches change at once; a search page someone already has open changes within 15 minutes.";
 
 function changeMessage(
   input: Exclude<SourceControlInput, { kind: "run" }>,
@@ -190,16 +190,29 @@ export const SourceControlAction = {
         userId,
         now,
       });
-      if (
-        applied.status === "changed" &&
-        (input.kind === "hide" || input.kind === "show")
-      )
-        deps.expireHiddenSources();
       const stillPausedBy =
         input.kind === "resume" && applied.status === "changed"
           ? await deps.pauseCause(input.source)
           : null;
-      return changeMessage(input, name, applied, stillPausedBy);
+      const result = changeMessage(input, name, applied, stillPausedBy);
+      if (input.kind !== "hide" && input.kind !== "show") return result;
+      // Expired even when unchanged, so repeating a hide or show whose expiry
+      // failed updates the pages.
+      try {
+        deps.expireHiddenSources();
+      } catch (error) {
+        // The change is saved, so this must not report that nothing changed.
+        console.error(
+          `Admin control "${input.kind}" on ${input.source} was saved, but the cached hidden list could not be expired`,
+          error,
+        );
+        const state = input.kind === "hide" ? "hidden" : "shown";
+        return {
+          status: result.status === "unchanged" ? "unchanged" : "done",
+          message: `${name} is ${state}; that is saved. The site's pages could not be told, so they may take up to a day to change. Repeat the same change in a minute to try again.`,
+        };
+      }
+      return result;
     } catch (error) {
       console.error(
         `Admin control "${input.kind}" on ${input.source} failed`,

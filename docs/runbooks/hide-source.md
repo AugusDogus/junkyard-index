@@ -11,7 +11,8 @@ site.
    [admin-dashboard.md](admin-dashboard.md)).
 2. Under **Controls**, **Public site**, choose **Hide from site**, write why
    (required, up to 500 characters; only admins see it) and confirm with
-   **Hide <name>**. To show it again, choose **Show on site**. **Change
+   **Hide <name>**. To show it again, choose **Show on site** and confirm with
+   **Show <name>**. **Change
    reason** updates the reason of a hidden source.
 3. The change and who made it appear under **Recent actions**. No deploy is
    needed.
@@ -24,30 +25,32 @@ constant.
 
 ## How long a change takes
 
-| Surface                                                                                      | When a hide or show applies                                                                                                     |
-| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Yard, region, chain, make and model pages, the homepage, the yard directory and the sitemaps | The next request. The toggle expires the cached list (`updateTag`) and every prebuilt page that read it.                        |
-| Search filter options (yards, states, colors)                                                | The next request; a page that already loaded them may keep them until it reloads.                                               |
-| A newly opened search page, and its server render                                            | At once: the page's search key is minted with the current list, and the server render filters with it.                          |
-| A search page someone already has open                                                       | Within 15 minutes. Search keys now last 15 minutes and the page fetches the next one (with the new list) 10 minutes in.         |
-| Source pickers and vehicle links on an open search page                                      | With that same key renewal.                                                                                                     |
-| Saved-search alert scans                                                                     | The next scan batch: each batch reads the list from the database.                                                               |
-| Alert emails and Discord messages being sent                                                 | Each send reads the list, so a vehicle of a hidden source links nowhere, even in alerts queued before the hide.                 |
-| IndexNow announcements                                                                       | The next announcement, which reads the list from the database.                                                                  |
-| Make totals on `/cars` (numbers only)                                                        | The next inventory snapshot, after the next publication of any source. Run `bun run inventory:project --force` to apply it now. |
+| Surface                                                                                                              | When a hide or show applies                                                                                                                          |
+| -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Yard, region, chain, make and model pages, make totals on `/cars`, the homepage, the yard directory and the sitemaps | The next request. The toggle expires the cached list (`updateTag`) and every prebuilt page that read it.                                             |
+| Search filter options (makes, yards, states, colors)                                                                 | The next request; a page that already loaded them may keep them until it reloads.                                                                    |
+| A newly opened search page, and its server render                                                                    | At once: the page's search key is minted with the current list, and the server render filters with it.                                               |
+| A search page someone already has open                                                                               | Within 15 minutes of its next search. Keys last 15 minutes, and the page fetches a new one (with the new list) on its first search after 10 minutes. |
+| Source pickers and vehicle links on an open search page                                                              | With that same key renewal.                                                                                                                          |
+| Saved-search alert scans                                                                                             | The next scan batch: each batch reads the list from the database.                                                                                    |
+| Alert emails and Discord messages being sent                                                                         | Each send reads the list, so a vehicle of a hidden source links nowhere, even in alerts queued before the hide.                                      |
+| IndexNow announcements                                                                                               | The next announcement, which reads the list from the database.                                                                                       |
 
-Why two surfaces are not instant:
+Why open search pages are not instant: a browser searches Algolia directly with a secured
+key that embeds `NOT source:"<source>"`. Algolia cannot revoke one secured
+key, so a key already handed out keeps working until it expires. Keys last
+15 minutes for this reason (minting them is local and costs no Algolia
+quota). A hand-made request with an old key can still read a just-hidden
+source until that key expires.
 
-- **Open search pages.** A browser searches Algolia directly with a secured
-  key that embeds `NOT source:"<source>"`. Algolia cannot revoke one secured
-  key, so a key already handed out keeps working until it expires. Keys last
-  15 minutes for this reason (minting them is local and costs no Algolia
-  quota). A hand-made request with an old key can still read a just-hidden
-  source until that key expires.
-- **Make totals on `/cars`.** The totals are one number per make, stored by
-  the inventory snapshot, with no per-source breakdown to subtract from. They
-  never link to a source or show its vehicles. Rebuilding them reads every
-  vehicle, so a toggle does not do it; the next publication does.
+Make and model pages and make totals read the inventory snapshot, which
+stores every source (hidden ones too) with per-source counts. Pages leave the
+hidden list out when they read it, so a toggle needs no new snapshot and reads
+no vehicles.
+
+The search filter options are cached by hidden list. The first request after
+a toggle to a list not seen that day reads the states and colors of every
+live vehicle once, as the daily refresh does.
 
 If the cached list's expiry were ever lost, the cache falls back to a daily
 lifetime, the same as the pages that read it.
