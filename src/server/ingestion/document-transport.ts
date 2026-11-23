@@ -280,8 +280,15 @@ export interface BrowserConnection {
   close(): Promise<void>;
 }
 
-/** The remote browser calls behind one session, replaceable in tests. */
-export interface BrowserSessions {
+/** A started remote session: its id and the CDP endpoint to connect to. */
+export interface BrowserSessionHandle {
+  readonly id: string;
+  readonly wsEndpoint: string;
+}
+
+/** The remote browser calls that start and stop a session, for sources that
+ * connect to it and drive its page themselves. */
+export interface BrowserSessionLifecycle {
   /** Whose account the sessions are billed to, which decides how a refused
    * create is classified. */
   readonly provider: BrowserProvider;
@@ -293,9 +300,13 @@ export interface BrowserSessions {
     Scope.Scope
   >;
   /** Starts one billed remote session. */
-  create(): Promise<{ readonly id: string; readonly wsEndpoint: string }>;
+  create(): Promise<BrowserSessionHandle>;
   /** Ends billing for a session. */
   stop(id: string): Promise<unknown>;
+}
+
+/** The remote browser calls behind one session, replaceable in tests. */
+export interface BrowserSessions extends BrowserSessionLifecycle {
   /** Connects to a session and returns its prepared page. */
   connect(wsEndpoint: string): Promise<BrowserConnection>;
 }
@@ -394,6 +405,16 @@ function hyperbrowser(
   source: HyperbrowserSource,
   subresources: BrowserSubresources,
 ): BrowserSessions {
+  return {
+    ...hyperbrowserLifecycle(apiKey, source),
+    connect: (wsEndpoint) => connectPage(wsEndpoint, subresources),
+  };
+}
+
+function hyperbrowserLifecycle(
+  apiKey: string,
+  source: HyperbrowserSource,
+): BrowserSessionLifecycle {
   let built: Hyperbrowser | undefined;
   const client = () => (built ??= new Hyperbrowser({ apiKey }));
   return {
@@ -408,7 +429,6 @@ function hyperbrowser(
         region: "us-west",
       }),
     stop: async (id) => client().sessions.stop(id),
-    connect: (wsEndpoint) => connectPage(wsEndpoint, subresources),
   };
 }
 
@@ -422,6 +442,16 @@ function kernel(
   source: KernelSource,
   subresources: BrowserSubresources,
 ): BrowserSessions {
+  return {
+    ...kernelLifecycle(apiKey, source),
+    connect: (wsEndpoint) => connectPage(wsEndpoint, subresources),
+  };
+}
+
+function kernelLifecycle(
+  apiKey: string | undefined,
+  source: KernelSource,
+): BrowserSessionLifecycle {
   const key = () => {
     if (apiKey === undefined || apiKey === "")
       throw new KernelKeyMissing({ source });
@@ -432,7 +462,6 @@ function kernel(
     lease: KernelSessions.lease(source),
     create: async () => KernelSessions.create(key()),
     stop: async (id) => KernelSessions.stop(key(), id),
-    connect: (wsEndpoint) => connectPage(wsEndpoint, subresources),
   };
 }
 
@@ -475,6 +504,21 @@ function providerSessions(
       return hyperbrowser(keys.hyperbrowserApiKey, source, subresources);
     case "kernel":
       return kernel(keys.kernelApiKey, source, subresources);
+  }
+}
+
+/** `source`'s session lifecycle from the provider `BROWSER_PROVIDERS`
+ * chooses, without a prepared page, for sources that connect over CDP and
+ * drive the page themselves. */
+function sourceBrowsers(
+  source: BrowserSource,
+  keys: BrowserProviderKeys,
+): BrowserSessionLifecycle {
+  switch (BROWSER_PROVIDERS[source]) {
+    case "hyperbrowser":
+      return hyperbrowserLifecycle(keys.hyperbrowserApiKey, source);
+    case "kernel":
+      return kernelLifecycle(keys.kernelApiKey, source);
   }
 }
 
@@ -539,6 +583,36 @@ function acquirePage(
   });
 }
 
+/** One started session for the enclosing scope, stopped when it closes. Take
+ * the session lease first in the same scope, so the session stops before the
+ * lease is released. A create the provider refused for capacity, credit or
+ * plan limits defers the chunk; a stop that fails is logged, since the
+ * provider ends the session on its own timeout. */
+function acquireSession(
+  sessions: BrowserSessionLifecycle,
+): Effect.Effect<
+  BrowserSessionHandle,
+  BrowserSessionError | ProviderCapacityDeferred,
+  Scope.Scope
+> {
+  return Effect.acquireRelease(
+    Effect.tryPromise({
+      try: () => sessions.create(),
+      catch: (cause) =>
+        PROVIDERS[sessions.provider].capacityDeferral(cause) ??
+        new BrowserSessionError({ phase: "open", cause }),
+    }),
+    (s) =>
+      Effect.tryPromise(() => sessions.stop(s.id)).pipe(
+        Effect.catchAll((cause) =>
+          Effect.logWarning(
+            PROVIDERS[sessions.provider].unstopped(s.id, cause.error),
+          ),
+        ),
+      ),
+  );
+}
+
 function openPage(
   sessions: BrowserSessions,
 ): Effect.Effect<
@@ -547,22 +621,7 @@ function openPage(
   Scope.Scope
 > {
   return Effect.gen(function* () {
-    const session = yield* Effect.acquireRelease(
-      Effect.tryPromise({
-        try: () => sessions.create(),
-        catch: (cause) =>
-          PROVIDERS[sessions.provider].capacityDeferral(cause) ??
-          new BrowserSessionError({ phase: "open", cause }),
-      }),
-      (s) =>
-        Effect.tryPromise(() => sessions.stop(s.id)).pipe(
-          Effect.catchAll((cause) =>
-            Effect.logWarning(
-              PROVIDERS[sessions.provider].unstopped(s.id, cause.error),
-            ),
-          ),
-        ),
-    );
+    const session = yield* acquireSession(sessions);
     const connection = yield* Effect.acquireRelease(
       Effect.tryPromise({
         try: () => sessions.connect(session.wsEndpoint),
@@ -626,5 +685,7 @@ export const DocumentTransport = {
   kernel,
   providerSessions,
   sourceSessions,
+  sourceBrowsers,
+  acquireSession,
   acquireBrowser,
 } as const;

@@ -1,5 +1,5 @@
 import { afterEach, expect, spyOn, test } from "bun:test";
-import { Effect, Either, Exit } from "effect";
+import { Cause, Effect, Either, Exit, Option } from "effect";
 import { acquireBigdBrowser, fetchBigdPage } from "./bigd-client";
 import { streamBigdInventory } from "./bigd-connector";
 import { Config } from "./context";
@@ -44,6 +44,8 @@ import type { ProviderRequestGate } from "./provider-http-client";
 import { fetchSix03Page } from "./six03-client";
 import { streamSix03Inventory } from "./six03-connector";
 import { SIX03_CATALOG, SIX03_CONTACT } from "./six03-yard-metadata";
+import { acquireUpullitDavieSession } from "./upullit-davie-browser-session";
+import { acquireVanderHaagsSession } from "./vanderhaags-browser-session";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
@@ -1196,12 +1198,72 @@ test("a source configured for Kernel without KERNEL_API_KEY fails its open with 
   expect(sent).toEqual([]);
 });
 
+test.each([
+  [
+    "Vander Haags",
+    (sessions: BrowserSessions) =>
+      acquireVanderHaagsSession(sessions).pipe(Effect.asVoid),
+  ],
+  [
+    "U Pull It Davie",
+    (sessions: BrowserSessions) =>
+      acquireUpullitDavieSession(sessions).pipe(Effect.asVoid),
+  ],
+] as const)(
+  "%s defers on Kernel's concurrent browser refusal and releases its lease without connecting",
+  async (_name, acquire) => {
+    const refusal = new KernelApiError({
+      operation: "create",
+      status: 429,
+      code: "org_limit_exceeded",
+      detail: "limit=5",
+    });
+    const { sessions, events } = fakeSessions(servingPage(), null, {
+      provider: "kernel",
+      createFailure: refusal,
+    });
+    const exit = await Effect.runPromiseExit(Effect.scoped(acquire(sessions)));
+    expect(
+      Exit.isFailure(exit) &&
+        Either.getLeft(Cause.failureOrCause(exit.cause)).pipe(
+          Option.getOrUndefined,
+        ),
+    ).toBeInstanceOf(ProviderCapacityDeferred);
+    expect(events).toEqual(["lease", "release"]);
+  },
+);
+
+test("a session acquired without a page is stopped when its scope closes, before the lease is released", async () => {
+  const { sessions, events } = fakeSessions(servingPage());
+  const id = await Effect.runPromise(
+    Effect.scoped(
+      sessions.lease.pipe(
+        Effect.zipRight(DocumentTransport.acquireSession(sessions)),
+        Effect.map((session) => session.id),
+      ),
+    ),
+  );
+  expect(id).toBe("s1");
+  expect(events).toEqual(["lease", "create s1", "stop s1", "release"]);
+});
+
 test("each browser source opens sessions from the provider BROWSER_PROVIDERS names", () => {
   const keys = { hyperbrowserApiKey: "h", kernelApiKey: "k" };
-  for (const source of ["bigd", "northwest", "six03", "michigantruck"] as const)
+  for (const source of [
+    "bigd",
+    "northwest",
+    "vanderhaags",
+    "upullitdavie",
+    "six03",
+    "michigantruck",
+  ] as const) {
     expect(
       DocumentTransport.sourceSessions(source, keys, "page").provider,
     ).toBe(BROWSER_PROVIDERS[source]);
+    expect(DocumentTransport.sourceBrowsers(source, keys).provider).toBe(
+      BROWSER_PROVIDERS[source],
+    );
+  }
   expect(
     DocumentTransport.providerSessions("kernel", keys, "bigd", "page").provider,
   ).toBe("kernel");

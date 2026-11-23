@@ -81,10 +81,10 @@ test("every ingestion module that creates a Hyperbrowser session takes the sessi
   const creators = sources.filter(([, source]) =>
     source?.includes("HyperbrowserSessions.create("),
   );
+  // Vander Haags and U Pull It Davie start theirs through
+  // `DocumentTransport.acquireSession`, guarded in kernel-sessions.test.ts.
   expect(creators.map(([file]) => file).sort()).toEqual([
     "document-transport.ts",
-    "upullit-davie-browser-session.ts",
-    "vanderhaags-browser-session.ts",
   ]);
   for (const [file, source] of creators)
     expect([file, source?.includes("HyperbrowserSessions.lease(")]).toEqual([
