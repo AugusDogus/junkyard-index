@@ -131,7 +131,7 @@ export function SourceControls({
   const runBlocked = retired
     ? "Retired sources are never fetched."
     : pausedBy === "flag"
-      ? "Turn its Vercel flag on first."
+      ? `Paused by the Vercel flag ingestion-source-${source}. Turn the flag on first.`
       : pausedBy !== null
         ? "Resume it first."
         : null;

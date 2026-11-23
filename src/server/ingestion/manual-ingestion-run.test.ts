@@ -17,7 +17,9 @@ function dependencies(
 
 describe("ManualIngestionRun.start", () => {
   test("starts the run and its workflow", async () => {
-    expect(await ManualIngestionRun.start(dependencies(), "pyp")).toEqual({
+    expect(
+      await ManualIngestionRun.start(dependencies(), "pyp", "admin"),
+    ).toEqual({
       status: "started",
       source: "pyp",
       runId: "run-1",
@@ -35,13 +37,14 @@ describe("ManualIngestionRun.start", () => {
       await ManualIngestionRun.start(
         dependencies({ pauseCause, startRun }),
         "brandywine",
+        "cron_api",
       ),
     ).toEqual({ status: "retired", source: "brandywine" });
     expect(pauseCause).not.toHaveBeenCalled();
     expect(startRun).not.toHaveBeenCalled();
   });
 
-  test("refuses a paused source and says what paused it", async () => {
+  test("the admin control refuses a paused source and says what paused it", async () => {
     const startRun = mock(async () => ({
       status: "started" as const,
       runId: "run-1",
@@ -51,10 +54,43 @@ describe("ManualIngestionRun.start", () => {
         await ManualIngestionRun.start(
           dependencies({ pauseCause: async () => cause, startRun }),
           "pratt",
+          "admin",
         ),
       ).toEqual({ status: "paused", source: "pratt", cause });
     }
     expect(startRun).not.toHaveBeenCalled();
+  });
+
+  test("the cron-secret API refuses a source the owner paused", async () => {
+    const startRun = mock(async () => ({
+      status: "started" as const,
+      runId: "run-1",
+    }));
+    for (const cause of ["admin", "admin_and_flag"] as const) {
+      expect(
+        await ManualIngestionRun.start(
+          dependencies({ pauseCause: async () => cause, startRun }),
+          "pratt",
+          "cron_api",
+        ),
+      ).toEqual({ status: "paused", source: "pratt", cause });
+    }
+    expect(startRun).not.toHaveBeenCalled();
+  });
+
+  test("the cron-secret API runs a source only its Vercel flag pauses, to test a fix", async () => {
+    expect(
+      await ManualIngestionRun.start(
+        dependencies({ pauseCause: async () => "flag" }),
+        "pratt",
+        "cron_api",
+      ),
+    ).toEqual({
+      status: "started",
+      source: "pratt",
+      runId: "run-1",
+      workflowRunId: "wrun-1",
+    });
   });
 
   test("reports a source that already has an active run, and starts no workflow", async () => {
@@ -66,6 +102,7 @@ describe("ManualIngestionRun.start", () => {
           startWorkflow,
         }),
         "pyp",
+        "admin",
       ),
     ).toEqual({ status: "busy", source: "pyp" });
     expect(startWorkflow).not.toHaveBeenCalled();
@@ -81,7 +118,14 @@ describe("ManualIngestionRun.start", () => {
         source: "pratt",
         cause: "admin_and_flag",
       }),
-    ).toContain("paused here and by its Vercel flag");
+    ).toContain("paused here and by the Vercel flag ingestion-source-pratt");
+    expect(
+      ManualIngestionRun.message({
+        status: "paused",
+        source: "pratt",
+        cause: "flag",
+      }),
+    ).toContain("paused by the Vercel flag ingestion-source-pratt");
     expect(
       ManualIngestionRun.message({ status: "retired", source: "brandywine" }),
     ).toContain("retired");

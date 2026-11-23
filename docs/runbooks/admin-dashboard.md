@@ -104,19 +104,22 @@ Every change applies without a deploy, shows a result message in plain words
 **Recent actions**, which no one can edit or delete.
 
 - **Daily runs: Pause runs / Resume runs.** A paused source is left out of
-  the daily pass, and manual runs (Run now, and the cron-secret
-  `/api/admin/ingestion/run` route) refuse it. A run already in progress
+  the daily pass, and Run now refuses it. A run already in progress
   finishes. The source is paused if it is paused here **or** its
   `ingestion-source-<source>` Vercel flag serves false; the page shows both.
+  The cron-secret `/api/admin/ingestion/run` route refuses a source paused
+  here, but still runs one only its Vercel flag pauses, so you can test a
+  fix before turning the flag back on.
   Resuming here does not turn the Vercel flag back on: change that in
   Vercel. `/api/status` lists paused sources instead of checking them.
 - **Public site: Hide from site / Show on site.** Hiding asks for a reason
   and a confirm step; showing asks to confirm too. Pages and new searches
   change at once, and open search pages within 15 minutes. See [hide-source.md](hide-source.md) for every surface.
 - **Run now.** Asks to confirm, then starts one run of the source outside the
-  daily pass, the same as the cron-secret route. It counts as one of today's
+  daily pass, like the cron-secret route. It counts as one of today's
   attempts. It is refused, with the reason, when the source is retired,
-  paused, or already has a run in progress (that run keeps going).
+  paused here or by its Vercel flag, or already has a run in progress (that
+  run keeps going).
 
 The controls are stored in the `source_control` table and the log in
 `admin_action_log`.
