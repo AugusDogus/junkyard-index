@@ -40,6 +40,26 @@ describe("source_control migration", () => {
     expect(meeks.lastChange?.byUserId).toBeNull();
   });
 
+  test("applies again over a database that ran it as 0029, keeping its rows", async () => {
+    await SourceControlRepository.apply(db, {
+      source: "pratt",
+      change: { kind: "pause" },
+      userId: "owner",
+      now,
+    });
+    await client.execute(
+      "update source_control set hidden_reason = null, visibility = 'shown' where source = 'meeks'",
+    );
+    await client.executeMultiple(migration);
+    expect(
+      (await SourceControlRepository.forSource(db, "pratt")).ingestion,
+    ).toBe("paused");
+    // The seed does not re-hide a source shown since.
+    expect(await SourceControlRepository.hiddenSources(db)).toEqual(
+      HiddenSources.none,
+    );
+  });
+
   test("refuses a hidden row without a reason", async () => {
     expect(
       client.execute(
