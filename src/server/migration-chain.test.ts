@@ -424,6 +424,8 @@ test("admin run reads stay in indexes, never run cursors or error text", async (
     });
     const since = new Date("2026-11-09T00:00:00Z");
     const plans = new Map<string, string[]>();
+    // recent and recentForSource name ingestion_run_admin_idx with INDEXED
+    // BY, so they throw here if a later migration drops or renames it.
     const reads = {
       recent: () => SourceRunRepository.recent(db, since),
       recentForSource: () =>

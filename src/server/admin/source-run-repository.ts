@@ -51,7 +51,10 @@ function errorColumns(chars: number) {
 
 /**
  * ingestion_run through the index covering runColumns. The planner prefers
- * the primary key index for `id = ?`, which reads the table.
+ * the primary key index for `id = ?`, which reads the table. INDEXED BY is a
+ * hard dependency: without the index these reads fail with "no such index".
+ * migration-chain.test.ts runs them on the migrated schema, so a migration
+ * that drops or renames ingestion_run_admin_idx fails there first.
  */
 const coveredRuns = sql`${ingestionRun} indexed by ingestion_run_admin_idx`;
 
