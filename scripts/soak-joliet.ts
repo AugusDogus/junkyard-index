@@ -1,17 +1,29 @@
+import { Effect } from "effect";
 import {
   JolietCursor,
   JolietCursorSchema,
 } from "../src/server/ingestion/joliet-cursor";
 import type { JolietStreamResult } from "../src/server/ingestion/joliet-connector";
 import { JOLIET_MAX_QUERIES } from "../src/server/ingestion/joliet-parser";
+import type { JolietCanonicalVehicle } from "../src/server/ingestion/joliet-transform";
 
-/** Read-only driver. Caller stages batches and owns the provider request gate. */
+/** Receives each chunk's vehicles after the chunk returns. A restarted crawl
+ * supersedes every earlier chunk, so `reset` runs before that chunk's `add`. */
+export interface JolietSoakCollector {
+  add: (vehicles: readonly JolietCanonicalVehicle[]) => void;
+  reset: () => void;
+}
+
+/** Read-only driver. Caller owns the provider request gate. Pass `onBatch` to
+ * the connector so the driver can hand vehicles to `collector`. */
 export async function soakJolietInventory(
   runChunk: (
     cursor: JolietCursor,
     maxPages: number,
+    onBatch: (vehicles: JolietCanonicalVehicle[]) => Effect.Effect<void>,
   ) => Promise<JolietStreamResult>,
   maxPages = JOLIET_MAX_QUERIES,
+  collector?: JolietSoakCollector,
 ): Promise<JolietStreamResult> {
   if (
     !Number.isSafeInteger(maxPages) ||
@@ -37,9 +49,14 @@ export async function soakJolietInventory(
   };
   const observed = new Set<string>();
   while (summary.pagesProcessed < maxPages) {
+    const batch: JolietCanonicalVehicle[] = [];
     const chunk = await runChunk(
       summary.cursor,
       Math.min(16, maxPages - summary.pagesProcessed),
+      (vehicles) =>
+        Effect.sync(() => {
+          batch.push(...vehicles);
+        }),
     );
     const cursor = JolietCursorSchema.parse(chunk.cursor);
     if (
@@ -58,6 +75,7 @@ export async function soakJolietInventory(
     if (chunk.restart) {
       summary.count = 0;
       observed.clear();
+      collector?.reset();
       if (summary.accounting)
         summary.accounting = {
           recordsProcessed: 0,
@@ -66,6 +84,7 @@ export async function soakJolietInventory(
           duplicateVehicles: 0,
         };
     }
+    collector?.add(batch);
     summary.count += chunk.count;
     summary.pagesProcessed += chunk.pagesProcessed;
     summary.errors.push(...chunk.errors);

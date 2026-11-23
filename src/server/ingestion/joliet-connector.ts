@@ -73,7 +73,7 @@ function resumeOrRestart(
     cursor.contextHash !== context.hash ||
     cursor.pairCount !== context.pairs.length
   ) {
-    requireRestart(cursor.restarts);
+    requireRestart(cursor.restarts ?? 0);
     return "restart";
   }
   const rows = new Map(context.rows.map((row) => [row.stock, row]));
@@ -259,7 +259,8 @@ export function streamJolietInventoryWithRequestGate<E, R>(
     );
     const { context, restart } = opening;
     const restarts =
-      (initial.phase === "start" ? 0 : initial.restarts) + (restart ? 1 : 0);
+      (initial.phase === "start" ? 0 : (initial.restarts ?? 0)) +
+      (restart ? 1 : 0);
     // A restart discards all progress made under the superseded context.
     const resumed = initial.phase === "queries" && !restart ? initial : null;
     const seen = new Map<string, JolietSeen>(
@@ -413,7 +414,11 @@ export function streamJolietInventoryWithRequestGate<E, R>(
     }
     const cursor = yield* validateJoliet("next checkpoint", () =>
       terminal
-        ? JolietCursorSchema.parse({ source: "joliet", phase: "complete" })
+        ? JolietCursorSchema.parse({
+            source: "joliet",
+            phase: "complete",
+            ...(restarts ? { restarts } : {}),
+          })
         : JolietCursor.checkpoint({
             contextHash: context.hash,
             restarts,

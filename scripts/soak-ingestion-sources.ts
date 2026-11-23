@@ -418,8 +418,8 @@ async function main(): Promise<void> {
     let batchVehicles = 0;
     const emittedVins = new Set<string>();
     const yardVins = new Map<string, Set<string>>();
-    const onBatch = (vehicles: CanonicalVehicle[]) =>
-      Effect.sync(() => {
+    const collector = {
+      add: (vehicles: readonly CanonicalVehicle[]) => {
         batches += 1;
         batchVehicles += vehicles.length;
         for (const vehicle of vehicles) {
@@ -428,7 +428,17 @@ async function main(): Promise<void> {
           vins.add(vehicle.vin);
           yardVins.set(vehicle.locationCode, vins);
         }
-      });
+      },
+      /** A restarted crawl supersedes every batch collected before it. */
+      reset: () => {
+        batches = 0;
+        batchVehicles = 0;
+        emittedVins.clear();
+        yardVins.clear();
+      },
+    };
+    const onBatch = (vehicles: CanonicalVehicle[]) =>
+      Effect.sync(() => collector.add(vehicles));
     const sourceStartedAt = Date.now();
     console.log(
       `[soak] cycle=${cycle} source=${source} started maxPages=${config.maxPages ?? "full"}`,
@@ -1157,11 +1167,16 @@ async function main(): Promise<void> {
             );
           case "joliet":
             return soakJolietInventory(
-              (startCursor, maxPages) =>
+              (startCursor, maxPages, onChunkBatch) =>
                 runProgram(
-                  streamJolietInventory({ startCursor, maxPages, onBatch }),
+                  streamJolietInventory({
+                    startCursor,
+                    maxPages,
+                    onBatch: onChunkBatch,
+                  }),
                 ),
               config.maxPages,
+              collector,
             );
           case "michigantruck":
             return soakMichigantruckInventory(
