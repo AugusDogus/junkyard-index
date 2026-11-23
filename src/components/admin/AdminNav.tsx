@@ -5,8 +5,8 @@ import { usePathname } from "next/navigation";
 import { cn } from "~/lib/utils";
 
 /**
- * The admin sections. Add a section here (Budgets, Analytics) when its page
- * exists; source controls live on each source's page.
+ * The admin sections. Add a section here when its page exists; source
+ * controls live on each source's page.
  */
 const ADMIN_SECTIONS = [
   {
@@ -23,6 +23,16 @@ const ADMIN_SECTIONS = [
     href: "/admin/search",
     label: "Search & alerts",
     description: "Search updates and alert emails",
+  },
+  {
+    href: "/admin/budgets",
+    label: "Budgets",
+    description: "Hyperbrowser credits and Algolia limits",
+  },
+  {
+    href: "/admin/analytics",
+    label: "Analytics",
+    description: "Users, paid plans, saved searches",
   },
 ] as const;
 

@@ -1,12 +1,13 @@
 # Admin dashboard
 
 `/admin` is one private place to see how the site is running: the yard feeds
-(sources), search updates and saved-search alerts. It reads the database only.
-It never scans the vehicle table and never searches Algolia, so opening it
-costs no Algolia searches.
+(sources), search updates, saved-search alerts, what the paid services'
+free plans have left, and how people use the site. It never scans the
+vehicle table and never searches Algolia, so opening it costs no Algolia
+searches.
 
-This first version only shows things. Controls (run a source now, pause it,
-hide it from the site), budgets and analytics come in later updates.
+It only shows things. Controls (run a source now, pause it, hide it from the
+site) come in a later update.
 
 ## Who can open it
 
@@ -109,3 +110,58 @@ pages and vehicles read, and its full error text.
   on, whether they are on schedule (the same check as `/api/status/alerts`),
   and each daily alert check in the last 14 days with emails and Discord
   messages sent, waiting, failed and retrying, or cancelled.
+
+### Budgets (`/admin/budgets`)
+
+Read from Hyperbrowser and Algolia, at most once every 10 minutes for all
+admins together; the page says when the figures were checked.
+
+- **Hyperbrowser credits**: used, remaining and the plan's limit (the free
+  plan has 5,000; whether they renew each month is not confirmed), credits
+  used per UTC day for 14 days, the average over the last 7 full days, the
+  credits used by month end at that pace, and the day the remaining credits
+  run out at that pace. A red notice shows when that day comes before the
+  month ends. Hyperbrowser sessions do not record which yard opened them, so
+  the daily figures are totals for all yards (the Hyperbrowser yards are
+  listed in [hyperbrowser-sessions.md](hyperbrowser-sessions.md)). The page
+  reads up to 30 pages of 100 sessions; if that does not reach 14 days back,
+  it says which days are short.
+- **Algolia**: records stored, against the free plan's 1,000,000. Search
+  requests used this period show as "Not available on this plan": Algolia's
+  Usage API needs a key with the "usage" permission and a Premium plan
+  (checked Nov 22, 2026: the write key is refused). Check Usage in the
+  Algolia dashboard, and see [search-quota.md](search-quota.md) for the
+  alarms. Records are read with the write key, so only production shows
+  them; other deployments say "Production only".
+
+### Analytics (`/admin/analytics`)
+
+Days are UTC. Database figures are read fresh on each visit; they touch the
+user, saved search and alert tables only.
+
+- **Users**: total, verified emails, and sign-ups per day for 30 days.
+- **Paid plans**: from Polar, which holds every subscription (the database
+  keeps none), at most every 10 minutes. Paying accounts (customers with an
+  active subscription), active subscriptions per plan, how many are set to
+  cancel at the end of their paid period, and plans started, cancelled or
+  ended in the last 30 days (newest 20). No names or emails are shown.
+- **Saved searches**: total, how many have email or Discord alerts on, and
+  new ones per week (weeks start Monday) for 12 weeks.
+- **Alerts sent**: emails and Discord messages delivered per day for 30
+  days, sends that failed and are waiting to retry, and those cancelled in
+  the last 30 days.
+- **Top searches**: the 20 most searched queries over the last 7 days, from
+  Algolia Analytics, with every sort order added together. Reading Analytics
+  is not a search, so it costs none of the plan's searches. The free plan
+  keeps 7 days of Analytics. Algolia counts a search once typing settles,
+  so these counts are lower than the search requests billed. Production
+  only, as for records.
+
+## Reads of other services
+
+[`admin-cached-reads.ts`](../../src/server/admin/admin-cached-reads.ts)
+holds every read of Hyperbrowser, Algolia and Polar. Each is cached for 10
+minutes in the Next.js data cache under a key starting with `admin`, and
+only admin pages call them, after `requireAdmin`. A failed read is not
+cached, so reloading tries again. Bump a read's version (`-v1`) when its
+result shape changes, since cached entries outlive deployments.

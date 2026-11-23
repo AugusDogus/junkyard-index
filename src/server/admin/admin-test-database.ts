@@ -58,9 +58,20 @@ const ADMIN_TEST_SCHEMA = `
     channel_config_version integer not null default 1,
     payload text not null default '{}', status text not null default 'pending',
     attempts integer not null default 0, last_error text,
-    created_at integer not null default 0
+    created_at integer not null default 0, delivered_at integer
   );
   create index search_notification_intent_alert_check_idx on search_notification_intent(alert_check_id);
+  create table user (
+    id text primary key, name text not null default 'user',
+    email text not null unique, email_verified integer not null default 0,
+    created_at integer not null
+  );
+  create table saved_search (
+    id text primary key, user_id text not null default 'user',
+    email_alerts_enabled integer not null default 0,
+    discord_alerts_enabled integer not null default 0,
+    created_at integer not null
+  );
 `;
 
 /** An in-memory database with the tables the admin dashboard reads. */
