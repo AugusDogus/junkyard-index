@@ -78,11 +78,14 @@ shared durable codec interface.
 
 Paused chunks emit no vehicles, yards, presence or accounting. The completed
 snapshot emits only after all closing pages and full-population quality guards
-pass. A failed request, parser, guard or callback returns no advanced checkpoint.
-Prior accepted inventory remains preserved. A complete cursor performs no HTTP
+pass. A failed parser, guard or callback returns no advanced checkpoint. A GET
+that times out or answers HTTP 5xx is sent once more if a full request budget
+still fits; if it fails again, a chunk that already validated pages returns that
+checkpoint as paused, and one that has not fails without advancing. Prior
+accepted inventory remains preserved. A complete cursor performs no HTTP
 or callbacks when replayed.
 
-Requests use normal HTTPS, manual redirects, no retries, a combined 45-second
+Requests use normal HTTPS, manual redirects, a combined 45-second
 request/body deadline and a 2 MiB document limit. The origin can take 12 to 14
 seconds to first byte, so the earlier 20-second budget failed whole chunks.
 Responses must be complete, unredirected HTTP 200 HTML, without content ranges.

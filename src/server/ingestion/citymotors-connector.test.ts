@@ -31,6 +31,8 @@ function mockInventory(
     response?: ResponseInit;
     networkFailure?: boolean;
     redirected?: boolean;
+    /** 1-based request numbers that time out or answer HTTP 503. */
+    transientFailures?: { at: number[]; kind: "timeout" | "server" };
   } = {},
 ) {
   const posts = Array.from({ length: 10 }, (_, index) => ({
@@ -44,6 +46,14 @@ function mockInventory(
       const url = input instanceof Request ? input.url : String(input);
       requests.push(url);
       if (options.networkFailure) throw new TypeError("Network unavailable");
+      if (options.transientFailures?.at.includes(requests.length)) {
+        if (options.transientFailures.kind === "timeout")
+          throw new DOMException("The operation timed out.", "TimeoutError");
+        return new Response("Service Unavailable", {
+          status: 503,
+          headers: { "content-type": "text/html" },
+        });
+      }
       let body: string;
       if (url === CITYMOTORS_CATALOG) {
         listings++;
@@ -211,6 +221,68 @@ test("City Motors pauses before a GET that could outlast the chunk deadline", as
     expect(result.status).toBe("paused");
     expect(result.pagesProcessed).toBe(fitting);
     expect(requests).toHaveLength(fitting);
+  } finally {
+    clock.mockRestore();
+  }
+});
+
+test.each(["timeout", "server"] as const)(
+  "City Motors sends a GET that failed transiently (%s) once more and continues",
+  async (kind) => {
+    const requests = mockInventory({ transientFailures: { at: [2], kind } });
+    const result = await run();
+    expect(result).toMatchObject({ status: "complete", pagesProcessed: 12 });
+    expect(requests).toHaveLength(13);
+    expect(requests[2]).toBe(requests[1]);
+  },
+);
+
+test("City Motors returns the last validated checkpoint when a GET fails twice after progress", async () => {
+  const requests = mockInventory({
+    transientFailures: { at: [2, 3], kind: "timeout" },
+  });
+  const paused = await run(undefined, 3);
+  expect(paused).toMatchObject({ status: "paused", pagesProcessed: 1 });
+  expect(paused.cursor.phase).toBe("details");
+  if (paused.cursor.phase !== "details")
+    throw new Error("Expected native detail checkpoint");
+  expect(paused.cursor.records).toHaveLength(0);
+  expect(requests).toHaveLength(3);
+  const resumed = await run(paused.cursor);
+  expect(resumed).toMatchObject({ status: "complete", pagesProcessed: 11 });
+  expect(requests[3]).toBe(requests[1]);
+});
+
+test("City Motors fails a chunk whose first GET fails twice without advancing", async () => {
+  const requests = mockInventory({
+    transientFailures: { at: [1, 2], kind: "server" },
+  });
+  await expect(run()).rejects.toThrow("prior inventory is preserved");
+  expect(requests).toHaveLength(2);
+});
+
+test("City Motors resends a failed GET only when it still fits the chunk deadline", async () => {
+  const requests = mockInventory({
+    transientFailures: { at: [3], kind: "timeout" },
+  });
+  let now = 0;
+  const clock = spyOn(Date, "now").mockImplementation(() => now);
+  try {
+    const result = await Effect.runPromise(
+      streamCitymotorsInventoryWithRequestGate(
+        { maxPages: 32, onBatch: () => Effect.void },
+        (request) =>
+          request.pipe(
+            Effect.ensuring(
+              Effect.sync(() => {
+                now += CITYMOTORS_WORST_CASE_REQUEST_MS;
+              }),
+            ),
+          ),
+      ),
+    );
+    expect(result).toMatchObject({ status: "paused", pagesProcessed: 2 });
+    expect(requests).toHaveLength(3);
   } finally {
     clock.mockRestore();
   }
