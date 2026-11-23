@@ -33,10 +33,15 @@ export function stopRunConsequences(
   return [
     `Run ${run.runId} is abandoned and its workflow is cancelled.`,
     "Runs queued behind it go ahead and can publish.",
-    "Data it already wrote stays; nothing is deleted.",
+    "Vehicles it already published stay; its unpublished crawl data and any temporary search copy are discarded.",
     run.source === null
-      ? "Its sources' next scheduled runs start fresh on current code."
-      : `${run.name}'s next scheduled run starts fresh on current code: ${RETRY_HOURS} hours after the stop while it has attempts left today (${IngestionSchedule.maxAttemptsPerDay} a day), otherwise in tomorrow's daily pass.`,
+      ? "Its sources' next scheduled runs are started by the ingestion pass, on the code that pass started on."
+      : `${run.name}'s next scheduled retry comes ${RETRY_HOURS} hours after the stop while it has attempts left today (${IngestionSchedule.maxAttemptsPerDay} a day), otherwise in tomorrow's daily pass. Today's ingestion pass starts that retry on the code the pass started on, which may be older than current code.`,
+    ...(run.source !== null && run.deployment.kind === "other"
+      ? [
+          `This run is on another deployment (${run.deployment.deploymentId}), so a retry today may run that same old code. Use Stop and run again to restart it on current code now.`,
+        ]
+      : []),
     ...(fullRebuild
       ? [
           `It is at the ${run.stage} stage, past its crawl, so it may have written part of its data. A full search rebuild runs next, rewriting every vehicle in search.`,
@@ -71,8 +76,9 @@ export function StopRunDetails({
       </ul>
       {run.source !== null && (
         <p className="text-muted-foreground text-xs">
-          Stop and run again starts a fresh run of {run.name} right away
-          instead, as Run now does. It counts as one of today&apos;s attempts.
+          Stop and run again starts a fresh run of {run.name} on current code
+          right away instead, as Run now does. It counts as one of today&apos;s
+          attempts.
         </p>
       )}
       {plan.fullRebuild && (

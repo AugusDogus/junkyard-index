@@ -34,6 +34,9 @@ export function StopRunControl({ run }: { run: StoppableRun }) {
   const plan = stopRunPlan(run);
   const blocked =
     plan.kind === "refused" || (plan.fullRebuild && !rebuildConfirmed);
+  // A plain stop's retry today may run the same old code, so restarting on
+  // current code is the primary choice for a run on another deployment.
+  const runAgainFirst = run.source !== null && run.deployment.kind === "other";
 
   function send(kind: StopRunInput["kind"]) {
     if (plan.kind === "refused") return;
@@ -105,7 +108,7 @@ export function StopRunControl({ run }: { run: StoppableRun }) {
             </Button>
             {run.source !== null && (
               <Button
-                variant="outline"
+                variant={runAgainFirst ? "destructive" : "outline"}
                 size="sm"
                 disabled={pending || blocked}
                 onClick={() => send("stop_and_run")}
@@ -114,7 +117,7 @@ export function StopRunControl({ run }: { run: StoppableRun }) {
               </Button>
             )}
             <Button
-              variant="destructive"
+              variant={runAgainFirst ? "outline" : "destructive"}
               size="sm"
               disabled={pending || blocked}
               onClick={() => send("stop")}

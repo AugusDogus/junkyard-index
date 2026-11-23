@@ -55,8 +55,9 @@ error" opens the exact text the system stored.
   [Stop a run](#stop-a-run)). Then sources that failed their last 2 or more
   runs or have not been updated for over 36 hours (the same rule
   `/api/status` uses), a run that has made no progress for over 3 hours (it
-  blocks that source's next run), search falling behind, and late
-  saved-search alerts. Each links to the page with details.
+  blocks that source's next run; left out when the run is already listed
+  above with a stop), search falling behind, and late saved-search alerts.
+  Each links to the page with details.
 - **Sources**: how many are updated today, failing, out of date, running,
   paused (here or by their Vercel flag), hidden from the public site and
   retired, plus when the latest run started.
@@ -152,12 +153,17 @@ The dialog says what happens, and the stop works like the cron-secret
 
 - The run is abandoned and its workflow cancelled. Runs queued behind it go
   ahead, and the source's slot is free.
-- Data it already wrote stays.
-- The source's next scheduled run starts fresh on current code: 2 hours
-  after the stop while it has attempts left today (3 a day), otherwise in
-  tomorrow's daily pass. **Stop and run again** starts one right away
+- Vehicles it already published stay; its unpublished crawl data and any
+  temporary search copy are discarded.
+- The source's next scheduled retry comes 2 hours after the stop while it
+  has attempts left today (3 a day), otherwise in tomorrow's daily pass.
+  Today's retry is started by today's ingestion pass, which runs the code
+  that pass started on: after a mid-day deploy, that can be the same old
+  code the stopped run had. Tomorrow's pass runs current code.
+- **Stop and run again** starts a fresh run on current code right away
   instead, like Run now (it is refused, with the reason, if the source is
-  paused or retired; the stop still happens).
+  paused or retired; the stop still happens). For a run on another
+  deployment it is the dialog's primary button.
 - A run past its crawl (any stage but `sources`) may have written part of
   its data, so stopping it makes the next run rebuild search in full. The
   dialog asks you to confirm that first. If the run moved past its crawl
@@ -167,12 +173,16 @@ The dialog says what happens, and the stop works like the cron-secret
 - If its workflow could not be cancelled, the result names it: cancel it in
   the Vercel dashboard. The run is stopped in the database either way.
 
-Each stop is logged under Recent actions as "Stopped a run" with the run id,
-stage, workflow and whether a full rebuild follows. Whether a run runs the
+Each stop of a source's run is logged under that source's Recent actions as
+"Stopped a run" with the run id, stage, workflow and whether a full rebuild
+follows. A stop of an every-source run is logged in `admin_action_log` with
+source `all`, but no page shows it. A run that ended after the page loaded
+is reported as already ended, and nothing is stopped or logged. Whether a run runs the
 current deployment's code comes from the workflow backend's list of live
 ingestion workflows; it shows as unknown off Vercel, when the list cannot be
-read, or for a workflow it does not list (one that ended, or started over
-two days ago).
+read or does not answer within 5 seconds, or for a workflow it does not list
+(one that ended, or started over two days ago). Only the overview and a
+source page with an active run read that list.
 
 ### Search & alerts (`/admin/search`)
 

@@ -31,6 +31,8 @@ export type AttentionInput = {
   searchProblems: readonly string[];
   /** From AlertStatus.evaluate: empty while alerts are healthy or paused. */
   alertProblems: readonly string[];
+  /** Runs the overview already lists with a stop (RunHold.attention). */
+  listedRunIds: ReadonlySet<string>;
 };
 
 /** Whether the overview leaves the source out entirely. */
@@ -51,7 +53,7 @@ function sourceItems(
   if (isQuiet(summary)) return [];
   const href = `/admin/sources/${summary.source}`;
   const items: AttentionItem[] = [];
-  if (summary.stuck !== null) {
+  if (summary.stuck !== null && !input.listedRunIds.has(summary.stuck.runId)) {
     const hours = Math.floor(
       (input.now.getTime() - summary.stuck.lastProgressAt.getTime()) / HOUR,
     );
