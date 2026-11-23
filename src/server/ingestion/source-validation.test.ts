@@ -146,7 +146,7 @@ describe("source snapshot validation", () => {
     { source: "lonestarimports", minimum: 843, accepted: 2531, rejected: 9 },
     { source: "alshned", minimum: 13, accepted: 41, rejected: 2 },
     { source: "cstruck", minimum: 19, accepted: 59, rejected: 5 },
-    { source: "heavytruckparts", minimum: 277, accepted: 838, rejected: 20 },
+    { source: "heavytruckparts", minimum: 277, accepted: 834, rejected: 20 },
     { source: "beavers", minimum: 92, accepted: 278, rejected: 12 },
     { source: "bigd", minimum: 96, accepted: 288, rejected: 7 },
     { source: "indianriver", minimum: 349, accepted: 1_049, rejected: 7 },

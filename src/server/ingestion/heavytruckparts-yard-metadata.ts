@@ -12,7 +12,7 @@ export interface HtpSupplier {
   yard: Yard;
 }
 
-// Four Census Public_AR_Current exact-address interpolations and two OSM
+// Three Census Public_AR_Current exact-address interpolations and two OSM
 // house-address matches (Crest way 546691786, American way 274202609).
 // Original geocoder responses and request receipts are saved in the test corpus.
 export const HTP_SUPPLIERS = [
@@ -135,32 +135,6 @@ export const HTP_SUPPLIERS = [
       lng: -84.7884408,
       websiteUrl:
         "https://www.heavytruckparts.net/search.php?fltpc=2251343&store=1",
-    },
-  },
-  {
-    code: "catruck",
-    supplier: "297005",
-    store: "1",
-    itemCategory: "Complete-Vehicle",
-    title: "Complete Vehicle",
-    location: "Sold by: CA Truck Parts Location: Opa-Locka FL",
-    minimum: 1,
-    storeClaims: ["CA Truck Parts", "13480 Cairo Lane", "Opa-Locka, FL 33054"],
-    yard: {
-      source: "heavytruckparts",
-      code: "catruck",
-      name: "CA Truck Parts",
-      operator: "CA Truck Parts",
-      address: "13480 Cairo Lane",
-      city: "Opa-Locka",
-      state: "FL",
-      postalCode: "33054",
-      phone: "+13056881101",
-      email: null,
-      lat: 25.896529879005,
-      lng: -80.257901482201,
-      websiteUrl:
-        "https://www.heavytruckparts.net/search.php?fltpc=297005&store=1",
     },
   },
   {

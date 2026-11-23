@@ -63,6 +63,37 @@ export const HTP_REJECTED_SUPPLIERS = [
   },
 ] as const satisfies readonly HtpSupplier[];
 
+// CA Truck Parts qualified on November 15, 2026, but by November 23 its cards
+// and item pages no longer publish a native VIN, so every row is an identity
+// reject. Two rows mention a VIN only in free text and two have none, so it
+// stays out rather than admitting a supplier that cannot prove identity.
+export const HTP_NO_VIN_SUPPLIER = {
+  code: "catruck",
+  supplier: "297005",
+  store: "1",
+  itemCategory: "Complete-Vehicle",
+  title: "Complete Vehicle",
+  location: "Sold by: CA Truck Parts Location: Opa-Locka FL",
+  minimum: 1,
+  storeClaims: ["CA Truck Parts", "13480 Cairo Lane", "Opa-Locka, FL 33054"],
+  yard: {
+    source: "heavytruckparts",
+    code: "catruck",
+    name: "CA Truck Parts",
+    operator: "CA Truck Parts",
+    address: "13480 Cairo Lane",
+    city: "Opa-Locka",
+    state: "FL",
+    postalCode: "33054",
+    phone: "+13056881101",
+    email: null,
+    lat: 25.896529879005,
+    lng: -80.257901482201,
+    websiteUrl:
+      "https://www.heavytruckparts.net/search.php?fltpc=297005&store=1",
+  },
+} as const satisfies HtpSupplier;
+
 // B&W's complete roster is dealer stock, not a qualified salvage supplier.
 // Retained only to replay the saved retail evidence, including Please Call rows.
 export const HTP_RETAIL_SUPPLIER = {
