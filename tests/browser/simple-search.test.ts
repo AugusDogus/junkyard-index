@@ -438,6 +438,29 @@ for (const width of [320, 360, 390])
           controls.map((control) => control.boundingBox()),
         );
         expect(new Set(boxes.map((box) => box?.y)).size).toBe(1);
+        // Natural widths leave headroom, since CI's fallback font is wider.
+        const natural = await Promise.all(
+          controls.map((control) =>
+            control.evaluate(
+              // Content and padding, plus the borders.
+              (element) => {
+                const style = getComputedStyle(element);
+                return (
+                  element.scrollWidth +
+                  Number.parseFloat(style.borderLeftWidth) +
+                  Number.parseFloat(style.borderRightWidth)
+                );
+              },
+            ),
+          ),
+        );
+        const row = await page.evaluate(() => {
+          const search = document.getElementById("search");
+          return search?.closest(".sticky")?.querySelector(".flex.w-full")
+            ?.clientWidth;
+        });
+        const used = natural.reduce((sum, width) => sum + width, 0) + 3 * 6;
+        expect((row ?? 0) - used).toBeGreaterThanOrEqual(16);
         // No control clips its own label.
         for (const control of controls)
           expect(
