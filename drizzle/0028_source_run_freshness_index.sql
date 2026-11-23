@@ -1,0 +1,2 @@
+DROP INDEX `ingestion_source_run_started_at_idx`;--> statement-breakpoint
+CREATE INDEX `ingestion_source_run_started_at_idx` ON `ingestion_source_run` (`started_at`,`source`,`acceptance_status`,`run_id`);
