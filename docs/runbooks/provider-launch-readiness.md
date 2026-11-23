@@ -309,6 +309,8 @@ verification or live load qualification was performed.
 
 ## Offline replay timing
 
+(Fixture removed in the November 23 cut; history only.)
+
 The Lentini replay injects saved responses and a fixed run clock. It never enters
 the provider client, shared host lease or real-time pacing. Its former 600-second
 timeout came from repeatedly validating, deriving and encoding multi-MiB

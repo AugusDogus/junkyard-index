@@ -412,8 +412,8 @@ function hyperbrowser(
   };
 }
 
-/** `source`'s Kernel browsers, under the Kernel session lease: stealth
- * (Kernel's managed proxy and CAPTCHA solver) and headless. Their pages load
+/** `source`'s Kernel browsers, under the Kernel session lease: CAPTCHA
+ * solver, direct egress, headless. Their pages load
  * `subresources` besides the transport's documents. Without `apiKey` every
  * create fails with `KernelKeyMissing` and no request is sent, so a source
  * configured for Kernel fails closed instead of falling back. */

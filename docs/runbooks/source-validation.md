@@ -115,15 +115,12 @@ from missing/deletion reconciliation.
   October 23, 20.2 days before their November 12 qualification. The November 15
   Tulsa (`OO95`) committed full replay has 1,064 donors through November 14.
   The combined source therefore keeps 30 days. See [Midway](midway-ingestion.md).
-- `urgiis`: Eagle's newest accepted date is October 1 (45+ days at qualification)
-  and Premier's is October 23 (24 days on November 16). Other dated tenants are
-  United November 9, Ace Iowa November 11, Chucks November 10, Central NH
-  November 13, Higgins November 15, Junior Sinn November 5, Lambert November 12,
-  Stroud November 13, and Lentini Ringoes/Port Murray November 13/12. The source
-  newest is November 15. Linders, Chuckran, Dings, Bishops, Ace St Paul,
-  Revolution, AZ, Norbs and Mars have no parseable arrivals. These are the 19
-  configured tenants (Lentini covers two physical yards). No age exception is
-  needed. Full saved connector replay, including recovered model routes,
+- `urgiis`: Eagle's newest accepted date is October 1 (45+ days at
+  qualification). Other dated tenants are Chucks November 10, Higgins
+  November 15, Lambert November 12 and Stroud November 13. The source newest is
+  November 15. Linders, Chuckran, Ace St Paul and Norbs have no parseable
+  arrivals. These are the 9 configured tenants after the November 23 cut of
+  the 11 Cloudflare-blocked full-service tenants. No age exception is needed. Full saved connector replay, including recovered model routes,
   confirms these dates. See [URG](urgiis-ingestion.md) and [batch B](urgiis-batch-b.md).
 - `autorecycler`: the saved eligible Ario customer snapshots end November 2-14,
   except Colorado Auto & Parts, October 7 (41 days on November 17). Colorado

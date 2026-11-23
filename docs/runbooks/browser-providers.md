@@ -71,7 +71,7 @@ cut instead ([URG IIS](urgiis-ingestion.md)).
 - Billing is per second of browser uptime ($0.0000166667 per headless
   second, about $0.06 an hour), with no minimum. The Developer plan is free
   with $5 of usage credit a month and 5 concurrent browsers.
-- Refusals on create never fail the run:
+- Refusals on create defer the chunk instead of failing it:
 
   | Kernel answer on create                                     | Result                                                   |
   | ----------------------------------------------------------- | -------------------------------------------------------- |
@@ -81,10 +81,12 @@ cut instead ([URG IIS](urgiis-ingestion.md)).
   | HTTP 403 (spending cap, monthly credit used up, plan limit) | `ProviderCapacityDeferred`                               |
   | HTTP 401, other 4xx, 5xx, missing `KERNEL_API_KEY`          | the read fails with the provider's message               |
 
-  A 403 lasts until the next monthly period or a higher cap, so a source that
-  keeps deferring on it goes stale instead of failing; its deferral message
-  names the spending cap and credit. Raise the cap or move the source back to
-  Hyperbrowser.
+  A deferred chunk retries its cursor every five minutes. After three hours
+  with no chunk advancing, the source fails for that run with its prior
+  inventory still published, and retries after its usual delay; the failure
+  message carries the Kernel refusal. A 403 lasts until the next monthly
+  period or a higher cap, so it fails each run this way until then. Raise the
+  cap or move the source back to Hyperbrowser.
 
 ### Checking Kernel usage without the dashboard
 
