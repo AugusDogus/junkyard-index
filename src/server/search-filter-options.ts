@@ -29,7 +29,10 @@ function sorted(values: Iterable<string>): string[] {
  * Retired and hidden sources are left out, as on the homepage.
  * The table scan is why callers cache this with the daily inventory.
  */
-async function load(database: LibSQLDatabase): Promise<InventoryFilterOptions> {
+async function load(
+  database: LibSQLDatabase,
+  hidden: HiddenSources,
+): Promise<InventoryFilterOptions> {
   const [makeCounts, yards, stateColors] = await Promise.all([
     InventorySnapshot.makeCounts(database),
     database
@@ -52,12 +55,14 @@ async function load(database: LibSQLDatabase): Promise<InventoryFilterOptions> {
           eq(yardTable.code, yardInventory.locationCode),
         ),
       )
-      .where(notInArray(yardInventory.source, [...HiddenSources.unlisted])),
+      .where(
+        notInArray(yardInventory.source, [...HiddenSources.unlisted(hidden)]),
+      ),
     database.all(sql`
       select distinct state, color from vehicle not indexed
       where missing_since_at is null
         and source not in (${sql.join(
-          HiddenSources.unlisted.map((source) => sql`${source}`),
+          HiddenSources.unlisted(hidden).map((source) => sql`${source}`),
           sql`, `,
         )})
     `),

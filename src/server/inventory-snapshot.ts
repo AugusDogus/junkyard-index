@@ -5,6 +5,7 @@ import { HiddenSources } from "~/lib/hidden-source";
 import { MakeInventory, type MakeRollupRow } from "~/lib/make-inventory";
 import { VehicleName } from "~/lib/vehicle-name";
 import { InventoryRollup } from "~/server/inventory-rollup";
+import { SourceControlRepository } from "~/server/source-control/source-control-repository";
 import {
   ingestionProjectorCheckpoint,
   ingestionRun,
@@ -133,12 +134,23 @@ async function read<Data>(
 }
 
 /** Make and model pages leave out hidden sources. */
-function shown(rows: readonly MakeRollupRow[]): MakeRollupRow[] {
-  return rows.filter((row) => !HiddenSources.has(row.source));
+function shown(
+  rows: readonly MakeRollupRow[],
+  hidden: HiddenSources,
+): MakeRollupRow[] {
+  return rows.filter((row) => !HiddenSources.has(hidden, row.source));
 }
 
+/**
+ * Reads the hidden list straight from `source_control`: projection runs in
+ * workflows and scripts, outside a request and its caches.
+ */
 async function compute(database: LibSQLDatabase): Promise<InventorySnapshot> {
-  const models = shown(await InventoryRollup.models(database));
+  const [rows, hidden] = await Promise.all([
+    InventoryRollup.models(database),
+    SourceControlRepository.hiddenSources(database),
+  ]);
+  const models = shown(rows, hidden);
   const counts = new Map<string, number>();
   const makeModels = new Map<string, MakeRollupRow[]>();
   for (const row of models) {
@@ -303,11 +315,12 @@ export const InventorySnapshot = {
   async makeModels(
     database: LibSQLDatabase,
     makeKey: string,
+    hidden: HiddenSources,
   ): Promise<MakeRollupRow[]> {
     const key = makeModelsKey(makeKey);
     const data = await storedData(database, key);
     return data === null
       ? []
-      : shown(parse(key, data, makeModelsSchema).map(fromTuple));
+      : shown(parse(key, data, makeModelsSchema).map(fromTuple), hidden);
   },
 } as const;

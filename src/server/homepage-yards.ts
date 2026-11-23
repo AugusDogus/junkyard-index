@@ -10,7 +10,10 @@ import { yardInventory, yard as yardTable } from "~/schema";
  * listing, yard page and sitemap starts here, so hidden and retired sources
  * are left out once.
  */
-export async function getHomepageYards(database: LibSQLDatabase) {
+export async function getHomepageYards(
+  database: LibSQLDatabase,
+  hidden: HiddenSources,
+) {
   const yards = await database
     .select({
       source: yardInventory.source,
@@ -32,7 +35,9 @@ export async function getHomepageYards(database: LibSQLDatabase) {
         eq(yardTable.code, yardInventory.locationCode),
       ),
     )
-    .where(notInArray(yardInventory.source, [...HiddenSources.unlisted]))
+    .where(
+      notInArray(yardInventory.source, [...HiddenSources.unlisted(hidden)]),
+    )
     .orderBy(asc(yardInventory.stateAbbr), asc(yardInventory.locationName));
   const detailed = yards.map(({ metadata, inventoryUrl, ...yard }) => ({
     ...yard,

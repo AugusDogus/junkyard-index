@@ -18,6 +18,7 @@ import {
 } from "~/lib/ingestion-source";
 import { YardInventory, type YardVehicle } from "~/lib/yard-inventory";
 import { getSourceFreshness } from "~/server/ingestion/source-freshness";
+import { getHiddenSources } from "~/server/source-control/hidden-sources-loader";
 import { vehicle, yardInventory } from "~/schema";
 
 async function loadYardVehicles(
@@ -121,8 +122,8 @@ export const getYardPublishedAt = cacheInventory(async (): Promise<
 }, ["yard-published-at-v1"]);
 
 /** Lightweight dates only, one cached DB query per state, no Algolia searches. */
-export const getRegionNewCount = cacheInventory(
-  async (stateAbbr: string) => {
+const getCachedRegionNewCount = cacheInventory(
+  async (stateAbbr: string, hiddenList: readonly string[]) => {
     const rows = await db
       .select({
         availableDate: vehicle.availableDate,
@@ -134,7 +135,9 @@ export const getRegionNewCount = cacheInventory(
         and(
           eq(vehicle.stateAbbr, stateAbbr),
           isNull(vehicle.missingSinceAt),
-          notInArray(vehicle.source, [...HiddenSources.unlisted]),
+          notInArray(vehicle.source, [
+            ...HiddenSources.unlisted(HiddenSources.of(hiddenList)),
+          ]),
         ),
       );
     return YardInventory.newCount(
@@ -148,8 +151,13 @@ export const getRegionNewCount = cacheInventory(
       new Date().toISOString(),
     );
   },
-  ["region-new-count-v2", ...HiddenSources.list],
+  ["region-new-count-v3"],
 );
+
+/** New arrivals in a state; the hidden list keys the cache entry. */
+export async function getRegionNewCount(stateAbbr: string): Promise<number> {
+  return getCachedRegionNewCount(stateAbbr, (await getHiddenSources()).list);
+}
 
 /** Every yard with live inventory, with its page path. */
 export const getYardDirectory = cache(async () => {

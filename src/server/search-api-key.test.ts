@@ -6,6 +6,7 @@ import { SearchApiKey } from "./search-api-key";
 
 const NOW = Date.UTC(2026, 10, 20, 12);
 const PARENT = "parent-search-key";
+const HIDDEN = HiddenSources.of(["meeks"]);
 
 /** Splits a secured key into its signature and the restrictions it signs. */
 function decode(apiKey: string) {
@@ -21,6 +22,7 @@ function mint(tier: "free" | "lite" | "full") {
     tier,
     visitor: "203.0.113.7",
     nowMs: NOW,
+    hidden: HIDDEN,
   });
 }
 
@@ -45,6 +47,7 @@ describe("SearchApiKey.mint", () => {
         tier,
         visitor: "203.0.113.7",
         nowMs: NOW,
+        hidden: HIDDEN,
       });
       expect(mint(tier).apiKey).toBe(
         client.generateSecuredApiKey({ parentApiKey: PARENT, restrictions }),
@@ -71,7 +74,7 @@ describe("SearchApiKey.mint", () => {
     }
   });
 
-  test("every key reads only this deployment's indices and expires in an hour", () => {
+  test("every key reads only this deployment's indices and expires in 15 minutes", () => {
     const grant = mint("full");
     const { params } = decode(grant.apiKey);
     expect(params.get("restrictIndices")?.split(",")).toEqual([
@@ -82,15 +85,31 @@ describe("SearchApiKey.mint", () => {
       "vehicles_newest",
     ]);
     // Algolia checks the signed timestamp; the browser gets the lifetime.
-    expect(params.get("validUntil")).toBe(String(NOW / 1000 + 3600));
-    expect(grant.expiresInSeconds).toBe(3600);
+    // Short, so a source hidden from /admin leaves open tabs' keys soon.
+    expect(params.get("validUntil")).toBe(String(NOW / 1000 + 900));
+    expect(grant.expiresInSeconds).toBe(900);
   });
 
-  test("every key excludes the hidden sources from its searches", () => {
-    for (const tier of ["free", "lite", "full"] as const)
-      expect(decode(mint(tier).apiKey).params.get("filters") ?? undefined).toBe(
-        HiddenSources.algoliaFilter,
+  test("every key excludes the hidden sources from its searches and names them", () => {
+    for (const tier of ["free", "lite", "full"] as const) {
+      const grant = mint(tier);
+      expect(decode(grant.apiKey).params.get("filters")).toBe(
+        'NOT source:"meeks"',
       );
+      expect(grant.hiddenSources).toEqual(["meeks"]);
+    }
+  });
+
+  test("a key minted while nothing is hidden embeds no filter", () => {
+    const grant = SearchApiKey.mint({
+      parentApiKey: PARENT,
+      tier: "full",
+      visitor: "203.0.113.7",
+      nowMs: NOW,
+      hidden: HiddenSources.none,
+    });
+    expect(decode(grant.apiKey).params.has("filters")).toBe(false);
+    expect(grant.hiddenSources).toEqual([]);
   });
 
   test("rate limits count per visitor through a hashed user token", () => {

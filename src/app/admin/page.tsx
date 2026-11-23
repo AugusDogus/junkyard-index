@@ -115,7 +115,7 @@ export default async function AdminOverviewPage() {
                 </p>
                 {data.flags.status === "unavailable" && (
                   <RawText
-                    summary="The pause flags could not be read, so no source shows as paused. Sources run as if their flag were on."
+                    summary="The Vercel pause flags could not be read, so only sources paused here show as paused. The others run as if their flag were on."
                     raw={data.flags.message}
                     label="Show details"
                   />

@@ -7,6 +7,7 @@ import {
 } from "~/components/cars/ModelInventoryView";
 import { PublicPageShell } from "~/components/junkyards/PublicPageShell";
 import { InventoryFormat } from "~/lib/inventory-format";
+import { getHiddenSources } from "~/server/source-control/hidden-sources-loader";
 import { getModelPageData } from "~/server/vehicle-models";
 import {
   getSourcePublishedAt,
@@ -85,6 +86,7 @@ export default async function ModelPage({
         arrivals={data.arrivals}
         freshness={data.freshness}
         sourcePublishedAt={data.sourcePublishedAt}
+        hiddenSources={await getHiddenSources()}
       />
     </PublicPageShell>
   );

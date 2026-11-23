@@ -15,11 +15,12 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { trackRequestYardClick } from "~/lib/track-request-yard-click";
+import { useHiddenSources } from "~/components/HiddenSourcesContext";
 import { HiddenSources } from "~/lib/hidden-source";
 import type { DataSource } from "~/lib/types";
 import {
   AdvancedFiltersUpsell,
-  AVAILABLE_SOURCES,
+  availableSources,
   InventorySourcesFilter,
   YardTypeFilter,
   YearRangeFilter,
@@ -143,6 +144,7 @@ export function MobileFilterContent({
   yearRangeLimits,
   canUseAdvancedFilters,
 }: MobileFilterContentProps) {
+  const hiddenSources = useHiddenSources();
   const [addedSections, setAddedSections] = useState<FilterSectionKey[]>([]);
   const sectionToFocus = useRef<FilterSectionKey | null>(null);
   const minimumYear = yearRangeLimits?.min ?? 1900;
@@ -205,7 +207,7 @@ export function MobileFilterContent({
           summary={
             sources.length === 0
               ? "All sources"
-              : `${HiddenSources.shown(sources).length} of ${AVAILABLE_SOURCES.length} selected`
+              : `${HiddenSources.shown(hiddenSources, sources).length} of ${availableSources(hiddenSources).length} selected`
           }
           defaultOpen={allSectionsOpen || addedSections.includes("sources")}
         >

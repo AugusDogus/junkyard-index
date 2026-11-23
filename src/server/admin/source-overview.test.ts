@@ -6,6 +6,7 @@ import {
   type SourceOverviewInput,
   type SourceSummary,
 } from "./source-overview";
+import { SourceControl } from "~/server/source-control/source-control";
 
 const HOUR = 60 * 60 * 1000;
 // Ingestion days start at 07:00 UTC.
@@ -66,6 +67,16 @@ const input = (
   activeRuns: [],
   publishedCounts: new Map(),
   flags: { status: "read", enabled: new Set(["pyp", "row52", "meeks"]) },
+  controls: SourceControl.fromRows([
+    {
+      source: "meeks",
+      ingestion: "running",
+      visibility: "hidden",
+      hiddenReason: "meeksrecycling.com redirects visitors",
+      updatedByUserId: null,
+      updatedAt: now,
+    },
+  ]),
   ...overrides,
 });
 
@@ -244,7 +255,39 @@ describe("SourceOverview.build", () => {
         ),
         "pyp",
       ),
-    ).toMatchObject({ state: "paused", flag: "off" });
+    ).toMatchObject({ state: "paused", flag: "off", pausedBy: "flag" });
+  });
+
+  test("a source the owner paused here is paused, whatever its flag says", () => {
+    const controls = SourceControl.fromRows([
+      {
+        source: "pyp",
+        ingestion: "paused",
+        visibility: "shown",
+        hiddenReason: null,
+        updatedByUserId: "owner",
+        updatedAt: now,
+      },
+    ]);
+    expect(
+      summaryFor(SourceOverview.build(input({ controls })), "pyp"),
+    ).toMatchObject({
+      state: "paused",
+      flag: "on",
+      pausedBy: "admin",
+      stale: false,
+    });
+    expect(
+      summaryFor(
+        SourceOverview.build(
+          input({ controls, flags: { status: "read", enabled: new Set() } }),
+        ),
+        "pyp",
+      ).pausedBy,
+    ).toBe("admin_and_flag");
+    expect(
+      summaryFor(SourceOverview.build(input()), "pyp").pausedBy,
+    ).toBeNull();
   });
 
   test("unreadable flags pause nothing and say so", () => {
@@ -267,10 +310,14 @@ describe("SourceOverview.build", () => {
       state: "retired",
       retired: true,
     });
-    expect(summaryFor(summaries, "meeks").hiddenReason).toContain(
-      "meeksrecycling.com",
-    );
-    expect(summaryFor(summaries, "pyp").hiddenReason).toBeNull();
+    expect(summaryFor(summaries, "meeks").control.visibility).toEqual({
+      status: "hidden",
+      reason: "meeksrecycling.com redirects visitors",
+    });
+    expect(summaryFor(summaries, "pyp").control.visibility).toEqual({
+      status: "shown",
+    });
+    expect(SourceOverview.counts(summaries).hidden).toBe(1);
   });
 
   test("orders problems first", () => {

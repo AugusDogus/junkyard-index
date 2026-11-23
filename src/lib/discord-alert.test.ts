@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { formatDiscordAlert } from "./discord-alert";
+import { HiddenSources } from "./hidden-source";
 import { SearchAlertMatch } from "./search-alert-data";
 import {
   algoliaHitToSearchVehicle,
@@ -30,13 +31,16 @@ test("restores the pre-digest per-search vehicle preview message", () => {
     year: 1998,
     model: "V70",
   });
-  const embeds = formatDiscordAlert({
-    searchId: "pre-2000",
-    searchName: "pre-2000 volvo",
-    query: "volvo",
-    searchUrl: "https://example.com/search?q=volvo",
-    match: SearchAlertMatch.create(1, [vehicle]),
-  });
+  const embeds = formatDiscordAlert(
+    {
+      searchId: "pre-2000",
+      searchName: "pre-2000 volvo",
+      query: "volvo",
+      searchUrl: "https://example.com/search?q=volvo",
+      match: SearchAlertMatch.create(1, [vehicle]),
+    },
+    HiddenSources.none,
+  );
 
   expect(embeds).toHaveLength(2);
   expect(embeds[0]).toMatchObject({
@@ -49,40 +53,46 @@ test("restores the pre-digest per-search vehicle preview message", () => {
 });
 
 test("formats each saved search as its own preview message", () => {
-  const first = formatDiscordAlert({
-    searchId: "pre-2000",
-    searchName: "pre-2000 volvo",
-    query: "volvo",
-    searchUrl: "https://example.com/search?q=volvo",
-    match: SearchAlertMatch.create(2, [
-      vehicleFixture({
-        objectID: "volvo-v70",
-        year: 1998,
-        model: "V70",
-        imageUrl: "https://cdn.example/v70.jpg",
-      }),
-      vehicleFixture({
-        objectID: "volvo-240",
-        year: 1992,
-        model: "240",
-        imageUrl: "https://cdn.example/240.jpg",
-      }),
-    ]),
-  });
-  const second = formatDiscordAlert({
-    searchId: "v8",
-    searchName: "Volvo 2005-9 V8",
-    query: "",
-    searchUrl: "https://example.com/search?q=v8",
-    match: SearchAlertMatch.create(1, [
-      vehicleFixture({
-        objectID: "volvo-v8",
-        year: 2006,
-        model: "XC90",
-        imageUrl: "https://cdn.example/xc90.jpg",
-      }),
-    ]),
-  });
+  const first = formatDiscordAlert(
+    {
+      searchId: "pre-2000",
+      searchName: "pre-2000 volvo",
+      query: "volvo",
+      searchUrl: "https://example.com/search?q=volvo",
+      match: SearchAlertMatch.create(2, [
+        vehicleFixture({
+          objectID: "volvo-v70",
+          year: 1998,
+          model: "V70",
+          imageUrl: "https://cdn.example/v70.jpg",
+        }),
+        vehicleFixture({
+          objectID: "volvo-240",
+          year: 1992,
+          model: "240",
+          imageUrl: "https://cdn.example/240.jpg",
+        }),
+      ]),
+    },
+    HiddenSources.none,
+  );
+  const second = formatDiscordAlert(
+    {
+      searchId: "v8",
+      searchName: "Volvo 2005-9 V8",
+      query: "",
+      searchUrl: "https://example.com/search?q=v8",
+      match: SearchAlertMatch.create(1, [
+        vehicleFixture({
+          objectID: "volvo-v8",
+          year: 2006,
+          model: "XC90",
+          imageUrl: "https://cdn.example/xc90.jpg",
+        }),
+      ]),
+    },
+    HiddenSources.none,
+  );
 
   expect(first.map((embed) => embed.title)).toEqual([
     "New Vehicles Found: pre-2000 volvo",
@@ -106,21 +116,24 @@ test("formats each saved search as its own preview message", () => {
 });
 
 test("keeps a vehicle card when the match has no photo", () => {
-  const embeds = formatDiscordAlert({
-    searchId: "search-1",
-    searchName: "Sprint",
-    query: "",
-    searchUrl: "https://example.com/search",
-    match: SearchAlertMatch.create(1, [
-      vehicleFixture({
-        objectID: "JG1MR2158JK724014",
-        year: 1988,
-        make: "Chevrolet",
-        model: "Sprint",
-        imageUrl: undefined,
-      }),
-    ]),
-  });
+  const embeds = formatDiscordAlert(
+    {
+      searchId: "search-1",
+      searchName: "Sprint",
+      query: "",
+      searchUrl: "https://example.com/search",
+      match: SearchAlertMatch.create(1, [
+        vehicleFixture({
+          objectID: "JG1MR2158JK724014",
+          year: 1988,
+          make: "Chevrolet",
+          model: "Sprint",
+          imageUrl: undefined,
+        }),
+      ]),
+    },
+    HiddenSources.none,
+  );
 
   expect(embeds).toHaveLength(2);
   expect(embeds[1]?.title).toBe("1988 Chevrolet Sprint");

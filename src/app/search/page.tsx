@@ -15,6 +15,7 @@ import { SearchServerRender } from "~/lib/search-server-render";
 import { searchPageMetadata } from "./search-metadata";
 import { getHomepageYards } from "~/server/homepage-yards";
 import { searchKeyGrants } from "~/server/search-key-grant";
+import { getHiddenSources } from "~/server/source-control/hidden-sources-loader";
 import { auth } from "~/lib/auth";
 import { api, HydrateClient } from "~/trpc/server";
 
@@ -38,7 +39,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const knownYardNames = [params.yards]
     .flat()
     .some((value) => value?.includes(","))
-    ? (await getHomepageYards(db))
+    ? (await getHomepageYards(db, await getHiddenSources()))
         .map((yard) => yard.name)
         .filter((name) => name.includes(","))
     : [];

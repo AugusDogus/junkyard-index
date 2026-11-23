@@ -4,8 +4,14 @@ import { HiddenSources } from "~/lib/hidden-source";
 import { isPaidPlanTier, type PlanTier } from "~/lib/plans";
 import type { SearchKeyGrant } from "~/lib/search-key-grant";
 
-/** Secured keys expire after an hour; browsers fetch the next one first. */
-export const SEARCH_KEY_LIFETIME_SECONDS = 60 * 60;
+/**
+ * Secured keys expire after 15 minutes; browsers fetch the next one 5
+ * minutes before, when they next search. Each key embeds the hidden-source
+ * filter, so this bounds how long an open tab can still read a source hidden
+ * from /admin (docs/runbooks/hide-source.md). Minting is local and costs no
+ * Algolia quota.
+ */
+export const SEARCH_KEY_LIFETIME_SECONDS = 15 * 60;
 
 /**
  * The restrictions a browser's secured key carries. Algolia applies embedded
@@ -14,11 +20,12 @@ export const SEARCH_KEY_LIFETIME_SECONDS = 60 * 60;
  * results, whether a request pages by page/hitsPerPage or offset/length.
  * Every key:
  * - reads only this deployment's search indices (the env namespace);
- * - expires after an hour;
+ * - expires after 15 minutes;
  * - carries a per-visitor `userToken`, so the parent key's
  *   `maxQueriesPerIPPerHour` is counted per visitor even behind shared IPs;
- * - filters out hidden sources (HiddenSources), which Algolia ANDs with the
- *   request's own filters, so a hand-made request cannot read them either.
+ * - filters out the sources hidden when it was minted, which Algolia ANDs
+ *   with the request's own filters, so a hand-made request cannot read them
+ *   either.
  *
  * Secured keys cannot forbid filters. Algolia applies embedded `filters` in
  * addition to the query's own, so a free key cannot stop a request from
@@ -30,7 +37,9 @@ function restrictions(input: {
   tier: PlanTier;
   visitor: string;
   nowMs: number;
+  hidden: HiddenSources;
 }): Record<string, string | number | readonly string[]> {
+  const hiddenFilter = HiddenSources.algoliaFilter(input.hidden);
   return {
     restrictIndices: ALGOLIA_SEARCH_INDEX_NAMES,
     validUntil: validUntil(input.nowMs),
@@ -38,9 +47,7 @@ function restrictions(input: {
       .update(input.visitor)
       .digest("hex")
       .slice(0, 32),
-    ...(HiddenSources.algoliaFilter && {
-      filters: HiddenSources.algoliaFilter,
-    }),
+    ...(hiddenFilter !== undefined && { filters: hiddenFilter }),
     // Search parameters sit beside the other restrictions in the signed
     // query string, as Algolia's generateSecuredApiKey writes them. Offset
     // pagination is an alternative to page/hitsPerPage, so free keys pin
@@ -96,11 +103,13 @@ function mint(input: {
   tier: PlanTier;
   visitor: string;
   nowMs: number;
+  hidden: HiddenSources;
 }): SearchKeyGrant {
   return {
     apiKey: sign(input.parentApiKey, restrictions(input)),
     expiresInSeconds: SEARCH_KEY_LIFETIME_SECONDS,
     tier: input.tier,
+    hiddenSources: [...input.hidden.list],
   };
 }
 

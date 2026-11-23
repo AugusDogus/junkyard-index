@@ -34,11 +34,13 @@ test("the search client transforms legacy and modern saved refinements through s
     mock.module('./src/env.js', () => ({env:{NEXT_PUBLIC_ALGOLIA_APP_ID:'fixture',NEXT_PUBLIC_ALGOLIA_SEARCH_API_KEY:'fixture'}}));
     mock.module('algoliasearch/lite', () => ({liteClient: () => ({search: async input => {captured.push(input);return {results:(Array.isArray(input)?input:input.requests).map(()=>({hits:[],nbHits:0,page:0,nbPages:0,hitsPerPage:24,processingTimeMS:0}))};}})}));
     const {getSearchClient} = await import('./src/lib/algolia-search');
+    const {HiddenSources} = await import('./src/lib/hidden-source');
+    const hidden = HiddenSources.of(['meeks']);
     for (const ready of [false,true]) {
-      const client = getSearchClient(true,false,true,ready);
+      const client = getSearchClient(hidden,true,false,true,ready);
       await client.search([{indexName:'vehicles',params:{query:'Sonoma',facetFilters:[['make:Chevrolet']]}}]);
       await client.search({requests:[{indexName:'vehicles',facetFilters:[['make:Chevrolet']]}]});
-      await getSearchClient(true,true,true,ready).search([{indexName:'vehicles',params:{query:'make:Chevrolet Sonoma'}}]);
+      await getSearchClient(hidden,true,true,true,ready).search([{indexName:'vehicles',params:{query:'make:Chevrolet Sonoma'}}]);
     }
     console.log(JSON.stringify(captured));
   `;
@@ -70,12 +72,12 @@ test("the search client transforms legacy and modern saved refinements through s
           indexName: "vehicles",
           params: expect.objectContaining({
             query: "Sonoma",
-            // Every request also leaves out hidden sources.
+            // Every request also leaves out the page's hidden sources.
             filters: combineSearchFilters(
               ready
                 ? `${attribute}:"Chevrolet"`
                 : '(make:"Chevrolet" OR searchTokens:"make=chevrolet")',
-              HiddenSources.algoliaFilter,
+              HiddenSources.algoliaFilter(HiddenSources.of(["meeks"])),
             ),
           }),
         },

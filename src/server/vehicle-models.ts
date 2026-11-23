@@ -15,6 +15,7 @@ import { YardMakeInventory } from "~/lib/yard-make-inventory";
 import { VehicleName } from "~/lib/vehicle-name";
 import { YardInventory, type YardVehicle } from "~/lib/yard-inventory";
 import { InventorySnapshot } from "~/server/inventory-snapshot";
+import { getHiddenSources } from "~/server/source-control/hidden-sources-loader";
 import { getRoutedYards, type RoutedYard } from "~/server/yard-inventory";
 import { vehicle } from "~/schema";
 
@@ -56,11 +57,19 @@ export const findMake = cache(
   },
 );
 
-/** One make's live vehicles per yard and raw model, from the snapshot. */
-const getMakeRollup = cacheInventory(
-  (makeKey: string) => InventorySnapshot.makeModels(db, makeKey),
-  ["make-rollup-snapshot-v3", ...HiddenSources.list],
+/**
+ * One make's live vehicles per yard and raw model, from the snapshot. The
+ * hidden list is an argument, so a hide or show reads a fresh entry.
+ */
+const getCachedMakeRollup = cacheInventory(
+  (makeKey: string, hiddenList: readonly string[]) =>
+    InventorySnapshot.makeModels(db, makeKey, HiddenSources.of(hiddenList)),
+  ["make-rollup-snapshot-v4"],
 );
+
+async function getMakeRollup(makeKey: string) {
+  return getCachedMakeRollup(makeKey, (await getHiddenSources()).list);
+}
 
 /** A model's vehicle with the yard it sits in. */
 export type ModelArrival = YardVehicle & { source: string; code: string };
@@ -70,7 +79,9 @@ const ARRIVALS = 24;
 async function loadModelArrivals(
   rawMakes: string[],
   rawModels: string[],
+  hiddenList: readonly string[],
 ): Promise<ModelArrival[]> {
+  const hidden = HiddenSources.of(hiddenList);
   // Providers write dates in different formats, so rank in JS. Read only
   // selection fields, preferring photos and mixing yards before repeats,
   // then fetch the selected vehicles in full by VIN.
@@ -94,7 +105,7 @@ async function loadModelArrivals(
     );
   const newest = ModelArrivals.pick(
     dated
-      .filter(({ source }) => !HiddenSources.has(source))
+      .filter(({ source }) => !HiddenSources.has(hidden, source))
       .map(
         ({ availableDate, firstSeenAt, observedArrivalAt, ...candidate }) => ({
           ...candidate,
@@ -146,10 +157,17 @@ async function loadModelArrivals(
 }
 
 /** One model's most recently set vehicles, across all yards. */
-const getModelArrivals = cacheInventory(loadModelArrivals, [
-  "model-arrivals-v5",
-  ...HiddenSources.list,
+const getCachedModelArrivals = cacheInventory(loadModelArrivals, [
+  "model-arrivals-v6",
 ]);
+
+async function getModelArrivals(rawMakes: string[], rawModels: string[]) {
+  return getCachedModelArrivals(
+    rawMakes,
+    rawModels,
+    (await getHiddenSources()).list,
+  );
+}
 
 function yardsByKey(yards: readonly RoutedYard[]): Map<string, RoutedYard> {
   return new Map(yards.map((yard) => [`${yard.source}:${yard.code}`, yard]));

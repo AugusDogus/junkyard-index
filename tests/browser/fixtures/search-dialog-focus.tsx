@@ -1,3 +1,5 @@
+import { HiddenSourcesProvider } from "~/components/HiddenSourcesContext";
+import { HiddenSources } from "~/lib/hidden-source";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { AdvancedSearchDialog } from "~/components/search/AdvancedSearchDialog";
@@ -46,4 +48,8 @@ function Fixture() {
     </>
   );
 }
-createRoot(document.body).render(<Fixture />);
+createRoot(document.body).render(
+  <HiddenSourcesProvider hidden={HiddenSources.none}>
+    <Fixture />
+  </HiddenSourcesProvider>,
+);

@@ -15,12 +15,13 @@ import { AnalyticsEvents } from "~/lib/analytics-events";
 import type { VehicleCardProps } from "~/lib/types";
 import { VehicleCardDetails } from "~/lib/vehicle-card-details";
 import { VehicleDestination } from "~/lib/vehicle-destination";
+import { useHiddenSources } from "~/components/HiddenSourcesContext";
 
 function VehicleCardComponent({
   vehicle,
   priority = false,
 }: VehicleCardProps & { priority?: boolean }) {
-  const destination = VehicleDestination.resolve(vehicle);
+  const destination = VehicleDestination.forSite(vehicle, useHiddenSources());
   const service = YardService.resolve(vehicle.source, vehicle.locationCode);
   const [copyError, setCopyError] = useState<string | null>(null);
   const vin = vehicle.vin.trim();

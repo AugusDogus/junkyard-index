@@ -1,132 +1,107 @@
 import { describe, expect, test } from "bun:test";
-import type {
-  LegacySearchMethodProps,
-  SearchMethodParams,
-} from "algoliasearch/lite";
 import { HiddenSources } from "./hidden-source";
 
-function recordingClient() {
-  const calls: (SearchMethodParams | LegacySearchMethodProps)[] = [];
-  return {
-    calls,
-    client: HiddenSources.withSearchClient({
-      async search(input: SearchMethodParams | LegacySearchMethodProps) {
-        calls.push(input);
-        return { results: [] };
-      },
-    }),
-  };
-}
+const meeks = HiddenSources.of(["meeks"]);
 
 describe("HiddenSources", () => {
-  // meeksrecycling.com redirects visitors to an unrelated site. Remove this
-  // test with Meeks' entry once the site is restored (docs/runbooks/hide-source.md).
-  test("hides Meeks while its website is compromised", () => {
-    expect(HiddenSources.list).toContain("meeks");
-    expect(HiddenSources.has("meeks")).toBe(true);
-    expect(HiddenSources.has("pyp")).toBe(false);
+  test("keeps known sources in registry order, so cache keys are stable", () => {
+    expect(HiddenSources.of(["pratt", "meeks", "pratt"]).list).toEqual(
+      HiddenSources.of(["meeks", "pratt"]).list,
+    );
+    expect(HiddenSources.of(["not-a-source", "meeks"]).list).toEqual(["meeks"]);
+    expect(HiddenSources.none.list).toEqual([]);
   });
 
-  test("says why a source is hidden", () => {
-    expect(HiddenSources.reason("meeks")).toContain("meeksrecycling.com");
-    expect(HiddenSources.reason("pyp")).toBeUndefined();
+  test("says which sources are hidden and leaves them out of selections", () => {
+    expect(HiddenSources.has(meeks, "meeks")).toBe(true);
+    expect(HiddenSources.has(meeks, "pyp")).toBe(false);
+    expect(HiddenSources.has(HiddenSources.none, "meeks")).toBe(false);
+    expect(HiddenSources.shown(meeks, ["pyp", "meeks", "row52"])).toEqual([
+      "pyp",
+      "row52",
+    ]);
   });
 
   test("unlisted sources are the hidden and retired ones", () => {
-    expect(HiddenSources.unlisted).toEqual(
-      expect.arrayContaining([
-        ...HiddenSources.list,
-        "upullitne",
-        "brandywine",
-      ]),
+    expect(HiddenSources.unlisted(meeks)).toEqual(
+      expect.arrayContaining(["meeks", "upullitne", "brandywine"]),
     );
-  });
-
-  test("drops hidden sources from a saved selection", () => {
-    expect(
-      HiddenSources.shown(["pyp", ...HiddenSources.list, "row52"]),
-    ).toEqual(["pyp", "row52"]);
-    expect(HiddenSources.shown([])).toEqual([]);
+    expect(HiddenSources.unlisted(HiddenSources.none)).not.toContain("meeks");
   });
 
   test("excludes every hidden source from an Algolia filter", () => {
-    expect(HiddenSources.filterFor([])).toBeUndefined();
-    expect(HiddenSources.filterFor(["meeks"])).toBe('NOT source:"meeks"');
-    expect(HiddenSources.filterFor(["meeks", "pratt"])).toBe(
-      'NOT source:"meeks" AND NOT source:"pratt"',
-    );
-    expect(HiddenSources.algoliaFilter).toBe(
-      HiddenSources.filterFor(HiddenSources.list),
-    );
+    expect(HiddenSources.algoliaFilter(HiddenSources.none)).toBeUndefined();
+    expect(HiddenSources.algoliaFilter(meeks)).toBe('NOT source:"meeks"');
+    expect(
+      HiddenSources.algoliaFilter(HiddenSources.of(["meeks", "pratt"])),
+    ).toBe('NOT source:"pratt" AND NOT source:"meeks"');
   });
 
   test("adds the exclusion to a request's own filters", () => {
-    const filter = HiddenSources.algoliaFilter;
     const unfiltered: { query: string; filters?: string } = { query: "civic" };
-    expect(HiddenSources.exclude(unfiltered)).toEqual({
+    expect(HiddenSources.exclude(meeks, unfiltered)).toEqual({
       query: "civic",
-      filters: filter,
+      filters: 'NOT source:"meeks"',
     });
     expect(
-      HiddenSources.exclude({ query: "civic", filters: "year >= 2000" }),
+      HiddenSources.exclude(meeks, {
+        query: "civic",
+        filters: "year >= 2000",
+      }),
     ).toEqual({
       query: "civic",
-      filters: filter ? `year >= 2000 AND ${filter}` : "year >= 2000",
+      filters: 'year >= 2000 AND NOT source:"meeks"',
     });
+    expect(HiddenSources.exclude(HiddenSources.none, unfiltered)).toBe(
+      unfiltered,
+    );
   });
 
-  test("filters every request a search client sends, in every request shape", async () => {
-    const filter = HiddenSources.algoliaFilter;
-    const { calls, client } = recordingClient();
-    await client.search({
+  test("filters every request of a search, in every request shape", () => {
+    const filter = 'NOT source:"meeks"';
+    expect(
+      HiddenSources.excludeFromSearch(meeks, {
+        requests: [
+          { indexName: "vehicles", query: "civic", filters: "year >= 2000" },
+          { indexName: "vehicles", type: "facet", facet: "make", query: "" },
+          {
+            indexName: "vehicles",
+            params: "query=civic&filters=year%20%3E%3D%202000",
+          },
+        ],
+      }),
+    ).toEqual({
       requests: [
-        { indexName: "vehicles", query: "civic", filters: "year >= 2000" },
-        { indexName: "vehicles", type: "facet", facet: "make", query: "" },
         {
           indexName: "vehicles",
-          params: "query=civic&filters=year%20%3E%3D%202000",
+          query: "civic",
+          filters: `year >= 2000 AND ${filter}`,
+        },
+        {
+          indexName: "vehicles",
+          type: "facet",
+          facet: "make",
+          query: "",
+          filters: filter,
+        },
+        {
+          indexName: "vehicles",
+          params: `query=civic&filters=${encodeURIComponent(`year >= 2000 AND ${filter}`)}`,
         },
       ],
     });
-    await client.search([
-      { indexName: "vehicles", params: { query: "civic" } },
-      { indexName: "vehicles" },
+    expect(
+      HiddenSources.excludeFromSearch(meeks, [
+        { indexName: "vehicles", params: { query: "civic" } },
+        { indexName: "vehicles" },
+      ]),
+    ).toEqual([
+      { indexName: "vehicles", params: { query: "civic", filters: filter } },
+      { indexName: "vehicles", params: { filters: filter } },
     ]);
-    expect(calls).toEqual([
-      {
-        requests: [
-          {
-            indexName: "vehicles",
-            query: "civic",
-            filters: filter ? `year >= 2000 AND ${filter}` : "year >= 2000",
-          },
-          {
-            indexName: "vehicles",
-            type: "facet",
-            facet: "make",
-            query: "",
-            ...(filter && { filters: filter }),
-          },
-          {
-            indexName: "vehicles",
-            params: filter
-              ? `query=civic&filters=${encodeURIComponent(`year >= 2000 AND ${filter}`)}`
-              : "query=civic&filters=year%20%3E%3D%202000",
-          },
-        ],
-      },
-      filter
-        ? [
-            {
-              indexName: "vehicles",
-              params: { query: "civic", filters: filter },
-            },
-            { indexName: "vehicles", params: { filters: filter } },
-          ]
-        : [
-            { indexName: "vehicles", params: { query: "civic" } },
-            { indexName: "vehicles" },
-          ],
-    ]);
+    const search = { requests: [{ indexName: "vehicles", query: "civic" }] };
+    expect(HiddenSources.excludeFromSearch(HiddenSources.none, search)).toBe(
+      search,
+    );
   });
 });

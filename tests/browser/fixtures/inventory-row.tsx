@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createRoot, hydrateRoot } from "react-dom/client";
 import { VehicleRow } from "~/components/inventory/VehicleRow";
 import { VehicleRowPhoto } from "~/components/inventory/VehicleRowPhoto";
+import { HiddenSources } from "~/lib/hidden-source";
 import type { YardVehicle } from "~/lib/yard-inventory";
 
 const vehicle: YardVehicle = {
@@ -39,18 +40,21 @@ function Fixture() {
           source="allied"
           publishedAt={null}
           layout="columns"
+          hiddenSources={HiddenSources.none}
         />
         <VehicleRow
           vehicle={{ ...vehicle, imageUrl }}
           source="allied"
           publishedAt={null}
           layout="stacked"
+          hiddenSources={HiddenSources.none}
         />
         <VehicleRow
           vehicle={{ ...vehicle, imageUrl: null }}
           source="allied"
           publishedAt={null}
           layout="columns"
+          hiddenSources={HiddenSources.none}
         />
       </ul>
     </main>

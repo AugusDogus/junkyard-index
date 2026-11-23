@@ -1,3 +1,5 @@
+import { HiddenSourcesProvider } from "~/components/HiddenSourcesContext";
+import { HiddenSources } from "~/lib/hidden-source";
 import { z } from "zod";
 import { filtersSchema } from "~/lib/saved-search-filters";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -371,4 +373,8 @@ function Fixture() {
   );
 }
 
-createRoot(document.body).render(<Fixture />);
+createRoot(document.body).render(
+  <HiddenSourcesProvider hidden={HiddenSources.none}>
+    <Fixture />
+  </HiddenSourcesProvider>,
+);

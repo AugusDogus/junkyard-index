@@ -15,6 +15,7 @@ import {
 } from "~/server/inventory-announcement";
 import { getHomepageYards } from "~/server/homepage-yards";
 import { InventorySnapshot } from "~/server/inventory-snapshot";
+import { SourceControlRepository } from "~/server/source-control/source-control-repository";
 import { routedYards } from "~/server/yard-inventory";
 import { vehicle, vehicleDeparture } from "~/schema";
 
@@ -33,7 +34,9 @@ export async function changedInventoryPaths(
   // vehicle after 3 days, and the window can reach further back than that.
   // A vehicle that is listed again, or moves yards, gets neither stamp; its
   // yards are announced only when they have other changes, and the sitemaps'
-  // lastmod covers the rest.
+  // lastmod covers the rest. Hidden sources are read without a cache, as
+  // this runs in a workflow outside a request.
+  const hidden = await SourceControlRepository.hiddenSources(db);
   const [arrivals, removals, departures, yards, makes] = await Promise.all([
     db
       .select({
@@ -72,7 +75,7 @@ export async function changedInventoryPaths(
       ),
     // Read directly, not through the caches: right after a refresh those
     // still hold the previous publication.
-    getHomepageYards(db).then(routedYards),
+    getHomepageYards(db, hidden).then(routedYards),
     InventorySnapshot.makeCounts(db).then(MakeInventory.makes),
   ]);
   const changed = new Set(
@@ -118,7 +121,7 @@ export async function changedInventoryPaths(
       modelKeys,
       models: MakeInventory.models(
         make,
-        await InventorySnapshot.makeModels(db, make.key),
+        await InventorySnapshot.makeModels(db, make.key, hidden),
       ),
     })),
   );

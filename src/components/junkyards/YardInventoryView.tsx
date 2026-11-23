@@ -1,3 +1,4 @@
+import type { HiddenSources } from "~/lib/hidden-source";
 import { buildSearchUrl } from "~/lib/search-utils";
 import { YardAddress } from "~/lib/yard-address";
 import { YardService } from "~/lib/yard-service";
@@ -58,6 +59,7 @@ export function YardInventoryView({
   nearby,
   chain,
   filter,
+  hiddenSources,
 }: {
   yard: RoutedYard;
   inventory: YardInventoryPage;
@@ -73,6 +75,8 @@ export function YardInventoryView({
   nearby: readonly NearbyYard[];
   /** The chain the yard belongs to, when it has other yards we track. */
   chain: { name: string; href: string; yards: number } | null;
+  /** Sources hidden from the site; their rows link nowhere. */
+  hiddenSources: HiddenSources;
   /** The make this page is narrowed to, if any. */
   filter: YardMakeFilter | YardModelFilter | null;
 }) {
@@ -209,6 +213,7 @@ export function YardInventoryView({
                 source={yard.source}
                 publishedAt={badgesSince}
                 layout="columns"
+                hiddenSources={hiddenSources}
               />
             ))}
           </ul>

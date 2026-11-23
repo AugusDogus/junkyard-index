@@ -1,4 +1,3 @@
-import { HiddenSources } from "~/lib/hidden-source";
 import {
   INGESTION_SOURCE_DISPLAY_NAMES,
   INGESTION_SOURCES,
@@ -7,6 +6,10 @@ import {
 } from "~/lib/ingestion-source";
 import { isFreshPublication } from "~/server/ingestion/durable-health";
 import { IngestionDay } from "~/server/ingestion/ingestion-day";
+import {
+  SourceControl,
+  type PauseCause,
+} from "~/server/source-control/source-control";
 import { SourceRun, type RunOutcome } from "./source-run";
 
 /**
@@ -35,7 +38,7 @@ export type IngestionFlag = "on" | "off" | "unknown";
 
 /**
  * One state per source, the first that applies in this order: retired,
- * paused by its flag, running, failing (its latest finished run did not
+ * paused (here or by its flag), running, failing (its latest finished run did not
  * publish), stale (no accepted publication within SOURCE_STALE_AFTER_HOURS,
  * the rule /api/status uses), accepted today, else waiting for today's
  * update.
@@ -64,9 +67,11 @@ export type SourceSummary = {
   name: string;
   state: SourceState;
   retired: boolean;
-  /** Why the source is hidden from the public site, or null while shown. */
-  hiddenReason: string | null;
+  /** The owner's controls: paused here, hidden from the site and why. */
+  control: SourceControl;
   flag: IngestionFlag;
+  /** What pauses new runs (here, its flag or both), or null while it runs. */
+  pausedBy: PauseCause | null;
   latestRun: { run: SourceRun; outcome: RunOutcome } | null;
   /** Finished runs since the last accepted one, within the loaded window. */
   consecutiveFailures: number;
@@ -92,6 +97,8 @@ export type SourceOverviewInput = {
   /** Published vehicles per source. */
   publishedCounts: ReadonlyMap<string, number>;
   flags: SourceFlagsReading;
+  /** The owner's controls by source; a source without one runs and shows. */
+  controls: ReadonlyMap<IngestionSource, SourceControl>;
 };
 
 function flagFor(source: IngestionSource, flags: SourceFlagsReading) {
@@ -132,13 +139,15 @@ function summarize(
   const [newest, previous] = accepted;
   const retired = isRetiredIngestionSource(source);
   const flag = flagFor(source, input.flags);
+  const control = SourceControl.of(input.controls, source);
+  const pausedBy = SourceControl.pauseCause(control.ingestion, flag);
   const stale =
     !retired &&
-    flag !== "off" &&
+    pausedBy === null &&
     !isFreshPublication(lastAcceptedAt?.getTime() ?? null, input.now);
   const state: SourceState = retired
     ? "retired"
-    : flag === "off"
+    : pausedBy !== null
       ? "paused"
       : active !== undefined || latestRun?.outcome.kind === "running"
         ? "running"
@@ -155,8 +164,9 @@ function summarize(
     name: INGESTION_SOURCE_DISPLAY_NAMES[source],
     state,
     retired,
-    hiddenReason: HiddenSources.reason(source) ?? null,
+    control,
     flag,
+    pausedBy,
     latestRun,
     consecutiveFailures,
     lastAcceptedAt,
@@ -211,8 +221,9 @@ export const SourceOverview = {
     for (const summary of summaries) byState[summary.state] += 1;
     return {
       byState,
-      hidden: summaries.filter((summary) => summary.hiddenReason !== null)
-        .length,
+      hidden: summaries.filter(
+        (summary) => summary.control.visibility.status === "hidden",
+      ).length,
     };
   },
 

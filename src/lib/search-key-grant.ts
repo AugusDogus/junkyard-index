@@ -12,12 +12,19 @@ export type SearchKeyGrant = {
   apiKey: string;
   expiresInSeconds: number;
   tier: PlanTier;
+  /**
+   * The sources hidden from the public site when the key was minted. A
+   * secured key embeds their exclusion; the browser also leaves them out of
+   * its own requests and pickers.
+   */
+  hiddenSources: string[];
 };
 
 const schema: z.ZodType<SearchKeyGrant> = z.object({
   apiKey: z.string().min(1),
   expiresInSeconds: z.number().int().nonnegative(),
   tier: z.enum(PLAN_TIERS),
+  hiddenSources: z.array(z.string()),
 });
 
 /** How long before expiry a browser fetches its next key. */

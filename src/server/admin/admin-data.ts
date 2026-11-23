@@ -14,6 +14,10 @@ import { IngestionSourceFlags } from "~/server/ingestion/ingestion-source-flags"
 import { PublicationModeFlag } from "~/server/ingestion/publication-mode-flag";
 import { SearchStatus } from "~/server/ingestion/search-status";
 import {
+  SourceControlRepository,
+  type AdminActionEntry,
+} from "~/server/source-control/source-control-repository";
+import {
   AlertCheckOverview,
   type AlertCheckSummary,
 } from "./alert-check-overview";
@@ -39,6 +43,8 @@ function windowStart(now: Date): Date {
 export const SOURCE_PAGE_RUNS = 14;
 /** Search publications the search page lists. */
 export const SEARCH_PAGE_PUBLICATIONS = 20;
+/** Logged admin actions a source's page lists. */
+export const SOURCE_PAGE_ACTIONS = 20;
 
 /**
  * One part of a page's data. A part that fails to load is shown as a plain
@@ -104,21 +110,26 @@ export type AlertsData = {
 export type SourceDetailData = {
   summary: SourceSummary;
   runs: Awaited<ReturnType<typeof SourceRunRepository.forSource>>;
+  /** What admins did to this source, newest first. */
+  actions: AdminActionEntry[];
 };
 
 async function loadSources(now: Date): Promise<SourcesData> {
-  const [runs, activeRuns, publishedCounts, flags] = await Promise.all([
-    SourceRunRepository.recent(db, windowStart(now)),
-    SourceRunRepository.activeRuns(db),
-    SourceRunRepository.publishedCounts(db),
-    readSourceFlags(),
-  ]);
+  const [runs, activeRuns, publishedCounts, flags, controls] =
+    await Promise.all([
+      SourceRunRepository.recent(db, windowStart(now)),
+      SourceRunRepository.activeRuns(db),
+      SourceRunRepository.publishedCounts(db),
+      readSourceFlags(),
+      SourceControlRepository.all(db),
+    ]);
   const summaries = SourceOverview.build({
     now,
     runs,
     activeRuns,
     publishedCounts,
     flags,
+    controls,
   });
   const latestErrors = await SourceRunRepository.errorExcerpts(
     db,
@@ -181,27 +192,37 @@ async function loadSource(
 ): Promise<SourceDetailData> {
   // The summary reads the same window as the sources list, so both pages
   // agree; the run list shows the newest runs whatever their age.
-  const [windowRuns, runs, activeRuns, publishedCounts, flags] =
-    await Promise.all([
-      SourceRunRepository.recentForSource(db, source, windowStart(now)),
-      SourceRunRepository.forSource(db, source, SOURCE_PAGE_RUNS),
-      SourceRunRepository.activeRuns(db),
-      SourceRunRepository.publishedCounts(db),
-      readSourceFlags(),
-    ]);
+  const [
+    windowRuns,
+    runs,
+    activeRuns,
+    publishedCounts,
+    flags,
+    controls,
+    actions,
+  ] = await Promise.all([
+    SourceRunRepository.recentForSource(db, source, windowStart(now)),
+    SourceRunRepository.forSource(db, source, SOURCE_PAGE_RUNS),
+    SourceRunRepository.activeRuns(db),
+    SourceRunRepository.publishedCounts(db),
+    readSourceFlags(),
+    SourceControlRepository.all(db),
+    SourceControlRepository.recentActions(db, source, SOURCE_PAGE_ACTIONS),
+  ]);
   const summary = SourceOverview.build({
     now,
     runs: windowRuns,
     activeRuns,
     publishedCounts,
     flags,
+    controls,
   }).find((entry) => entry.source === source);
   if (summary === undefined) {
     throw new Error(
       `SourceOverview.build returned no summary for ingestion source "${source}", which INGESTION_SOURCES lists. This is a bug in src/server/admin/source-overview.ts.`,
     );
   }
-  return { summary, runs };
+  return { summary, runs, actions };
 }
 
 /**

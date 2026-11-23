@@ -8,6 +8,7 @@ import { formatVehicleEmbed } from "./discord-vehicle-embed";
 import { SearchAlertMatch } from "./search-alert-data";
 import { algoliaHitToSearchVehicle } from "./search-vehicles";
 import { HiddenSources } from "./hidden-source";
+import { HiddenSourcesProvider } from "~/components/HiddenSourcesContext";
 import type { DataSource, SearchVehicle } from "./types";
 import { VehicleDestination } from "./vehicle-destination";
 
@@ -120,7 +121,10 @@ function roundTripNotification(vehicle: SearchVehicle): SearchVehicle {
   return restored;
 }
 
-async function renderSurfaces(vehicle: SearchVehicle) {
+async function renderSurfaces(
+  vehicle: SearchVehicle,
+  hidden: HiddenSources = HiddenSources.none,
+) {
   const email = await render(
     <NewVehiclesAlert
       digest={{
@@ -137,12 +141,17 @@ async function renderSurfaces(vehicle: SearchVehicle) {
         vehicleCount: 1,
       }}
       manageSearchesUrl="https://junkyardindex.com/settings"
+      hiddenSources={hidden}
     />,
   );
-  const card = renderToStaticMarkup(<VehicleCard vehicle={vehicle} />);
+  const card = renderToStaticMarkup(
+    <HiddenSourcesProvider hidden={hidden}>
+      <VehicleCard vehicle={vehicle} />
+    </HiddenSourcesProvider>,
+  );
   expect(card).not.toContain('href=""');
   expect(email).not.toContain('href=""');
-  return { card, email, discord: formatVehicleEmbed(vehicle) };
+  return { card, email, discord: formatVehicleEmbed(vehicle, hidden) };
 }
 
 const manualProviders = [
@@ -311,20 +320,15 @@ describe("manual provider destinations across search, durable alerts and present
       "open Pics and match the stock number",
     );
   });
-  // A hidden source links nowhere until it is shown again.
-  test.each(
-    (
-      [
-        ["aero", "https://aeroautosalvage.com/vehicle-inventory/"],
-        ["meeks", "https://meeksrecycling.com/pic-and-pull/"],
-        ["ddauto", "https://dd-auto-parts-cars.glide.page/dl/17171d"],
-        ["army", "https://armysauto.com/self-service-inventory/"],
-        ["idipull", "https://ifipull.com/inventory/"],
-        ["littleton", "https://littletonupullit.com/vehicle-inventory"],
-        ["joliet", "https://www.jolietupullit.com/inventory"],
-      ] as const
-    ).filter(([source]) => !HiddenSources.has(source)),
-  )(
+  test.each([
+    ["aero", "https://aeroautosalvage.com/vehicle-inventory/"],
+    ["meeks", "https://meeksrecycling.com/pic-and-pull/"],
+    ["ddauto", "https://dd-auto-parts-cars.glide.page/dl/17171d"],
+    ["army", "https://armysauto.com/self-service-inventory/"],
+    ["idipull", "https://ifipull.com/inventory/"],
+    ["littleton", "https://littletonupullit.com/vehicle-inventory"],
+    ["joliet", "https://www.jolietupullit.com/inventory"],
+  ] as const)(
     "%s labels its searchable table honestly across all surfaces",
     async (source, url) => {
       const restored = roundTripNotification(vehicle(source, url));
@@ -488,7 +492,7 @@ describe("absent or unusable destinations", () => {
   test("Discord encodes link delimiters without double-encoding existing URL filters", () => {
     const href =
       "https://trusted.example/a) [Injected](https://evil.example?filter%5Byard%5D=STOCKTON";
-    const embed = formatVehicleEmbed(vehicle("pyp", href));
+    const embed = formatVehicleEmbed(vehicle("pyp", href), HiddenSources.none);
     expect(embed.description?.match(/\]\(/g)).toHaveLength(1);
     expect(embed.description).toContain("%29%20%5BInjected%5D%28");
     expect(embed.description).toContain("filter%5Byard%5D=STOCKTON");
@@ -649,15 +653,20 @@ describe("arrival dates across search cards and notifications", () => {
   );
 });
 
-for (const source of HiddenSources.list)
+for (const source of ["meeks", "pyp"] as const)
   test(`${source} is hidden, so no surface links to its website`, async () => {
+    const hidden = HiddenSources.of([source]);
     const restored = roundTripNotification(
       vehicle(source, "https://example.com/inventory/"),
     );
-    expect(VehicleDestination.resolve(restored)).toMatchObject({
+    expect(VehicleDestination.forSite(restored, hidden)).toMatchObject({
       kind: "unavailable",
     });
-    const { card, email, discord } = await renderSurfaces(restored);
+    // Shown again, the provider's own link comes back.
+    expect(
+      VehicleDestination.forSite(restored, HiddenSources.none).kind,
+    ).not.toBe("unavailable");
+    const { card, email, discord } = await renderSurfaces(restored, hidden);
     for (const html of [card, email]) {
       expect(html).not.toContain("example.com");
       expect(html).not.toContain("Search provider inventory");

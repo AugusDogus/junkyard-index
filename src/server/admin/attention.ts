@@ -35,7 +35,7 @@ export type AttentionInput = {
 
 /** Whether the overview leaves the source out entirely. */
 function isQuiet(summary: SourceSummary): boolean {
-  return summary.retired || summary.flag === "off";
+  return summary.retired || summary.pausedBy !== null;
 }
 
 /** Whether the overview lists the source as failing or out of date. */

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { render } from "@react-email/components";
+import { HiddenSources } from "~/lib/hidden-source";
 import { SearchAlertMatch } from "~/lib/search-alert-data";
 import type { SearchVehicle } from "~/lib/types";
 import { NewVehiclesAlert } from "./NewVehiclesAlert";
@@ -58,6 +59,7 @@ describe("NewVehiclesAlert", () => {
           vehicleCount: 2,
         },
         manageSearchesUrl: "https://example.com/settings",
+        hiddenSources: HiddenSources.none,
       }),
     );
 
@@ -102,6 +104,7 @@ describe("NewVehiclesAlert", () => {
           vehicleCount: 12,
         },
         manageSearchesUrl: "https://example.com/settings",
+        hiddenSources: HiddenSources.none,
       }),
     );
 
@@ -128,6 +131,7 @@ describe("NewVehiclesAlert", () => {
           vehicleCount: 12,
         },
         manageSearchesUrl: "https://example.com/settings",
+        hiddenSources: HiddenSources.none,
       }),
     );
 

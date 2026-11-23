@@ -1,11 +1,23 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { renderToStaticMarkup } from "react-dom/server";
+import type { ReactNode } from "react";
+import { renderToStaticMarkup as renderMarkup } from "react-dom/server";
+import { HiddenSourcesProvider } from "~/components/HiddenSourcesContext";
+import { HiddenSources } from "~/lib/hidden-source";
 import { SavedSearchCriteria } from "./SavedSearchCriteria";
 import { VehicleCard } from "./VehicleCard";
 import { YardTypeFilter } from "./FilterFields";
 import { algoliaHitToSearchVehicle } from "~/lib/search-vehicles";
 import type { DataSource } from "~/lib/types";
+
+// Cards read the hidden sources from the page; none are hidden here.
+function renderToStaticMarkup(node: ReactNode): string {
+  return renderMarkup(
+    <HiddenSourcesProvider hidden={HiddenSources.none}>
+      {node}
+    </HiddenSourcesProvider>,
+  );
+}
 
 test.each([
   { source: "pyp", label: "Self-service", hint: false },

@@ -13,11 +13,18 @@ import { Badge } from "~/components/ui/badge";
 import { ADMIN_WINDOW_DAYS, AdminData } from "~/server/admin/admin-data";
 import { adminMetadata, requireAdmin } from "~/server/admin/require-admin";
 import type { SourceSummary } from "~/server/admin/source-overview";
+import type { PauseCause } from "~/server/source-control/source-control";
 import {
   NO_SOURCE_RUN_ERRORS,
   SourceRun,
   type SourceRunErrors,
 } from "~/server/admin/source-run";
+
+const PAUSE_TITLES: Record<PauseCause, string> = {
+  admin: "Paused from its admin page",
+  flag: "Paused by its Vercel flag",
+  admin_and_flag: "Paused from its admin page and by its Vercel flag",
+};
 
 export function generateMetadata() {
   return adminMetadata({ title: "Sources" });
@@ -109,9 +116,20 @@ export default async function AdminSourcesPage() {
                         {summary.name}
                       </SourceLink>
                       <div className="mt-1 flex flex-wrap gap-1">
-                        {summary.hiddenReason !== null && (
-                          <Badge variant="outline" title={summary.hiddenReason}>
+                        {summary.control.visibility.status === "hidden" && (
+                          <Badge
+                            variant="outline"
+                            title={summary.control.visibility.reason}
+                          >
                             Hidden
+                          </Badge>
+                        )}
+                        {summary.pausedBy !== null && (
+                          <Badge
+                            variant="outline"
+                            title={PAUSE_TITLES[summary.pausedBy]}
+                          >
+                            Paused
                           </Badge>
                         )}
                         {summary.stuck !== null && (

@@ -211,6 +211,13 @@
       "when": 1795795200000,
       "tag": "0029_admin_run_covering_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1795881600000,
+      "tag": "0030_source_control",
+      "breakpoints": true
     }
   ]
 }

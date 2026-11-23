@@ -1,8 +1,10 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "~/lib/auth";
+import { HiddenSourcesProvider } from "~/components/HiddenSourcesContext";
 import { PageShell } from "~/components/PageShell";
 import { SavedSearchEditorPage } from "~/components/search/editor/SavedSearchEditorPage";
+import { getHiddenSources } from "~/server/source-control/hidden-sources-loader";
 export const metadata = {
   title: "Edit saved search",
   robots: { index: false, follow: false },
@@ -20,7 +22,10 @@ export default async function Page({
     );
   return (
     <PageShell width="workspace">
-      <SavedSearchEditorPage id={id} />
+      {/* The source picker offers only sources shown on the site. */}
+      <HiddenSourcesProvider hidden={await getHiddenSources()}>
+        <SavedSearchEditorPage id={id} />
+      </HiddenSourcesProvider>
     </PageShell>
   );
 }

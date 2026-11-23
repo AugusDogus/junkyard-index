@@ -10,6 +10,7 @@ import {
 import { InstantSearchNext } from "react-instantsearch-nextjs";
 import { useInstantSearchContext } from "react-instantsearch";
 import { ErrorBoundary } from "~/components/ErrorBoundary";
+import { HiddenSourcesProvider } from "~/components/HiddenSourcesContext";
 import { createSearchRouting } from "~/components/search/search-routing";
 import { SearchErrorFallback } from "~/components/search/SearchErrorFallback";
 import { SearchExpressionFeedback } from "~/components/search/SearchExpressionFeedback";
@@ -23,6 +24,7 @@ import {
 import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access";
 import type { PlanAccessState } from "~/lib/plan-access";
 import { browserSearchKey } from "~/lib/browser-search-key";
+import { HiddenSources } from "~/lib/hidden-source";
 import type { SearchKeyGrant } from "~/lib/search-key-grant";
 import { createSearchRouteSync } from "~/lib/search-route-sync";
 import type { SearchServerRender } from "~/lib/search-server-render";
@@ -63,6 +65,7 @@ function ConsumeSearchHydration() {
 }
 
 const subscribeNever = () => () => {};
+const noHeldKey = () => null;
 
 export function SearchAccessShell({
   isLoggedIn,
@@ -88,6 +91,19 @@ export function SearchAccessShell({
   // effect here would.
   if (typeof window !== "undefined" && planAccess.kind === "resolved")
     browserSearchKey.renewFor(planAccess.tier);
+  // The hidden sources of the key searches use: the rendered key's until a
+  // renewal (every 10 minutes while searching) brings the server's newer
+  // list. Secured keys embed the same exclusion.
+  const renderedHidden = useMemo(
+    () => HiddenSources.of(searchKey.hiddenSources),
+    [searchKey.hiddenSources],
+  );
+  const heldHidden = useSyncExternalStore(
+    browserSearchKey.subscribe,
+    browserSearchKey.hiddenSources,
+    noHeldKey,
+  );
+  const hidden = heldHidden ?? renderedHidden;
   const canUseAdvancedFilters = resolveClientPlanFeatureAccess({
     access: planAccess,
     feature: "advanced_filters",
@@ -108,6 +124,7 @@ export function SearchAccessShell({
   const isSearchPending =
     isPending || (expressionMode && planAccess.kind === "loading");
   const searchClient = getSearchClient(
+    hidden,
     booleanOrSearchReady,
     expressionMode,
     canUseAdvancedFilters,
@@ -170,6 +187,7 @@ export function SearchAccessShell({
   if (isSearchPending || (serverSearch === "skip" && !hydrated)) {
     return <SearchPageSkeleton />;
   }
+  const hiddenKey = hidden.list.join(",");
 
   if (expressionMode) {
     const prepared = prepareSearchExpression(
@@ -197,22 +215,24 @@ export function SearchAccessShell({
   }
 
   return (
-    <InstantSearchNext
-      key={`${vinPatternIndexReady ? "vin-ready" : "vin-disabled"}-${booleanOrSearchReady ? "boolean-ready" : "boolean-disabled"}-${canUseAdvancedFilters ? "filters-enabled" : "filters-disabled"}-${newestSortReady ? "newest-ready" : "newest-disabled"}-${makeAliasesReady ? "make-aliases-ready" : "make-aliases-disabled"}`}
-      searchClient={searchClient}
-      indexName={ALGOLIA_INDEX_NAME}
-      routing={routing}
-      future={INSTANT_SEARCH_FUTURE}
-    >
-      <ConsumeSearchHydration />
-      <ErrorBoundary fallback={SearchErrorFallback}>
-        {children({
-          planAccess,
-          vinPatternIndexReady,
-          booleanOrSearchReady,
-          newestSortReady,
-        })}
-      </ErrorBoundary>
-    </InstantSearchNext>
+    <HiddenSourcesProvider hidden={hidden}>
+      <InstantSearchNext
+        key={`hidden:${hiddenKey}-${vinPatternIndexReady ? "vin-ready" : "vin-disabled"}-${booleanOrSearchReady ? "boolean-ready" : "boolean-disabled"}-${canUseAdvancedFilters ? "filters-enabled" : "filters-disabled"}-${newestSortReady ? "newest-ready" : "newest-disabled"}-${makeAliasesReady ? "make-aliases-ready" : "make-aliases-disabled"}`}
+        searchClient={searchClient}
+        indexName={ALGOLIA_INDEX_NAME}
+        routing={routing}
+        future={INSTANT_SEARCH_FUTURE}
+      >
+        <ConsumeSearchHydration />
+        <ErrorBoundary fallback={SearchErrorFallback}>
+          {children({
+            planAccess,
+            vinPatternIndexReady,
+            booleanOrSearchReady,
+            newestSortReady,
+          })}
+        </ErrorBoundary>
+      </InstantSearchNext>
+    </HiddenSourcesProvider>
   );
 }

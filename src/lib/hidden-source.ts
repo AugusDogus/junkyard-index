@@ -12,19 +12,32 @@ import {
 } from "./ingestion-source";
 
 /**
- * Sources hidden from the public site, with why. A hidden source keeps
+ * The sources hidden from the public site right now. A hidden source keeps
  * ingesting and keeps its rows, but no page, search, alert, sitemap or link
- * shows its vehicles, yards or website. Remove its entry to show it again.
- * See docs/runbooks/hide-source.md.
+ * shows its vehicles, yards or website.
+ *
+ * The owner hides and shows sources from /admin. The table `source_control`
+ * holds the list: the server reads it through `loadHiddenSources`
+ * (src/server/source-control/hidden-sources-loader.ts), and browsers get it
+ * with their search key. Every function here takes the list it applies, so
+ * nothing can fall back to a stale copy. See docs/runbooks/hide-source.md.
  */
-const HIDDEN_SOURCES: Readonly<Partial<Record<IngestionSource, string>>> = {
-  meeks:
-    "Since 2026-11-22 every meeksrecycling.com page serves an unrelated page that redirects visitors to another site.",
+export type HiddenSources = {
+  /** Hidden sources in registry order, so cache keys built from it are stable. */
+  readonly list: readonly IngestionSource[];
 };
 
-const list: readonly IngestionSource[] = INGESTION_SOURCES.filter(
-  (source) => HIDDEN_SOURCES[source] !== undefined,
-);
+const none: HiddenSources = { list: [] };
+
+/** The hidden sources among `sources`; values that name no source are dropped. */
+function of(sources: Iterable<string>): HiddenSources {
+  const named = new Set<string>(sources);
+  return { list: INGESTION_SOURCES.filter((source) => named.has(source)) };
+}
+
+function has(hidden: HiddenSources, source: string): boolean {
+  return hidden.list.some((entry) => entry === source);
+}
 
 /** An Algolia filter that matches no vehicle of these sources. */
 function filterFor(sources: readonly string[]): string | undefined {
@@ -33,24 +46,8 @@ function filterFor(sources: readonly string[]): string | undefined {
   );
 }
 
-const algoliaFilter = filterFor(list);
-
-const unlisted: readonly IngestionSource[] = [
-  ...RETIRED_INGESTION_SOURCES,
-  ...list,
-];
-
 function and(own: string | undefined, filter: string): string {
   return own ? `${own} AND ${filter}` : filter;
-}
-
-/** The request with the hidden sources excluded from its own filters. */
-function exclude<Request extends { filters?: string | undefined }>(
-  request: Request,
-): Request {
-  return algoliaFilter === undefined
-    ? request
-    : { ...request, filters: and(request.filters, algoliaFilter) };
 }
 
 /** A URL-encoded parameter string with `filter` added to its filters. */
@@ -77,53 +74,74 @@ function excludeFromQuery(request: SearchQuery, filter: string): SearchQuery {
 }
 
 export const HiddenSources = {
-  list,
+  /** Nothing hidden. */
+  none,
+  of,
+  has,
   /** Hidden sources and retired ones: every source public lists leave out. */
-  unlisted,
-  has(source: string): boolean {
-    return list.some((hidden) => hidden === source);
-  },
-  /** Why the source is hidden, or undefined while it is shown. */
-  reason(source: IngestionSource): string | undefined {
-    return HIDDEN_SOURCES[source];
+  unlisted(hidden: HiddenSources): readonly IngestionSource[] {
+    return [...RETIRED_INGESTION_SOURCES, ...hidden.list];
   },
   /**
    * A saved or URL source selection without its hidden sources, so pickers
    * that offer only shown sources toggle and count it correctly.
    */
-  shown<Source extends string>(sources: readonly Source[]): Source[] {
-    return sources.filter((source) => !HiddenSources.has(source));
+  shown<Source extends string>(
+    hidden: HiddenSources,
+    sources: readonly Source[],
+  ): Source[] {
+    return sources.filter((source) => !has(hidden, source));
   },
   filterFor,
   /** Every public search's exclusion, or undefined when nothing is hidden. */
-  algoliaFilter,
-  exclude,
+  algoliaFilter(hidden: HiddenSources): string | undefined {
+    return filterFor(hidden.list);
+  },
+  /** The request with the hidden sources excluded from its own filters. */
+  exclude<Request extends { filters?: string | undefined }>(
+    hidden: HiddenSources,
+    request: Request,
+  ): Request {
+    const filter = filterFor(hidden.list);
+    return filter === undefined
+      ? request
+      : { ...request, filters: and(request.filters, filter) };
+  },
   /**
-   * A search client whose every request, in every request shape and
-   * including facet searches, excludes the hidden sources.
+   * A search client's input with the hidden sources excluded from every
+   * request, in every request shape and including facet searches.
    */
-  withSearchClient<Client extends Pick<LiteClient, "search">>(client: Client) {
+  excludeFromSearch(
+    hidden: HiddenSources,
+    input: SearchMethodParams | LegacySearchMethodProps,
+  ): SearchMethodParams | LegacySearchMethodProps {
+    const filter = filterFor(hidden.list);
+    if (filter === undefined) return input;
+    if (Array.isArray(input))
+      return input.map((request) => ({
+        ...request,
+        params: HiddenSources.exclude(hidden, request.params ?? {}),
+      }));
+    return {
+      ...input,
+      requests: input.requests.map((request) =>
+        excludeFromQuery(request, filter),
+      ),
+    };
+  },
+  /** A search client whose every request excludes the hidden sources. */
+  withSearchClient<Client extends Pick<LiteClient, "search">>(
+    hidden: HiddenSources,
+    client: Client,
+  ) {
     return {
       ...client,
       search<T>(
         input: SearchMethodParams | LegacySearchMethodProps,
         requestOptions?: Parameters<LiteClient["search"]>[1],
       ) {
-        const filter = algoliaFilter;
-        if (filter === undefined)
-          return client.search<T>(input, requestOptions);
         return client.search<T>(
-          Array.isArray(input)
-            ? input.map((request) => ({
-                ...request,
-                params: exclude(request.params ?? {}),
-              }))
-            : {
-                ...input,
-                requests: input.requests.map((request) =>
-                  excludeFromQuery(request, filter),
-                ),
-              },
+          HiddenSources.excludeFromSearch(hidden, input),
           requestOptions,
         );
       },

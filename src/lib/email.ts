@@ -3,6 +3,7 @@ import { render } from "@react-email/components";
 import crypto from "crypto";
 import { Resend } from "resend";
 import { NewVehiclesAlert } from "~/emails/NewVehiclesAlert";
+import type { HiddenSources } from "~/lib/hidden-source";
 import { escapeHtml } from "~/lib/html";
 import { env } from "~/env";
 import type { NotificationDeliveryResult } from "~/lib/notification-delivery-result";
@@ -141,7 +142,7 @@ export async function sendYardRequestNotification(
 export async function sendEmailDigest(
   recipient: EmailDigestRecipient,
   digest: SearchAlertDigest,
-  options?: { idempotencyKey?: string },
+  options: { idempotencyKey?: string; hiddenSources: HiddenSources },
 ): Promise<NotificationDeliveryResult> {
   try {
     const emailAlerts = digest.previewAlerts.map((alert) => ({
@@ -160,6 +161,7 @@ export async function sendEmailDigest(
         vehicleCount: digest.vehicleCount,
       },
       manageSearchesUrl: `${env.NEXT_PUBLIC_APP_URL}/settings/searches`,
+      hiddenSources: options.hiddenSources,
     });
 
     const [emailHtml, emailText] = await Promise.all([
@@ -179,7 +181,7 @@ export async function sendEmailDigest(
           "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
         },
       },
-      options?.idempotencyKey ? { idempotencyKey: options.idempotencyKey } : {},
+      options.idempotencyKey ? { idempotencyKey: options.idempotencyKey } : {},
     );
 
     if (error) {

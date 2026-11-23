@@ -1,15 +1,15 @@
-import { IngestionSourceFlags } from "~/server/ingestion/ingestion-source-flags";
+import { IngestionPause } from "~/server/source-control/ingestion-pause";
 import { SourceHealth } from "~/server/ingestion/source-health";
 import { getCachedSourceFreshness } from "./source-freshness";
 
 // One Better Stack monitor for every source: 200 while each active, unpaused
 // source has an accepted publication within 36 hours, 503 listing the stale
-// ones otherwise. Paused sources (Vercel flag serving false) are listed, not
-// checked.
+// ones otherwise. Paused sources (paused from /admin, or their Vercel flag
+// serving false) are listed, not checked.
 export async function GET() {
   const [recent, enabled] = await Promise.all([
     getCachedSourceFreshness(),
-    IngestionSourceFlags.enabledSources(),
+    IngestionPause.enabledSources(),
   ]);
   const health = SourceHealth.evaluate(recent, enabled, new Date());
   return Response.json(health, {
