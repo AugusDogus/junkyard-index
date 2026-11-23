@@ -291,6 +291,7 @@ for (const viewport of VIEWPORTS) {
       await latest.scrollIntoViewIfNeeded();
       await settle(page);
       const start = new URL(page.url());
+      const startYear = await page.locator("output").nth(1).textContent();
       const before = await page.evaluate(() => window.history.length);
       const written = (await historyWrites()).length;
       const thumb = await latest.boundingBox();
@@ -341,6 +342,43 @@ for (const viewport of VIEWPORTS) {
       expect(await page.evaluate(() => window.history.length)).toBe(before + 1);
       await page.goBack();
       await page.waitForFunction((href) => location.href === href, start.href);
+      await settle(page);
+      // Back restores the range from before the drag, not the dragged one.
+      expect(await page.locator("output").nth(1).textContent()).toBe(startYear);
+    } finally {
+      await closePage(page);
+    }
+  }, 30_000);
+
+  // A system gesture can cancel a touch drag, and then no release applies it.
+  test(`a cancelled Year slider drag shows the applied range again: ${viewport.width}px`, async () => {
+    const page = await createPage(browser, { viewport });
+    try {
+      await open(page, "?q=volvo&yardTypes=all");
+      await openFilters(page);
+      if (viewport.width >= 768)
+        await page.getByRole("button", { name: "Year", exact: true }).click();
+      const latest = page.getByRole("slider").nth(1);
+      await latest.scrollIntoViewIfNeeded();
+      await settle(page);
+      const start = page.url();
+      const startYear = await page.locator("output").nth(1).textContent();
+      const thumb = await latest.boundingBox();
+      const track = await page.locator("[data-slot=slider]").boundingBox();
+      if (!thumb || !track) throw new Error("The Year slider is not visible.");
+      const y = thumb.y + thumb.height / 2;
+      await page.mouse.move(thumb.x + thumb.width / 2, y);
+      await page.mouse.down();
+      await page.mouse.move(thumb.x + thumb.width / 2 - track.width / 4, y);
+      expect(await page.locator("output").nth(1).textContent()).not.toBe(
+        startYear,
+      );
+      await latest.dispatchEvent("pointercancel", { pointerId: 1 });
+      await settle(page);
+      expect(await page.locator("output").nth(1).textContent()).toBe(startYear);
+      expect(await latest.getAttribute("aria-valuenow")).toBe(startYear);
+      expect(page.url()).toBe(start);
+      await page.mouse.up();
     } finally {
       await closePage(page);
     }

@@ -207,12 +207,14 @@ export function YearRangeFilter({
   // A drag passes through every year, and each applied range writes the URL.
   // Safari throws after 100 history writes in 10 seconds, so show the dragged
   // years here and apply only the released range. The drag stays shown until
-  // the applied range replaces the one it started from.
+  // the applied range moves off the one it started from, and then ends, so a
+  // later Back or Clear to that range does not bring it back.
   const [drag, setDrag] = useState<{
     from: string;
     range: [number, number];
   } | null>(null);
   const appliedKey = yearRange.join(":");
+  if (drag !== null && drag.from !== appliedKey) setDrag(null);
   const shownRange = drag?.from === appliedKey ? drag.range : yearRange;
   const toRange = (value: number[]): [number, number] | null => {
     const min = value[0];
@@ -243,6 +245,8 @@ export function YearRangeFilter({
           const range = toRange(value);
           if (range) onYearRangeChange(range);
         }}
+        // A cancelled drag never commits, so drop the range it showed.
+        onPointerCancel={() => setDrag(null)}
         min={minimumYear}
         max={maximumYear}
         step={1}
