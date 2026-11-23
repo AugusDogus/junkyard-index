@@ -151,7 +151,7 @@ const getCachedRegionNewCount = cacheInventory(
       new Date().toISOString(),
     );
   },
-  ["region-new-count-v3"],
+  ["region-new-count-v3", ...RETIRED_INGESTION_SOURCES],
 );
 
 /** New arrivals in a state; the hidden list keys the cache entry. */
