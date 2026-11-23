@@ -14,6 +14,7 @@ const ADMIN_TEST_SCHEMA = `
     completed_at integer
   );
   create index ingestion_run_search_published_at_idx on ingestion_run(search_published_at);
+  create index ingestion_run_admin_idx on ingestion_run(id, status, stage, inventory_published_at);
   create table ingestion_source_run (
     id text primary key, run_id text not null references ingestion_run(id),
     source text not null, status text not null,

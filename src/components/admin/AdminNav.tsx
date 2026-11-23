@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "~/lib/utils";
+import { AdminLinkPending } from "./AdminLinkPending";
 
 /**
  * The admin sections. Add a section here when its page exists; source
@@ -66,7 +67,10 @@ export function AdminNav() {
                   : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
               )}
             >
-              <span className="block">{section.label}</span>
+              <span className="flex items-center justify-between gap-2">
+                {section.label}
+                <AdminLinkPending />
+              </span>
               <span className="text-muted-foreground mt-0.5 hidden text-xs leading-5 font-normal lg:block">
                 {section.description}
               </span>

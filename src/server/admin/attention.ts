@@ -33,6 +33,12 @@ export type AttentionInput = {
   alertProblems: readonly string[];
 };
 
+/** Whether the overview lists the source as failing or out of date. */
+function listsFailure(summary: SourceSummary): boolean {
+  if (summary.retired || summary.flag === "off") return false;
+  return summary.stale || summary.consecutiveFailures >= ATTENTION_FAILURES;
+}
+
 function sourceItems(
   summary: SourceSummary,
   input: AttentionInput,
@@ -51,8 +57,8 @@ function sourceItems(
       href,
     });
   }
+  if (!listsFailure(summary)) return items;
   const failures = summary.consecutiveFailures;
-  if (!summary.stale && failures < ATTENTION_FAILURES) return items;
   const latest = summary.latestRun;
   const errors =
     latest === null
@@ -89,6 +95,21 @@ function latestDetail(
 
 /** The short "needs attention" list on the admin overview. */
 export const Attention = {
+  /**
+   * The latest runs whose error text a page shows: rejected ones (the
+   * sources table) and those of sources the overview lists as failing or
+   * out of date. Only these runs' error text is read.
+   */
+  runsShowingErrors(summaries: readonly SourceSummary[]): SourceRun[] {
+    return summaries.flatMap((summary) => {
+      const latest = summary.latestRun;
+      return latest !== null &&
+        (latest.outcome.kind === "rejected" || listsFailure(summary))
+        ? [latest.run]
+        : [];
+    });
+  },
+
   collect(input: AttentionInput): AttentionItem[] {
     const items = input.sources.flatMap((summary) =>
       sourceItems(summary, input),

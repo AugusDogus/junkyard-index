@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gt, gte, inArray, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import type { IngestionSource } from "~/lib/ingestion-source";
 import { ingestionRun, ingestionSourceRun, yardInventory } from "~/schema";
@@ -10,18 +10,26 @@ export const ERROR_EXCERPT_CHARS = 4_000;
 /** Characters of error text a run's page shows; a few runs store megabytes. */
 export const ERROR_TEXT_LIMIT_CHARS = 100_000;
 
-// Leaves out cursors and snapshot chunk lists, which reach megabytes.
+// Leaves out cursors and snapshot chunk lists, which reach megabytes. The
+// tables store most of these columns after the cursors (and ingestion_run
+// after its error text), so every source run read here stays in an index
+// that covers them; migration-chain.test.ts checks the plans.
 const runColumns = {
   id: ingestionSourceRun.id,
   runId: ingestionSourceRun.runId,
   source: ingestionSourceRun.source,
   status: ingestionSourceRun.status,
   acceptanceStatus: ingestionSourceRun.acceptanceStatus,
-  runStatus: ingestionRun.status,
-  stage: ingestionRun.stage,
+  // The ingestion_run columns are SQL so they can come from coveredRuns,
+  // which drizzle does not know as ingestion_run.
+  runStatus: sql<string>`${ingestionRun.status}`,
+  stage: sql<string>`${ingestionRun.stage}`,
   startedAt: ingestionSourceRun.startedAt,
   completedAt: ingestionSourceRun.completedAt,
-  inventoryPublishedAt: ingestionRun.inventoryPublishedAt,
+  inventoryPublishedAt: sql`${ingestionRun.inventoryPublishedAt}`.mapWith(
+    (value: number | null): Date | null =>
+      value === null ? null : new Date(value),
+  ),
   pagesProcessed: ingestionSourceRun.pagesProcessed,
   vehiclesProcessed: ingestionSourceRun.vehiclesProcessed,
   uniqueVehicles: ingestionSourceRun.uniqueVehicles,
@@ -42,17 +50,23 @@ function errorColumns(chars: number) {
 }
 
 /**
+ * ingestion_run through the index covering runColumns. The planner prefers
+ * the primary key index for `id = ?`, which reads the table.
+ */
+const coveredRuns = sql`${ingestionRun} indexed by ingestion_run_admin_idx`;
+
+/**
  * Bounded reads of ingestion runs for the admin dashboard. Every read is
  * limited by a time window, an id list or a row limit, and none touches the
  * vehicle table.
  */
 export const SourceRunRepository = {
-  /** Every source run started after `since`, through the started_at index. */
+  /** Every source run started after `since`, from covering indexes. */
   recent(database: LibSQLDatabase, since: Date): Promise<SourceRun[]> {
     return database
       .select(runColumns)
       .from(ingestionSourceRun)
-      .innerJoin(ingestionRun, eq(ingestionRun.id, ingestionSourceRun.runId))
+      .innerJoin(coveredRuns, eq(ingestionRun.id, ingestionSourceRun.runId))
       .where(gt(ingestionSourceRun.startedAt, since));
   },
 
@@ -65,7 +79,7 @@ export const SourceRunRepository = {
     return database
       .select(runColumns)
       .from(ingestionSourceRun)
-      .innerJoin(ingestionRun, eq(ingestionRun.id, ingestionSourceRun.runId))
+      .innerJoin(coveredRuns, eq(ingestionRun.id, ingestionSourceRun.runId))
       .where(
         and(
           eq(ingestionSourceRun.source, source),
@@ -74,12 +88,18 @@ export const SourceRunRepository = {
       );
   },
 
-  /** The first `ERROR_EXCERPT_CHARS` of each listed run's error text. */
+  /**
+   * The first `ERROR_EXCERPT_CHARS` of each listed run's error text, by
+   * source run id. Reads the source/started_at index, which holds the error
+   * text (the table stores it after the cursors), from the listed runs'
+   * sources since the oldest listed run started.
+   */
   async errorExcerpts(
     database: LibSQLDatabase,
-    sourceRunIds: readonly string[],
+    runs: readonly Pick<SourceRun, "id" | "source" | "startedAt">[],
   ): Promise<Map<string, SourceRunErrors>> {
-    if (sourceRunIds.length === 0) return new Map();
+    if (runs.length === 0) return new Map();
+    const since = Math.min(...runs.map((run) => run.startedAt.getTime()));
     const rows = await database
       .select({
         id: ingestionSourceRun.id,
@@ -87,7 +107,20 @@ export const SourceRunRepository = {
       })
       .from(ingestionSourceRun)
       .innerJoin(ingestionRun, eq(ingestionRun.id, ingestionSourceRun.runId))
-      .where(inArray(ingestionSourceRun.id, [...sourceRunIds]));
+      .where(
+        and(
+          inArray(ingestionSourceRun.source, [
+            ...new Set(runs.map((run) => run.source)),
+          ]),
+          gte(ingestionSourceRun.startedAt, new Date(since)),
+          // The unary plus keeps the primary key index, and so the table,
+          // out of the plan.
+          inArray(
+            sql`+${ingestionSourceRun.id}`,
+            runs.map((run) => run.id),
+          ),
+        ),
+      );
     return new Map(rows.map(({ id, ...errors }) => [id, errors]));
   },
 

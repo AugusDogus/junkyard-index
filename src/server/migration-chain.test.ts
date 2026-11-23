@@ -56,9 +56,18 @@ const LEGACY_SCHEMA = `
     id text primary key,
     run_id text,
     source text not null default 'pyp',
-    started_at integer not null default 0
+    status text not null default 'success',
+    start_cursor text,
+    next_cursor text,
+    pages_processed integer not null default 0,
+    vehicles_processed integer not null default 0,
+    errors text,
+    started_at integer not null default 0,
+    completed_at integer
   );
   create index ingestion_source_run_run_id_idx on ingestion_source_run(run_id);
+  create index ingestion_source_run_source_idx on ingestion_source_run(source);
+  create index ingestion_source_run_status_idx on ingestion_source_run(status);
   create table vehicle_snapshot (run_id text, vin text, source text);
   create table autorecycler_org_geo (
     org_lookup text primary key,
@@ -398,6 +407,79 @@ test("source freshness reads only the started_at index, never run cursors", asyn
     expect(plan.rows.map((row) => String(row.detail))).toContain(
       "SEARCH ingestion_source_run USING COVERING INDEX ingestion_source_run_started_at_idx (started_at>?)",
     );
+  } finally {
+    client.close();
+  }
+});
+
+test("admin run reads stay in indexes, never run cursors or error text", async () => {
+  const client = await createMigratedClient();
+  try {
+    const { SourceRunRepository } =
+      await import("./admin/source-run-repository");
+    const { SearchRepository } = await import("./admin/search-repository");
+    const queries: { sql: string; params: unknown[] }[] = [];
+    const db = drizzle(client, {
+      logger: { logQuery: (sql, params) => queries.push({ sql, params }) },
+    });
+    const since = new Date("2026-11-09T00:00:00Z");
+    const plans = new Map<string, string[]>();
+    const reads = {
+      recent: () => SourceRunRepository.recent(db, since),
+      recentForSource: () =>
+        SourceRunRepository.recentForSource(db, "pyp", since),
+      forSource: () => SourceRunRepository.forSource(db, "pyp", 14),
+      errorExcerpts: () =>
+        SourceRunRepository.errorExcerpts(db, [
+          { id: "a", source: "pyp", startedAt: since },
+          { id: "b", source: "row52", startedAt: since },
+        ]),
+      fullReindexRequired: () => SearchRepository.fullReindexRequired(db),
+    };
+    for (const [name, read] of Object.entries(reads)) {
+      queries.length = 0;
+      await read();
+      const [query] = queries;
+      if (!query) throw new Error(`The admin read ${name} ran no query.`);
+      const plan = await client.execute({
+        sql: `EXPLAIN QUERY PLAN ${query.sql}`,
+        args: query.params.map((param) =>
+          typeof param === "number" || typeof param === "string" ? param : null,
+        ),
+      });
+      plans.set(
+        name,
+        plan.rows.map((row) => String(row.detail)),
+      );
+    }
+    // The table stores these columns after the run cursors, which reach
+    // megabytes per run: a table read took 5 to 16 s on production.
+    expect(plans.get("recent")).toEqual([
+      "SEARCH ingestion_source_run USING COVERING INDEX ingestion_source_run_started_at_idx (started_at>?)",
+      "SEARCH ingestion_run USING COVERING INDEX ingestion_run_admin_idx (id=?)",
+    ]);
+    expect(plans.get("recentForSource")).toEqual([
+      "SEARCH ingestion_source_run USING COVERING INDEX ingestion_source_run_source_started_at_idx (source=? AND started_at>?)",
+      "SEARCH ingestion_run USING COVERING INDEX ingestion_run_admin_idx (id=?)",
+    ]);
+    // These two also read the ingestion run's own error text, so they join
+    // ingestion_run's table, for a few runs only (a page, or one per source).
+    expect(plans.get("forSource")?.[0]).toBe(
+      "SEARCH ingestion_source_run USING COVERING INDEX ingestion_source_run_source_started_at_idx (source=?)",
+    );
+    expect(plans.get("errorExcerpts")?.[0]).toBe(
+      "SEARCH ingestion_source_run USING COVERING INDEX ingestion_source_run_source_started_at_idx (source=? AND started_at>?)",
+    );
+    // ingestion_run stores the flag after each run's error text.
+    expect(plans.get("fullReindexRequired")).toEqual([
+      "SEARCH ingestion_run USING INDEX ingestion_run_full_reindex_required_idx (full_reindex_required=?)",
+    ]);
+    for (const [name, details] of plans) {
+      expect({
+        name,
+        scans: details.filter((d) => d.startsWith("SCAN")),
+      }).toEqual({ name, scans: [] });
+    }
   } finally {
     client.close();
   }

@@ -15,6 +15,7 @@ import {
   SourceStateBadge,
   WhenLoaded,
 } from "~/components/admin/AdminParts";
+import { AdminLinkPending } from "~/components/admin/AdminLinkPending";
 import { AdminTime } from "~/components/admin/AdminTime";
 import { Button } from "~/components/ui/button";
 import {
@@ -54,6 +55,7 @@ export default async function AdminSourcePage({ params }: Params) {
           <Link href="/admin/sources">
             <ArrowLeft data-icon="inline-start" />
             All sources
+            <AdminLinkPending />
           </Link>
         </Button>
         <AdminPageHeader
