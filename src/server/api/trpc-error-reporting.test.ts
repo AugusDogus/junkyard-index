@@ -53,8 +53,9 @@ async function request(path: string): Promise<Outcome> {
     new Response(child.stderr).text(),
     child.exited,
   ]);
-  expect(errors).toBe("");
-  expect(exitCode).toBe(0);
+  if (exitCode !== 0) {
+    throw new Error(`child exited ${exitCode}: ${errors}`);
+  }
   const last = output.trim().split("\n").at(-1) ?? "";
   const parsed: unknown = JSON.parse(last);
   if (
@@ -79,6 +80,13 @@ describe("tRPC error reporting", () => {
       status: 404,
       reported: [],
     });
+  });
+
+  test("a batch with a nonexistent procedure reports only the real procedure's error", async () => {
+    const { reported } = await request(
+      "status.pipeline,vehicle.broken?batch=1&input=%7B%7D",
+    );
+    expect(reported).toEqual(["database unreachable"]);
   });
 
   test("a procedure that throws NOT_FOUND itself is still reported", async () => {
