@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { parseNvpapPage } from "./nvpap-parser";
+import { parseNvpapPage, type NvpapRecord } from "./nvpap-parser";
 import { nvpapTestRecord, nvpapTestResponse } from "./nvpap-test-fixtures";
 import { transformNvpapRecord } from "./nvpap-transform";
 import { nvpapTestYard } from "./nvpap-test-fixtures";
@@ -209,6 +209,46 @@ test("Nevada identity rejections name the failed check and the row evidence", ()
   );
   expect(message).toContain("previously published Nevada inventory");
 });
+// Live Henderson row: the JSON model is empty and the model cell holds only the make.
+const nvpapEmptyModelRecord: NvpapRecord = {
+  ...nvpapTestRecord,
+  make: "FORD",
+  model: "",
+  year: 2016,
+  vin: "1FTFX1CG9GKE16292",
+  stock: "H065832",
+  images: [],
+};
+// Same-length substitution keeps the native length prefix valid.
+function emptyModelResponse(cell: string, record = nvpapEmptyModelRecord) {
+  const from = ">" + record.make + " " + record.model + "</div>";
+  if (cell.length > from.length - 7) throw new Error("Cell would move JSON");
+  return nvpapTestResponse([record], "1075").replace(
+    from,
+    ">" + cell.padEnd(from.length - 7) + "</div>",
+  );
+}
+test("Nevada parses an empty source model whose cell is only the make, then withholds it as incomplete", () => {
+  const parsed = parseNvpapPage(emptyModelResponse("Ford"), "1075", 2016);
+  expect(parsed).toEqual([nvpapEmptyModelRecord]);
+  const result = transformNvpapRecord(nvpapEmptyModelRecord, {
+    ...nvpapTestYard,
+    code: "1075",
+  });
+  expect(result).toEqual({ status: "incomplete", vin: "1FTFX1CG9GKE16292" });
+});
+test.each([
+  { cell: "Dodge", record: nvpapEmptyModelRecord },
+  { cell: "F150", record: nvpapEmptyModelRecord },
+  { cell: "Ford", record: { ...nvpapEmptyModelRecord, model: "F150" } },
+])(
+  "Nevada still rejects a model cell of $cell for JSON model '$record.model'",
+  ({ cell, record }) => {
+    expect(() =>
+      parseNvpapPage(emptyModelResponse(cell, record), "1075", 2016),
+    ).toThrow("row 0 failed the model cell check");
+  },
+);
 test.each([
   {
     raw: nvpapTestResponse([{ ...nvpapTestRecord, stock: "" }], "1074"),
