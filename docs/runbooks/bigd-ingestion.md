@@ -55,9 +55,11 @@ It never supplies inventory or ownership evidence. The cookie remains in memory
 and is never persisted in checkpoints or fixtures. There are no automatic retries.
 
 Since 2026-11-18 Cloudflare has refused every native request from Vercel with
-HTTP 403. Production chunks now open one Hyperbrowser session (stealth, accepted
-cookies, `us-west`, no proxy, no CAPTCHA solving) and load every document by
-top-level page navigation. In-page `fetch()` still receives a 403
+HTTP 403. Production chunks now open one Kernel browser (stealth with CAPTCHA
+solver, headless, direct egress; see [browser providers](browser-providers.md))
+and load every document by top-level page navigation. Hyperbrowser (stealth,
+accepted cookies, `us-west`, no proxy, no CAPTCHA solving) remains the one-line
+fallback. In-page `fetch()` still receives a 403
 `cf-mitigated: challenge`, so it is not used for this host. The browser owns
 cookies and headers; the header contract above applies only to the native
 transport. The navigation response status, headers and exact body bytes pass
@@ -65,9 +67,8 @@ through the same checks below. A redirected navigation reports its first hop, so
 it fails as a redirect. A chunk is the bootstrap plus 1-4 pages, at most five
 document navigations in one session. The session opens with the chunk's first
 request, after cursor and budget validation, and is stopped when the chunk ends.
-It opens only under the cross-source
-[Hyperbrowser session lease](hyperbrowser-sessions.md); a busy lease defers the
-chunk.
+It opens only under its provider's cross-source
+[session lease](hyperbrowser-sessions.md); a busy lease defers the chunk.
 
 The page routes every request, which disables the browser HTTP cache. Big D
 sends `cache-control: max-age=7200`, so without this the closing `/contact/` and

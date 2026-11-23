@@ -20,14 +20,16 @@ manual redirects, combined 20-second deadline, 2 MiB response limit, and
 needed then. The earlier raw-request 403 is retained as historical evidence.
 
 Since 2026-11-18 Cloudflare has refused every native request from Vercel with
-HTTP 403. Production chunks open one Hyperbrowser session (stealth, accepted
-cookies, `us-west`, no proxy, no CAPTCHA solving). The first document of a chunk
+HTTP 403. Production chunks open one Kernel browser (stealth with CAPTCHA
+solver, headless, direct egress; see [browser providers](browser-providers.md)).
+Hyperbrowser (stealth, accepted cookies, `us-west`, no proxy, no CAPTCHA
+solving) remains the one-line fallback. The first document of a chunk
 loads by page navigation; later documents use same-origin in-page `fetch()`
 with manual redirects. The browser supplies its own headers; status, URL, MIME,
 range, size and UTF-8 checks are unchanged.
 
 A chunk reads all of its pages (up to eight) in one URG host turn. It takes the
-[Hyperbrowser session lease](hyperbrowser-sessions.md) first, never inside the
+provider's [session lease](hyperbrowser-sessions.md) first, never inside the
 turn, then waits for the turn without a session. The session opens with the
 first request inside the turn, inside its host slot, and is stopped when the
 chunk ends, so the session never waits in the URG queue. Each request still
@@ -36,7 +38,7 @@ gate after it. A page after the first starts only if it can finish by the
 chunk's turn horizon. The turn holds one of the URG group's places for the whole
 chunk, typically about a minute, instead of one place per page. While the chunk
 waits for its turn it holds the session lease without a session, which is not
-billed but keeps the other Hyperbrowser sources waiting.
+billed but keeps the provider's other sources waiting.
 
 The page routes every request, which disables the browser HTTP cache. It loads
 only the chunk's own documents (the main-frame navigation and the in-page
