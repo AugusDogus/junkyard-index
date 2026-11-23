@@ -1164,7 +1164,14 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
           maxPages: context.maxPages,
           onBatch: context.onBatch,
           onYards: context.onYards,
-        }),
+        }).pipe(
+          Effect.tap((result) =>
+            Effect.sync(() => {
+              for (const warning of result.warnings ?? [])
+                console.warn(warning);
+            }),
+          ),
+        ),
       ),
       (next) => next,
       context.vehiclesByVin,
