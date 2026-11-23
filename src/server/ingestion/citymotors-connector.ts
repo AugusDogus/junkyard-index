@@ -1,5 +1,5 @@
 import { ingestionValidation } from "./ingestion-validation";
-import { Effect } from "effect";
+import { Effect, Either } from "effect";
 import type {
   ConnectorChunkAccounting,
   ConnectorChunkStatus,
@@ -7,6 +7,7 @@ import type {
 import {
   CITYMOTORS_REQUEST_BUDGET_MS,
   CitymotorsProviderError,
+  CitymotorsTransientFailure,
   fetchCitymotorsPage,
 } from "./citymotors-client";
 import {
@@ -187,20 +188,40 @@ export function streamCitymotorsInventoryWithRequestGate<E, R>(
     if (cursor.phase === "complete")
       return { ...summary, status: "complete" as const };
     const started = Date.now();
+    const requestFits = () =>
+      Date.now() -
+        started +
+        CITYMOTORS_WORST_CASE_REQUEST_MS +
+        CITYMOTORS_COMPLETION_RESERVE_MS <=
+      CITYMOTORS_CHUNK_DEADLINE_MS;
     while (summary.pagesProcessed < maxPages && cursor.phase !== "complete") {
-      if (
-        Date.now() -
-          started +
-          CITYMOTORS_WORST_CASE_REQUEST_MS +
-          CITYMOTORS_COMPLETION_RESERVE_MS >
-        CITYMOTORS_CHUNK_DEADLINE_MS
-      )
-        break;
+      if (!requestFits()) break;
       const current: CitymotorsProgress = cursor;
       const url: string = yield* attempt("next native control", (): string =>
         nextUrl(current),
       );
-      const raw: string = yield* fetchCitymotorsPage(url, gate);
+      // The slow origin occasionally stalls or answers 5xx. Such a GET is sent
+      // once more if a full request still fits. If it still fails, a chunk that
+      // already validated pages returns that checkpoint so the next chunk
+      // resumes there; one that has not fails without advancing.
+      let fetched = yield* Effect.either(fetchCitymotorsPage(url, gate));
+      if (
+        Either.isLeft(fetched) &&
+        fetched.left instanceof CitymotorsTransientFailure &&
+        requestFits()
+      )
+        fetched = yield* Effect.either(fetchCitymotorsPage(url, gate));
+      if (Either.isLeft(fetched)) {
+        const failure = fetched.left;
+        if (failure instanceof CitymotorsProviderError)
+          return yield* Effect.fail(failure);
+        if (summary.pagesProcessed > 0) break;
+        return yield* new CitymotorsProviderError({
+          operation: url,
+          cause: failure.cause,
+        });
+      }
+      const raw: string = fetched.right;
       const next: CitymotorsProgress = yield* attempt(
         "native control " + url,
         (): CitymotorsProgress => advance(current, raw),
