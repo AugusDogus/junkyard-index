@@ -162,8 +162,8 @@ export function streamBigdInventoryWithRequestGate<E, R>(
   );
 }
 /** At most one browser session per chunk, opened by the first request under
- * the Hyperbrowser session lease and stopped when the chunk ends. `sessions`
- * defaults to Hyperbrowser. */
+ * its provider's session lease and stopped when the chunk ends. `sessions`
+ * defaults to Big D's provider in `BROWSER_PROVIDERS`. */
 export function streamBigdInventory<E, R>(
   options: BigdOptions<E, R>,
   sessions?: BrowserSessions,
@@ -172,11 +172,7 @@ export function streamBigdInventory<E, R>(
     Effect.gen(function* () {
       const transport = yield* acquireBigdBrowser(
         sessions ??
-          DocumentTransport.hyperbrowser(
-            (yield* Config).hyperbrowserApiKey,
-            "bigd",
-            "page",
-          ),
+          DocumentTransport.sourceSessions("bigd", yield* Config, "page"),
       );
       return yield* streamBigdInventoryWithRequestGate(
         options,
