@@ -518,8 +518,15 @@ export const ingestionSourceRun = sqliteTable(
     index("ingestion_source_run_run_id_idx").on(table.runId),
     index("ingestion_source_run_source_idx").on(table.source),
     index("ingestion_source_run_status_idx").on(table.status),
-    // Status reads each source's recent runs.
-    index("ingestion_source_run_started_at_idx").on(table.startedAt),
+    // Status and page freshness read each source's recent runs. The index
+    // covers that read: acceptance_status is stored after the cursors, which
+    // reach megabytes, so reading it from the table pulled ~130 MB per query.
+    index("ingestion_source_run_started_at_idx").on(
+      table.startedAt,
+      table.source,
+      table.acceptanceStatus,
+      table.runId,
+    ),
   ],
 );
 

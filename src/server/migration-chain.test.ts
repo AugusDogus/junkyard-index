@@ -55,6 +55,7 @@ const LEGACY_SCHEMA = `
   create table ingestion_source_run (
     id text primary key,
     run_id text,
+    source text not null default 'pyp',
     started_at integer not null default 0
   );
   create index ingestion_source_run_run_id_idx on ingestion_source_run(run_id);
@@ -368,6 +369,35 @@ test("source-scoped VIN pagination uses the source/VIN index", async () => {
         ),
       ),
     ).toBe(true);
+  } finally {
+    client.close();
+  }
+});
+
+test("source freshness reads only the started_at index, never run cursors", async () => {
+  const client = await createMigratedClient();
+  try {
+    const { loadSourceFreshness } = await import("./ingestion/durable-health");
+    const queries: { sql: string; params: unknown[] }[] = [];
+    await loadSourceFreshness(
+      drizzle(client, {
+        logger: { logQuery: (sql, params) => queries.push({ sql, params }) },
+      }),
+      new Date("2026-11-23T01:00:00Z"),
+    );
+    const [query] = queries;
+    if (!query) throw new Error("loadSourceFreshness ran no query.");
+    const plan = await client.execute({
+      sql: `EXPLAIN QUERY PLAN ${query.sql}`,
+      args: query.params.map((param) =>
+        typeof param === "number" || typeof param === "string" ? param : null,
+      ),
+    });
+    // A table read pulls every recent run's megabyte cursors to reach
+    // acceptance_status, which timed out prerendering on production.
+    expect(plan.rows.map((row) => String(row.detail))).toContain(
+      "SEARCH ingestion_source_run USING COVERING INDEX ingestion_source_run_started_at_idx (started_at>?)",
+    );
   } finally {
     client.close();
   }
