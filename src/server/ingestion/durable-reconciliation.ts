@@ -35,6 +35,7 @@ import {
   RELIST_WINDOW_MS,
 } from "./reconciliation-policy";
 import {
+  forgetRunSnapshotInventory,
   loadRunSnapshotInventory,
   type RunSnapshotInventory,
 } from "./run-snapshot-inventory";
@@ -1146,23 +1147,38 @@ export async function reconcileDurableIngestionRun(params: {
   canonicalize?: (rows: CanonicalVehicle[]) => Promise<CanonicalVehicle[]>;
 }): Promise<DurableReconciliationBatchResult> {
   let inventory: Promise<RunSnapshotInventory> | null = null;
+  // Loading the staged inventory can take longer than the batch budget. It
+  // is charged to the step once, not to its batches, or a slow load leaves
+  // every step a single batch and pays the load again for each one.
+  let loadMs = 0;
+  const load = async () => {
+    const loadStarted = Date.now();
+    try {
+      return await loadRunSnapshotInventory({
+        runId: params.runId,
+        database: params.database,
+        store: params.snapshotStore,
+      });
+    } finally {
+      loadMs = Date.now() - loadStarted;
+    }
+  };
   const context: ReconciliationContext = {
     runId: params.runId,
     database: params.database,
     batchClient: params.batchClient,
     searchPublication: params.searchPublication ?? "inline",
     canonicalize: params.canonicalize,
-    inventory: () =>
-      (inventory ??= loadRunSnapshotInventory({
-        runId: params.runId,
-        database: params.database,
-        store: params.snapshotStore,
-      })),
+    inventory: () => (inventory ??= load()),
   };
-  const deadline =
-    Date.now() + (params.budgetMs ?? RECONCILIATION_STEP_BUDGET_MS);
+  const started = Date.now();
+  const budgetMs = params.budgetMs ?? RECONCILIATION_STEP_BUDGET_MS;
   while (true) {
     const result = await reconcileBatch(context);
-    if (result.status !== "paused" || Date.now() >= deadline) return result;
+    if (result.status !== "paused") {
+      forgetRunSnapshotInventory(params.snapshotStore, params.runId);
+      return result;
+    }
+    if (Date.now() - started - loadMs >= budgetMs) return result;
   }
 }
