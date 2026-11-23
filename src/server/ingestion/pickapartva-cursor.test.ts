@@ -76,6 +76,7 @@ const split = {
   date: "2026-11-16",
   id: "TT87",
   makes: ["FORD", "LAND ROVER"],
+  startedAt: 1_795_000_000_000,
   searches: [
     {
       make: "FORD",
@@ -104,6 +105,18 @@ test.each([
   { partitions: [{ ...split, makes: ["FORD", "FORD"] }] },
   { partitions: [{ ...split, makes: ["FORD", "Land Rover"] }] },
   { partitions: [{ ...split, date: "2026-11-31" }] },
+  { partitions: [{ ...split, startedAt: 0 }] },
+  { partitions: [{ ...split, startedAt: 1.5 }] },
+  {
+    partitions: [
+      {
+        date: split.date,
+        id: split.id,
+        makes: split.makes,
+        searches: split.searches,
+      },
+    ],
+  },
   {
     partitions: [
       {

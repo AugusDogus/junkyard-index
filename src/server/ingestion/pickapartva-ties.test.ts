@@ -1,14 +1,18 @@
 import { afterEach, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { brotliDecompressSync } from "node:zlib";
-import { Effect } from "effect";
+import { Effect, Either, TestClock } from "effect";
 import { z } from "zod";
 import { connectorChunkMetrics } from "./connector-chunk";
 import {
   parseDurableSourceCursor,
   serializeDurableSourceCursor,
 } from "./durable-cursor";
-import { streamPickapartvaInventoryWithRequestGate } from "./pickapartva-connector";
+import {
+  PICKAPARTVA_MAKE_CHUNK_SOFT_MS,
+  PICKAPARTVA_MAKE_SPLIT_LIFETIME_MS,
+  streamPickapartvaInventoryWithRequestGate,
+} from "./pickapartva-connector";
 import {
   PickapartvaCursorSchema,
   type PickapartvaCursor,
@@ -25,6 +29,8 @@ import {
   pickapartvaTestRecord,
 } from "./pickapartva-test-fixtures";
 import type { PickapartvaCanonicalVehicle } from "./pickapartva-transform";
+import { ProviderTurnDeferred } from "./provider-chunk-clock";
+import { runWithQueuedHost } from "./provider-host-test-support";
 import {
   pickapartvaSearchTarget,
   pickapartvaSearchUrl,
@@ -662,7 +668,13 @@ test("Pick-A-Part VA splits a still-capped yard search by make across checkpoint
   expect(first).toMatchObject({ status: "paused", count: 0 });
   if (first.cursor.phase !== "makes") throw new Error("Expected a make split");
   expect(first.cursor.partitions).toEqual([
-    { date: "2026-10-16", id: "TT87", makes: nativeMakes, searches: [] },
+    {
+      date: "2026-10-16",
+      id: "TT87",
+      makes: nativeMakes,
+      searches: [],
+      startedAt: expect.any(Number),
+    },
   ]);
   expect(nativeMakes).toHaveLength(62);
   // The make searches resume from a checkpoint taken between them.
@@ -857,6 +869,178 @@ test("Pick-A-Part VA fails closed when the make searches omit a donor the catalo
     ),
   ).rejects.toThrow(
     `make searches for 2026-10-16 in TT87 omit 1 donors the catalog shows (first ${shown.record.stock} ${shown.record.make})`,
+  );
+  expect(callbacks).toBe(0);
+}, 60_000);
+
+/** The capped census's checkpoint: the Fredericksburg 2026-10-16 split with
+ * no make searched yet. */
+async function pendingSplit() {
+  serve(cappedYard, makePages);
+  const first = await run(() => Effect.void);
+  if (first.cursor.phase !== "makes") throw new Error("Expected a make split");
+  return first.cursor;
+}
+/** One chunk from `startCursor` on the test clock, set to when its split
+ * started, with shared URG host turns that each wait `turnWaitMs(turn)`. */
+const queuedChunk = (
+  startCursor: PickapartvaCursor,
+  turnWaitMs: (turn: number) => number,
+) =>
+  runWithQueuedHost(
+    Effect.zipRight(
+      TestClock.setTime(
+        startCursor.phase === "makes"
+          ? (startCursor.partitions[0]?.startedAt ?? 0)
+          : 0,
+      ),
+      Effect.suspend(() =>
+        streamPickapartvaInventoryWithRequestGate(
+          { onBatch: () => Effect.void, startCursor },
+          gate,
+        ),
+      ),
+    ),
+    { turnWaitMs },
+  );
+const searchedMakes = (cursor: PickapartvaCursor) =>
+  cursor.phase === "makes"
+    ? cursor.partitions.flatMap((split) =>
+        split.searches.map((search) => search.make),
+      )
+    : [];
+
+test("Pick-A-Part VA starts no make search after the chunk's soft stop and resumes at the next make", async () => {
+  const pending = await pendingSplit();
+  // Each make search waits 10 s for its own shared URG turn.
+  const calls = serve(cappedYard, makePages);
+  const chunk = await queuedChunk(pending, () => 10_000);
+  if (Either.isLeft(chunk.result)) throw chunk.result.left;
+  expect(chunk.result.right).toMatchObject({ status: "paused", count: 0 });
+  const done = searchedMakes(chunk.result.right.cursor);
+  expect(done.length).toBeGreaterThan(1);
+  expect(done.length).toBeLessThan(nativeMakes.length);
+  expect(done).toEqual(nativeMakes.slice(0, done.length));
+  expect(calls).toEqual(done.map((make) => makeUrl(make)));
+  // The last make search was started before the soft stop and only waited
+  // for its turn and the host gap, and the chunk ended long before its
+  // 340-second turn horizon.
+  expect(chunk.requests.at(-1)?.startedAt).toBeLessThan(
+    PICKAPARTVA_MAKE_CHUNK_SOFT_MS + 15_000,
+  );
+  expect(chunk.elapsedMs).toBeLessThan(PICKAPARTVA_MAKE_CHUNK_SOFT_MS + 30_000);
+  const resumedCalls = serve(cappedYard, makePages);
+  const resumed = await queuedChunk(chunk.result.right.cursor, () => 10_000);
+  if (Either.isLeft(resumed.result)) throw resumed.result.left;
+  expect(resumedCalls[0]).toBe(makeUrl(nativeMakes[done.length] ?? ""));
+  expect(searchedMakes(resumed.result.right.cursor)).toEqual(
+    nativeMakes.slice(0, done.length + resumedCalls.length),
+  );
+}, 60_000);
+
+test("Pick-A-Part VA checkpoints the make searches done before a deferred shared host turn", async () => {
+  const pending = await pendingSplit();
+  // The fourth turn cannot arrive before the chunk's turn horizon.
+  const calls = serve(cappedYard, makePages);
+  const late = await queuedChunk(pending, (turn) =>
+    turn < 3 ? 1_000 : 400_000,
+  );
+  if (Either.isLeft(late.result)) throw late.result.left;
+  expect(late.result.right.status).toBe("paused");
+  expect(searchedMakes(late.result.right.cursor)).toEqual(
+    nativeMakes.slice(0, 3),
+  );
+  expect(calls).toEqual(nativeMakes.slice(0, 3).map((make) => makeUrl(make)));
+  // Before any make search the deferral defers the whole chunk.
+  const none = serve(cappedYard, makePages);
+  const deferred = await queuedChunk(pending, () => 400_000);
+  expect(Either.isLeft(deferred.result) && deferred.result.left).toBeInstanceOf(
+    ProviderTurnDeferred,
+  );
+  expect(none).toEqual([]);
+}, 60_000);
+
+test.each([
+  ["older than its lifetime", -PICKAPARTVA_MAKE_SPLIT_LIFETIME_MS - 60_000],
+  ["dated in the future", 60_000],
+])(
+  "Pick-A-Part VA refuses a make split checkpoint %s",
+  async (_kind, offset) => {
+    const pending = await pendingSplit();
+    const stale: PickapartvaCursor = {
+      ...pending,
+      partitions: pending.partitions.map((split) => ({
+        ...split,
+        startedAt: Date.now() + offset,
+      })),
+    };
+    const calls = serve(cappedYard, makePages);
+    await expect(run(() => Effect.void, stale)).rejects.toThrow(
+      "make split for 2026-10-16 in TT87 started",
+    );
+    expect(calls).toEqual([]);
+  },
+  60_000,
+);
+
+test("Pick-A-Part VA refuses a census whose make split no longer covers the native makes, went stale or needs another split", async () => {
+  const pending = await pendingSplit();
+  serve(cappedYard, makePages);
+  const searched = await run(() => Effect.void, pending);
+  if (searched.cursor.phase !== "makes")
+    throw new Error("Expected a make split");
+  let callbacks = 0;
+  const count = () =>
+    Effect.sync(() => {
+      callbacks++;
+    });
+  // A split without the catalog's last native make proves no donor of it.
+  const narrowed: PickapartvaCursor = {
+    ...searched.cursor,
+    partitions: searched.cursor.partitions.map((split) => ({
+      ...split,
+      makes: split.makes.slice(0, -1),
+      searches: split.searches.slice(0, -1),
+    })),
+  };
+  serve(cappedYard, makePages);
+  await expect(run(count, narrowed)).rejects.toThrow(
+    "make searches for 2026-10-16 in TT87 do not cover the native make selector's 62 makes",
+  );
+  serve(cappedYard, makePages);
+  const census = await run(() => Effect.void, searched.cursor, 8);
+  if (census.cursor.phase !== "pages")
+    throw new Error("Expected a paused checkpoint");
+  // The make split outlived its lifetime during emission.
+  const stale: PickapartvaCursor = {
+    ...census.cursor,
+    partitions: census.cursor.partitions.map((split) => ({
+      ...split,
+      startedAt: Date.now() - PICKAPARTVA_MAKE_SPLIT_LIFETIME_MS - 60_000,
+    })),
+  };
+  const staleCalls = serve(cappedYard, makePages);
+  await expect(run(count, stale)).rejects.toThrow(
+    "make split for 2026-10-16 in TT87 started",
+  );
+  expect(staleCalls).toEqual([]);
+  // Stafford's 2026-10-16 search, complete when the checkpoint was taken,
+  // now reaches the cap.
+  const stafford = wrapped(captured).filter((card) =>
+    card.includes("<b>Location: </b> Stafford<"),
+  );
+  serve(
+    (url, body) =>
+      url === searchUrl("2026-10-16", "UU81")
+        ? yardPage(
+            wrapped(capped(stafford, synthetic("2026-10-16", 1))),
+            "UU81",
+          )
+        : cappedYard(url, body),
+    makePages,
+  );
+  await expect(run(count, census.cursor)).rejects.toThrow(
+    "A set-date search the checkpointed census completed is now capped",
   );
   expect(callbacks).toBe(0);
 }, 60_000);

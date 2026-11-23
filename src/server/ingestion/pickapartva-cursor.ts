@@ -43,12 +43,15 @@ const record = z
  * search per native make. `makes` is the native make selector in order and
  * `searches` holds the completed make searches, in that order, with their
  * donors, so a later chunk can rebuild the census without repeating them.
+ * `startedAt` is the epoch milliseconds at which the capped yard search was
+ * read, which bounds how long the saved make searches are trusted.
  */
 const partition = z
   .object({
     date: z.string().max(10),
     id: z.enum(PICKAPARTVA_YARD_CODES),
     makes: z.array(make).min(1).max(PICKAPARTVA_MAX_MAKES),
+    startedAt: z.number().int().positive(),
     searches: z
       .array(
         z
