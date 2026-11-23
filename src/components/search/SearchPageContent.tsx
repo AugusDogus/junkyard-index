@@ -1524,7 +1524,9 @@ function AlgoliaSearchInner({
 
   // One row: what shapes the results on the left, saving on the right.
   const workspaceActions = (
-    <div className="flex w-full items-center gap-1.5 md:gap-2 [&_[data-slot=select-trigger]]:h-11 md:[&_[data-slot=select-trigger]]:h-9 [&_button]:h-11 [&_button]:min-w-11 md:[&_button]:h-9">
+    // Narrow phones trim button padding, so the row keeps headroom for
+    // wider fallback fonts.
+    <div className="flex w-full items-center gap-1.5 md:gap-2 [&_[data-slot=select-trigger]]:h-11 md:[&_[data-slot=select-trigger]]:h-9 [&_button]:h-11 [&_button]:min-w-11 max-[399px]:[&_button]:gap-1.5! max-[399px]:[&_button]:px-2! md:[&_button]:h-9">
       <div className="md:hidden">{mobileFiltersDrawer}</div>
       <Button
         type="button"
