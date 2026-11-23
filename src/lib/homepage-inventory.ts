@@ -3,6 +3,7 @@ import "server-only";
 import { db } from "~/lib/db";
 import { cacheInventory } from "~/lib/inventory-cache";
 import { HiddenSources } from "~/lib/hidden-source";
+import { RETIRED_INGESTION_SOURCES } from "~/lib/ingestion-source";
 import { RecentArrivals } from "~/lib/recent-arrivals";
 import { getHomepageYards } from "~/server/homepage-yards";
 import { getRecentHomepageVehicles } from "~/server/homepage-recent-vehicles";
@@ -33,7 +34,7 @@ export type RecentVehicle = Awaited<
 // show reads a fresh entry at once.
 const getCachedHomepageInventory = cacheInventory(
   getHomepageInventoryInternal,
-  ["homepage-inventory", "active-yards-v4"],
+  ["homepage-inventory", "active-yards-v4", ...RETIRED_INGESTION_SOURCES],
 );
 
 export async function getHomepageInventory() {
