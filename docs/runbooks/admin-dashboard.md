@@ -208,3 +208,13 @@ instead of being shown an old entry while it refreshes in the background;
 nothing shown is more than 10 minutes old. A failed read is not
 cached, so reloading tries again. Bump a read's version (`-v1`) when its
 result shape changes, since cached entries outlive deployments.
+
+## Rolling back past the controls
+
+Builds from before the controls ignore `source_control`, so a rollback shows
+every source hidden here and runs every source paused here. Prefer rolling
+forward. Otherwise, first re-hide each hidden source with the old
+`HIDDEN_SOURCES` constant in the build you roll back to, and serve false for
+each paused source's `ingestion-source-<source>` Vercel flag. The steps, and
+how the `v3` and `v4` inventory snapshots behave across the rollback, are in
+[hide-source.md](hide-source.md#rolling-back-past-this-change).
