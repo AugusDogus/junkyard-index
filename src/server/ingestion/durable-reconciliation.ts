@@ -1,6 +1,7 @@
 import { rememberModelRedirects } from "./vin-canonicalization";
 import type { Client, InStatement, InValue } from "@libsql/client";
 import { and, asc, eq, gt, gte, inArray, sql } from "drizzle-orm";
+import { Duration } from "effect";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import type { FirstSighting } from "~/lib/first-sighting";
 import {
@@ -28,6 +29,7 @@ import {
 } from "./durable-run-state";
 import { DURABLE_INGESTION_SOURCES } from "./durable-source";
 import type { IngestionSnapshotStore } from "./ingestion-snapshot-store";
+import { PROVIDER_CHUNK_WALL_LIMIT } from "./provider-chunk-clock";
 import {
   type MissingVehicleTransition,
   planChangedVehicleUpserts,
@@ -52,6 +54,14 @@ const VEHICLE_VALUE_COLUMN_COUNT = 33;
 
 // Leave most of a workflow step's duration for the batches' own writes.
 const RECONCILIATION_STEP_BUDGET_MS = 240_000;
+/**
+ * No step starts another batch after this much wall time, however long its
+ * inventory load took. A step can start inline late in its function, so it
+ * gets the same wall allowance as a provider chunk step.
+ */
+const RECONCILIATION_STEP_WALL_LIMIT_MS = Duration.toMillis(
+  PROVIDER_CHUNK_WALL_LIMIT,
+);
 
 type BatchClient = Pick<Client, "batch">;
 
@@ -59,7 +69,8 @@ interface ReconciliationContext {
   runId: string;
   database: LibSQLDatabase;
   batchClient: BatchClient;
-  /** Loads the run's staged inventory at most once per step. */
+  /** Loads the run's staged inventory at most once per process while the
+   * run keeps pausing. */
   inventory: () => Promise<RunSnapshotInventory>;
   /** Whether the final batch hands the run to search or releases it. */
   searchPublication: SearchPublicationMode;
@@ -1179,6 +1190,11 @@ export async function reconcileDurableIngestionRun(params: {
       forgetRunSnapshotInventory(params.snapshotStore, params.runId);
       return result;
     }
-    if (Date.now() - started - loadMs >= budgetMs) return result;
+    const elapsed = Date.now() - started;
+    if (
+      elapsed - loadMs >= budgetMs ||
+      elapsed >= RECONCILIATION_STEP_WALL_LIMIT_MS
+    )
+      return result;
   }
 }
