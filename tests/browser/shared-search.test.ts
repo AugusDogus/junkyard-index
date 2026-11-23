@@ -131,6 +131,7 @@ for (const scenario of [
               apiKey: "fixture-renewed-free-key",
               expiresInSeconds: 3600,
               tier: "free",
+              hiddenSources: [],
             },
           });
         const isScript = pathname === "/app.js";

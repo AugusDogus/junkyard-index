@@ -2,7 +2,11 @@ import { expect, test } from "bun:test";
 import { ACTIVE_INGESTION_SOURCES } from "~/lib/ingestion-source";
 
 // Isolate module mocks so the full suite still exercises real ingestion code.
-function statusFor(published: Record<string, number>, paused: string[]) {
+function statusFor(
+  published: Record<string, number>,
+  paused: string[],
+  pausedHere: string[] = [],
+) {
   const result = Bun.spawnSync(
     [
       process.execPath,
@@ -11,6 +15,7 @@ function statusFor(published: Record<string, number>, paused: string[]) {
     import { mock } from "bun:test";
     const published = ${JSON.stringify(published)};
     const paused = ${JSON.stringify(paused)};
+    const pausedHere = ${JSON.stringify(pausedHere)};
     const sources = ${JSON.stringify(ACTIVE_INGESTION_SOURCES)};
     mock.module("next/cache", () => ({ unstable_cache: (load) => load }));
     mock.module("~/server/ingestion/source-freshness", () => ({
@@ -24,6 +29,23 @@ function statusFor(published: Record<string, number>, paused: string[]) {
     mock.module("~/server/ingestion/ingestion-source-flags", () => ({
       IngestionSourceFlags: {
         enabledSources: async () => sources.filter((source) => !paused.includes(source)),
+      },
+    }));
+    mock.module("~/lib/db", () => ({ db: {} }));
+    const { SourceControl } = await import("./src/server/source-control/source-control.ts");
+    mock.module("~/server/source-control/source-control-repository", () => ({
+      SourceControlRepository: {
+        all: async () =>
+          SourceControl.fromRows(
+            pausedHere.map((source) => ({
+              source,
+              ingestion: "paused",
+              visibility: "shown",
+              hiddenReason: null,
+              updatedByUserId: "owner",
+              updatedAt: new Date(),
+            })),
+          ),
       },
     }));
     const { GET } = await import("./src/app/api/status/route.ts");
@@ -83,6 +105,13 @@ test("all-sources status is 503 and lists stale sources", () => {
 
 test("all-sources status ignores a paused source", () => {
   expect(statusFor(withoutAero, ["aero"])).toMatchObject({
+    status: 200,
+    body: { status: "healthy", paused: ["aero"], stale: [] },
+  });
+});
+
+test("all-sources status ignores a source the owner paused from /admin", () => {
+  expect(statusFor(withoutAero, [], ["aero"])).toMatchObject({
     status: 200,
     body: { status: "healthy", paused: ["aero"], stale: [] },
   });

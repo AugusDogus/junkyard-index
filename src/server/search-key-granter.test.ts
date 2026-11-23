@@ -1,9 +1,11 @@
 import { describe, expect, mock, test } from "bun:test";
+import { HiddenSources } from "~/lib/hidden-source";
 import type { PlanTier } from "~/lib/plans";
 import { SearchKeyGranter } from "./search-key-granter";
 
 const NOW_MS = Date.UTC(2026, 10, 20, 12);
 const headers = new Headers({ "x-real-ip": "203.0.113.7" });
+const hiddenSources = async () => HiddenSources.of(["meeks"]);
 
 function restrictionsOf(apiKey: string) {
   return new URLSearchParams(
@@ -24,6 +26,7 @@ function granter(input: {
     serverApiKey: "server-search-key",
     planTier,
     clientIp,
+    hiddenSources,
     warn,
   });
   return { grant, planTier, clientIp, warn };
@@ -65,14 +68,25 @@ describe("SearchKeyGranter", () => {
     );
   });
 
+  test("every key names the hidden sources it leaves out", async () => {
+    const { grant } = granter({ parentApiKey: "parent" });
+    const key = await grant({ userId: null, headers, nowMs: NOW_MS });
+    expect(key.hiddenSources).toEqual(["meeks"]);
+    expect(restrictionsOf(key.apiKey).get("filters")).toBe(
+      'NOT source:"meeks"',
+    );
+  });
+
   test("without a parent key, sends the server key unrestricted and warns once", async () => {
     const { grant, warn } = granter({ tier: "lite" });
     const first = await grant({ userId: "user-1", headers, nowMs: NOW_MS });
     await grant({ userId: null, headers, nowMs: NOW_MS });
+    // Only the browser's own filter leaves hidden sources out then.
     expect(first).toEqual({
       apiKey: "server-search-key",
-      expiresInSeconds: 3600,
+      expiresInSeconds: 900,
       tier: "lite",
+      hiddenSources: ["meeks"],
     });
     expect(warn).toHaveBeenCalledTimes(1);
   });
@@ -88,6 +102,7 @@ describe("SearchKeyGranter.pair", () => {
       cachedTier,
       directTier,
       clientIp: () => "203.0.113.7",
+      hiddenSources,
       warn: () => undefined,
     });
     return { ...pair, cachedTier, directTier };
@@ -130,7 +145,7 @@ describe("SearchKeyGranter.pair", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
     const body: unknown = await response.json();
-    expect(body).toMatchObject({ tier: "free", expiresInSeconds: 3600 });
+    expect(body).toMatchObject({ tier: "free", expiresInSeconds: 900 });
   });
 
   test("anonymous renewals never call the billing provider", async () => {

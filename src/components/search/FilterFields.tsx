@@ -12,6 +12,7 @@ import {
 import { Slider } from "~/components/ui/slider";
 import { PLANS } from "~/lib/plans";
 import type { DataSource } from "~/lib/types";
+import { useHiddenSources } from "~/components/HiddenSourcesContext";
 import { HiddenSources } from "~/lib/hidden-source";
 import { INGESTION_SOURCES } from "~/lib/ingestion-source";
 import { cn } from "~/lib/utils";
@@ -113,8 +114,10 @@ const SOURCE_LABELS: Record<DataSource, string> = {
   autorecycler: "AutoRecycler.io",
 };
 
-export const AVAILABLE_SOURCES: readonly DataSource[] =
-  INGESTION_SOURCES.filter((source) => !HiddenSources.has(source));
+/** The sources pickers offer: every one but hidden sources. */
+export function availableSources(hidden: HiddenSources): DataSource[] {
+  return HiddenSources.shown(hidden, INGESTION_SOURCES);
+}
 
 interface InventorySourcesFilterProps {
   idPrefix: string;
@@ -127,12 +130,14 @@ export function InventorySourcesFilter({
   sources: selectedSources,
   onSourcesChange,
 }: InventorySourcesFilterProps) {
-  const sources = HiddenSources.shown(selectedSources);
+  const hidden = useHiddenSources();
+  const available = availableSources(hidden);
+  const sources = HiddenSources.shown(hidden, selectedSources);
   return (
     <FieldSet className="gap-3">
       <FieldLegend className="sr-only">Inventory sources</FieldLegend>
       <FieldGroup className="gap-1">
-        {AVAILABLE_SOURCES.map((source) => {
+        {available.map((source) => {
           const isChecked = sources.length === 0 || sources.includes(source);
           const checkboxId = `${idPrefix}-${source}`;
 
@@ -150,16 +155,14 @@ export function InventorySourcesFilter({
                     if (sources.length === 0) return;
                     const newSources = [...sources, source];
                     onSourcesChange(
-                      newSources.length === AVAILABLE_SOURCES.length
-                        ? []
-                        : newSources,
+                      newSources.length === available.length ? [] : newSources,
                     );
                     return;
                   }
 
                   if (sources.length === 0) {
                     onSourcesChange(
-                      AVAILABLE_SOURCES.filter(
+                      available.filter(
                         (availableSource) => availableSource !== source,
                       ),
                     );

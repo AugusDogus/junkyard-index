@@ -2,6 +2,7 @@ import { createClient } from "@libsql/client";
 import { expect, test } from "bun:test";
 import { drizzle } from "drizzle-orm/libsql";
 import { readFileSync } from "node:fs";
+import { HiddenSources } from "~/lib/hidden-source";
 import { getHomepageYards } from "./homepage-yards";
 
 test("recovers a PYP yard website from active inventory before metadata is reingested", async () => {
@@ -31,7 +32,7 @@ test("recovers a PYP yard website from active inventory before metadata is reing
         "utf8",
       ),
     );
-    const yards = await getHomepageYards(drizzle(client));
+    const yards = await getHomepageYards(drizzle(client), HiddenSources.none);
     expect(yards).toHaveLength(1);
     expect(yards[0]).toMatchObject({
       vehicleCount: 2,

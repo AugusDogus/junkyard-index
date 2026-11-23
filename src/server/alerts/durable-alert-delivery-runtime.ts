@@ -18,6 +18,7 @@ import {
 } from "./notification-intent-claim";
 import { parseNotificationIntentPayload } from "./notification-intent-payload";
 import { ConsumerFlags } from "~/server/ingestion/consumer-flags";
+import { SourceControlRepository } from "~/server/source-control/source-control-repository";
 import { notificationDeliveryAllowed } from "./notification-delivery-trigger";
 import { SearchAlertsFlag } from "./search-alerts-flag";
 
@@ -117,8 +118,18 @@ const operations: DurableAlertDeliveryOperations = {
     const tier = await getAuthoritativePlanTier(userId);
     return hasPlanFeature(tier, "alerts");
   },
-  sendEmailDigest,
-  sendDiscordAlerts,
+  // Read per send, so a source hidden after the alert was queued still
+  // links nowhere.
+  sendEmailDigest: async (recipient, digest, options) =>
+    sendEmailDigest(recipient, digest, {
+      ...options,
+      hiddenSources: await SourceControlRepository.hiddenSources(db),
+    }),
+  sendDiscordAlerts: async (discordUserId, alerts, options) =>
+    sendDiscordAlerts(discordUserId, alerts, {
+      ...options,
+      hiddenSources: await SourceControlRepository.hiddenSources(db),
+    }),
   cancelIntents: async (intents, reason) => {
     const claim = claimedGroup(intents);
     await cancelClaimedNotificationIntents({

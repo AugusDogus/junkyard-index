@@ -9,6 +9,7 @@ import { VehicleName } from "~/lib/vehicle-name";
 import { YardInventory } from "~/lib/yard-inventory";
 import { YardPath } from "~/lib/yard-path";
 import { findMake, getMakeSlugs } from "~/server/vehicle-models";
+import { getHiddenSources } from "~/server/source-control/hidden-sources-loader";
 import { getYardPageData } from "~/server/yard-inventory";
 
 // One make at one yard, narrowed from the yard's cached inventory, so it
@@ -80,6 +81,7 @@ export default async function YardMakePage({
         )}
         makes={data.makes}
         makeSlugs={await getMakeSlugs()}
+        hiddenSources={await getHiddenSources()}
         publishedAt={data.publishedAt}
         nearby={data.nearby}
         chain={data.chain}

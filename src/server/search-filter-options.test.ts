@@ -51,7 +51,9 @@ test("filter options list every live make, color, state and yard from Turso", as
       ],
     });
 
-    expect(await SearchFilterOptions.load(drizzle(client))).toEqual({
+    expect(
+      await SearchFilterOptions.load(drizzle(client), HiddenSources.none),
+    ).toEqual({
       makes: ["Chevrolet", "Ford", "Toyota", "Volkswagen"],
       colors: ["Blue", "Red"],
       states: ["Alabama", "California", "Oklahoma"],
@@ -87,14 +89,17 @@ test("lists more than 500 yards, the old facet limit", async () => {
       "insert into inventory_snapshot (key, data, updated_at) values ('v3:make-counts', '[]', 0)",
     );
 
-    const options = await SearchFilterOptions.load(drizzle(client));
+    const options = await SearchFilterOptions.load(
+      drizzle(client),
+      HiddenSources.none,
+    );
     expect(options.salvageYards).toHaveLength(600);
   } finally {
     client.close();
   }
 });
 
-for (const source of HiddenSources.list)
+for (const source of ["meeks"] as const)
   test(`${source} is hidden, so filters offer none of its yards, states or colors`, async () => {
     const client = createClient({ url: ":memory:" });
     try {
@@ -113,7 +118,12 @@ for (const source of HiddenSources.list)
         sql: "insert into inventory_snapshot (key, data, updated_at) values (?, ?, 0)",
         args: ["v3:make-counts", JSON.stringify([{ make: "Ford", count: 1 }])],
       });
-      expect(await SearchFilterOptions.load(drizzle(client))).toMatchObject({
+      expect(
+        await SearchFilterOptions.load(
+          drizzle(client),
+          HiddenSources.of([source]),
+        ),
+      ).toMatchObject({
         colors: ["Red"],
         states: ["California"],
         salvageYards: ["LKQ Pick Your Part - Sun Valley"],

@@ -1,11 +1,15 @@
 import type { APIEmbed } from "discord-api-types/v10";
+import type { HiddenSources } from "./hidden-source";
 import type { SearchAlertData } from "./search-alert-data";
 import { formatVehicleEmbed } from "./discord-vehicle-embed";
 
 const DISCORD_MESSAGE_EMBED_LIMIT = 10;
 const DISCORD_ALERT_VEHICLE_SLOTS = DISCORD_MESSAGE_EMBED_LIMIT - 1;
 
-export function formatDiscordAlert(data: SearchAlertData): APIEmbed[] {
+export function formatDiscordAlert(
+  data: SearchAlertData,
+  hidden: HiddenSources,
+): APIEmbed[] {
   // Limit to first 9 vehicles (Discord allows max 10 embeds, and we need 1 for the main embed)
   const vehiclesToShow = data.match.previewVehicles.slice(
     0,
@@ -26,5 +30,8 @@ export function formatDiscordAlert(data: SearchAlertData): APIEmbed[] {
         : undefined,
   };
 
-  return [mainEmbed, ...vehiclesToShow.map(formatVehicleEmbed)];
+  return [
+    mainEmbed,
+    ...vehiclesToShow.map((vehicle) => formatVehicleEmbed(vehicle, hidden)),
+  ];
 }

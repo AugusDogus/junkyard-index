@@ -17,6 +17,7 @@ import {
 } from "@react-email/components";
 import { ArrivalDate } from "~/lib/arrival-date";
 import type { SearchAlertMatch } from "~/lib/search-alert-data";
+import type { HiddenSources } from "~/lib/hidden-source";
 import { VehicleDestination } from "~/lib/vehicle-destination";
 
 interface NewVehiclesAlertItem {
@@ -34,6 +35,8 @@ interface NewVehiclesAlertProps {
     vehicleCount: number;
   };
   manageSearchesUrl: string;
+  /** Sources hidden from the site; their vehicles link nowhere. */
+  hiddenSources: HiddenSources;
 }
 
 const MAX_DIGEST_VEHICLES = 10;
@@ -41,6 +44,7 @@ const MAX_DIGEST_VEHICLES = 10;
 export function NewVehiclesAlert({
   digest,
   manageSearchesUrl,
+  hiddenSources,
 }: NewVehiclesAlertProps) {
   const previewText = `${digest.vehicleCount} new vehicle${digest.vehicleCount === 1 ? "" : "s"} across ${digest.alertCount} saved search${digest.alertCount === 1 ? "" : "es"}`;
   const previewVehicleCount = digest.previewAlerts.reduce(
@@ -104,7 +108,10 @@ export function NewVehiclesAlert({
                   </Section>
 
                   {vehiclesToShow.map((vehicle) => {
-                    const destination = VehicleDestination.resolve(vehicle);
+                    const destination = VehicleDestination.forSite(
+                      vehicle,
+                      hiddenSources,
+                    );
                     return (
                       <Section
                         key={vehicle.id}

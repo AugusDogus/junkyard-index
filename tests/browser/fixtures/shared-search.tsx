@@ -56,6 +56,7 @@ const searchKey: SearchKeyGrant = {
       : `fixture-${keyTier}-key`,
   expiresInSeconds: params.get("fixtureKey") === "expired" ? 0 : 3600,
   tier: keyTier,
+  hiddenSources: [],
 };
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: Infinity, retry: false } },

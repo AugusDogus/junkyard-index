@@ -1,10 +1,20 @@
 import { describe, expect, test } from "bun:test";
+import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { HiddenSourcesProvider } from "~/components/HiddenSourcesContext";
 import { DesktopFiltersBar } from "./DesktopFiltersBar";
 import { MobileFilterContent } from "./MobileFilterContent";
-import { AVAILABLE_SOURCES, InventorySourcesFilter } from "./FilterFields";
+import { availableSources, InventorySourcesFilter } from "./FilterFields";
 import { HiddenSources } from "~/lib/hidden-source";
 import { INGESTION_SOURCES } from "~/lib/ingestion-source";
+
+const HIDDEN = HiddenSources.of(["meeks"]);
+
+function render(node: ReactNode, hidden: HiddenSources = HIDDEN): string {
+  return renderToStaticMarkup(
+    <HiddenSourcesProvider hidden={hidden}>{node}</HiddenSourcesProvider>,
+  );
+}
 
 const emptyFilterOptions = {
   makes: [],
@@ -17,7 +27,7 @@ const noOp = () => undefined;
 
 describe("search filter visibility", () => {
   test("offers every registered source but hidden ones, including when selecting all except one", () => {
-    const markup = renderToStaticMarkup(
+    const markup = render(
       <InventorySourcesFilter
         idPrefix="test"
         sources={[]}
@@ -26,18 +36,31 @@ describe("search filter visibility", () => {
     );
     for (const source of INGESTION_SOURCES) {
       expect(markup.includes(`id="test-${source}"`)).toBe(
-        !HiddenSources.has(source),
+        !HiddenSources.has(HIDDEN, source),
       );
     }
-    expect(AVAILABLE_SOURCES.filter((source) => source !== "row52")).toContain(
+    const available = availableSources(HIDDEN);
+    expect(available.filter((source) => source !== "row52")).toContain(
       "pullnsave",
     );
-    expect(AVAILABLE_SOURCES.filter((source) => source !== "row52")).toContain(
+    expect(available.filter((source) => source !== "row52")).toContain(
       "tearapart",
     );
   });
+
+  test("offers a source again once the server's list no longer hides it", () => {
+    const markup = render(
+      <InventorySourcesFilter
+        idPrefix="test"
+        sources={[]}
+        onSourcesChange={noOp}
+      />,
+      HiddenSources.none,
+    );
+    expect(markup).toContain('id="test-meeks"');
+  });
   test("allows entering saved-search filters when inventory has no suggestions", () => {
-    const markup = renderToStaticMarkup(
+    const markup = render(
       <MobileFilterContent
         defaultOpenSections="all"
         allowCustomValues
@@ -71,7 +94,7 @@ describe("search filter visibility", () => {
   });
 
   test("keeps the desktop make filter visible when the current search has no facet values", () => {
-    const markup = renderToStaticMarkup(
+    const markup = render(
       <DesktopFiltersBar
         advancedSearchControl={<button type="button">Advanced search</button>}
         activeFilterCount={1}
@@ -101,7 +124,7 @@ describe("search filter visibility", () => {
   });
 
   test("shows an advanced search upgrade action without paid filter access", () => {
-    const markup = renderToStaticMarkup(
+    const markup = render(
       <DesktopFiltersBar
         advancedSearchControl={
           <button aria-label="Advanced search, upgrade required" type="button">
@@ -138,7 +161,7 @@ describe("search filter visibility", () => {
 
   for (const canUseAdvancedFilters of [false, true])
     test(`keeps mobile year filtering free and gates make filtering: paid=${canUseAdvancedFilters}`, () => {
-      const markup = renderToStaticMarkup(
+      const markup = render(
         <MobileFilterContent
           makes={[]}
           colors={[]}
@@ -166,7 +189,7 @@ describe("search filter visibility", () => {
     });
 
   test("starts every settings filter section closed", () => {
-    const markup = renderToStaticMarkup(
+    const markup = render(
       <MobileFilterContent
         defaultOpenSections="none"
         makes={[]}

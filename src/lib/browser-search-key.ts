@@ -1,3 +1,4 @@
+import { HiddenSources } from "~/lib/hidden-source";
 import { isPaidPlanTier, type PlanTier } from "~/lib/plans";
 import { SearchKeyGrant } from "~/lib/search-key-grant";
 
@@ -20,10 +21,12 @@ type Fetch = (input: string, init: RequestInit) => Promise<Response>;
  * `/api/search-key`, which asks the billing provider directly; `forPaid` is
  * the kind of plan the page showed when it asked.
  */
-type HeldKey = { grant: SearchKeyGrant; renewAtMs: number } & (
-  | { source: "rendered" }
-  | { source: "fetched"; forPaid: boolean | null }
-);
+type HeldKey = {
+  grant: SearchKeyGrant;
+  renewAtMs: number;
+  /** The grant's hidden sources, built once so readers get one object. */
+  hidden: HiddenSources;
+} & ({ source: "rendered" } | { source: "fetched"; forPaid: boolean | null });
 
 /** A key Algolia refused is fetched again at most this often. */
 const REJECTION_REFETCH_MS = 60_000;
@@ -70,6 +73,7 @@ function create(fetcher: Fetch, now: () => number = () => Date.now()) {
             grant: fetched,
             forPaid,
             renewAtMs: SearchKeyGrant.renewAtMs(fetched, now()),
+            hidden: HiddenSources.of(fetched.hiddenSources),
           };
           // Only fetches notify: prime and renewFor run while rendering,
           // and readers see their result through `tier` in the same render.
@@ -94,7 +98,12 @@ function create(fetcher: Fetch, now: () => number = () => Date.now()) {
       lastPrimed = next.apiKey;
       const renewAtMs = SearchKeyGrant.renewAtMs(next, now());
       if (!held || renewAtMs > held.renewAtMs)
-        held = { source: "rendered", grant: next, renewAtMs };
+        held = {
+          source: "rendered",
+          grant: next,
+          renewAtMs,
+          hidden: HiddenSources.of(next.hiddenSources),
+        };
     },
     /**
      * Called when Algolia refused `apiKey`. Returns whether retrying the
@@ -140,6 +149,14 @@ function create(fetcher: Fetch, now: () => number = () => Date.now()) {
     /** The tier of the key searches use now; null while one is fetched. */
     tier(): PlanTier | null {
       return held?.grant.tier ?? null;
+    },
+    /**
+     * The sources the held key leaves out; null while one is fetched. The
+     * page filters and lists with it, so a renewed key brings a hide or
+     * show to an open tab.
+     */
+    hiddenSources(): HiddenSources | null {
+      return held?.hidden ?? null;
     },
     subscribe(listener: () => void): () => void {
       listeners.add(listener);

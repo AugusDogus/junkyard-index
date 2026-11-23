@@ -101,6 +101,7 @@ import {
   type AlgoliaVehicleHit,
 } from "~/lib/search-vehicles";
 import { primeSearchCounts } from "~/lib/algolia-search";
+import { useHiddenSources } from "~/components/HiddenSourcesContext";
 import { SearchFailure } from "~/lib/search-failure";
 import { SearchHitsCache } from "~/lib/search-hits-cache";
 import { browserSearchKey } from "~/lib/browser-search-key";
@@ -441,6 +442,7 @@ function AlgoliaSearchInner({
     useInstantSearch({
       catchError: true,
     });
+  const hiddenSources = useHiddenSources();
   const refinementList = (indexUiState.refinementList ?? {}) as Record<
     string,
     string[]
@@ -462,8 +464,8 @@ function AlgoliaSearchInner({
     setCacheRestored(true);
   }, [hitsCache, isLoggedIn]);
   useEffect(() => {
-    primeSearchCounts(results._rawResults[0]?.userData);
-  }, [results]);
+    primeSearchCounts(hiddenSources, results._rawResults[0]?.userData);
+  }, [hiddenSources, results]);
   const { hits, showMore, isLastPage } = useInfiniteHits<AlgoliaVehicleHit>(
     { cache: hitsCache },
     { skipSuspense: true },

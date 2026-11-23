@@ -17,6 +17,7 @@ import {
 } from "~/components/admin/AdminParts";
 import { AdminLinkPending } from "~/components/admin/AdminLinkPending";
 import { AdminTime } from "~/components/admin/AdminTime";
+import { SourceControls } from "~/components/admin/SourceControls";
 import { Button } from "~/components/ui/button";
 import {
   INGESTION_SOURCE_DISPLAY_NAMES,
@@ -25,11 +26,21 @@ import {
 import {
   ADMIN_WINDOW_DAYS,
   AdminData,
+  SOURCE_PAGE_ACTIONS,
   SOURCE_PAGE_RUNS,
 } from "~/server/admin/admin-data";
 import { readAdminAccess, requireAdmin } from "~/server/admin/require-admin";
 import { SourceRun } from "~/server/admin/source-run";
 import { IngestionSourceFlags } from "~/server/ingestion/ingestion-source-flags";
+import type { AdminActionKind } from "~/server/source-control/source-control-repository";
+
+const ACTION_LABELS: Record<AdminActionKind, string> = {
+  pause_ingestion: "Paused runs",
+  resume_ingestion: "Resumed runs",
+  hide_source: "Hid from the site",
+  show_source: "Showed on the site",
+  run_now: "Started a run",
+};
 
 type Params = { params: Promise<{ source: string }> };
 
@@ -42,7 +53,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 }
 
 export default async function AdminSourcePage({ params }: Params) {
-  await requireAdmin();
+  const { userId } = await requireAdmin();
   const { source } = await params;
   if (!isIngestionSource(source)) notFound();
   const loaded = await AdminData.source(source, new Date());
@@ -60,12 +71,12 @@ export default async function AdminSourcePage({ params }: Params) {
         </Button>
         <AdminPageHeader
           title={name}
-          description={`Source key "${source}". Its state, flags and last ${SOURCE_PAGE_RUNS} runs.`}
+          description={`Source key "${source}". Its state, controls and last ${SOURCE_PAGE_RUNS} runs.`}
         />
       </div>
 
       <WhenLoaded loaded={loaded}>
-        {({ summary, runs }) => (
+        {({ summary, runs, actions }) => (
           <>
             <AdminSection
               title="Status"
@@ -117,40 +128,84 @@ export default async function AdminSourcePage({ params }: Params) {
             </AdminSection>
 
             <AdminSection
-              title="Flags"
-              description="What decides whether this source runs and shows. Changing them from here comes in a later update."
+              title="Controls"
+              description="Changes apply without a deploy and are logged below. A source is paused if it is paused here or by its Vercel flag."
             >
-              <DetailList
-                rows={[
-                  {
-                    label: "Daily runs",
-                    value: summary.retired ? (
-                      "Retired: never fetched, whatever the flag says"
-                    ) : (
-                      <>
-                        {FLAG_LABELS[summary.flag]}
-                        <span className="text-muted-foreground block text-xs font-normal">
-                          Vercel flag {IngestionSourceFlags.key(source)}
-                        </span>
-                      </>
-                    ),
-                  },
-                  {
-                    label: "On the public site",
-                    value:
-                      summary.hiddenReason === null ? (
-                        "Shown"
+              <SourceControls
+                source={source}
+                name={name}
+                retired={summary.retired}
+                ingestion={summary.control.ingestion}
+                pausedBy={summary.pausedBy}
+                visibility={summary.control.visibility}
+              />
+              <div className="mt-6">
+                <DetailList
+                  rows={[
+                    {
+                      label: "Paused here",
+                      value:
+                        summary.control.ingestion === "paused" ? "Yes" : "No",
+                    },
+                    {
+                      label: "Vercel flag",
+                      value: summary.retired ? (
+                        "Retired: never fetched, whatever the flag says"
                       ) : (
                         <>
-                          Hidden
+                          {FLAG_LABELS[summary.flag]}
                           <span className="text-muted-foreground block text-xs font-normal">
-                            {summary.hiddenReason}
+                            {IngestionSourceFlags.key(source)}, changed in
+                            Vercel
                           </span>
                         </>
                       ),
-                  },
-                ]}
-              />
+                    },
+                    {
+                      label: "Last changed here",
+                      value: (
+                        <AdminTime
+                          date={summary.control.lastChange?.at ?? null}
+                          empty="Never"
+                        />
+                      ),
+                    },
+                  ]}
+                />
+              </div>
+            </AdminSection>
+
+            <AdminSection
+              title="Recent actions"
+              description={`The last ${SOURCE_PAGE_ACTIONS} changes made here, newest first. This log cannot be edited.`}
+            >
+              {actions.length === 0 ? (
+                <p className="text-muted-foreground text-sm">
+                  No one has changed this source from here yet.
+                </p>
+              ) : (
+                <ol className="divide-y rounded-lg border">
+                  {actions.map((action) => (
+                    <li key={action.id} className="grid gap-1 p-4 text-sm">
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                        <span className="font-medium">
+                          {ACTION_LABELS[action.action]}
+                        </span>
+                        <span className="text-muted-foreground text-xs">
+                          <AdminTime date={action.createdAt} />
+                        </span>
+                      </div>
+                      <p className="text-muted-foreground text-xs break-words">
+                        By{" "}
+                        {action.userId === userId
+                          ? "you"
+                          : `user ${action.userId}`}
+                        {action.detail !== null && <>: {action.detail}</>}
+                      </p>
+                    </li>
+                  ))}
+                </ol>
+              )}
             </AdminSection>
 
             <AdminSection

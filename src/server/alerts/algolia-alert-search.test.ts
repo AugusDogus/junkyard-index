@@ -33,6 +33,11 @@ mock.module("./src/server/algolia-search-client", () => ({
 mock.module("./src/server/ingestion/search-index-readiness", () => ({
   getSearchIndexCapabilities: async () => ({ makeAliasesReady: true }),
 }));
+const hidden = HiddenSources.of(["meeks", "pratt"]);
+mock.module("./src/lib/db", () => ({ db: {} }));
+mock.module("./src/server/source-control/source-control-repository", () => ({
+  SourceControlRepository: { hiddenSources: async () => hidden },
+}));
 const { getAlertMatchStatsBatch } = await import(
   "./src/server/alerts/algolia-alert-search"
 );
@@ -48,11 +53,10 @@ expect(results.map((result) => result.status)).toEqual([
   "fulfilled",
   "fulfilled",
 ]);
-expect(HiddenSources.list.length).toBeGreaterThan(0);
 expect(filters).toHaveLength(2);
 for (const filter of filters) {
-  expect(filter?.endsWith(String(HiddenSources.algoliaFilter))).toBe(true);
-  for (const source of HiddenSources.list)
+  expect(filter?.endsWith(String(HiddenSources.algoliaFilter(hidden)))).toBe(true);
+  for (const source of hidden.list)
     expect(filter).toContain('NOT source:"' + source + '"');
 }
 `;

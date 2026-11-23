@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
+import { HiddenSources } from "~/lib/hidden-source";
 import type { YardVehicle } from "~/lib/yard-inventory";
 import { VehicleRow } from "./VehicleRow";
 
@@ -28,6 +29,7 @@ test("vehicles without photos use text-only rows and omit missing row notices", 
       source="allied"
       publishedAt={null}
       layout="columns"
+      hiddenSources={HiddenSources.none}
     />,
   );
   expect(html).toContain(vehicle.vin);
@@ -48,6 +50,7 @@ test("photos and actual yard positions remain visible", () => {
       source="allied"
       publishedAt={null}
       layout="stacked"
+      hiddenSources={HiddenSources.none}
     />,
   );
   expect(html).toContain(

@@ -923,3 +923,63 @@ export const autorecyclerOrgGeo = sqliteTable(
   },
   (table) => [index("autorecycler_org_geo_updated_at_idx").on(table.updatedAt)],
 );
+
+/**
+ * The owner's per-source controls from /admin. A source without a row runs
+ * and is shown. `ingestion` paused leaves the source out of new ingestion
+ * runs, together with its Vercel flag (paused if either says so).
+ * `visibility` hidden keeps it off the public site, with the reason the
+ * owner gave; see SourceControl and docs/runbooks/hide-source.md.
+ */
+export const sourceControl = sqliteTable(
+  "source_control",
+  {
+    source: text("source").primaryKey(),
+    ingestion: text("ingestion", { enum: ["running", "paused"] })
+      .default("running")
+      .notNull(),
+    visibility: text("visibility", { enum: ["shown", "hidden"] })
+      .default("shown")
+      .notNull(),
+    hiddenReason: text("hidden_reason"),
+    // Null when a migration set the row, not a person.
+    updatedByUserId: text("updated_by_user_id"),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  () => [
+    check(
+      "source_control_ingestion_check",
+      sql`ingestion in ('running', 'paused')`,
+    ),
+    check(
+      "source_control_visibility_check",
+      sql`visibility in ('shown', 'hidden')`,
+    ),
+    check(
+      "source_control_hidden_reason_check",
+      sql`(visibility = 'hidden') = (hidden_reason is not null and trim(hidden_reason) != '')`,
+    ),
+  ],
+);
+
+/**
+ * What admins did from /admin, newest last. Append-only: triggers in the
+ * migration refuse updates and deletes. Not tied to `user`, so deleting an
+ * account keeps its history.
+ */
+export const adminActionLog = sqliteTable(
+  "admin_action_log",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: text("user_id").notNull(),
+    // AdminAction["action"]
+    action: text("action").notNull(),
+    // The source acted on, when the action was on one.
+    source: text("source"),
+    detail: text("detail"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    index("admin_action_log_source_idx").on(table.source, table.createdAt),
+  ],
+);

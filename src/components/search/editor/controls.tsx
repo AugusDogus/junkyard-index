@@ -1,5 +1,6 @@
 "use client";
 
+import { useHiddenSources } from "~/components/HiddenSourcesContext";
 import { HiddenSources } from "~/lib/hidden-source";
 import { YardService } from "~/lib/yard-service";
 import { YardTypeFilter } from "~/components/search/FilterFields";
@@ -161,9 +162,11 @@ const SOURCES = [
   ["row52", "Row52 / Pick-n-Pull"],
   ["autorecycler", "AutoRecycler.io"],
 ] as const;
-/** The sources the picker offers: every one but hidden sources. */
-const SHOWN_SOURCES = SOURCES.filter(([source]) => !HiddenSources.has(source));
-function filterSummary(key: FilterKey, value: SearchCriteria) {
+function filterSummary(
+  key: FilterKey,
+  value: SearchCriteria,
+  hidden: HiddenSources,
+) {
   if (key === "yardTypes")
     return (
       value.yardTypes.map((kind) => YardService.label({ kind })).join(", ") ||
@@ -173,7 +176,7 @@ function filterSummary(key: FilterKey, value: SearchCriteria) {
     ? `${value.yearRange[0]}–${value.yearRange[1]}`
     : key === "sources"
       ? value.sources.length
-        ? `${HiddenSources.shown(value.sources).length} selected`
+        ? `${HiddenSources.shown(hidden, value.sources).length} selected`
         : "All sources"
       : value[key].join(", ") || "Any";
 }
@@ -188,7 +191,12 @@ export function FilterEditor({
   const container = useContext(EditorPortal);
   const yardTypeId = useId();
   const suggestions = useFilterSuggestions();
-  const shownSources = HiddenSources.shown(value.sources);
+  const hidden = useHiddenSources();
+  const shownSources = HiddenSources.shown(hidden, value.sources);
+  // The sources the picker offers: every one but hidden sources.
+  const offeredSources = SOURCES.filter(
+    ([source]) => !HiddenSources.has(hidden, source),
+  );
   const choices = {
     makes: suggestions.make,
     colors: suggestions.color,
@@ -230,7 +238,7 @@ export function FilterEditor({
               }}
             >
               <span>{LABELS[key]}</span>
-              <span>{filterSummary(key, value)}</span>
+              <span>{filterSummary(key, value, hidden)}</span>
               <ChevronDown size={14} />
             </button>
             <button
@@ -305,7 +313,7 @@ export function FilterEditor({
                 />
               ) : key === "sources" ? (
                 <div className="se-choice-list">
-                  {SHOWN_SOURCES.map(([source, label]) => (
+                  {offeredSources.map(([source, label]) => (
                     <label key={source}>
                       <input
                         type="checkbox"
@@ -316,7 +324,7 @@ export function FilterEditor({
                         onChange={(e) => {
                           const selected = shownSources.length
                             ? shownSources
-                            : SHOWN_SOURCES.map(([code]) => code);
+                            : offeredSources.map(([code]) => code);
                           const next = e.target.checked
                             ? [...selected, source]
                             : selected.filter((item) => item !== source);
@@ -324,7 +332,7 @@ export function FilterEditor({
                             onChange({
                               ...value,
                               sources:
-                                next.length === SHOWN_SOURCES.length
+                                next.length === offeredSources.length
                                   ? []
                                   : next,
                             });

@@ -1,3 +1,4 @@
+import { SourceControl } from "~/server/source-control/source-control";
 import { describe, expect, test } from "bun:test";
 import { Attention } from "./attention";
 import type { SourceSummary } from "./source-overview";
@@ -30,8 +31,9 @@ function summary(overrides: Partial<SourceSummary>): SourceSummary {
     name: "LKQ Pick Your Part",
     state: "failing",
     retired: false,
-    hiddenReason: null,
+    control: SourceControl.initial("pyp"),
     flag: "on",
+    pausedBy: null,
     latestRun: {
       run: failedRun,
       outcome: { kind: "rejected", reason: "error" },
@@ -138,7 +140,8 @@ describe("Attention.collect", () => {
         ...quiet,
         sources: [
           summary({ consecutiveFailures: 1 }),
-          summary({ state: "paused", flag: "off" }),
+          summary({ state: "paused", flag: "off", pausedBy: "flag" }),
+          summary({ state: "paused", pausedBy: "admin" }),
           summary({ state: "retired", retired: true }),
         ],
       }),
@@ -244,8 +247,16 @@ describe("Attention.runsShowingErrors", () => {
         summary({
           source: "row52",
           flag: "off",
+          pausedBy: "flag",
           latestRun: latest("off", accepted),
           consecutiveFailures: 0,
+          stale: true,
+        }),
+        summary({
+          source: "upullitne",
+          pausedBy: "admin",
+          latestRun: latest("admin-paused", accepted),
+          consecutiveFailures: 3,
           stale: true,
         }),
         summary({

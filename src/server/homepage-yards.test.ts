@@ -56,7 +56,7 @@ test("directory joins metadata by source and code without changing active invent
         updatedAt: new Date(),
       },
     ]);
-    const yards = await getHomepageYards(db);
+    const yards = await getHomepageYards(db, HiddenSources.none);
     expect(yards).toHaveLength(3);
     expect(
       yards.some(
@@ -93,7 +93,7 @@ test("directory joins metadata by source and code without changing active invent
   }
 });
 
-for (const source of HiddenSources.list)
+for (const source of ["meeks"] as const)
   test(`${source} is hidden, so the directory and every yard page leave it out`, async () => {
     const client = createClient({ url: ":memory:" });
     try {
@@ -117,7 +117,10 @@ for (const source of HiddenSources.list)
           "utf8",
         ),
       );
-      const yards = await getHomepageYards(drizzle(client));
+      const yards = await getHomepageYards(
+        drizzle(client),
+        HiddenSources.of([source]),
+      );
       expect(yards.map((entry) => entry.source)).toEqual(["pyp"]);
     } finally {
       client.close();

@@ -6,8 +6,8 @@ free plans have left, and how people use the site. It never scans the
 vehicle table and never searches Algolia, so opening it costs no Algolia
 searches.
 
-It only shows things. Controls (run a source now, pause it, hide it from the
-site) come in a later update.
+Each source's page also has controls: pause or resume its daily runs, hide it
+from the public site or show it again, and start a run now.
 
 ## Who can open it
 
@@ -16,8 +16,8 @@ Everyone else, signed out included, gets the site's normal "page not found",
 with the same title, and no admin data. (The page's code still links the
 admin section's scripts, as Next.js does for any route, so someone reading
 the HTML could tell the address exists; they see nothing from it.) Every
-admin page checks this on the server
-([`require-admin.ts`](../../src/server/admin/require-admin.ts)).
+admin page and every control checks this on the server before doing
+anything ([`require-admin.ts`](../../src/server/admin/require-admin.ts)).
 While `ADMIN_USER_IDS` is unset or empty, no one can open it.
 
 ### Grant access
@@ -54,8 +54,8 @@ error" opens the exact text the system stored.
   next run), search falling behind, and late saved-search alerts. Each links
   to the page with details.
 - **Sources**: how many are updated today, failing, out of date, running,
-  paused (by their Vercel flag), hidden from the public site and retired,
-  plus when the latest run started.
+  paused (here or by their Vercel flag), hidden from the public site and
+  retired, plus when the latest run started.
 - **Search**: when search was last updated, how many vehicle changes are
   waiting to reach search, and whether search owes a full rebuild.
 - **Saved-search alerts**: whether alerts are on, and the latest daily alert
@@ -76,25 +76,51 @@ over 24 hours for its turn to publish.
 States, in the order the page checks them (a stuck run is listed first,
 whatever its state):
 
-| State                 | Meaning                                                                    |
-| --------------------- | -------------------------------------------------------------------------- |
-| Retired               | No longer fetched (the yard's feed stopped reflecting its lot).            |
-| Paused                | Its `ingestion-source-<source>` Vercel flag serves false.                  |
-| Running               | A run is in progress. "Stuck" marks one with no progress for 3 hours.      |
-| Failing               | Its latest finished run was rejected.                                      |
-| Out of date           | No run accepted for over 36 hours, though none failed (none may have run). |
-| Updated today         | A run was accepted since 07:00 UTC, when the ingestion day starts.         |
-| Not updated yet today | Its last run was fine, but none has been accepted today yet.               |
+| State                 | Meaning                                                                                 |
+| --------------------- | --------------------------------------------------------------------------------------- |
+| Retired               | No longer fetched (the yard's feed stopped reflecting its lot).                         |
+| Paused                | Paused from its page here, or its `ingestion-source-<source>` Vercel flag serves false. |
+| Running               | A run is in progress. "Stuck" marks one with no progress for 3 hours.                   |
+| Failing               | Its latest finished run was rejected.                                                   |
+| Out of date           | No run accepted for over 36 hours, though none failed (none may have run).              |
+| Updated today         | A run was accepted since 07:00 UTC, when the ingestion day starts.                      |
+| Not updated yet today | Its last run was fine, but none has been accepted today yet.                            |
 
-"Hidden" is shown beside the state: a hidden source keeps updating but stays
-off the public site (see [hide-source.md](hide-source.md)).
+"Hidden" and "Paused" badges show beside the name: a hidden source keeps
+updating but stays off the public site (see [hide-source.md](hide-source.md)),
+and hovering "Paused" says what paused it.
 
 ### One source (`/admin/sources/<source>`)
 
 Its state and counts (from the last 14 days, as on the sources page), its
-flags (the daily-run Vercel flag and whether it is hidden, with the reason),
-and its last 14 runs: when each started, how it ended, how long it took,
-pages and vehicles read, and its full error text.
+controls, the last 20 changes made to it here, and its last 14 runs: when
+each started, how it ended, how long it took, pages and vehicles read, and
+its full error text.
+
+#### Controls
+
+Every change applies without a deploy, shows a result message in plain words
+(with the raw error behind "Show details" if it failed) and is added to
+**Recent actions**, which no one can edit or delete.
+
+- **Daily runs: Pause runs / Resume runs.** A paused source is left out of
+  the daily pass, and manual runs (Run now, and the cron-secret
+  `/api/admin/ingestion/run` route) refuse it. A run already in progress
+  finishes. The source is paused if it is paused here **or** its
+  `ingestion-source-<source>` Vercel flag serves false; the page shows both.
+  Resuming here does not turn the Vercel flag back on: change that in
+  Vercel. `/api/status` lists paused sources instead of checking them.
+- **Public site: Hide from site / Show on site.** Hiding asks for a reason
+  and a confirm step. Pages and new searches change at once, open search
+  pages within 15 minutes, and make totals on `/cars` at the next inventory
+  update. See [hide-source.md](hide-source.md) for every surface.
+- **Run now.** Asks to confirm, then starts one run of the source outside the
+  daily pass, the same as the cron-secret route. It counts as one of today's
+  attempts. It is refused, with the reason, when the source is retired,
+  paused, or already has a run in progress (that run keeps going).
+
+The controls are stored in the `source_control` table and the log in
+`admin_action_log`.
 
 ### Search & alerts (`/admin/search`)
 

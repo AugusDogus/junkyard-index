@@ -17,6 +17,7 @@ import {
   SEARCH_SORT_OPTIONS,
 } from "~/components/search/search-routing";
 import { ALGOLIA_INDEX_NAME, getSearchClient } from "~/lib/algolia-search";
+import { HiddenSources } from "~/lib/hidden-source";
 import { browserSearchKey } from "~/lib/browser-search-key";
 import { createSearchRouteSync } from "~/lib/search-route-sync";
 
@@ -24,6 +25,7 @@ browserSearchKey.prime({
   apiKey: "fixture-key",
   expiresInSeconds: 3600,
   tier: "full",
+  hiddenSources: [],
 });
 
 // Mirror Next's history bridge, including a new searchParams object per write.
@@ -118,7 +120,7 @@ function Fixture() {
       <SearchParamsContext.Provider value={location.searchParams}>
         <InstantSearchNext
           indexName={ALGOLIA_INDEX_NAME}
-          searchClient={getSearchClient(true, false, true)}
+          searchClient={getSearchClient(HiddenSources.none, true, false, true)}
           routing={routing}
         >
           <Controls params={location.searchParams} />

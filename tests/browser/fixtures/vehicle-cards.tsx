@@ -1,3 +1,5 @@
+import { HiddenSourcesProvider } from "~/components/HiddenSourcesContext";
+import { HiddenSources } from "~/lib/hidden-source";
 import { createRoot } from "react-dom/client";
 import { VehicleCard } from "~/components/search/VehicleCard";
 import {
@@ -84,4 +86,8 @@ function Fixture() {
   );
 }
 
-createRoot(document.body).render(<Fixture />);
+createRoot(document.body).render(
+  <HiddenSourcesProvider hidden={HiddenSources.none}>
+    <Fixture />
+  </HiddenSourcesProvider>,
+);

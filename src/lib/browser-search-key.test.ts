@@ -9,8 +9,9 @@ function grant(
   apiKey: string,
   expiresInSeconds: number,
   tier: SearchKeyGrant["tier"] = "free",
+  hiddenSources: string[] = [],
 ): SearchKeyGrant {
-  return { apiKey, expiresInSeconds, tier };
+  return { apiKey, expiresInSeconds, tier, hiddenSources };
 }
 
 /** A browser clock the test moves by hand. */
@@ -32,6 +33,24 @@ function serving(...grants: SearchKeyGrant[]) {
 }
 
 describe("BrowserSearchKey", () => {
+  test("names the hidden sources of the key it holds, so a renewed key brings a new list", async () => {
+    const time = clock();
+    const fetcher = serving(grant("renewed", 900, "free", ["meeks", "pratt"]));
+    const key = BrowserSearchKey.create(fetcher, time.now);
+    const notified = mock(() => undefined);
+    key.subscribe(notified);
+    expect(key.hiddenSources()).toBeNull();
+    key.prime(grant("primed", 900, "free", ["meeks"]));
+    const primed = key.hiddenSources();
+    expect(primed?.list).toEqual(["meeks"]);
+    // The same object while the key is held, as useSyncExternalStore needs.
+    expect(key.hiddenSources()).toBe(primed);
+    time.advance(11 * MINUTE);
+    expect(await key.current()).toBe("renewed");
+    expect(key.hiddenSources()?.list).toEqual(["pratt", "meeks"]);
+    expect(notified).toHaveBeenCalledTimes(1);
+  });
+
   test("uses the primed key without asking the server", async () => {
     const fetcher = serving();
     const key = BrowserSearchKey.create(fetcher, clock().now);

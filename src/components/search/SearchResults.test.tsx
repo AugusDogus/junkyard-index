@@ -1,7 +1,19 @@
 import { expect, test } from "bun:test";
-import { renderToStaticMarkup } from "react-dom/server";
+import type { ReactNode } from "react";
+import { renderToStaticMarkup as renderMarkup } from "react-dom/server";
+import { HiddenSourcesProvider } from "~/components/HiddenSourcesContext";
+import { HiddenSources } from "~/lib/hidden-source";
 import { algoliaHitToSearchVehicle } from "~/lib/search-vehicles";
 import { SearchResults } from "./SearchResults";
+
+// Cards read the hidden sources from the page; none are hidden here.
+function renderToStaticMarkup(node: ReactNode): string {
+  return renderMarkup(
+    <HiddenSourcesProvider hidden={HiddenSources.none}>
+      {node}
+    </HiddenSourcesProvider>,
+  );
+}
 
 test("loading results reserve a responsive card grid", () => {
   const html = renderToStaticMarkup(

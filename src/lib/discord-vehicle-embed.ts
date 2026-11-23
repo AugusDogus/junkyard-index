@@ -1,4 +1,5 @@
 import type { APIEmbed } from "discord-api-types/v10";
+import type { HiddenSources } from "./hidden-source";
 import type { SearchVehicle } from "./types";
 import { VehicleDestination } from "./vehicle-destination";
 
@@ -11,8 +12,11 @@ function markdownLinkTarget(href: string): string {
   );
 }
 
-export function formatVehicleEmbed(vehicle: SearchVehicle): APIEmbed {
-  const destination = VehicleDestination.resolve(vehicle);
+export function formatVehicleEmbed(
+  vehicle: SearchVehicle,
+  hidden: HiddenSources,
+): APIEmbed {
+  const destination = VehicleDestination.forSite(vehicle, hidden);
   const fields: APIEmbed["fields"] = [
     { name: "Location", value: vehicle.locationName, inline: true },
     {

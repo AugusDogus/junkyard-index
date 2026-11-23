@@ -1,18 +1,14 @@
-import pRetry from "p-retry";
-import { start } from "workflow/api";
 import { env } from "~/env";
-import {
-  isIngestionSource,
-  isRetiredIngestionSource,
-} from "~/lib/ingestion-source";
-import { startManualDurableIngestionRun } from "~/server/ingestion/durable-ingestion";
+import { isIngestionSource } from "~/lib/ingestion-source";
+import { ManualIngestionRun } from "~/server/ingestion/manual-ingestion-run";
+import { startManualIngestionRun } from "~/server/ingestion/manual-ingestion-run-runtime";
 import { hasValidCronAuthorization } from "~/server/workflows/cron-authorization";
-import { workflowStartRetryOptions } from "~/server/workflows/start-retry";
-import { vehicleIngestionWorkflow } from "~/workflows/vehicle-ingestion";
 
 /**
  * Starts one source's ingestion now, outside the daily pass. It counts as one
- * of today's attempts. Authorized with the cron secret:
+ * of today's attempts. Retired and paused sources are refused. Authorized
+ * with the cron secret; the owner can also use "Run now" on
+ * /admin/sources/<source>:
  *
  *   curl -X POST -H "Authorization: Bearer $CRON_SECRET" \
  *     https://junkyardindex.com/api/admin/ingestion/run?source=upullrparts
@@ -35,27 +31,15 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
-  if (isRetiredIngestionSource(source)) {
+  const run = await startManualIngestionRun(source);
+  if (run.status !== "started") {
     return Response.json(
-      {
-        error: `${source} is retired: its feed no longer reflects the yards' inventory, so it is not fetched and every ingestion run withdraws its published vehicles. No run was started.`,
-      },
+      { error: ManualIngestionRun.message(run) },
       { status: 409 },
     );
   }
-  const run = await startManualDurableIngestionRun(source);
-  if (run.status === "busy") {
-    return Response.json(
-      { error: `${source} already has an active run; it was left running.` },
-      { status: 409 },
-    );
-  }
-  const workflow = await pRetry(
-    () => start(vehicleIngestionWorkflow, [run.runId]),
-    workflowStartRetryOptions,
-  );
   return Response.json(
-    { source, runId: run.runId, workflowRunId: workflow.runId },
+    { source, runId: run.runId, workflowRunId: run.workflowRunId },
     { status: 202 },
   );
 }

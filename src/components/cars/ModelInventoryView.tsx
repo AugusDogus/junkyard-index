@@ -1,3 +1,4 @@
+import type { HiddenSources } from "~/lib/hidden-source";
 import { Minus, Plus, Search } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -105,6 +106,7 @@ export function ModelInventoryView({
   arrivals,
   freshness,
   sourcePublishedAt,
+  hiddenSources,
 }: {
   make: MakeEntry;
   model: ModelEntry;
@@ -116,6 +118,8 @@ export function ModelInventoryView({
   freshness: InventoryFreshness;
   /** Each source's latest update, for the "New" labels. */
   sourcePublishedAt: Readonly<Partial<Record<string, string>>>;
+  /** Sources hidden from the site; their rows link nowhere. */
+  hiddenSources: HiddenSources;
 }) {
   const name = VehicleName.title(make.name, model.name);
   const crumbs = modelCrumbs(make, model);
@@ -233,6 +237,7 @@ export function ModelInventoryView({
                   source={vehicle.source}
                   publishedAt={sourcePublishedAt[vehicle.source] ?? null}
                   layout="stacked"
+                  hiddenSources={hiddenSources}
                   yard={
                     yard && {
                       name: YardName.headline(yard.name, yard.operator),

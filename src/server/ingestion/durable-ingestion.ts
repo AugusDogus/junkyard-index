@@ -38,7 +38,7 @@ import { validateDurableSourceRuns } from "./durable-source-validation";
 import { fetchDurableSourceChunk } from "./durable-source-fetch";
 import { IngestionDay } from "./ingestion-day";
 import type { IngestionPassPlan } from "./ingestion-pass-orchestrator";
-import { IngestionSourceFlags } from "./ingestion-source-flags";
+import { IngestionPause } from "~/server/source-control/ingestion-pause";
 import {
   PublicationModeFlag,
   PublicationModeUnavailable,
@@ -78,7 +78,7 @@ export async function initializeDurableIngestion(
 ): Promise<DurableIngestionStart> {
   const result = await repository.initialize(
     runId,
-    IngestionSourceFlags.enabledSources,
+    IngestionPause.enabledSources,
   );
   if (result.status !== "started") return result;
   return {
@@ -93,7 +93,7 @@ export async function initializeDurableIngestion(
 export async function prepareDurableIngestionWakeup(
   now = new Date(),
 ): Promise<DurableIngestionWakeupResult> {
-  const sources = await IngestionSourceFlags.enabledSources();
+  const sources = await IngestionPause.enabledSources();
   return repository.prepareWakeup(now, sources);
 }
 

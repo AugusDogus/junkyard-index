@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { ComponentProps } from "react";
+import { HiddenSources } from "~/lib/hidden-source";
 import { getYardDetails } from "~/lib/yard-details";
 import { YardInventory, type YardVehicle } from "~/lib/yard-inventory";
 import type { RoutedYard } from "~/server/yard-inventory";
@@ -108,6 +109,7 @@ function props(vehicles: YardVehicle[]): Props {
     nearby: [],
     chain: null,
     filter: null,
+    hiddenSources: HiddenSources.none,
   };
 }
 

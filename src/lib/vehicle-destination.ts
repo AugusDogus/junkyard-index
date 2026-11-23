@@ -81,17 +81,29 @@ function manualSearchExplanation(source: DataSource): string {
   }
 }
 
-function resolve(
+/**
+ * Where a vehicle's link goes on the site: nowhere for a hidden source,
+ * which also covers alerts queued before the source was hidden; otherwise
+ * its provider's link (`resolve`). Every page, email and message uses this.
+ */
+function forSite(
   vehicle: Pick<SearchVehicle, "source" | "detailsUrl">,
+  hidden: HiddenSources,
 ): VehicleDestination {
-  // Also covers vehicles of a hidden source in alerts queued before it hid.
-  if (HiddenSources.has(vehicle.source)) {
+  if (HiddenSources.has(hidden, vehicle.source)) {
     return {
       kind: "unavailable",
       explanation:
         "This yard's website is temporarily unavailable. Use the VIN and yard to identify this vehicle.",
     };
   }
+  return resolve(vehicle);
+}
+
+/** The provider's link for a vehicle, whether or not its source is shown. */
+function resolve(
+  vehicle: Pick<SearchVehicle, "source" | "detailsUrl">,
+): VehicleDestination {
   const yardUrl = vehicle.detailsUrl?.trim();
   if (
     vehicle.source === "vinplus" &&
@@ -203,4 +215,4 @@ function resolve(
   };
 }
 
-export const VehicleDestination = { resolve } as const;
+export const VehicleDestination = { forSite, resolve } as const;

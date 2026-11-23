@@ -1,6 +1,7 @@
 import { expect, mock } from "bun:test";
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
+import { readFileSync } from "node:fs";
 import {
   ingestionRun,
   savedSearch,
@@ -46,6 +47,13 @@ create table search_notification_intent (
  created_at integer not null, unique (saved_search_id, publication_sequence, channel)
 );
 `);
+// Alert scans read which sources are hidden.
+await client.executeMultiple(
+  readFileSync(
+    new URL("../../drizzle/0030_source_control.sql", import.meta.url),
+    "utf8",
+  ),
+);
 const database = drizzle(client);
 const activeVin = "1GTCS1448S8508120";
 // Old enough that the day's check bound, which trails its creation by a

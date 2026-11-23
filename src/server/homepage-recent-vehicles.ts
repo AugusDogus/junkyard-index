@@ -11,6 +11,7 @@ const RECENT_VEHICLE_LIMIT = 12;
  */
 export async function getRecentHomepageVehicles(
   database: LibSQLDatabase,
+  hidden: HiddenSources,
   limit = RECENT_VEHICLE_LIMIT,
 ) {
   const rows = await database
@@ -35,7 +36,7 @@ export async function getRecentHomepageVehicles(
       and(
         isNull(vehicle.missingSinceAt),
         gt(vehicle.firstSeenAt, yardArrivalBaseline.establishedAt),
-        notInArray(vehicle.source, [...HiddenSources.unlisted]),
+        notInArray(vehicle.source, [...HiddenSources.unlisted(hidden)]),
       ),
     )
     .orderBy(desc(vehicle.firstSeenAt), asc(vehicle.vin))

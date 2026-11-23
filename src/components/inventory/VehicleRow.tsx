@@ -1,6 +1,7 @@
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { cn } from "~/lib/utils";
+import type { HiddenSources } from "~/lib/hidden-source";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import { VehicleDestination } from "~/lib/vehicle-destination";
 import { VehicleName } from "~/lib/vehicle-name";
@@ -25,6 +26,7 @@ export function VehicleRow({
   publishedAt,
   yard,
   layout,
+  hiddenSources,
 }: {
   vehicle: YardVehicle;
   source: string;
@@ -34,6 +36,8 @@ export function VehicleRow({
   yard?: { name: string; href: string; place: string };
   /** `columns` for a full-width list, `stacked` for one beside other content. */
   layout: "columns" | "stacked";
+  /** Sources hidden from the site; a vehicle of one links nowhere. */
+  hiddenSources: HiddenSources;
 }) {
   const columns = layout === "columns";
   const title = [
@@ -46,7 +50,10 @@ export function VehicleRow({
     .join(" ");
   const location = YardInventory.location(vehicle);
   const destination = isIngestionSource(source)
-    ? VehicleDestination.resolve({ source, detailsUrl: vehicle.detailsUrl })
+    ? VehicleDestination.forSite(
+        { source, detailsUrl: vehicle.detailsUrl },
+        hiddenSources,
+      )
     : null;
   const details = [
     vehicle.color,

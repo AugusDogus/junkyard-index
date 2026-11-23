@@ -1,11 +1,23 @@
 import { describe, expect, test } from "bun:test";
-import { renderToStaticMarkup } from "react-dom/server";
+import type { ReactNode } from "react";
+import { renderToStaticMarkup as renderMarkup } from "react-dom/server";
+import { HiddenSourcesProvider } from "~/components/HiddenSourcesContext";
+import { HiddenSources } from "~/lib/hidden-source";
 import {
   algoliaHitToSearchVehicle,
   SEARCH_CARD_ATTRIBUTES,
   type AlgoliaVehicleHit,
 } from "~/lib/search-vehicles";
 import { VehicleCard } from "./VehicleCard";
+
+// Cards read the hidden sources from the page; none are hidden here.
+function renderToStaticMarkup(node: ReactNode): string {
+  return renderMarkup(
+    <HiddenSourcesProvider hidden={HiddenSources.none}>
+      {node}
+    </HiddenSourcesProvider>,
+  );
+}
 
 const hit: AlgoliaVehicleHit = {
   source: "pyp",

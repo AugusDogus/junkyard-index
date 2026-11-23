@@ -106,14 +106,40 @@ const keyedSearchClient: Pick<LiteClient, "search" | "addAlgoliaAgent"> & {
   },
 };
 // Innermost, so every request reaching Algolia, including count and facet
-// requests the wrappers add, leaves out hidden sources.
-const baseSearchClient = withFullServiceCount(
-  withDistanceSort(
-    withSearchCountsCache(HiddenSources.withSearchClient(keyedSearchClient)),
-  ),
-);
+// requests the wrappers add, leaves out hidden sources. The page passes the
+// list its search key was minted with (SearchAccessShell); a secured key
+// embeds the same exclusion, and server renders, whose key does not, rely on
+// this filter alone.
+function createBaseSearchClient(hidden: HiddenSources) {
+  return withFullServiceCount(
+    withDistanceSort(
+      withSearchCountsCache(
+        HiddenSources.withSearchClient(hidden, keyedSearchClient),
+      ),
+    ),
+  );
+}
 
-export const primeSearchCounts = baseSearchClient.primeCounts;
+type BaseSearchClient = ReturnType<typeof createBaseSearchClient>;
+// One per hidden list, so each keeps its own count cache. Lists change
+// rarely, so this stays a few entries.
+const baseClients = new Map<string, BaseSearchClient>();
+function baseSearchClientFor(hidden: HiddenSources): BaseSearchClient {
+  const key = hidden.list.join(",");
+  const existing = baseClients.get(key);
+  if (existing) return existing;
+  const client = createBaseSearchClient(hidden);
+  baseClients.set(key, client);
+  return client;
+}
+
+/** Seeds the count cache of the client searching with `hidden`. */
+export function primeSearchCounts(
+  hidden: HiddenSources,
+  userData: unknown,
+): void {
+  baseSearchClientFor(hidden).primeCounts(userData);
+}
 
 export type SearchExpressionError = {
   kind: "invalid" | "upgrade_required" | "unavailable";
@@ -257,11 +283,13 @@ function transformSearchMethodParams(
 }
 
 function createSearchClient(
+  hidden: HiddenSources,
   booleanOrSearchReady: boolean,
   expressionMode = false,
   allowAdvancedFilters = false,
   makeAliasesReady = false,
 ) {
+  const baseSearchClient = baseSearchClientFor(hidden);
   return {
     ...baseSearchClient,
     search<T>(
@@ -295,15 +323,17 @@ function createSearchClient(
 
 const clients = new Map<string, ReturnType<typeof createSearchClient>>();
 export function getSearchClient(
+  hidden: HiddenSources,
   booleanOrSearchReady: boolean,
   expressionMode = false,
   allowAdvancedFilters = false,
   makeAliasesReady = false,
 ) {
-  const key = `${booleanOrSearchReady}:${expressionMode}:${allowAdvancedFilters}:${makeAliasesReady}`;
+  const key = `${hidden.list.join(",")}:${booleanOrSearchReady}:${expressionMode}:${allowAdvancedFilters}:${makeAliasesReady}`;
   const existing = clients.get(key);
   if (existing) return existing;
   const client = createSearchClient(
+    hidden,
     booleanOrSearchReady,
     expressionMode,
     allowAdvancedFilters,

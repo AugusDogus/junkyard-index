@@ -16,6 +16,8 @@ const migration = (name: string) =>
 async function database() {
   const client = createClient({ url: ":memory:" });
   await client.executeMultiple(migration("0020_inventory_snapshot"));
+  // Seeds Meeks hidden, as production has it.
+  await client.executeMultiple(migration("0030_source_control"));
   await client.executeMultiple(`
     create table vehicle (
       vin text primary key, source text, location_code text, location_name text,
@@ -101,7 +103,9 @@ test("stores make counts and each make's models", async () => {
       { make: "VW", count: 1 },
     ]);
     // One row per make key, holding every spelling; "OTHER" is not a make.
-    expect(await InventorySnapshot.makeModels(db, "HONDA")).toEqual([
+    expect(
+      await InventorySnapshot.makeModels(db, "HONDA", HiddenSources.none),
+    ).toEqual([
       {
         source: "pyp",
         code: "1",
@@ -122,12 +126,14 @@ test("stores make counts and each make's models", async () => {
       },
     ]);
     expect(
-      (await InventorySnapshot.makeModels(db, "VOLKSWAGEN")).map(
-        (row) => row.model,
-      ),
+      (
+        await InventorySnapshot.makeModels(db, "VOLKSWAGEN", HiddenSources.none)
+      ).map((row) => row.model),
     ).toEqual(["Jetta", "Golf"]);
     // A make with no row has no live vehicles.
-    expect(await InventorySnapshot.makeModels(db, "OTHER")).toEqual([]);
+    expect(
+      await InventorySnapshot.makeModels(db, "OTHER", HiddenSources.none),
+    ).toEqual([]);
   } finally {
     client.close();
   }
@@ -147,7 +153,9 @@ test("rewrites only changed rows and drops makes that left inventory", async () 
 
     expect(await updatedAt("v3:make-models:HONDA")).toBe(later.getTime());
     expect(await updatedAt("v3:make-models:TOYOTA")).toBe(first.getTime());
-    expect(await InventorySnapshot.makeModels(db, "VOLKSWAGEN")).toEqual([]);
+    expect(
+      await InventorySnapshot.makeModels(db, "VOLKSWAGEN", HiddenSources.none),
+    ).toEqual([]);
     expect(await InventorySnapshot.makeCounts(db)).toEqual(
       expect.arrayContaining([{ make: "Honda", count: 2 }]),
     );
@@ -261,10 +269,18 @@ test("canonical make aliases project into one queryable model snapshot", async (
       "insert into inventory_snapshot values ('v2:make-models:NISSIAN', '[]', 0)",
     );
     await InventorySnapshot.ensure(db, first);
-    const rows = await InventorySnapshot.makeModels(db, "FERRARI");
+    const rows = await InventorySnapshot.makeModels(
+      db,
+      "FERRARI",
+      HiddenSources.none,
+    );
     expect(rows.map((row) => row.make).sort()).toEqual(["Ferrari", "Ferrary"]);
     expect(rows.reduce((count, row) => count + row.count, 0)).toBe(2);
-    const nissan = await InventorySnapshot.makeModels(db, "NISSAN");
+    const nissan = await InventorySnapshot.makeModels(
+      db,
+      "NISSAN",
+      HiddenSources.none,
+    );
     expect(nissan.map((row) => row.make).sort()).toEqual(["Nissan", "Nissian"]);
     expect(
       (
@@ -278,7 +294,7 @@ test("canonical make aliases project into one queryable model snapshot", async (
   }
 });
 
-for (const source of HiddenSources.list)
+for (const source of ["meeks"] as const)
   test(`${source} is hidden, so make and model pages neither count nor list it`, async () => {
     const { client, db, add } = await database();
     try {
@@ -289,9 +305,13 @@ for (const source of HiddenSources.list)
         { make: "Honda", count: 1 },
       ]);
       expect(
-        (await InventorySnapshot.makeModels(db, "HONDA")).map(
-          (row) => row.source,
-        ),
+        (
+          await InventorySnapshot.makeModels(
+            db,
+            "HONDA",
+            HiddenSources.of([source]),
+          )
+        ).map((row) => row.source),
       ).toEqual(["pyp"]);
 
       // A snapshot stored before the source was hidden lists it until the
@@ -306,9 +326,13 @@ for (const source of HiddenSources.list)
         ],
       });
       expect(
-        (await InventorySnapshot.makeModels(db, "HONDA")).map(
-          (row) => row.source,
-        ),
+        (
+          await InventorySnapshot.makeModels(
+            db,
+            "HONDA",
+            HiddenSources.of([source]),
+          )
+        ).map((row) => row.source),
       ).toEqual(["pyp"]);
     } finally {
       client.close();

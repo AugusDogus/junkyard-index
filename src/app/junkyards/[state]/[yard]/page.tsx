@@ -7,6 +7,7 @@ import {
 } from "~/components/junkyards/YardInventoryView";
 import { YardInventory } from "~/lib/yard-inventory";
 import { getMakeSlugs } from "~/server/vehicle-models";
+import { getHiddenSources } from "~/server/source-control/hidden-sources-loader";
 import { getYardPageData } from "~/server/yard-inventory";
 
 // Served from the CDN and rebuilt after each daily ingestion pass, which
@@ -50,6 +51,7 @@ export default async function YardPage({
         total={data.vehicles.length}
         makes={data.makes}
         makeSlugs={await getMakeSlugs()}
+        hiddenSources={await getHiddenSources()}
         newArrivals={YardInventory.newArrivals(
           data.vehicles,
           data.vehicles,

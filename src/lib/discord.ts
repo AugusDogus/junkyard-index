@@ -7,6 +7,7 @@ import {
   type APIMessage,
 } from "discord-api-types/v10";
 import { env } from "~/env";
+import type { HiddenSources } from "~/lib/hidden-source";
 import type {
   NotificationBatchDeliveryResult,
   NotificationDeliveryResult,
@@ -108,10 +109,10 @@ export async function sendTestDM(
 export async function sendDiscordAlert(
   discordUserId: string,
   data: SearchAlertData,
-  options?: { idempotencyKey?: string },
+  options: { idempotencyKey?: string; hiddenSources: HiddenSources },
 ): Promise<NotificationDeliveryResult> {
   return sendDM(discordUserId, {
-    embeds: formatDiscordAlert(data),
+    embeds: formatDiscordAlert(data, options.hiddenSources),
     ...(options?.idempotencyKey
       ? {
           nonce: createDiscordNonce(options.idempotencyKey),
@@ -125,13 +126,14 @@ export async function sendDiscordAlert(
 export async function sendDiscordAlerts(
   discordUserId: string,
   alerts: readonly SearchAlertData[],
-  options: { idempotencyKey: string },
+  options: { idempotencyKey: string; hiddenSources: HiddenSources },
 ): Promise<NotificationBatchDeliveryResult> {
   const sentSearchIds: string[] = [];
   let error: string | undefined;
   for (const alert of alerts) {
     const result = await sendDiscordAlert(discordUserId, alert, {
       idempotencyKey: `${options.idempotencyKey}:${alert.searchId}`,
+      hiddenSources: options.hiddenSources,
     });
     if (result.success) {
       sentSearchIds.push(alert.searchId);

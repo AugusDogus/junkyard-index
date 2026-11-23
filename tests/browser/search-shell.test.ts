@@ -91,6 +91,7 @@ async function open(query: string, width = 1440, height = 900) {
               !query.includes("fixtureRenewedTier=full"))
               ? "free"
               : "full",
+          hiddenSources: [],
         },
       });
     return route.fulfill({

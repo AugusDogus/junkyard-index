@@ -40,7 +40,10 @@ test("recent vehicles skip each yard's first crawl but keep later arrivals and e
         ('E-unpublished', 'kandr', 2016, 'Kia', 'Soul', 'mid-crawl', 'OH', ${laterCrawl}, null);
     `);
 
-    const recent = await getRecentHomepageVehicles(drizzle(client));
+    const recent = await getRecentHomepageVehicles(
+      drizzle(client),
+      HiddenSources.none,
+    );
 
     expect(recent.map((entry) => `${entry.make} ${entry.model}`)).toEqual([
       "Toyota Camry",
@@ -76,8 +79,14 @@ test("varied homepage candidates skip backfills before applying their larger lim
       })),
     );
     const database = drizzle(client);
-    expect(await getRecentHomepageVehicles(database)).toHaveLength(12);
-    const candidates = await getRecentHomepageVehicles(database, 80);
+    expect(
+      await getRecentHomepageVehicles(database, HiddenSources.none),
+    ).toHaveLength(12);
+    const candidates = await getRecentHomepageVehicles(
+      database,
+      HiddenSources.none,
+      80,
+    );
     expect(candidates).toHaveLength(31);
     const varied = RecentArrivals.pick(candidates, 12);
     expect(varied.some((row) => row.make === "Honda")).toBe(true);
@@ -87,7 +96,7 @@ test("varied homepage candidates skip backfills before applying their larger lim
   }
 });
 
-for (const source of HiddenSources.list)
+for (const source of ["meeks"] as const)
   test(`${source} is hidden, so its arrivals stay off the homepage`, async () => {
     const client = createClient({ url: ":memory:" });
     try {
@@ -114,7 +123,10 @@ for (const source of HiddenSources.list)
           ('A-shown', 'pyp', 2010, 'Ford', 'Focus', '1', 'CA', 2000),
           ('B-hidden', '${source}', 2012, 'Honda', 'Civic', '1', 'VA', 3000);
       `);
-      const recent = await getRecentHomepageVehicles(drizzle(client));
+      const recent = await getRecentHomepageVehicles(
+        drizzle(client),
+        HiddenSources.of([source]),
+      );
       expect(recent.map((entry) => entry.make)).toEqual(["Ford"]);
     } finally {
       client.close();
