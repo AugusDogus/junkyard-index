@@ -4,7 +4,7 @@ See the current [source flags and census floors](provider-coverage-go-live.md).
 
 `urgiis` adds independent yard businesses through one multi-tenant connector. Each physical yard has its own location code, address, coordinates and website. Existing Pratt, Central, Northwest and Allied source behavior is preserved. Shared IIS identity, HTML and quarantine primitives are extracted from Allied.
 
-The source runs by default. `ingestion-source-urgiis` pauses it when it serves false. The current source inventory floor is 23,561 accepted donors.
+The source runs by default. `ingestion-source-urgiis` pauses it when it serves false. The current source inventory floor is 12,202 accepted donors: the sum of the nine configured tenants' unchanged floors.
 
 The first census follows each tenant’s official owner page, published make directory, all make/model links and its enumerable arrivals page. Subsequent daily runs use the accepted census and weekly slices described below. A tenant with no published arrival cards uses its model graph. The connector rereads the owner, makes and every make menu before emission, including on incremental days. It requires unchanged ownership claims, literal paths, labels and control order. Models added or removed between opening and closing fail even if their badges are zero. Small badge changes are allowed as described below. An arrivals window alone cannot qualify: at least one admitted own-yard donor must come from the current or carried model graph. Arrivals and models are assessed together, with conflicting VIN/destination claims quarantined before deduplication. A modern VIN must pass its check digit; supported pre-1981 serials are accepted. Native year/make/model and an owned per-vehicle destination are required. Arrivals-only donors link to the tenant arrivals page that displays them; modeled donors retain their native detail destination. No identity is decoded or invented.
 
@@ -39,6 +39,30 @@ Concurrent qualification batches on one machine share `/tmp/jyi-urg-gate.lock` a
 The November 15, 2026 Eagle census followed 37 makes and 284 model pages, then included six arrival observations. It accepted 1,448 unique vehicles, rejected 127 observations, excluded 143 part bins and merged five duplicates. Of 1,717 model cards, 257 had blank VINs (85.0% carried a nonblank VIN). The eligible rejection rate is 127 / 1,580 (8.04%). Its floor is 482. The US Census point for 2744 Eagle School Road, Martinsburg, WV 25404 is 39.468480369268, -77.925464629822. The saved geocoder receipt and full 363-response replay are fixtures.
 
 Batch B qualification, including its admitted yards, exclusions, request ledger and combined daily budget, is recorded in [urgiis-batch-b.md](urgiis-batch-b.md). Its historical counts predate the full restacked configuration; the incremental estimate below includes every configured tenant.
+
+## November 23 tenant cut
+
+Cloudflare refuses native requests to eleven full-service tenants: United, Ace
+Iowa, Lentini (Ringoes and Port Murray), Ding's, Bishop's, Central NH, Premier,
+Junior Sinn, Revolution, A-Z and MARS. Reading them through paid browsers was
+built and stopped (PR #306); on November 23, 2026 the owner cut them instead.
+They are removed from `URGIIS_TENANTS`, the yard service map and its evidence
+table; `URGIIS_CUT_TENANTS` names them, and a test keeps them and their twelve
+yard codes out. None ever published: production holds URG vehicles only for
+the nine remaining yards, so nothing on the site changes. The nine remaining
+contracts are unchanged, and URG stays fully native; no URG request goes
+through a browser ([browser providers](browser-providers.md)).
+
+The tenant list is part of the URG cursor scope (`urgiisFingerprint(tenants)`),
+which the crawl, validation and reconciliation stages all check when they parse
+the run's cursor. Deploy a tenant change only while no `urgiis` run is active
+(`ingestion_run.active_slot = 1`): a run past its crawl still re-parses its
+terminal cursor in validation and reconciliation and would fail on the new
+scope. The previous accepted cursor also has the old scope, so the first run
+after the deploy starts a full cold census of the nine tenants (4,531 requests
+in the saved-evidence scenario, about 20 hours at the 15.7 seconds per request
+observed in production, inside the three-day cold deadline). Published URG
+inventory stays in place until that census is accepted.
 
 ## November 18 supplier mismatch isolation
 
@@ -147,13 +171,13 @@ Reproduce the saved [per-tenant evidence](urgiis-incremental-estimates.json) wit
 bun scripts/report-urgiis-incremental.ts
 ```
 
-The configuration contains 20 tenants and 21 physical yards. The combined saved-evidence evaluation publishes all 20 tenants and 21 physical yards, totaling **74,217 accepted donors**. The unchanged 1% unreachable rule now permits Ace St. Paul at 1/3,248 (0.03%) and Norb's at 16/10,258 (0.16%). Eagle's Atlas route recovered two donors, allowing its cold census to publish 1,450 with 8/1,920 (0.42%) advertised donors still unreachable. This includes [Stroud's southern sweep qualification](provider-coverage-south.md), with 3,280 donors and 529 full-census requests. These are offline publication results, not production inventory writes.
+The configuration contains 9 tenants and 9 physical yards after the [November 23 cut](#november-23-tenant-cut). The combined saved-evidence evaluation publishes all 9, totaling **36,780 accepted donors**. The unchanged 1% unreachable rule now permits Ace St. Paul at 1/3,248 (0.03%), Chuck's at 4/3,378 (0.12%) and Norb's at 16/10,258 (0.16%). Eagle's Atlas route recovered two donors, allowing its cold census to publish 1,450 with 8/1,920 (0.42%) advertised donors still unreachable. This includes [Stroud's southern sweep qualification](provider-coverage-south.md), with 3,280 donors and 529 full-census requests. These are offline publication results, not production inventory writes.
 
 The November 17 route investigation made 31 serial public read-only requests, holding `/tmp/jyi-urg-gate.lock` throughout each response and waiting at least 3.5 seconds after the shared timestamp. `coverage-route-probes.json.br` retains every response, URL, status, start/end time and original-body SHA-256. Raw `&` returns all 54 Town & Country and two Town Car cards at Ace, and all 75 and 18 at Norb's. Their native donor links use `_and__`; one published Ace donor detail was independently checked. Percent-encoded ampersands and the other tested menu aliases were empty. A raw-parenthesis probe also reaches Norb's five New Yorker (FWD) cards, but this change needs only the verified ampersand substitution to pass the unchanged 1% rule. Other model encodings remain unchanged. All original replay archives remain intact.
 
-Eagle's original Atlas capture is empty, but the same unmodified native route now returns two cards. Its replay retains the initial empty, reads the other model pages, then uses that successful saved response on the existing later retry. Revolution's original Equinox capture similarly uses its separately saved successful 91-card retry. This does not invent replacement census evidence or add a new retry policy. Ace and Norb's model substitutions use one request each and preserve their native donor destinations and all identity, supplier, quarantine and admission checks. Contract v6 (dated seller details) prevents reuse of older census interpretations.
+Eagle's original Atlas capture is empty, but the same unmodified native route now returns two cards. Its replay retains the initial empty, reads the other model pages, then uses that successful saved response on the existing later retry. This does not invent replacement census evidence or add a new retry policy. Ace and Norb's model substitutions use one request each and preserve their native donor destinations and all identity, supplier, quarantine and admission checks. Contract v6 (dated seller details) prevents reuse of older census interpretations.
 
-Across all tenants, 236 advertised donors remain platform-unreachable, each tenant below 1%. Arrivals-only donors retain their arrivals-page destination. The 20 publishing censuses require **12,339 requests**, including the Eagle and Revolution historical-empty retries. The seven-day incremental simulation from bootstrap averages **2,857.5 requests/day** (3,627.3 before the six-slice sweep and seller reuse), with a flat daily curve. Lentini falls from 822.1 to 166.9. The simulation has no badge or arrival changes and no seller detail old enough to refresh; in steady state about 1.8% of models a day change (about 130 more reads) and Lentini refreshes about 140 seller details a day, so expect **about 3,100 requests/day**. The report also simulates a recovery day, carrying under four days: all tenants together make 5,296 requests. The largest recovery run, with Lentini missing from the census, makes 8,920 requests: 1,314 scenario minutes, or about 39 hours at the 15.7 seconds per request observed in production, inside its three-day deadline. At six seconds per response plus configured pacing, the full scenario takes 1,847.3 minutes and the incremental scenario 441.7 minutes. These scenarios exclude new arrivals, badge changes, outages, storage/workflow overhead and future retries.
+Across all tenants, 86 advertised donors remain platform-unreachable, each tenant below 1%. Arrivals-only donors retain their arrivals-page destination. The 9 publishing censuses require **4,531 requests**, including Eagle's historical-empty retry. The seven-day incremental simulation from bootstrap averages **1,420.7 requests/day**, with a flat daily curve. The simulation has no badge or arrival changes and no seller detail old enough to refresh; in steady state about 1.8% of the 3,731 models a day change (about 67 more reads), so expect **about 1,500 requests/day**. The report also simulates a recovery day, carrying under four days: all tenants together make 2,661 requests. The largest recovery run, with Norb's missing from the census, makes 2,995 requests: 486 scenario minutes, or about 13 hours at the 15.7 seconds per request observed in production, inside its three-day deadline. At six seconds per response plus configured pacing, the full scenario takes 737.9 minutes and the incremental scenario 231.2 minutes. These scenarios exclude new arrivals, badge changes, outages, storage/workflow overhead and future retries. The cut tenants' earlier figures (74,217 donors, 12,339 full and 2,857.5 daily requests for 20 tenants) are in git history.
 
 Cold census monitoring uses finite, durably staged tenant progress. After a tenant passes its complete graph, closing and admission checks, and its checkpoint is saved, the runtime pings only the existing heartbeat. It neither reports publication nor resolves a delayed status report. Pages, blocked tenants, cooldowns, failures and replayed checkpoints do not ping. Completed tenants in earlier failed attempts with the same qualification scope suppress repeat pings until another accepted inventory publication, preventing a repeatedly failing crawl from appearing healthy. A stuck or failed source still goes red after 30 hours without new accepted progress. Terminal publication keeps its existing heartbeat and report behavior. No Better Stack configuration, production data or flags were changed. The roughly 43-hour bootstrap can finish within the separate, bounded three-day cold deadline; incremental runs retain the one-day deadline and seven-day evidence ceiling. Monitoring adds no URG requests.
 
@@ -162,22 +186,11 @@ Cold census monitoring uses finite, durably staged tenant progress. After a tena
 | eagle       | published             |    1,450 |                8 / 1,920 |
 | linders     | published             |    3,274 |                3 / 3,427 |
 | chuckran    | published             |    3,671 |                3 / 4,037 |
-| united      | published             |   12,356 |              29 / 12,491 |
-| ace-iowa    | published             |    1,524 |                8 / 1,812 |
-| lentini     | published             |    3,353 |                6 / 3,556 |
-| dings       | published             |    1,110 |                2 / 1,254 |
-| bishops     | published             |    3,362 |                0 / 3,436 |
 | ace-st-paul | published             |    3,070 |                1 / 3,248 |
 | chucks      | published             |    2,623 |                4 / 3,378 |
-| central-nh  | published             |    2,477 |               16 / 2,672 |
 | higgins     | published             |    1,477 |                6 / 1,705 |
-| premier     | published             |    2,568 |                9 / 2,689 |
-| junior-sinn | published             |    3,313 |               26 / 3,602 |
-| revolution  | published             |    5,276 |               25 / 5,397 |
-| az          | published             |    1,739 |                3 / 1,783 |
 | lambert     | published             |    8,985 |               24 / 9,440 |
 | norbs       | published             |    8,950 |              16 / 10,258 |
-| mars        | published             |      381 |                  0 / 993 |
 | stroud      | published             |    3,280 |               21 / 3,588 |
 
 The request simulation includes all publishing tenants. Times are explicit scenarios, not measured live runtimes.
@@ -187,28 +200,17 @@ The request simulation includes all publishing tenants. Times are explicit scena
 | eagle       |           364 |                  79 |                                      126.3 |         49.7 |                17.3 |
 | linders     |           513 |                  87 |                                        158 |         70.1 |                21.6 |
 | chuckran    |           498 |                  91 |                                      158.9 |         78.8 |                25.2 |
-| united      |           623 |                  97 |                                      184.7 |         85.1 |                25.2 |
-| ace-iowa    |           465 |                  89 |                                      151.7 |         63.5 |                20.7 |
-| lentini     |         3,969 |                  83 |                                      166.9 |        542.4 |                22.8 |
-| dings       |           323 |                  77 |                                        118 |         44.1 |                16.1 |
-| bishops     |           396 |                  74 |                                      127.7 |         62.7 |                20.2 |
 | ace-st-paul |           423 |                  81 |                                        138 |           67 |                21.9 |
 | chucks      |           502 |                  87 |                                      156.1 |         79.5 |                24.7 |
-| central-nh  |           471 |                  91 |                                      154.3 |         64.4 |                21.1 |
 | higgins     |           317 |                  77 |                                        117 |         50.2 |                18.5 |
-| premier     |           339 |                  75 |                                        119 |         53.7 |                18.8 |
-| junior-sinn |           440 |                  85 |                                      144.1 |         69.7 |                22.8 |
-| revolution  |           480 |                  90 |                                      154.9 |           76 |                24.5 |
-| az          |           242 |                  59 |                                       89.6 |         38.3 |                14.2 |
 | lambert     |           611 |                  99 |                                      184.3 |         96.7 |                29.2 |
 | norbs       |           774 |                 107 |                                      218.1 |        122.5 |                34.5 |
-| mars        |            60 |                  19 |                                       25.9 |          9.5 |                 4.1 |
 | stroud      |           529 |                  91 |                                        164 |        123.4 |                38.3 |
-| **Total**   |    **12,339** |                     |                                **2,857.5** |  **1,847.3** |           **441.7** |
+| **Total**   |     **4,531** |                     |                                **1,420.7** |    **737.9** |           **231.2** |
 
 ## Historical qualified-yard counts
 
-These original counts describe the retained captures. The current publication decisions above supersede their eligibility; blocked captures cannot seed publication or census reuse.
+These original counts describe the retained captures. The current publication decisions above supersede their eligibility; blocked captures cannot seed publication or census reuse. Rows and paragraphs for the eleven tenants cut on November 23 are historical only.
 
 | Yard                               | City          | State | Accepted | Rejected | Skipped | Duplicates | Floor |
 | ---------------------------------- | ------------- | ----- | -------: | -------: | ------: | ---------: | ----: |

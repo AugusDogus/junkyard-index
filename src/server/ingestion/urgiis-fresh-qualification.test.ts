@@ -7,6 +7,7 @@ import { iisDocument, iisCards } from "./urgiis-catalog";
 import { iisAttribute, iisClass, iisElements } from "./iis-html";
 import { z } from "zod";
 import {
+  URGIIS_CUT_TENANTS,
   URGIIS_MINIMUM_BY_YARD,
   URGIIS_TENANTS,
 } from "./urgiis-configuration";
@@ -143,6 +144,11 @@ test("fresh URG qualification records every attempt and preserves the one shared
 for (const yard of summary.tenants)
   test(`${yard.name}'s fresh qualification agrees with its admission contract`, () => {
     const tenant = URGIIS_TENANTS.find((tenant) => tenant.code === yard.code);
+    if (URGIIS_CUT_TENANTS.has(yard.code)) {
+      // Qualified here, then cut by the owner; it never published.
+      expect(tenant).toBeUndefined();
+      return;
+    }
     if (yard.outcome === "excluded") {
       expect(tenant).toBeUndefined();
       expect(yard.failure.error).not.toBe("");
@@ -225,9 +231,12 @@ test("fresh URG qualification keeps each physical yard above its floor after con
   expect(summary.audit.sourceFloor).toBe(
     summary.audit.bounds.reduce((total, bound) => total + bound.floor, 0),
   );
+  const cutYards = new Set([...URGIIS_CUT_TENANTS.values()].flat());
   for (const bound of summary.audit.bounds) {
+    if (cutYards.has(bound.yard)) continue;
     const minimum = URGIIS_MINIMUM_BY_YARD.get(bound.yard);
-    if (minimum === undefined) throw new Error(`Missing URG yard ${bound.yard}`);
+    if (minimum === undefined)
+      throw new Error(`Missing URG yard ${bound.yard}`);
     expect(minimum).toBeLessThanOrEqual(bound.floor);
     expect(bound.conservativeRemaining).toBeGreaterThanOrEqual(minimum);
   }

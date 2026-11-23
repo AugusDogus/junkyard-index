@@ -2,6 +2,8 @@
 
 See the current [source flags and census floors](provider-coverage-go-live.md).
 
+Premier, Junior Sinn and Revolution were cut on November 23, 2026 with the other Cloudflare-blocked tenants ([tenant cut](urgiis-ingestion.md#november-23-tenant-cut)). Their replay archives, Revolution's currency proof and their per-tenant tests were removed; the record below is historical.
+
 This batch qualifies only the nine businesses assigned to `feat/provider-coverage-urg-batch-b`, against `feat/provider-coverage-urg-tenants` at `c83ecc0502bac0b8859b41c02495a90ac33eb119`. The source runs unless its pause flag serves false. Qualification uses public read-only requests, saved raw responses and offline connector replays. No canonical inventory, production configuration or deployment is changed.
 
 For complete censuses, opening and closing ownership, makes and every model directory are captured separately. Replays enforce the connector's existing bounded badge-drift policy, literal graph structure, supplier identity, attribution, duplicate and rejection guards. Each admitted tenant's absolute floor is the integer floor of one third of its accepted census count. The existing 50% preceding-run retention guard is unchanged.

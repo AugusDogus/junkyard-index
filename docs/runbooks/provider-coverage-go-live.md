@@ -100,16 +100,8 @@ The [five-state sweep](provider-coverage-sweep-md-ny-ct-ma-va.md) adds Paradise 
 | `urgiis/eagle`                    |                     1,448 |          1,200 |       482 |
 | `urgiis/linders`                  |                     3,274 |          2,600 |     1,091 |
 | `urgiis/chuckran`                 |                     3,671 |          2,900 |     1,223 |
-| `urgiis/united`                   |                    12,356 |          9,800 |     4,118 |
-| `urgiis/ace-iowa`                 |                     1,524 |          1,200 |       508 |
-| `urgiis/lentini-ringoes`          |                     2,429 |          1,900 |       809 |
-| `urgiis/lentini-port-murray`      |                       924 |            700 |       308 |
-| `urgiis-tenant/lentini`           |                     3,353 |          2,600 |     1,117 |
-| `urgiis/dings`                    |                     1,110 |            800 |       370 |
-| `urgiis/bishops`                  |                     3,362 |          2,600 |     1,120 |
 | `urgiis/ace-st-paul`              |                     3,015 |          2,400 |     1,005 |
 | `urgiis/chucks`                   |                     2,601 |          2,000 |       867 |
-| `urgiis/central-nh`               |                     2,477 |          1,900 |       825 |
 | `urgiis/stroud`                   |                     3,280 |            n/a |     1,093 |
 | `chesterfield`                    |                     2,111 |          1,800 |       703 |
 | `utpap`                           |                     1,727 |          1,500 |       575 |
@@ -183,8 +175,10 @@ The [five-state sweep](provider-coverage-sweep-md-ny-ct-ma-va.md) adds Paradise 
 | `vinplus`                         |                     7,621 |          5,650 |     2,498 |
 | `northwest`                       |                     6,688 |          5,500 |     2,229 |
 | `calton`                          |                    12,549 |         11,000 |     4,183 |
-| `urgiis`                          |                    74,217 |         40,835 |    24,654 |
+| `urgiis`                          |                    36,780 |         24,654 |    12,202 |
 | `cars4parts/heyworth`             |                        69 |             55 |        23 |
+
+On November 23, 2026 the owner cut the eleven Cloudflare-blocked URG IIS full-service tenants (United, Ace Iowa, Lentini, Ding's, Bishop's, Central NH, Premier, Junior Sinn, Revolution, A-Z and MARS; none ever published), so their yard rows are gone and the `urgiis` source floor is the sum of the nine remaining tenants' unchanged floors. Its census column is the nine tenants' saved-evidence total.
 
 Harry's, Budget, Big D, Idaho Falls, Speedy's and the recent URG additions already have suitable floors. RTP retains its existing 1,000-donor floor for a 3,195-donor census. One-third floors remain sanity checks; complete enumeration is still required.
 
