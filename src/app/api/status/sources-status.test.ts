@@ -5,7 +5,7 @@ import { ACTIVE_INGESTION_SOURCES } from "~/lib/ingestion-source";
 function statusFor(
   published: Record<string, number>,
   paused: string[],
-  pausedHere: string[] = [],
+  pausedHere: string[] | "read fails" = [],
 ) {
   const result = Bun.spawnSync(
     [
@@ -35,8 +35,11 @@ function statusFor(
     const { SourceControl } = await import("./src/server/source-control/source-control.ts");
     mock.module("~/server/source-control/source-control-repository", () => ({
       SourceControlRepository: {
-        all: async () =>
-          SourceControl.fromRows(
+        all: async () => {
+          if (pausedHere === "read fails") {
+            throw new Error("SQLITE_BUSY: database is locked");
+          }
+          return SourceControl.fromRows(
             pausedHere.map((source) => ({
               source,
               ingestion: "paused",
@@ -45,7 +48,8 @@ function statusFor(
               updatedByUserId: "owner",
               updatedAt: new Date(),
             })),
-          ),
+          );
+        },
       },
     }));
     const { GET } = await import("./src/app/api/status/route.ts");
@@ -114,5 +118,17 @@ test("all-sources status ignores a source the owner paused from /admin", () => {
   expect(statusFor(withoutAero, [], ["aero"])).toMatchObject({
     status: 200,
     body: { status: "healthy", paused: ["aero"], stale: [] },
+  });
+});
+
+test("all-sources status is 503 naming the database read when the pause list cannot be read", () => {
+  expect(statusFor(allFresh, [], "read fails")).toEqual({
+    status: 503,
+    cacheControl: "no-store",
+    body: {
+      status: "unavailable",
+      error: expect.stringContaining("source_control"),
+      detail: "SQLITE_BUSY: database is locked",
+    },
   });
 });

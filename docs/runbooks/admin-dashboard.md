@@ -111,7 +111,8 @@ Every change applies without a deploy, shows a result message in plain words
   here, but still runs one only its Vercel flag pauses, so you can test a
   fix before turning the flag back on.
   Resuming here does not turn the Vercel flag back on: change that in
-  Vercel. `/api/status` lists paused sources instead of checking them.
+  Vercel. `/api/status` lists paused sources instead of checking them; if
+  it cannot read `source_control`, it answers 503 naming that read.
 - **Public site: Hide from site / Show on site.** Hiding asks for a reason
   and a confirm step; showing asks to confirm too. Pages and new searches
   change at once, and open search pages within 15 minutes. See [hide-source.md](hide-source.md) for every surface.
