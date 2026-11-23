@@ -3,6 +3,7 @@ import type {
   SessionDetail,
 } from "@hyperbrowser/sdk/types";
 import { Effect, type Scope } from "effect";
+import { z } from "zod";
 import { BrowserSessionError } from "./errors";
 import {
   ProviderCapacityDeferred,
@@ -14,9 +15,32 @@ import {
   type ProviderLeasePolicy,
 } from "./provider-host-slot";
 
+const ConcurrencySchema = z
+  .string()
+  .regex(/^[1-9][0-9]{0,2}$/)
+  .transform(Number);
+
+export const HyperbrowserConcurrency = {
+  /** The plan's concurrent session limit from its environment value: unset
+   * or empty is 1, the Free plan's limit. */
+  parse(raw: string | undefined): number {
+    if (raw === undefined || raw === "") return 1;
+    const parsed = ConcurrencySchema.safeParse(raw);
+    if (!parsed.success)
+      throw new Error(
+        `HYPERBROWSER_CONCURRENT_SESSIONS must be the Hyperbrowser plan's concurrent session limit as a whole number from 1 to 999 (1 on Free, 25 on Startup), but it is ${JSON.stringify(raw)}. Sources that open Hyperbrowser sessions cannot start until it is fixed; unset it to use 1.`,
+      );
+    return parsed.data;
+  },
+} as const;
+
 /** Sessions the Hyperbrowser plan lets the team keep open at once: 1 on the
- * Free plan, 25 on Startup. Change it with the plan. */
-export const HYPERBROWSER_CONCURRENT_SESSIONS = 1;
+ * Free plan, 25 on Startup. Set `HYPERBROWSER_CONCURRENT_SESSIONS` with the
+ * plan; a higher value than the plan allows only makes chunks defer on the
+ * plan's refusal. */
+export const HYPERBROWSER_CONCURRENT_SESSIONS = HyperbrowserConcurrency.parse(
+  process.env.HYPERBROWSER_CONCURRENT_SESSIONS,
+);
 
 /** Every ingestion source that opens Hyperbrowser sessions. A source must be
  * listed to take the session lease. */
@@ -27,6 +51,7 @@ export const HYPERBROWSER_SOURCES = [
   "northwest",
   "six03",
   "michigantruck",
+  "urgiis",
 ] as const;
 export type HyperbrowserSource = (typeof HYPERBROWSER_SOURCES)[number];
 
@@ -63,7 +88,9 @@ const policy = (source: HyperbrowserSource): ProviderLeasePolicy => ({
  * Lock order: a chunk takes its session lease before any shared host turn and
  * keeps it until the chunk ends, and opens its session only after taking it.
  * Northwest takes the lease before its one URG turn per chunk and opens the
- * session inside that turn; the other sources take no shared host turns. No turn
+ * session inside that turn. URG IIS browser tenants take the lease before the
+ * chunk's first URG turn, open the session inside it and keep both for the
+ * chunk's later turns. The other sources take no shared host turns. No turn
  * holder ever waits for this lease (`withProviderHostLease` refuses), so a
  * lease holder waiting for a turn cannot deadlock.
  */

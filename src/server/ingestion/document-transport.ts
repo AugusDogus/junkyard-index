@@ -25,6 +25,10 @@ export interface DocumentResponse {
 export interface DocumentRequestInit {
   readonly signal: AbortSignal;
   readonly headers: Readonly<Record<string, string>>;
+  /** How long a browser may keep loading the document, which `signal` cannot
+   * stop inside the page: 30 seconds unless set. Native requests end with
+   * `signal` alone. */
+  readonly timeoutMs?: number;
 }
 
 /** One unredirected GET for one HTML document. */
@@ -206,13 +210,14 @@ function browser(
 ): DocumentTransport {
   return (url, init) =>
     abortable(init.signal, async () => {
+      const timeoutMs = init.timeoutMs ?? BROWSER_REQUEST_TIMEOUT_MS;
       const target = new URL(url).origin;
       const current = URL.parse(page.url())?.origin;
       if (mode === "fetch" && current === target) {
         const document = await page.evaluate(fetchInPage, {
           url,
           accept: init.headers["Accept"] ?? "text/html",
-          timeoutMs: BROWSER_REQUEST_TIMEOUT_MS,
+          timeoutMs,
           maximumBytes: IN_PAGE_MAX_BYTES,
         });
         return {
@@ -228,7 +233,7 @@ function browser(
       }
       const response = await page.goto(url, {
         waitUntil: "domcontentloaded",
-        timeout: BROWSER_REQUEST_TIMEOUT_MS,
+        timeout: timeoutMs,
       });
       if (!response)
         throw new Error(

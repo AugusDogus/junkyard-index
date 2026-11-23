@@ -105,6 +105,7 @@ for (const census of [
 const rejectedTenants: readonly UrgiisTenant[] = [
   {
     code: "74-auto",
+    transport: "native",
     origin: "https://74autoparts.com",
     urgid: "MO23",
     pathStyle: "parts",
@@ -140,6 +141,7 @@ const rejectedTenants: readonly UrgiisTenant[] = [
   },
   {
     code: "airport",
+    transport: "native",
     origin: "https://airportautopartsinc.com",
     urgid: "OH27",
     pathStyle: "parts",

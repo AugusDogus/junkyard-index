@@ -11,8 +11,14 @@ export type UrgiisYard = Omit<
   lat: number;
   lng: number;
 };
+/** How a tenant's requests reach its site. `native`: server fetch with the
+ * tenant's headers and cookie. `browser`: a Hyperbrowser session under the
+ * session lease, for sites whose CDN refuses the deployment's egress; the
+ * browser owns cookies and headers. */
+export type UrgiisTransport = "native" | "browser";
 export interface UrgiisTenant extends UrgiisSite {
   code: string;
+  transport: UrgiisTransport;
   makesPath: string;
   arrivalsPath: string | null;
   ownerPath: string;
@@ -39,6 +45,15 @@ export interface UrgiisTenant extends UrgiisSite {
       };
 }
 export const UrgiisTenant = {
+  /** The qualification contract that cursor and census scopes bind: every
+   * field but `transport`, which changes how bytes arrive, not what is read
+   * or admitted. Switching a tenant's transport keeps in-flight checkpoints
+   * and accepted census history. */
+  qualification(tenant: UrgiisTenant): Omit<UrgiisTenant, "transport"> {
+    const { transport: _transport, ...qualification } = tenant;
+    void _transport;
+    return qualification;
+  },
   yards(tenant: UrgiisTenant): readonly UrgiisYard[] {
     return tenant.attribution.kind !== "seller"
       ? [tenant.yard]

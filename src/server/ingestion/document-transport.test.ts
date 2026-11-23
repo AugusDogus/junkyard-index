@@ -269,6 +269,42 @@ test("the Michigan Truck client reads the exact browser body", async () => {
   expect(log).toEqual(["goto " + MICHIGANTRUCK_CONTACT]);
 });
 
+test("a browser load gets the request's own timeout, which its signal cannot stop inside the page, and 30 seconds by default", async () => {
+  const timeouts: number[] = [];
+  let current = "about:blank";
+  const page: BrowserDocumentPage = {
+    url: () => current,
+    goto: async (url, options) => {
+      timeouts.push(options.timeout);
+      current = url;
+      return ok(url);
+    },
+    evaluate: async (_run, request) => {
+      timeouts.push(request.timeoutMs);
+      return {
+        status: 200,
+        url: request.url,
+        redirected: false,
+        headers: [["content-type", "text/html"]],
+        body: Buffer.from(html).toString("base64"),
+      };
+    },
+  };
+  const transport = DocumentTransport.browser(page, "fetch");
+  const signal = new AbortController().signal;
+  for (const timeoutMs of [90_000, undefined]) {
+    current = "about:blank";
+    // The first load navigates; the second is a same-origin in-page fetch.
+    for (const path of ["/", "/parts/makes/"])
+      await transport("https://site.example" + path, {
+        signal,
+        headers: {},
+        timeoutMs,
+      });
+  }
+  expect(timeouts).toEqual([90_000, 90_000, 30_000, 30_000]);
+});
+
 test("navigation without a document response fails closed", async () => {
   const { transport } = fakePage("navigation", () => null);
   await expect(

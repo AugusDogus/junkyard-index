@@ -66,6 +66,13 @@ export const env = createEnv({
     BETTERSTACK_CONSUMER_HEARTBEATS: z.string().optional(),
     // Hyperbrowser (remote browser for protected provider ingestion)
     HYPERBROWSER_API_KEY: z.string(),
+    // The Hyperbrowser plan's concurrent session limit (1 on Free, 25 on
+    // Startup); unset means 1. Read by src/server/ingestion/hyperbrowser-sessions.ts,
+    // validated here too so a bad value fails the build.
+    HYPERBROWSER_CONCURRENT_SESSIONS: z
+      .string()
+      .regex(/^[1-9][0-9]{0,2}$/)
+      .optional(),
     // Vercel Blob (private store for staged ingestion snapshot chunks)
     BLOB_READ_WRITE_TOKEN: z.string(),
     PORTLESS_URL: z.string().url().optional(),
@@ -130,6 +137,8 @@ export const env = createEnv({
     BETTERSTACK_CONSUMER_HEARTBEATS:
       process.env.BETTERSTACK_CONSUMER_HEARTBEATS,
     HYPERBROWSER_API_KEY: process.env.HYPERBROWSER_API_KEY,
+    HYPERBROWSER_CONCURRENT_SESSIONS:
+      process.env.HYPERBROWSER_CONCURRENT_SESSIONS,
     BLOB_READ_WRITE_TOKEN: process.env.BLOB_READ_WRITE_TOKEN,
     PORTLESS_URL: process.env.PORTLESS_URL,
     VERCEL_PROJECT_PRODUCTION_URL: process.env.VERCEL_PROJECT_PRODUCTION_URL,

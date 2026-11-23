@@ -25,6 +25,7 @@ const yard = {
 } as const;
 const tenant: UrgiisTenant = {
   code: "lentini",
+  transport: "native",
   origin: "https://example.com",
   urgid: "NJ12,II08",
   pathStyle: "parts",

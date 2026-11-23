@@ -5,6 +5,7 @@ import {
   HYPERBROWSER_CONCURRENT_SESSIONS,
   HYPERBROWSER_SESSION_TIMEOUT_MINUTES,
   HYPERBROWSER_SOURCES,
+  HyperbrowserConcurrency,
   HyperbrowserSessions,
 } from "./hyperbrowser-sessions";
 import { ProviderCapacityDeferred } from "./provider-chunk-clock";
@@ -25,6 +26,17 @@ test("every Hyperbrowser source shares one cap on concurrent sessions, with a le
       HYPERBROWSER_SESSION_TIMEOUT_MINUTES * 60_000,
     );
   }
+});
+
+test("the plan's concurrent session limit comes from HYPERBROWSER_CONCURRENT_SESSIONS, 1 when unset", () => {
+  expect(HyperbrowserConcurrency.parse(undefined)).toBe(1);
+  expect(HyperbrowserConcurrency.parse("")).toBe(1);
+  // Startup's limit, set after the upgrade without a code change.
+  expect(HyperbrowserConcurrency.parse("25")).toBe(25);
+  for (const raw of ["0", "-1", "2.5", "25 ", "many", "1000"])
+    expect(() => HyperbrowserConcurrency.parse(raw)).toThrow(
+      "HYPERBROWSER_CONCURRENT_SESSIONS must be the Hyperbrowser plan's concurrent session limit",
+    );
 });
 
 /** An SDK request failure as `@hyperbrowser/sdk` 0.83 throws it. */

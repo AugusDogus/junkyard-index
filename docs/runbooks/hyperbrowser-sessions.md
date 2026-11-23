@@ -1,10 +1,16 @@
 # Hyperbrowser sessions
 
-U Pull It Davie, Vander Haags, Big D, Northwest, 603 Auto Salvage and Michigan
-Truck Parts load documents through Hyperbrowser sessions (`HYPERBROWSER_SOURCES` in
-`src/server/ingestion/hyperbrowser-sessions.ts`). The Hyperbrowser plan caps
-how many sessions the team may keep open at once: 1 on Free, 25 on Startup.
-`HYPERBROWSER_CONCURRENT_SESSIONS` holds that cap; change it with the plan.
+U Pull It Davie, Vander Haags, Big D, Northwest, 603 Auto Salvage, Michigan
+Truck Parts and the URG IIS tenants whose `transport` is `browser` load
+documents through Hyperbrowser sessions (`HYPERBROWSER_SOURCES` in
+`src/server/ingestion/hyperbrowser-sessions.ts`; the URG tenants are listed in
+[urgiis-ingestion.md](urgiis-ingestion.md#transport)). The Hyperbrowser plan
+caps how many sessions the team may keep open at once: 1 on Free, 25 on
+Startup. The `HYPERBROWSER_CONCURRENT_SESSIONS` environment variable holds that
+cap (unset means 1); set it in Vercel when the plan changes and redeploy, with
+no code change. A value that is not a whole number from 1 to 999 fails the
+build. A value above the plan's limit only makes chunks defer on the plan's
+refusal (below).
 
 ## Session lease
 
@@ -21,7 +27,14 @@ these sources one at a time instead.
 - Waiting holds no session. It is queue time, so it does not spend the chunk's
   work deadline. It lasts only while the chunk's remaining work allowance still
   fits before its turn horizon; then the chunk is deferred and retried five
-  minutes later from the same cursor.
+  minutes later from the same cursor. A URG IIS chunk's eight-minute work
+  allowance never fits its six-minute wall limit, so it never waits: it takes a
+  free place at once or defers. A source that defers for three hours without
+  advancing fails for that attempt.
+- A session that cannot be created for any other reason (an invalid key, no
+  credits left, an outage) fails the chunk's read. For URG IIS that is the
+  tenant's page failure: after three reads in separate chunks only that tenant
+  blocks, and the other tenants publish.
 - A holder that dies keeps its place until the lease expires, one minute after
   Hyperbrowser stops the session it opened (sessions end
   `HYPERBROWSER_SESSION_TIMEOUT_MINUTES` after creation).
@@ -37,8 +50,11 @@ these sources one at a time instead.
 
 A chunk takes its session lease before any shared host turn and keeps it until
 the chunk ends. Northwest takes the lease before its one URG turn per chunk and
-opens its session inside that turn, so its session never waits for a turn; the
-other sources take no shared host turns. No shared host turn holder ever waits
+opens its session inside that turn, so its session never waits for a turn. A
+URG IIS browser tenant takes a URG turn per request: its chunk takes the lease
+before the first turn, opens the session inside that turn, and keeps both
+through the chunk's later turns, so the session is billed while those turns
+queue. The other sources take no shared host turns. No shared host turn holder ever waits
 for the session lease, and waiting for a scoped lease inside a held turn fails,
 so the two cannot deadlock.
 
@@ -46,3 +62,15 @@ While a Northwest chunk waits for its URG turn it holds the lease without a
 session. That wait is not billed, but under URG contention it keeps the other
 Hyperbrowser sources waiting for the lease, for at most the chunk's turn
 horizon.
+
+## Credits
+
+Hyperbrowser bills session time per second, 100 credits per browser-hour, with
+no per-session minimum. The sources other than URG IIS used 199 credits on
+November 22, 2026 (190 sessions, 120 minutes, 07:00 to 09:13 UTC). The 11 URG
+IIS browser tenants measured 0.179 credits per request, about 258 to 294
+credits a day incremental and 1,400 for a full census; the
+[URG IIS transport section](urgiis-ingestion.md#measured-cost) has the
+projection, its upper bound and the Free and Startup plan math. Read the
+balance with `team.getCreditInfo()` and per-session use with `sessions.list`
+(`creditsUsed`), or on the admin budgets page.

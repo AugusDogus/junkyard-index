@@ -3,7 +3,7 @@ import { Effect } from "effect";
 import { URGIIS_TENANTS } from "./urgiis-configuration";
 import { urgiisModelRoute } from "./urgiis-model-route";
 import { urgiisCoverageProbe } from "./urgiis-route-probe";
-import { readUrgiisPage } from "./urgiis-client";
+import { readUrgiisPage, URGIIS_NATIVE_TRANSPORT } from "./urgiis-client";
 import { iisCards } from "./urgiis-catalog";
 import { urgiisSnapshot } from "./urgiis-snapshot";
 
@@ -30,7 +30,11 @@ for (const [code, count] of [
     const request = spyOn(globalThis, "fetch").mockResolvedValue(response);
     try {
       const raw = await Effect.runPromise(
-        readUrgiisPage(url, { ...tenant, pacingMs: 1 }),
+        readUrgiisPage(
+          url,
+          { ...tenant, pacingMs: 1 },
+          URGIIS_NATIVE_TRANSPORT,
+        ),
       );
       expect(request).toHaveBeenCalledTimes(1);
       expect(request.mock.calls[0]?.[0]).toBe(

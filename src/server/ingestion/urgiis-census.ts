@@ -1,7 +1,7 @@
 import { urgiisArrivalsCoverage, urgiisDonorIdentity } from "./urgiis-arrivals";
 import { z } from "zod";
 import { urgiisModelCoverage } from "./urgiis-model-coverage";
-import type { UrgiisTenant } from "./urgiis-tenant";
+import { UrgiisTenant } from "./urgiis-tenant";
 import {
   UrgiisEntrySchema,
   urgiisFingerprint,
@@ -52,7 +52,8 @@ const schema = z
   .strict();
 export type UrgiisCensus = z.infer<typeof schema>;
 export type UrgiisTenantCensus = z.infer<typeof tenantSchema>;
-const scope = (tenant: UrgiisTenant) => urgiisFingerprint({ contract, tenant });
+const scope = (tenant: UrgiisTenant) =>
+  urgiisFingerprint({ contract, tenant: UrgiisTenant.qualification(tenant) });
 
 function validate(
   census: UrgiisTenantCensus,

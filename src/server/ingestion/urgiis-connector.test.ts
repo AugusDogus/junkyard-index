@@ -15,9 +15,31 @@ import {
   type UrgiisTenant,
 } from "./urgiis-snapshot";
 import { iisCards, iisDirectory } from "./urgiis-catalog";
+import { Config } from "./context";
+import type {
+  BrowserDocumentPage,
+  BrowserSessions,
+} from "./document-transport";
+import { BrowserSessionError } from "./errors";
+import { HyperbrowserSessions } from "./hyperbrowser-sessions";
+import {
+  ProviderCapacityDeferred,
+  ProviderChunkClock,
+  ProviderTurnDeferred,
+} from "./provider-chunk-clock";
+import { withProviderHostLease } from "./provider-host-slot";
+import { URGIIS_TENANTS } from "./urgiis-configuration";
+import { UrgiisCensus } from "./urgiis-census";
+
+// The Hyperbrowser client refuses an empty key even when no session opens.
+const config = {
+  betterStackHeartbeatUrl: undefined,
+  hyperbrowserApiKey: "unused",
+};
 
 const tenant: UrgiisTenant = {
   code: "fixture",
+  transport: "native",
   origin: "https://example.com",
   urgid: "AA01",
   pathStyle: "parts",
@@ -1163,7 +1185,7 @@ test("URG IIS keeps advancing when every shared host turn waits 150 seconds", as
           Effect.sync(() => {
             vehicles += batch.length;
           }),
-      }),
+      }).pipe(Effect.provideService(Config, config)),
       { turnWaitMs: 150_000 },
     );
     if (Either.isLeft(chunk.result)) throw chunk.result.left;
@@ -1370,4 +1392,364 @@ test("a tenant below its admission floor blocks only that tenant", async () => {
     { code: healthy.code, accepted: 1 },
   ]);
   expect(published).toEqual([healthy.code]);
+});
+
+test("the tenants Cloudflare refuses from Vercel read through browser sessions and every other tenant stays native", () => {
+  // Each returned HTTP 403 without Retry-After at its makes page on every
+  // production run since Nov 19 and HTTP 200 from other networks and from
+  // Hyperbrowser (probed Nov 23).
+  expect(
+    URGIIS_TENANTS.filter((t) => t.transport === "browser").map((t) => t.code),
+  ).toEqual([
+    "united",
+    "ace-iowa",
+    "lentini",
+    "dings",
+    "bishops",
+    "central-nh",
+    "premier",
+    "junior-sinn",
+    "revolution",
+    "az",
+    "mars",
+  ]);
+  expect(
+    URGIIS_TENANTS.filter((t) => t.transport === "native").map((t) => t.code),
+  ).toEqual([
+    "eagle",
+    "linders",
+    "chuckran",
+    "ace-st-paul",
+    "chucks",
+    "higgins",
+    "lambert",
+    "norbs",
+    "stroud",
+  ]);
+});
+
+const BROWSER_ORIGIN = "https://browser.example";
+const browserSite: UrgiisTenant = {
+  ...tenant,
+  code: "browser",
+  transport: "browser",
+  origin: BROWSER_ORIGIN,
+  pacingMs: 1,
+  yard: { ...tenant.yard, code: "browser" },
+};
+const nativeSite: UrgiisTenant = { ...healthy, pacingMs: 1 };
+/** The fixture graph by request path; closing rereads the same documents. */
+const pages = new Map([
+  ["/", responses[0]],
+  ["/parts/makes/", responses[1]],
+  ["/recent-arrivals/", responses[2]],
+  [make.path, responses[3]],
+  [model.path, responses[4]],
+]);
+
+/** A session page that serves the fixture graph and logs each load: the
+ * first by navigation, later ones by in-page fetch. */
+function browserPage() {
+  let current = "about:blank";
+  const log: string[] = [];
+  const serve = (url: string) => pages.get(new URL(url).pathname);
+  const page: BrowserDocumentPage = {
+    url: () => current,
+    goto: async (url) => {
+      log.push("goto " + url);
+      current = url;
+      const body = serve(url);
+      const request = {
+        redirectedFrom: () => null,
+        response: async () => response,
+      };
+      const response = {
+        status: () => (body === undefined ? 404 : 200),
+        url: () => url,
+        headersArray: async () => [
+          { name: "content-type", value: "text/html; charset=utf-8" },
+        ],
+        body: async () => Buffer.from(body ?? ""),
+        request: () => request,
+      };
+      return response;
+    },
+    evaluate: async (_run, request) => {
+      log.push("fetch " + request.url);
+      const body = serve(request.url);
+      return {
+        status: body === undefined ? 404 : 200,
+        url: request.url,
+        redirected: false,
+        headers: [["content-type", "text/html; charset=utf-8"]],
+        body: Buffer.from(body ?? "").toString("base64"),
+      };
+    },
+  };
+  return { page, log };
+}
+
+/** Remote sessions that record every lifecycle call. By default the lease is
+ * a real one, which refuses to wait inside a held shared host turn, so a
+ * lease taken after a URG turn fails the test. */
+function browserSessions(
+  page: BrowserDocumentPage,
+  options: { lease?: BrowserSessions["lease"]; createFailure?: Error } = {},
+) {
+  const events: string[] = [];
+  let created = 0;
+  const { group: _group, ...policy } = HyperbrowserSessions.policy("urgiis");
+  void _group;
+  const sessions: BrowserSessions = {
+    lease:
+      options.lease ??
+      withProviderHostLease(policy, {
+        reserve: async () => {
+          events.push("lease");
+          return true;
+        },
+        release: async () => {
+          events.push("release");
+          return true;
+        },
+        cancel: async () => true,
+      }).pipe(
+        Effect.mapError(
+          (cause) => new BrowserSessionError({ phase: "lease", cause }),
+        ),
+      ),
+    create: async () => {
+      if (options.createFailure) {
+        events.push("refused");
+        throw options.createFailure;
+      }
+      created++;
+      events.push("create");
+      return { id: "s" + created, wsEndpoint: "wss://browser/" + created };
+    },
+    stop: async () => {
+      events.push("stop");
+    },
+    connect: async () => {
+      events.push("connect");
+      return {
+        page,
+        close: async () => {
+          events.push("disconnect");
+        },
+      };
+    },
+  };
+  return { sessions, events };
+}
+
+/** Native requests serve the fixture graph for `example.com` and fail the
+ * test if they reach the browser tenant's origin. */
+function serveNative() {
+  const native: string[] = [];
+  globalThis.fetch = Object.assign(
+    async (input: RequestInfo | URL) => {
+      const url = input instanceof Request ? input.url : String(input);
+      native.push(url);
+      if (url.startsWith(BROWSER_ORIGIN))
+        throw new Error("Browser tenant sent a native request to " + url);
+      const raw = pages.get(new URL(url).pathname);
+      return raw === undefined
+        ? new Response("", { status: 404 })
+        : new Response(raw, {
+            headers: { "content-type": "text/html; charset=utf-8" },
+          });
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  return native;
+}
+
+const providerChunk = (
+  tenants: readonly UrgiisTenant[],
+  sessions: BrowserSessions,
+  cursor: UrgiisCursor = UrgiisCursor.initial(tenants),
+  censusState?: unknown,
+  onBatch: (codes: string[]) => void = () => undefined,
+) =>
+  runWithQueuedHost(
+    streamUrgiisInventoryFromProvider(
+      {
+        tenants,
+        startCursor: cursor,
+        censusState,
+        maxPages: 3,
+        onBatch: (batch) =>
+          Effect.sync(() => onBatch(batch.map((v) => v.locationCode))),
+      },
+      sessions,
+    ).pipe(Effect.provideService(Config, config)),
+    { turnWaitMs: 0 },
+  );
+
+/** Crawls `tenants` through the provider chunk by chunk, recording the
+ * browser session lifecycle each chunk produced. */
+async function crawlProvider(
+  tenants: readonly UrgiisTenant[],
+  browser: ReturnType<typeof browserSessions>,
+) {
+  let cursor = UrgiisCursor.initial(tenants);
+  let state: unknown;
+  const published: string[] = [];
+  const lifecycles: string[][] = [];
+  for (let chunks = 0; cursor.phase !== "complete"; chunks++) {
+    if (chunks > 40)
+      throw new Error("The crawl did not reach terminal evidence");
+    const before = browser.events.length;
+    const run = await providerChunk(
+      tenants,
+      browser.sessions,
+      cursor,
+      state,
+      (codes) => published.push(...codes),
+    );
+    if (Either.isLeft(run.result)) throw run.result.left;
+    const result = run.result.right;
+    if (result.checkpointState) state = result.checkpointState;
+    lifecycles.push(browser.events.slice(before));
+    cursor = UrgiisCursor.fromWire(
+      UrgiisCursor.serialize(result.cursor, tenants),
+      tenants,
+    );
+  }
+  return { cursor, state, published, lifecycles };
+}
+const SESSION = ["lease", "create", "connect", "disconnect", "stop", "release"];
+
+test("a browser tenant reads every page through one session per chunk, never natively, and a native tenant opens no session", async () => {
+  const native = serveNative();
+  const { page, log } = browserPage();
+  const browser = browserSessions(page);
+  const { cursor, published, lifecycles } = await crawlProvider(
+    [browserSite, nativeSite],
+    browser,
+  );
+  expect(cursor.completed).toEqual([
+    { code: browserSite.code, accepted: 1 },
+    { code: nativeSite.code, accepted: 1 },
+  ]);
+  expect(published).toEqual([browserSite.code, nativeSite.code]);
+  // Navigation once, then same-origin fetch for every later page.
+  const paths = [
+    "/",
+    "/parts/makes/",
+    "/recent-arrivals/",
+    make.path,
+    model.path,
+    "/",
+    "/parts/makes/",
+    make.path,
+  ];
+  expect(log).toEqual(
+    paths.map(
+      (path, i) => (i === 0 ? "goto " : "fetch ") + BROWSER_ORIGIN + path,
+    ),
+  );
+  expect(native).toEqual(paths.map((path) => nativeSite.origin + path));
+  // Three-page chunks of the browser tenant each hold one session; its
+  // accepting chunk and every native chunk send no request and hold none.
+  const sessions = lifecycles.filter((events) => events.length > 0);
+  expect(sessions).toEqual([SESSION, SESSION, SESSION]);
+});
+
+test("a busy session lease defers a browser tenant's chunk without a session or request; a native tenant never takes it", async () => {
+  serveNative();
+  const busy = new ProviderTurnDeferred({
+    host: "Hyperbrowser session for urgiis",
+    stage: "wait",
+    elapsedMs: 0,
+    queuedMs: 0,
+  });
+  const { page, log } = browserPage();
+  const browser = browserSessions(page, { lease: Effect.fail(busy) });
+  const deferred = await providerChunk([browserSite], browser.sessions);
+  expect(
+    Either.isLeft(deferred.result) &&
+      ProviderChunkClock.deferralOf(deferred.result.left),
+  ).toBe(busy);
+  expect(browser.events).toEqual([]);
+  expect(log).toEqual([]);
+  const { cursor } = await crawlProvider([nativeSite], browser);
+  expect(cursor.completed).toEqual([{ code: nativeSite.code, accepted: 1 }]);
+  expect(browser.events).toEqual([]);
+});
+
+test("the plan's concurrent session refusal defers a browser tenant's chunk and releases the lease", async () => {
+  serveNative();
+  // As @hyperbrowser/sdk 0.83 throws it.
+  const refusal = Object.assign(
+    new Error(
+      "[Hyperbrowser]: Maximum number of active sessions (1) reached. Please close some sessions before creating new ones.",
+    ),
+    { name: "HyperbrowserError", statusCode: 429 },
+  );
+  const { page, log } = browserPage();
+  const browser = browserSessions(page, { createFailure: refusal });
+  const deferred = await providerChunk([browserSite], browser.sessions);
+  expect(
+    Either.isLeft(deferred.result) &&
+      ProviderChunkClock.deferralOf(deferred.result.left),
+  ).toBeInstanceOf(ProviderCapacityDeferred);
+  expect(browser.events).toEqual(["lease", "refused", "release"]);
+  expect(log).toEqual([]);
+});
+
+test("a browser session that cannot open, as when credits run out, blocks only its tenant and native tenants publish", async () => {
+  serveNative();
+  const outOfCredits = Object.assign(
+    new Error("[Hyperbrowser]: Insufficient credits"),
+    { name: "HyperbrowserError", statusCode: 402 },
+  );
+  const { page, log } = browserPage();
+  const browser = browserSessions(page, { createFailure: outOfCredits });
+  const { cursor, published, lifecycles } = await crawlProvider(
+    [browserSite, nativeSite],
+    browser,
+  );
+  expect(cursor.completed).toEqual([
+    {
+      code: browserSite.code,
+      blocked: expect.stringContaining("Browser session open"),
+    },
+    { code: nativeSite.code, accepted: 1 },
+  ]);
+  expect(published).toEqual([nativeSite.code]);
+  expect(log).toEqual([]);
+  // The owner page is read in three chunks, each with its usual three
+  // attempts, before the tenant blocks.
+  const refused = ["lease", "refused", "refused", "refused", "release"];
+  expect(lifecycles.filter((events) => events.length > 0)).toEqual([
+    refused,
+    refused,
+    refused,
+  ]);
+});
+
+test("a tenant's transport is outside its qualification scope, so switching it keeps checkpoints and census history", async () => {
+  const flip = (t: UrgiisTenant): UrgiisTenant => ({
+    ...t,
+    transport: t.transport === "native" ? "browser" : "native",
+  });
+  expect(UrgiisCursor.initial(URGIIS_TENANTS.map(flip)).scope).toBe(
+    UrgiisCursor.initial(URGIIS_TENANTS).scope,
+  );
+  serveNative();
+  const { page } = browserPage();
+  const { cursor, state } = await crawlProvider(
+    [nativeSite],
+    browserSessions(page),
+  );
+  expect(() =>
+    UrgiisCursor.fromWire(UrgiisCursor.serialize(cursor, [nativeSite]), [
+      flip(nativeSite),
+    ]),
+  ).not.toThrow();
+  expect(() =>
+    UrgiisCensus.parse(state, [flip(nativeSite)], Date.now()),
+  ).not.toThrow();
 });

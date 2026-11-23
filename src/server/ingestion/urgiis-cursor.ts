@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { UrgiisControlSchema } from "./urgiis-schema";
-import type { UrgiisTenant } from "./urgiis-tenant";
+import { UrgiisTenant } from "./urgiis-tenant";
 import { URGIIS_TENANTS } from "./urgiis-configuration";
 import { UrgiisBadgeDriftSchema, urgiisBadgeLimit } from "./urgiis-closing";
 import {
@@ -13,6 +13,9 @@ import {
   type UrgiisTask,
 } from "./urgiis-traversal";
 
+/** Binds checkpoints to every tenant's qualification contract. */
+const tenantScope = (tenants: readonly UrgiisTenant[]) =>
+  urgiisFingerprint(tenants.map(UrgiisTenant.qualification));
 export const URGIIS_MAX_CURSOR_BYTES = 16 * 1024 * 1024;
 export const URGIIS_MAX_REQUESTS = 30_000;
 /** Reads of one page, in separate chunks, before its failure blocks the tenant. */
@@ -128,7 +131,7 @@ function checkpoint(
   const { checksum: _checksum, ...unsigned } = envelope;
   void _checksum;
   const state = schema.parse(unsigned);
-  if (state.scope !== urgiisFingerprint(tenants))
+  if (state.scope !== tenantScope(tenants))
     throw new Error("IIS tenant qualification changed; restart from the owner");
   if (
     (state.startedAt === null) !== (state.asOf === null) ||
@@ -287,7 +290,7 @@ function parse(
     input !== null && typeof input === "object"
       ? validatedCursors.get(input)
       : undefined;
-  if (cached && cached.scope === urgiisFingerprint(tenants)) return cached;
+  if (cached && cached.scope === tenantScope(tenants)) return cached;
   const signed = z.object({ checksum: z.string() }).passthrough().parse(input);
   const { checksum, ...state } = signed;
   const cursor = checkpoint(state, tenants);
@@ -305,7 +308,7 @@ export const UrgiisCursor = {
       {
         source: "urgiis",
         version: 2,
-        scope: urgiisFingerprint(tenants),
+        scope: tenantScope(tenants),
         startedAt: null,
         asOf: null,
         statePath: null,

@@ -32,6 +32,7 @@ const cases: readonly {
     tenant: {
       ...standard,
       code: "tnt",
+      transport: "native",
       origin: "https://picktnt.com",
       urgid: "UU50",
       arrivalsPath: "/recent-arrivals/",
@@ -67,6 +68,7 @@ const cases: readonly {
     tenant: {
       ...standard,
       code: "borges",
+      transport: "native",
       origin: "https://borgesauto.com",
       urgid: "MA15",
       arrivalsPath: "/latest-arrivals-2/",

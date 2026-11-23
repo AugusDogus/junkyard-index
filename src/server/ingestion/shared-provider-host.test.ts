@@ -9,7 +9,7 @@ import {
   VINPLUS_HOST_POLICY,
 } from "./shared-provider-host";
 import { URGIIS_TENANTS } from "./urgiis-configuration";
-import { readUrgiisPage } from "./urgiis-client";
+import { readUrgiisPage, URGIIS_NATIVE_TRANSPORT } from "./urgiis-client";
 import { fetchJolietSearch } from "./joliet-client";
 import { fetchLittletonSearch } from "./littleton-client";
 import { fetchPickersSearch } from "./pickers-client";
@@ -110,7 +110,11 @@ test("deployed URG and every VinPlus API client fail closed without Redis", asyn
       Effect.gen(function* () {
         const fiber = yield* Effect.fork(
           Effect.either(
-            readUrgiisPage(tenant.origin + tenant.ownerPath, tenant),
+            readUrgiisPage(
+              tenant.origin + tenant.ownerPath,
+              tenant,
+              URGIIS_NATIVE_TRANSPORT,
+            ),
           ),
         );
         yield* TestClock.adjust("1 minute");

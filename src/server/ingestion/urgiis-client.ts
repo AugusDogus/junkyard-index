@@ -1,7 +1,19 @@
 import { IisSupplierIdentityError } from "./iis-supplier-identity";
-import { ProviderTurnDeferred } from "./provider-chunk-clock";
+import {
+  ProviderChunkClock,
+  ProviderTurnDeferred,
+  type ProviderChunkDeferral,
+} from "./provider-chunk-clock";
 import { sharedProviderHostRequest } from "./shared-provider-host";
 import { Effect, Schedule } from "effect";
+import { BrowserSessionError } from "./errors";
+import {
+  DocumentTransport,
+  type BrowserOpenError,
+  type BrowserSessions,
+  type DocumentResponse,
+  type LazyDocumentTransport,
+} from "./document-transport";
 import { parseRetryAfterMs } from "./provider-http-client";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import { iisOwnedUrl, iisBrowsePath } from "./urgiis-catalog";
@@ -35,7 +47,9 @@ const describeCause = (cause: unknown) =>
 /** Shows whether a CDN rule or the origin refused a blocked request, using
  * only headers and a bounded prefix of the body already sent. Never rejects:
  * a body that cannot be read is reported in the evidence instead. */
-async function blockedResponseEvidence(response: Response): Promise<string> {
+async function blockedResponseEvidence(
+  response: DocumentResponse,
+): Promise<string> {
   const headers = ["server", "cf-ray", "cf-mitigated"]
     .map((name) => `${name}=${response.headers.get(name) ?? "absent"}`)
     .join(", ");
@@ -74,7 +88,42 @@ async function blockedResponseEvidence(response: Response): Promise<string> {
 }
 const serial = Effect.runSync(Effect.makeSemaphore(1));
 export const URGIIS_MAX_BODY_BYTES = 4 * 1024 * 1024;
-export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
+
+/** A lease or session failure as the tenant's read failure, so only that
+ * tenant's page handling applies; a busy lease or a full plan defers the
+ * chunk instead. */
+const browserFailure =
+  (url: string) =>
+  (error: BrowserOpenError): UrgiisError | ProviderChunkDeferral =>
+    error instanceof BrowserSessionError
+      ? urgiisError("browser session for " + url, error)
+      : error;
+
+/** Native requests, with no lease or session. */
+export const URGIIS_NATIVE_TRANSPORT: LazyDocumentTransport =
+  DocumentTransport.nativeLazy;
+
+/** A browser session navigates to the tenant once and reads later documents
+ * by same-origin fetch, as Northwest does. */
+export const acquireUrgiisBrowser = (sessions: BrowserSessions) =>
+  DocumentTransport.acquireBrowser(sessions, "fetch");
+
+/** URG IIS Hyperbrowser sessions, under the session lease. Every tenant is a
+ * URG lane, and the URG plugin's own requests are what the lane meters, so
+ * its pages load no subresources that reach the site. */
+export const urgiisHyperbrowser = (apiKey: string) =>
+  DocumentTransport.hyperbrowser(apiKey, "urgiis", "none");
+
+/**
+ * One tenant page, each attempt in its own shared host turn. `transport`
+ * takes its session lease before the first turn (the lock order in
+ * `HyperbrowserSessions`) and opens its session inside that turn.
+ */
+export function readUrgiisPage(
+  url: string,
+  tenant: UrgiisTenant,
+  transport: LazyDocumentTransport,
+): Effect.Effect<string, UrgiisError | ProviderChunkDeferral> {
   const owned = iisOwnedUrl(url, tenant);
   if (
     !owned ||
@@ -100,32 +149,37 @@ export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
     .replaceAll("(", "%28")
     .replaceAll(")", "%29");
   const attempt = Effect.suspend(() => {
-    const request = Effect.tryPromise({
-      try: async (signal) => {
-        const timeout = AbortSignal.timeout(tenant.requestTimeoutMs);
-        const combined = AbortSignal.any([signal, timeout]);
-        const response = await fetch(requestUrl, {
-          signal: combined,
-          redirect: "manual",
-          headers: {
-            "User-Agent":
-              tenant.userAgent === "firefox"
-                ? "Mozilla/5.0 (X11; Linux x86_64; rv:157.0) Gecko/20100101 Firefox/157.0"
-                : "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
-            Accept:
-              "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-            Referer: tenant.origin + "/",
-            "Sec-Fetch-Dest": "document",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-Site": "same-origin",
-            "Accept-Language": "en-US,en;q=0.9",
-            ...(tenant.cookie ? { Cookie: tenant.cookie } : {}),
-          },
-        });
-        return { response, signal: combined };
-      },
-      catch: (cause) => urgiisError("request/body " + url, cause),
-    }).pipe(
+    const send = (documents: DocumentTransport) =>
+      Effect.tryPromise({
+        try: async (signal) => {
+          const timeout = AbortSignal.timeout(tenant.requestTimeoutMs);
+          const combined = AbortSignal.any([signal, timeout]);
+          // A browser transport sends only Accept; the browser owns the rest.
+          const response = await documents(requestUrl, {
+            signal: combined,
+            timeoutMs: tenant.requestTimeoutMs,
+            headers: {
+              "User-Agent":
+                tenant.userAgent === "firefox"
+                  ? "Mozilla/5.0 (X11; Linux x86_64; rv:157.0) Gecko/20100101 Firefox/157.0"
+                  : "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+              Accept:
+                "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+              Referer: tenant.origin + "/",
+              "Sec-Fetch-Dest": "document",
+              "Sec-Fetch-Mode": "navigate",
+              "Sec-Fetch-Site": "same-origin",
+              "Accept-Language": "en-US,en;q=0.9",
+              ...(tenant.cookie ? { Cookie: tenant.cookie } : {}),
+            },
+          });
+          return { response, signal: combined };
+        },
+        catch: (cause) => urgiisError("request/body " + url, cause),
+      });
+    const request = transport.open.pipe(
+      Effect.mapError(browserFailure(url)),
+      Effect.flatMap(send),
       Effect.flatMap(({ response, signal }) =>
         Effect.gen(function* () {
           const invalid =
@@ -184,13 +238,14 @@ export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
       ),
     );
     // Each attempt takes its own shared host turn, so client pacing and retry
-    // backoff run after the lease is released. A deferred turn sent no request:
-    // it is neither a provider failure nor retried.
+    // backoff run after the lease is released. A deferred turn or a full
+    // browser plan sent no request: it is neither a provider failure nor
+    // retried.
     return serial.withPermits(1)(
       request.pipe(
         sharedProviderHostRequest(url),
         Effect.mapError((cause) =>
-          cause instanceof ProviderTurnDeferred
+          ProviderChunkClock.isDeferral(cause)
             ? cause
             : cause instanceof Error
               ? urgiisError("shared host " + url, cause)
@@ -204,12 +259,12 @@ export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
   // failure it is retrying, marked with that deferral, so the connector can
   // still apply its failed-model handling instead of deferring onto the same
   // failing page every chunk.
-  return Effect.suspend(() => {
+  const read = Effect.suspend(() => {
     let failure: UrgiisError | null = null;
     return attempt.pipe(
       Effect.tapError((error) =>
         Effect.sync(() => {
-          if (!(error instanceof ProviderTurnDeferred)) failure = error;
+          if (!ProviderChunkClock.isDeferral(error)) failure = error;
         }),
       ),
       Effect.retry({
@@ -217,7 +272,7 @@ export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
           Schedule.intersect(Schedule.recurs(2)),
         ),
         while: (error) =>
-          !(error instanceof ProviderTurnDeferred) && error.kind !== "blocked",
+          !ProviderChunkClock.isDeferral(error) && error.kind !== "blocked",
       }),
       Effect.catchAll((error) =>
         Effect.fail(
@@ -228,4 +283,8 @@ export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
       ),
     );
   });
+  return transport.lease.pipe(
+    Effect.mapError(browserFailure(url)),
+    Effect.zipRight(read),
+  );
 }

@@ -10,11 +10,12 @@ import {
   sharedProviderHostSlot,
   sharedProviderHostTurn,
 } from "./shared-provider-host";
-import { readUrgiisPage } from "./urgiis-client";
+import { readUrgiisPage, URGIIS_NATIVE_TRANSPORT } from "./urgiis-client";
 import type { UrgiisTenant } from "./urgiis-tenant";
 
 const tenant: UrgiisTenant = {
   code: "fixture",
+  transport: "native",
   origin: "https://example.com",
   urgid: "PP42",
   pathStyle: "parts",
@@ -56,7 +57,11 @@ test("URG IIS sends the configured verification cookie and owned complete HTML r
   try {
     expect(
       await Effect.runPromise(
-        readUrgiisPage(tenant.origin + tenant.makesPath, tenant),
+        readUrgiisPage(
+          tenant.origin + tenant.makesPath,
+          tenant,
+          URGIIS_NATIVE_TRANSPORT,
+        ),
       ),
     ).toBe("native HTML");
     expect(fetch).toHaveBeenCalledTimes(1);
@@ -66,12 +71,20 @@ test("URG IIS sends the configured verification cookie and owned complete HTML r
     expect(new Headers(request?.[1]?.headers).get("cookie")).toBe("urg_hv=1");
     await expect(
       Effect.runPromise(
-        readUrgiisPage("https://other.example/parts/makes/", tenant),
+        readUrgiisPage(
+          "https://other.example/parts/makes/",
+          tenant,
+          URGIIS_NATIVE_TRANSPORT,
+        ),
       ),
     ).rejects.toThrow("outside the qualified native graph");
     await expect(
       Effect.runPromise(
-        readUrgiisPage(tenant.origin + "/parts/FORD/?page=2", tenant),
+        readUrgiisPage(
+          tenant.origin + "/parts/FORD/?page=2",
+          tenant,
+          URGIIS_NATIVE_TRANSPORT,
+        ),
       ),
     ).rejects.toThrow("outside the qualified native graph");
     expect(fetch).toHaveBeenCalledTimes(1);
@@ -97,12 +110,16 @@ test("URG IIS encodes model-name parentheses without changing the published grap
     .mockResolvedValueOnce(nativeResponse())
     .mockResolvedValueOnce(nativeResponse());
   try {
-    expect(await Effect.runPromise(readUrgiisPage(literal, tenant))).toBe(
-      "native HTML",
-    );
-    expect(await Effect.runPromise(readUrgiisPage(encoded, tenant))).toBe(
-      "native HTML",
-    );
+    expect(
+      await Effect.runPromise(
+        readUrgiisPage(literal, tenant, URGIIS_NATIVE_TRANSPORT),
+      ),
+    ).toBe("native HTML");
+    expect(
+      await Effect.runPromise(
+        readUrgiisPage(encoded, tenant, URGIIS_NATIVE_TRANSPORT),
+      ),
+    ).toBe("native HTML");
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(fetch.mock.calls.map((call) => call[0])).toEqual([encoded, encoded]);
   } finally {
@@ -122,7 +139,13 @@ test("URG IIS sends the qualified tenant's User-Agent", async () => {
     .mockResolvedValueOnce(nativeResponse());
   try {
     for (const configured of [firefox, tenant])
-      await Effect.runPromise(readUrgiisPage(tenant.origin + "/", configured));
+      await Effect.runPromise(
+        readUrgiisPage(
+          tenant.origin + "/",
+          configured,
+          URGIIS_NATIVE_TRANSPORT,
+        ),
+      );
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(
       new Headers(fetch.mock.calls[0]?.[1]?.headers).get("user-agent"),
@@ -147,13 +170,15 @@ for (const status of [403, 429] as const) {
     );
     try {
       const result = await Effect.runPromise(
-        readUrgiisPage(tenant.origin + tenant.makesPath, tenant).pipe(
-          Effect.either,
-        ),
+        readUrgiisPage(
+          tenant.origin + tenant.makesPath,
+          tenant,
+          URGIIS_NATIVE_TRANSPORT,
+        ).pipe(Effect.either),
       );
       expect(result._tag).toBe("Left");
       if (result._tag !== "Left") throw new Error("Expected blocked response");
-      if (result.left instanceof ProviderTurnDeferred) throw result.left;
+      if (ProviderChunkClock.isDeferral(result.left)) throw result.left;
       expect(result.left.kind).toBe("blocked");
       if (result.left.kind !== "blocked")
         throw new Error("Expected structured host block");
@@ -182,12 +207,14 @@ test("a URG IIS block records who refused it and only stops its tenant", async (
   );
   try {
     const result = await Effect.runPromise(
-      readUrgiisPage(tenant.origin + tenant.makesPath, tenant).pipe(
-        Effect.either,
-      ),
+      readUrgiisPage(
+        tenant.origin + tenant.makesPath,
+        tenant,
+        URGIIS_NATIVE_TRANSPORT,
+      ).pipe(Effect.either),
     );
     if (result._tag !== "Left") throw new Error("Expected blocked response");
-    if (result.left instanceof ProviderTurnDeferred) throw result.left;
+    if (ProviderChunkClock.isDeferral(result.left)) throw result.left;
     expect(result.left.kind).toBe("blocked");
     const message = result.left.message;
     expect(message).toContain("server=cloudflare");
@@ -218,7 +245,13 @@ test("a URG IIS read whose retry cannot get a shared host turn in this chunk end
       ProviderChunkClock.deadline({
         duration: "8 minutes",
         onTimeout: () => new Error("work deadline"),
-      })(readUrgiisPage(site.origin + site.makesPath, site)),
+      })(
+        readUrgiisPage(
+          site.origin + site.makesPath,
+          site,
+          URGIIS_NATIVE_TRANSPORT,
+        ),
+      ),
       { turnWaitMs: 150_000 },
     );
     if (Either.isRight(run.result)) throw new Error("Expected a failure");
@@ -250,11 +283,21 @@ test("a URG IIS read keeps the shared URG gap inside its turn's lease", async ()
   );
   try {
     for (const read of [
-      readUrgiisPage(site.origin + site.makesPath, site),
+      readUrgiisPage(
+        site.origin + site.makesPath,
+        site,
+        URGIIS_NATIVE_TRANSPORT,
+      ),
       ProviderChunkClock.deadline({
         duration: "3 minutes",
         onTimeout: () => new Error("work deadline"),
-      })(readUrgiisPage(site.origin + site.makesPath, site)),
+      })(
+        readUrgiisPage(
+          site.origin + site.makesPath,
+          site,
+          URGIIS_NATIVE_TRANSPORT,
+        ),
+      ),
     ]) {
       const run = await runWithQueuedHost(read, { turnWaitMs: 10_000 });
       expect(run.result).toEqual(Either.right("native HTML"));
@@ -296,8 +339,16 @@ test("URG IIS reads that share a turn keep the URG gap after a slotted request a
         Effect.promise(() => globalThis.fetch(owner)).pipe(
           sharedProviderHostSlot(owner),
         ),
-        readUrgiisPage(site.origin + site.makesPath, site),
-        readUrgiisPage(site.origin + site.makesPath, site),
+        readUrgiisPage(
+          site.origin + site.makesPath,
+          site,
+          URGIIS_NATIVE_TRANSPORT,
+        ),
+        readUrgiisPage(
+          site.origin + site.makesPath,
+          site,
+          URGIIS_NATIVE_TRANSPORT,
+        ),
       ]).pipe(sharedProviderHostTurn(site.origin, 3)),
       { turnWaitMs: 0, requestMs: () => 2_000 },
     );

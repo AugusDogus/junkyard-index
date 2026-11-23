@@ -2,7 +2,6 @@ import { expect, test } from "bun:test";
 import { drizzle } from "drizzle-orm/libsql";
 import { URGIIS_TENANTS } from "./urgiis-configuration";
 import { UrgiisCursor } from "./urgiis-cursor";
-import { urgiisFingerprint } from "./urgiis-traversal";
 import { loadUrgiisPublishedCursor } from "./urgiis-history";
 import { createDurableIngestionRepository } from "./durable-ingestion-repository";
 import {
@@ -15,7 +14,7 @@ const terminal = (statePath: string) =>
   UrgiisCursor.checkpoint({
     source: "urgiis",
     version: 2,
-    scope: urgiisFingerprint(URGIIS_TENANTS),
+    scope: UrgiisCursor.initial(URGIIS_TENANTS).scope,
     startedAt: 1,
     asOf: 1,
     statePath,

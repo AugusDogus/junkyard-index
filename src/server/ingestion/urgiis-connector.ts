@@ -49,12 +49,25 @@ import {
   validateUrgiisSnapshot,
   type UrgiisModelPage,
 } from "./urgiis-snapshot";
-import { readUrgiisPage, urgiisError, type UrgiisError } from "./urgiis-client";
+import {
+  acquireUrgiisBrowser,
+  readUrgiisPage,
+  urgiisError,
+  urgiisHyperbrowser,
+  URGIIS_NATIVE_TRANSPORT,
+  type UrgiisError,
+} from "./urgiis-client";
 import { urgiisClosingEvidence } from "./urgiis-closing";
 import {
   ProviderChunkClock,
-  ProviderTurnDeferred,
+  type ProviderChunkDeferral,
 } from "./provider-chunk-clock";
+import { Config } from "./context";
+import type {
+  BrowserSessions,
+  LazyDocumentTransport,
+} from "./document-transport";
+import type { UrgiisTransport } from "./urgiis-tenant";
 
 export interface UrgiisOptions<E, R> extends UrgiisCensusHistory {
   startCursor?: unknown;
@@ -62,11 +75,13 @@ export interface UrgiisOptions<E, R> extends UrgiisCensusHistory {
   maxPages?: number;
   tenants?: readonly UrgiisTenant[];
   /** Takes its own shared host turn; fails with `ProviderTurnDeferred`, never
-   * wrapped, when the turn cannot arrive and finish within the chunk. */
+   * wrapped, when the turn or a browser session lease cannot arrive and finish
+   * within the chunk, and with `ProviderCapacityDeferred` when the browser
+   * plan's concurrent sessions are in use. */
   readPage: (
     url: string,
     tenant: UrgiisTenant,
-  ) => Effect.Effect<string, UrgiisError | ProviderTurnDeferred>;
+  ) => Effect.Effect<string, UrgiisError | ProviderChunkDeferral>;
   onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
   onYards?: (yards: Yard[]) => Effect.Effect<void, E, R>;
 }
@@ -472,7 +487,7 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
       const read = yield* options.readPage(task.url, tenant).pipe(
         Effect.map(Either.right),
         Effect.catchAll((error) =>
-          error instanceof ProviderTurnDeferred
+          ProviderChunkClock.isDeferral(error)
             ? Effect.fail(error)
             : error.retryDeferred && !carriesFailedModel
               ? Effect.fail(error.retryDeferred)
@@ -753,8 +768,30 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
     }),
   );
 }
+/** Reads each tenant through its configured transport. A chunk reads one
+ * tenant, so a browser tenant's chunk opens at most one browser session, with
+ * its first request under the Hyperbrowser session lease, and stops it when
+ * the chunk ends; a native tenant's chunk takes neither. `sessions` defaults
+ * to Hyperbrowser. */
 export function streamUrgiisInventoryFromProvider<E, R>(
   options: Omit<UrgiisOptions<E, R>, "readPage">,
+  sessions?: BrowserSessions,
 ) {
-  return streamUrgiisInventory({ ...options, readPage: readUrgiisPage });
+  return Effect.scoped(
+    Effect.gen(function* () {
+      const transports: Readonly<
+        Record<UrgiisTransport, LazyDocumentTransport>
+      > = {
+        native: URGIIS_NATIVE_TRANSPORT,
+        browser: yield* acquireUrgiisBrowser(
+          sessions ?? urgiisHyperbrowser((yield* Config).hyperbrowserApiKey),
+        ),
+      };
+      return yield* streamUrgiisInventory({
+        ...options,
+        readPage: (url, tenant) =>
+          readUrgiisPage(url, tenant, transports[tenant.transport]),
+      });
+    }),
+  );
 }
