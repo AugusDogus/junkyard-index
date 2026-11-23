@@ -19,6 +19,7 @@ import {
   PICKAPARTVA_MAX_PAGES,
   PICKAPARTVA_ORIGIN,
   PICKAPARTVA_PAGE_SIZE,
+  pickapartvaMakeGroup,
   pickapartvaSearchHref,
   pickapartvaSetDate,
   type PickapartvaSearchScope,
@@ -261,8 +262,9 @@ export type PickapartvaSearchResult =
  * The native search for one Set Date across every yard (`id` ANY), within
  * one physical yard, or for one make within one yard. It must answer the same
  * owner as the catalog, select exactly the searched yard and make, reflect the
- * searched date, publish no continuation and hold only donors of that make set
- * on that date in that yard. Only a make search may answer with no donors.
+ * searched date, publish no continuation and hold only donors of that make
+ * (or its native make group) set on that date in that yard. Only a make
+ * search may answer with no donors.
  */
 export function parsePickapartvaSearch(
   raw: string,
@@ -316,12 +318,19 @@ export function parsePickapartvaSearch(
     throw new Error(
       `Pick-A-Part VA set-date search for ${date} in ${id} returned donors outside ${id}`,
     );
-  if (make !== "ANY" && records.some((record) => record.make !== make))
+  if (
+    make !== "ANY" &&
+    records.some((record) => !pickapartvaMakeGroup(make).includes(record.make))
+  )
     throw new Error(
       `Pick-A-Part VA set-date search for ${date} in ${id} ignored its selected make ${make}`,
     );
+  // A make search holds only its own make's donors; its group's other makes
+  // come from their own searches.
+  const own =
+    make === "ANY" ? records : records.filter((record) => record.make === make);
   return {
     status: "complete",
-    page: { date, id, make, records, hash: pickapartvaHash([date, records]) },
+    page: { date, id, make, records: own, hash: pickapartvaHash([date, own]) },
   };
 }

@@ -604,11 +604,14 @@ const fredericksburg: Card[] = (() => {
 const makeUrl = (make: string, date = "2026-10-16") =>
   `https://pickapartva.com/inventory/${make.replaceAll(" ", "_")}/ANY/?k=1&id=TT87&search=${date}`;
 /** The captured Fredericksburg search narrowed to one make the way the live
- * 2026-11-16 make searches are, or the live empty answer for that make. */
+ * 2026-11-16 make searches are, or the live empty answer for that make. Like
+ * the live 2026-11-21 DATSUN search, DATSUN answers with the NISSAN donors. */
 function makePage(make: string, cards = fredericksburg) {
   const path = make.replaceAll(" ", "_");
   const listed = cards
-    .filter((card) => card.record.make === make)
+    .filter(
+      (card) => card.record.make === (make === "DATSUN" ? "NISSAN" : make),
+    )
     .map((card) => card.html);
   return listed.length
     ? yardPage(listed, "TT87")
@@ -797,6 +800,17 @@ test.each<[string, (url: string, body: string) => string, string]>([
         ? body.replace("Make/Model :</b> FORD ", "Make/Model :</b> CHEVROLET ")
         : body,
     "ignored its selected make FORD",
+  ],
+  [
+    "for DATSUN lists a make outside its NISSAN group",
+    (url, body) =>
+      url === makeUrl("DATSUN")
+        ? body.replace(
+            "Make/Model :</b> NISSAN ",
+            "Make/Model :</b> CHEVROLET ",
+          )
+        : body,
+    "ignored its selected make DATSUN",
   ],
   [
     "answers for another make",
@@ -1088,6 +1102,56 @@ test("Pick-A-Part VA reads the live 2026-11-16 Fredericksburg make searches", ()
   expect(() =>
     parsePickapartvaSearch(deSoto ?? "", "2026-11-16", "TT87"),
   ).toThrow("search controls are missing");
+});
+
+test("Pick-A-Part VA reads the live 2026-11-21 DATSUN search, which answers with the NISSAN donors, as no DATSUN donors", () => {
+  const aliased = z
+    .array(z.object({ url: z.string(), body: z.string() }).strict())
+    .length(2)
+    .parse(
+      JSON.parse(
+        brotliDecompressSync(
+          readFileSync(
+            new URL(
+              "./pickapartva-test-fixtures/make-alias-2026-11-21.json.br",
+              import.meta.url,
+            ),
+          ),
+        ).toString(),
+      ),
+    );
+  expect(aliased.map((response) => response.url)).toEqual([
+    makeUrl("DATSUN", "2026-11-21"),
+    makeUrl("NISSAN", "2026-11-21"),
+  ]);
+  const [datsun = "", nissan = ""] = aliased.map((response) => response.body);
+  const make = (raw: string, name: string) => {
+    const result = parsePickapartvaSearch(raw, "2026-11-21", "TT87", name);
+    if (result.status !== "complete")
+      throw new Error("Expected a complete native search");
+    return result.page.records;
+  };
+  const nissans = make(nissan, "NISSAN");
+  expect(nissans).toHaveLength(47);
+  expect(nissans.every((record) => record.make === "NISSAN")).toBe(true);
+  expect(make(datsun, "DATSUN")).toEqual([]);
+  // A DATSUN search never lists a make outside its NISSAN group, and the
+  // NISSAN search still lists only NISSAN donors.
+  expect(() =>
+    make(
+      datsun.replace("Make/Model :</b> NISSAN ", "Make/Model :</b> TOYOTA "),
+      "DATSUN",
+    ),
+  ).toThrow("ignored its selected make DATSUN");
+  expect(() =>
+    make(
+      nissan.replace("Make/Model :</b> NISSAN ", "Make/Model :</b> DATSUN "),
+      "NISSAN",
+    ),
+  ).toThrow("ignored its selected make NISSAN");
+  expect(() => make(datsun, "NISSAN")).toThrow(
+    "does not prove its selected make NISSAN",
+  );
 });
 
 test("Pick-A-Part VA reads the live 2026-11-18 searches: the unfiltered search is capped and each yard search is complete", () => {

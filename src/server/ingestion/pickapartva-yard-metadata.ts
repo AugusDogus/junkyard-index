@@ -103,6 +103,16 @@ export const PICKAPARTVA_MAX_MAKES = 100;
  * Midway). */
 export const pickapartvaMakePath = (make: string) => make.replaceAll(" ", "_");
 
+/** The makes a native make search may list. The live November 23, 2026
+ * Fredericksburg DATSUN search for 2026-11-21 lists exactly the NISSAN
+ * search's 47 NISSAN donors, so a DATSUN search answers for its NISSAN group;
+ * the NISSAN search lists those donors. Every other make lists only itself. */
+const PICKAPARTVA_MAKE_GROUPS: ReadonlyMap<string, readonly string[]> = new Map(
+  [["DATSUN", ["DATSUN", "NISSAN"]]],
+);
+export const pickapartvaMakeGroup = (make: string): readonly string[] =>
+  PICKAPARTVA_MAKE_GROUPS.get(make) ?? [make];
+
 /** The native search for one Set Date across every yard, within one yard, or
  * for one make within one yard, or null for anything else. `make` is the
  * expected make: `ANY` unless a make split asks for one. */
