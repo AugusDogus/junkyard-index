@@ -1,9 +1,9 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { z } from "zod";
 import { HiddenSources } from "~/lib/hidden-source";
 import type { IngestionSource } from "~/lib/ingestion-source";
-import { adminActionLog, sourceControl } from "~/schema";
+import { adminActionLog, sourceControl, user } from "~/schema";
 import {
   SourceControl,
   type SourceControlApplied,
@@ -28,6 +28,8 @@ export type AdminActionEntry = {
   action: AdminActionKind;
   source: string | null;
   userId: string;
+  /** The admin's name, else email; null once their account is removed. */
+  userName: string | null;
   /** The hide reason, or the run ids of a manual run. */
   detail: string | null;
   createdAt: Date;
@@ -55,6 +57,70 @@ async function forSource(
     .from(sourceControl)
     .where(eq(sourceControl.source, source));
   return SourceControl.of(SourceControl.fromRows(rows), source);
+}
+
+/**
+ * The write for one change. It sets only the columns the change owns, and
+ * only when they differ from what is stored, so it changes no row when the
+ * control already matches. Resume and show never add a row: a source without
+ * one already runs and is shown.
+ */
+function changeWrite(
+  database: LibSQLDatabase,
+  input: {
+    source: IngestionSource;
+    change: SourceControlChange;
+    userId: string;
+    now: Date;
+  },
+) {
+  const { source, change } = input;
+  const stamp = { updatedByUserId: input.userId, updatedAt: input.now };
+  switch (change.kind) {
+    case "pause":
+      return database
+        .insert(sourceControl)
+        .values({ source, ingestion: "paused", ...stamp })
+        .onConflictDoUpdate({
+          target: sourceControl.source,
+          set: { ingestion: "paused", ...stamp },
+          setWhere: ne(sourceControl.ingestion, "paused"),
+        });
+    case "hide":
+      return database
+        .insert(sourceControl)
+        .values({
+          source,
+          visibility: "hidden",
+          hiddenReason: change.reason,
+          ...stamp,
+        })
+        .onConflictDoUpdate({
+          target: sourceControl.source,
+          set: { visibility: "hidden", hiddenReason: change.reason, ...stamp },
+          setWhere: sql`${sourceControl.visibility} != 'hidden' or ${sourceControl.hiddenReason} is not ${change.reason}`,
+        });
+    case "resume":
+      return database
+        .update(sourceControl)
+        .set({ ingestion: "running", ...stamp })
+        .where(
+          and(
+            eq(sourceControl.source, source),
+            ne(sourceControl.ingestion, "running"),
+          ),
+        );
+    case "show":
+      return database
+        .update(sourceControl)
+        .set({ visibility: "shown", hiddenReason: null, ...stamp })
+        .where(
+          and(
+            eq(sourceControl.source, source),
+            ne(sourceControl.visibility, "shown"),
+          ),
+        );
+  }
 }
 
 /**
@@ -86,7 +152,9 @@ export const SourceControlRepository = {
   },
 
   /**
-   * Applies one change and logs it in the same transaction. An unchanged
+   * Applies one change and logs it in the same batch. The write touches only
+   * the columns the change owns and only when they differ, so overlapping
+   * changes (a hide and a pause from two tabs) both survive, and an unchanged
    * control (pausing a paused source) writes and logs nothing.
    */
   async apply(
@@ -98,41 +166,22 @@ export const SourceControlRepository = {
       now: Date;
     },
   ): Promise<SourceControlApplied> {
-    const applied = SourceControl.apply(
-      await forSource(database, input.source),
-      input.change,
-    );
-    if (applied.status === "unchanged") return applied;
-    const { control } = applied;
-    const values = {
-      ingestion: control.ingestion,
-      visibility: control.visibility.status,
-      hiddenReason:
-        control.visibility.status === "hidden"
-          ? control.visibility.reason
-          : null,
-      updatedByUserId: input.userId,
-      updatedAt: input.now,
-    };
-    await database.batch([
-      database
-        .insert(sourceControl)
-        .values({ source: input.source, ...values })
-        .onConflictDoUpdate({ target: sourceControl.source, set: values }),
-      database.insert(adminActionLog).values({
-        userId: input.userId,
-        action: ACTION_OF_CHANGE[input.change.kind],
-        source: input.source,
-        detail: input.change.kind === "hide" ? input.change.reason : null,
-        createdAt: input.now,
-      }),
+    const { source, change, userId, now } = input;
+    const action = ACTION_OF_CHANGE[change.kind];
+    const detail = change.kind === "hide" ? change.reason : null;
+    const [, logged] = await database.batch([
+      changeWrite(database, input),
+      // changes() counts the rows the write above changed, so the log entry
+      // lands only when the control did change.
+      database.run(sql`
+        insert into admin_action_log (user_id, action, source, detail, created_at)
+        select ${userId}, ${action}, ${source}, ${detail}, ${now.getTime()}
+        where changes() > 0
+      `),
     ]);
     return {
-      status: "changed",
-      control: {
-        ...control,
-        lastChange: { at: input.now, byUserId: input.userId },
-      },
+      status: logged.rowsAffected > 0 ? "changed" : "unchanged",
+      control: await forSource(database, source),
     };
   },
 
@@ -162,8 +211,19 @@ export const SourceControlRepository = {
     limit: number,
   ): Promise<AdminActionEntry[]> {
     const rows = await database
-      .select()
+      .select({
+        id: adminActionLog.id,
+        action: adminActionLog.action,
+        source: adminActionLog.source,
+        userId: adminActionLog.userId,
+        userName: sql<
+          string | null
+        >`coalesce(nullif(trim(${user.name}), ''), ${user.email})`,
+        detail: adminActionLog.detail,
+        createdAt: adminActionLog.createdAt,
+      })
       .from(adminActionLog)
+      .leftJoin(user, eq(user.id, adminActionLog.userId))
       .where(eq(adminActionLog.source, source))
       .orderBy(desc(adminActionLog.createdAt), desc(adminActionLog.id))
       .limit(limit);
