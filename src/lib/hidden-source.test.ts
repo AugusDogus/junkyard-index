@@ -27,6 +27,11 @@ describe("HiddenSources", () => {
     expect(HiddenSources.has("pyp")).toBe(false);
   });
 
+  test("says why a source is hidden", () => {
+    expect(HiddenSources.reason("meeks")).toContain("meeksrecycling.com");
+    expect(HiddenSources.reason("pyp")).toBeUndefined();
+  });
+
   test("unlisted sources are the hidden and retired ones", () => {
     expect(HiddenSources.unlisted).toEqual(
       expect.arrayContaining([
