@@ -103,8 +103,9 @@ function formatError(error: unknown): string {
 /** Pause before retrying a chunk deferred by a deep shared host queue, so the
  * source leaves the queue while it drains. */
 export const DEFERRED_CHUNK_DELAY_MS = 5 * 60_000;
-/** A source that gets no shared host turn in time for this long, with no
- * chunk advancing in between, fails instead of deferring again. Prior
+/** A source whose chunks keep deferring (no shared host turn, provider
+ * capacity or credit refusal) for this long, with no chunk advancing in
+ * between, fails instead of deferring again. Prior
  * inventory stays published and the source retries after its usual delay. */
 export const DEFERRED_SOURCE_LIMIT_MS = 3 * 60 * 60_000;
 
@@ -144,7 +145,7 @@ export async function ingestDurableSource<
         deferredSince ??= Date.now();
         if (Date.now() - deferredSince >= DEFERRED_SOURCE_LIMIT_MS)
           throw new Error(
-            `${result.message} No chunk advanced for ${Math.round((Date.now() - deferredSince) / 60_000)} minutes, so the source stopped waiting for shared host turns. Prior inventory is preserved; the source retries after its usual delay. If this repeats, the shared host queue needs more capacity or fewer sources.`,
+            `${result.message} No chunk advanced for ${Math.round((Date.now() - deferredSince) / 60_000)} minutes, so the source stopped retrying its deferred chunk. Prior inventory is preserved; the source retries after its usual delay. If this repeats, fix the deferral cause named above.`,
           );
         if (!sleepUntil)
           throw new Error(

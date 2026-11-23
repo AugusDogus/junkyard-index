@@ -742,6 +742,9 @@ describe("chunks deferred by a deep shared host queue", () => {
       );
       expect(result.errors[0]).toContain("No chunk advanced for 180 minutes");
       expect(result.errors[0]).toContain("Prior inventory is preserved");
+      // The deferral's own message names the cause; a provider credit or
+      // capacity refusal is not a shared host queue problem.
+      expect(result.errors[0]).not.toContain("shared host queue");
     } finally {
       now.mockRestore();
     }
