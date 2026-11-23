@@ -373,6 +373,7 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
     code: "chucks",
     origin: "https://chucksautosalvageinc.com",
     urgid: "PP42",
+    modelEncoding: "literal-ampersand",
     arrivalsPath: "/latest-arrivals/",
     pacingMs: 3500,
     requestTimeoutMs: 90000,

@@ -7,14 +7,18 @@ import { readUrgiisPage } from "./urgiis-client";
 import { iisCards } from "./urgiis-catalog";
 import { urgiisSnapshot } from "./urgiis-snapshot";
 
-for (const code of ["ace-st-paul", "norbs"]) {
+for (const [code, count] of [
+  ["ace-st-paul", 54],
+  ["norbs", 75],
+  ["chucks", 20],
+] as const) {
   test(`${code} substitutes one verified raw-ampersand request and admits native donor links`, async () => {
     const tenant = URGIIS_TENANTS.find((t) => t.code === code);
     if (!tenant) throw new Error("Missing qualified tenant");
     const model = {
       path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
       label: "TOWN & COUNTRY",
-      count: code === "norbs" ? 75 : 54,
+      count,
     };
     const url = tenant.origin + model.path;
     const probe = urgiisCoverageProbe(tenant, url);

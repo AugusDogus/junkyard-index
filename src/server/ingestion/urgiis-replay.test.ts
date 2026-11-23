@@ -38,6 +38,12 @@ const recoveredAccounting: Record<string, ConnectorChunkAccounting> = {
     recordsRejected: 1,
     duplicateVehicles: 0,
   },
+  chucks: {
+    recordsProcessed: 27,
+    recordsExcluded: 2,
+    recordsRejected: 3,
+    duplicateVehicles: 0,
+  },
 };
 
 for (const tenant of URGIIS_TENANTS) {
@@ -192,7 +198,9 @@ for (const tenant of URGIIS_TENANTS) {
         });
         expect(reads).toBe(archive.responseCount + retries);
         expect(byYard).toEqual(
-          ["revolution", "ace-st-paul", "norbs", "eagle"].includes(tenant.code)
+          ["revolution", "ace-st-paul", "norbs", "eagle", "chucks"].includes(
+            tenant.code,
+          )
             ? { [tenant.yard.code]: expected.accepted }
             : archive.expected.byYard,
         );

@@ -202,25 +202,15 @@
     {
       "tenant": "chucks",
       "status": "published",
-      "accepted": 2601,
-      "candidates": 2601,
+      "accepted": 2623,
+      "candidates": 2623,
       "advertised": 3378,
-      "unreachable": 30,
+      "unreachable": 4,
       "unreachableModels": [
         {
           "path": "/parts/CHEVROLET/CHEVROLET_PASS./",
           "label": "CHEVROLET PASS/",
           "count": 2
-        },
-        {
-          "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
-          "label": "TOWN & COUNTRY",
-          "count": 19
-        },
-        {
-          "path": "/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/",
-          "label": "LINCOLN & TOWN CAR",
-          "count": 7
         },
         {
           "path": "/parts/PLYMOUTH/PLYMOUTH_PASS./",
@@ -234,7 +224,7 @@
         }
       ],
       "warnings": [
-        "30/3378 advertised donors are platform-unreachable (CHEVROLET PASS/: 2 [/parts/CHEVROLET/CHEVROLET_PASS./], TOWN & COUNTRY: 19 [/parts/CHRYSLER/TOWN_-and_COUNTRY/], LINCOLN & TOWN CAR: 7 [/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/], PLYMOUTH PASS/: 1 [/parts/PLYMOUTH/PLYMOUTH_PASS./], SUBARU PASS/: 1 [/parts/SUBARU/SUBARU_PASS./]); maximum is 1%"
+        "4/3378 advertised donors are platform-unreachable (CHEVROLET PASS/: 2 [/parts/CHEVROLET/CHEVROLET_PASS./], PLYMOUTH PASS/: 1 [/parts/PLYMOUTH/PLYMOUTH_PASS./], SUBARU PASS/: 1 [/parts/SUBARU/SUBARU_PASS./]); maximum is 1%"
       ],
       "reasons": [],
       "retryRequests": 0
