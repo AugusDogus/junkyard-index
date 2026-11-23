@@ -190,7 +190,7 @@ describe("vehicle ingestion observability", () => {
     });
     expect(captured).toEqual([
       [
-        `urgiis tenant ${second.code} blocked; its yards keep their previous inventory`,
+        `urgiis tenant ${second.code} blocked; its yards are not refreshed, and any that never published stay missing`,
         expect.objectContaining({
           level: "warning",
           fingerprint: ["vehicle-ingestion-urgiis-tenant-blocked", second.code],

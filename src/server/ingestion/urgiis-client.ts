@@ -29,6 +29,49 @@ export const urgiisError = (
   operation,
   message: `URG IIS ${operation}: ${cause instanceof Error ? cause.message : String(cause)}. Prior inventory is preserved; inspect the saved response or resume the last validated checkpoint.`,
 });
+const BLOCKED_BODY_PREFIX_BYTES = 500;
+const describeCause = (cause: unknown) =>
+  cause instanceof Error ? cause.message : String(cause);
+/** Shows whether a CDN rule or the origin refused a blocked request, using
+ * only headers and a bounded prefix of the body already sent. Never rejects:
+ * a body that cannot be read is reported in the evidence instead. */
+async function blockedResponseEvidence(response: Response): Promise<string> {
+  const headers = ["server", "cf-ray", "cf-mitigated"]
+    .map((name) => `${name}=${response.headers.get(name) ?? "absent"}`)
+    .join(", ");
+  const reader = response.body?.getReader();
+  if (!reader) return `${headers}; body: none`;
+  let body: string;
+  try {
+    const chunks: Uint8Array[] = [];
+    let length = 0;
+    while (length < BLOCKED_BODY_PREFIX_BYTES) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      length += value.byteLength;
+    }
+    const bytes = new Uint8Array(length);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    body = JSON.stringify(
+      new TextDecoder()
+        .decode(bytes.subarray(0, BLOCKED_BODY_PREFIX_BYTES))
+        .replace(/\s+/g, " ")
+        .trim(),
+    );
+  } catch (cause) {
+    body = `unreadable (${describeCause(cause)})`;
+  }
+  const cancelled = await reader.cancel().then(
+    () => "",
+    (cause: unknown) => `; body cancel failed (${describeCause(cause)})`,
+  );
+  return `${headers}; body prefix: ${body}${cancelled}`;
+}
 const serial = Effect.runSync(Effect.makeSemaphore(1));
 export const URGIIS_MAX_BODY_BYTES = 4 * 1024 * 1024;
 export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
@@ -95,6 +138,24 @@ export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
               ?.split(";")[0]
               ?.trim()
               .toLowerCase() !== "text/html";
+          if (invalid && (response.status === 403 || response.status === 429)) {
+            const evidence = yield* Effect.promise(() =>
+              blockedResponseEvidence(response),
+            );
+            const retryAfterMs = parseRetryAfterMs(
+              response.headers.get("Retry-After"),
+              Date.now(),
+            );
+            const error: UrgiisError = {
+              tag: "UrgiisError",
+              kind: "blocked",
+              operation: "request/body " + url,
+              status: response.status,
+              retryAfterMs,
+              message: `URG IIS ${tenant.code} returned HTTP${response.status} at ${url}; stopping this tenant without further requests. Retry-After: ${response.headers.get("Retry-After") ?? "not provided"}. Response: ${evidence}. A supplied Retry-After pauses this frontier; without one only this tenant stops. Prior inventory is preserved.`,
+            };
+            return yield* Effect.fail(error);
+          }
           if (invalid) {
             yield* Effect.tryPromise({
               try: async () => {
@@ -102,21 +163,6 @@ export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
               },
               catch: (cause) => urgiisError("cancel response " + url, cause),
             });
-            if (response.status === 403 || response.status === 429) {
-              const retryAfterMs = parseRetryAfterMs(
-                response.headers.get("Retry-After"),
-                Date.now(),
-              );
-              const error: UrgiisError = {
-                tag: "UrgiisError",
-                kind: "blocked",
-                operation: "request/body " + url,
-                status: response.status,
-                retryAfterMs,
-                message: `URG IIS ${tenant.code} returned HTTP${response.status} at ${url}; stopping this tenant without further requests. Retry-After: ${response.headers.get("Retry-After") ?? "not provided"}. A supplied Retry-After pauses this frontier; without one the source stops. Prior inventory is preserved.`,
-              };
-              return yield* Effect.fail(error);
-            }
             return yield* Effect.fail(
               urgiisError(
                 "request/body " + url,
