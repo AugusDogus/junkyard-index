@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { ReactNode } from "react";
 import { ArrowLeft } from "lucide-react";
 import {
   AdminPageHeader,
@@ -18,6 +19,7 @@ import {
 import { AdminLinkPending } from "~/components/admin/AdminLinkPending";
 import { AdminTime } from "~/components/admin/AdminTime";
 import { SourceControls } from "~/components/admin/SourceControls";
+import { StopRunControl } from "~/components/admin/StopRunControl";
 import { Button } from "~/components/ui/button";
 import {
   INGESTION_SOURCE_DISPLAY_NAMES,
@@ -30,6 +32,11 @@ import {
   SOURCE_PAGE_RUNS,
 } from "~/server/admin/admin-data";
 import { readAdminAccess, requireAdmin } from "~/server/admin/require-admin";
+import {
+  RunHold,
+  type ActiveRunHold,
+  type RunDeployment,
+} from "~/server/admin/run-hold";
 import { SourceRun } from "~/server/admin/source-run";
 import { IngestionSourceFlags } from "~/server/ingestion/ingestion-source-flags";
 import type { AdminActionKind } from "~/server/source-control/source-control-repository";
@@ -40,7 +47,66 @@ const ACTION_LABELS: Record<AdminActionKind, string> = {
   hide_source: "Hid from the site",
   show_source: "Showed on the site",
   run_now: "Started a run",
+  abandon_run: "Stopped a run",
 };
+
+/** The active run's status rows: what it holds, and the code it runs. */
+function holdRows(hold: ActiveRunHold): { label: string; value: ReactNode }[] {
+  const rows: { label: string; value: ReactNode }[] = [
+    {
+      label: "Active run",
+      value: (
+        <>
+          Run {hold.run.runId} at the {hold.run.stage} stage, started{" "}
+          <AdminTime date={hold.run.startedAt} />
+        </>
+      ),
+    },
+  ];
+  if (hold.commit !== null) {
+    const { commit } = hold;
+    rows.push({
+      label: "Publish slot",
+      value: (
+        <>
+          <span className={commit.long ? "text-destructive" : undefined}>
+            Held since <AdminTime date={commit.since} /> (
+            {formatDuration(commit.heldMs)})
+          </span>
+          <span className="text-muted-foreground block text-xs font-normal">
+            {commit.queue.status === "empty" ? (
+              "No other run is waiting for it."
+            ) : (
+              <>
+                {commit.queue.runs} {commit.queue.runs === 1 ? "run" : "runs"}{" "}
+                queued behind it, the first since{" "}
+                <AdminTime date={commit.queue.since} />. Only one run publishes
+                at a time.
+              </>
+            )}
+          </span>
+        </>
+      ),
+    });
+  }
+  rows.push({
+    label: "Code version",
+    value: deploymentLabel(hold.deployment),
+  });
+  return rows;
+}
+
+/** Workflow runs keep the code of the deployment they started on. */
+function deploymentLabel(deployment: RunDeployment): string {
+  switch (deployment.kind) {
+    case "current":
+      return "Current deployment";
+    case "other":
+      return `Another deployment (${deployment.deploymentId}): fixes deployed since it started do not reach it`;
+    case "unknown":
+      return "Unknown: its workflow is not listed as live, or the list could not be read";
+  }
+}
 
 type Params = { params: Promise<{ source: string }> };
 
@@ -76,7 +142,7 @@ export default async function AdminSourcePage({ params }: Params) {
       </div>
 
       <WhenLoaded loaded={loaded}>
-        {({ summary, runs, actions }) => (
+        {({ summary, hold, runs, actions }) => (
           <>
             <AdminSection
               title="Status"
@@ -123,6 +189,7 @@ export default async function AdminSourcePage({ params }: Params) {
                           ),
                         },
                       ]),
+                  ...(hold === null ? [] : holdRows(hold)),
                 ]}
               />
             </AdminSection>
@@ -266,6 +333,11 @@ export default async function AdminSourcePage({ params }: Params) {
                             />
                           </div>
                         )}
+                        {hold !== null &&
+                          hold.run.runId === run.runId &&
+                          run.runStatus === "running" && (
+                            <StopRunControl run={RunHold.stoppable(hold)} />
+                          )}
                       </li>
                     );
                   })}

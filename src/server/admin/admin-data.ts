@@ -1,4 +1,5 @@
 import "server-only";
+import { getWorld } from "workflow/runtime";
 import { AlgoliaDeployment } from "~/lib/algolia-deployment";
 import { db } from "~/lib/db";
 import type { IngestionSource } from "~/lib/ingestion-source";
@@ -14,6 +15,10 @@ import { IngestionSourceFlags } from "~/server/ingestion/ingestion-source-flags"
 import { PublicationModeFlag } from "~/server/ingestion/publication-mode-flag";
 import { SearchStatus } from "~/server/ingestion/search-status";
 import {
+  SearchWriters,
+  type SEARCH_WRITER_WORKFLOWS,
+} from "~/server/ingestion/search-writers";
+import {
   SourceControlRepository,
   type AdminActionEntry,
 } from "~/server/source-control/source-control-repository";
@@ -22,10 +27,16 @@ import {
   type AlertCheckSummary,
 } from "./alert-check-overview";
 import { Attention } from "./attention";
+import {
+  RunHold,
+  type ActiveRunHold,
+  type WorkflowDeployments,
+} from "./run-hold";
 import { SearchOverview } from "./search-overview";
 import { SearchRepository, type SearchPublication } from "./search-repository";
 import {
   SourceOverview,
+  type ActiveRun,
   type SourceFlagsReading,
   type SourceSummary,
 } from "./source-overview";
@@ -85,8 +96,67 @@ async function readSourceFlags(): Promise<SourceFlagsReading> {
   }
 }
 
+/** The workflow that drives each ingestion run. */
+const INGESTION_RUN_WORKFLOW =
+  "workflow//./src/workflows/vehicle-ingestion//vehicleIngestionWorkflow" satisfies keyof typeof SEARCH_WRITER_WORKFLOWS;
+
+/**
+ * Which deployment each live ingestion workflow runs on: two listing calls
+ * to the workflow backend (pending, running), made only while a run has a
+ * workflow attached. A failed listing marks every run's code unknown.
+ */
+async function readWorkflowDeployments(
+  activeRuns: readonly ActiveRun[],
+): Promise<WorkflowDeployments> {
+  const current = process.env.VERCEL_DEPLOYMENT_ID;
+  if (!current) {
+    return {
+      status: "unavailable",
+      message:
+        "This process has no VERCEL_DEPLOYMENT_ID (it is not running on Vercel), so no run can be matched to the current deployment.",
+    };
+  }
+  if (activeRuns.every((run) => run.workflowRunId === null)) {
+    return { status: "read", current, byWorkflowRun: new Map() };
+  }
+  try {
+    const world = await getWorld();
+    const live = await SearchWriters.listLiveRuns(
+      world.runs,
+      INGESTION_RUN_WORKFLOW,
+    );
+    return {
+      status: "read",
+      current,
+      byWorkflowRun: new Map(live.map((run) => [run.runId, run.deploymentId])),
+    };
+  } catch (error) {
+    console.error(
+      "Admin dashboard could not list live ingestion workflows, so every run's deployment shows as unknown",
+      error,
+    );
+    return {
+      status: "unavailable",
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+async function loadHolds(
+  activeRuns: readonly ActiveRun[],
+  now: Date,
+): Promise<ActiveRunHold[]> {
+  return RunHold.assess({
+    now,
+    activeRuns,
+    deployments: await readWorkflowDeployments(activeRuns),
+  });
+}
+
 export type SourcesData = {
   summaries: SourceSummary[];
+  /** Every active run, with the commit it holds and the code it runs. */
+  holds: ActiveRunHold[];
   /**
    * Error excerpts of each source's latest run, by source run id: only runs
    * that were rejected or whose source the overview lists as failing.
@@ -109,6 +179,8 @@ export type AlertsData = {
 
 export type SourceDetailData = {
   summary: SourceSummary;
+  /** This source's active run, if any: at most one per source. */
+  hold: ActiveRunHold | null;
   runs: Awaited<ReturnType<typeof SourceRunRepository.forSource>>;
   /** What admins did to this source, newest first. */
   actions: AdminActionEntry[];
@@ -131,12 +203,16 @@ async function loadSources(now: Date): Promise<SourcesData> {
     flags,
     controls,
   });
-  const latestErrors = await SourceRunRepository.errorExcerpts(
-    db,
-    Attention.runsShowingErrors(summaries),
-  );
+  const [latestErrors, holds] = await Promise.all([
+    SourceRunRepository.errorExcerpts(
+      db,
+      Attention.runsShowingErrors(summaries),
+    ),
+    loadHolds(activeRuns, now),
+  ]);
   return {
     summaries,
+    holds,
     latestErrors,
     lastRunStartedAt: SourceOverview.lastRunStartedAt(runs),
     flags,
@@ -222,7 +298,13 @@ async function loadSource(
       `SourceOverview.build returned no summary for ingestion source "${source}", which INGESTION_SOURCES lists. This is a bug in src/server/admin/source-overview.ts.`,
     );
   }
-  return { summary, runs, actions };
+  const holds = await loadHolds(activeRuns, now);
+  return {
+    summary,
+    hold: holds.find((hold) => hold.run.source === source) ?? null,
+    runs,
+    actions,
+  };
 }
 
 /**

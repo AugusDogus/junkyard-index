@@ -31,6 +31,7 @@ import {
 import { IngestionSchedule } from "./ingestion-schedule";
 import { SourcePublication } from "./source-publication";
 import { CommitLease } from "./commit-lease";
+import { RunAbandonment } from "./run-abandonment";
 import {
   loadSourceFreshness,
   type IngestionSourceFreshness,
@@ -1002,17 +1003,9 @@ export function createDurableIngestionRepository(
           .limit(1);
         if (!run) throw new Error(`Cannot abandon missing run ${runId}.`);
         if (run.status !== "running") return null;
-        if (run.stage === "full_reindex_move_pending") {
-          throw new Error(
-            `Run ${runId} has an unconfirmed Algolia index move and cannot be abandoned. Retry after Algolia publication is confirmed.`,
-          );
-        }
-        const reconciliationStarted = run.stage !== "sources";
-        if (reconciliationStarted && !force) {
-          throw new Error(
-            `Run ${runId} entered ${run.stage}; force is required and will mandate a full Algolia rebuild.`,
-          );
-        }
+        const check = RunAbandonment.check({ runId, stage: run.stage, force });
+        if (check.status !== "allowed") throw new Error(check.message);
+        const reconciliationStarted = check.fullRebuild;
         const completedAt = Date.now();
         const results = await batchClient.batch(
           [

@@ -180,8 +180,8 @@ describe("SourceRunRepository", () => {
     expect(runs[1]?.errorsCutOff).toBe(false);
   });
 
-  test("activeRuns reads runs holding an active slot", async () => {
-    const { db, addRun } = await database();
+  test("activeRuns reads runs holding an active slot, with their commit turn", async () => {
+    const { client, db, addRun } = await database();
     await addRun({ id: "done", source: "pyp", startedAt: now - DAY });
     await addRun({
       id: "live",
@@ -190,15 +190,42 @@ describe("SourceRunRepository", () => {
       status: "running",
       activeSlot: 1,
     });
+    await client.execute({
+      sql: `update ingestion_run
+        set workflow_run_id = 'wrun-live', commit_started_at = ?, ready_at = ?
+        where id = 'live'`,
+      args: [now + 2, now + 1],
+    });
     expect(await SourceRunRepository.activeRuns(db)).toEqual([
       {
         runId: "live",
         source: "row52",
         stage: "released",
+        workflowRunId: "wrun-live",
         startedAt: new Date(now),
         lastProgressAt: new Date(now),
+        readyAt: new Date(now + 1),
+        commitStartedAt: new Date(now + 2),
       },
     ]);
+  });
+
+  test("stopTarget reads one run's source, status and stage, or null", async () => {
+    const { db, addRun } = await database();
+    await addRun({
+      id: "live",
+      source: "row52",
+      startedAt: now,
+      status: "running",
+      activeSlot: 1,
+    });
+    expect(await SourceRunRepository.stopTarget(db, "live")).toEqual({
+      runId: "live",
+      source: "row52",
+      status: "running",
+      stage: "released",
+    });
+    expect(await SourceRunRepository.stopTarget(db, "missing")).toBeNull();
   });
 
   test("publishedCounts sums each source's yards", async () => {
