@@ -66,6 +66,9 @@ const SnapshotChunkSchema = z.object({
 });
 
 const BLOB_PREFIX = "ingestion-runs";
+// Vercel Blob rejects a delete of more than 1,000 URLs, and a URG run stages
+// more chunks than that.
+const BLOB_DELETE_BATCH_SIZE = 1_000;
 
 function encode(chunk: IngestionSnapshotChunk): Buffer {
   return gzipSync(JSON.stringify(chunk));
@@ -85,10 +88,17 @@ function decode(pathname: string, body: Uint8Array): IngestionSnapshotChunk {
 
 export const IngestionSnapshotStore = {
   /** Private Vercel Blob store, authorized by BLOB_READ_WRITE_TOKEN. */
-  vercelBlob(token: string): IngestionSnapshotStore {
+  vercelBlob(
+    token: string,
+    client: { del: typeof del; get: typeof get; put: typeof put } = {
+      del,
+      get,
+      put,
+    },
+  ): IngestionSnapshotStore {
     return {
       async put({ runId, source, chunk }) {
-        const result = await put(
+        const result = await client.put(
           `${BLOB_PREFIX}/${runId}/${source}/chunk.json.gz`,
           encode(chunk),
           {
@@ -101,7 +111,7 @@ export const IngestionSnapshotStore = {
         return result.pathname;
       },
       async load(pathname) {
-        const result = await get(pathname, {
+        const result = await client.get(pathname, {
           access: "private",
           useCache: false,
           token,
@@ -117,7 +127,16 @@ export const IngestionSnapshotStore = {
         return decode(pathname, body);
       },
       async delete(pathnames) {
-        if (pathnames.length > 0) await del([...pathnames], { token });
+        for (
+          let start = 0;
+          start < pathnames.length;
+          start += BLOB_DELETE_BATCH_SIZE
+        ) {
+          await client.del(
+            pathnames.slice(start, start + BLOB_DELETE_BATCH_SIZE),
+            { token },
+          );
+        }
       },
     };
   },
