@@ -150,6 +150,84 @@ describe("RunHold.assess", () => {
   });
 });
 
+describe("RunHold.readDeployments", () => {
+  const live = async () => [{ runId: "wrun-a", deploymentId: "dpl_old" }];
+
+  test("matches live workflows to the deployment serving the page", async () => {
+    expect(
+      await RunHold.readDeployments({
+        current: "dpl_new",
+        runs: [active({ runId: "a" })],
+        listLiveRuns: live,
+        timeoutMs: 1000,
+      }),
+    ).toEqual({
+      status: "read",
+      current: "dpl_new",
+      byWorkflowRun: new Map([["wrun-a", "dpl_old"]]),
+    });
+  });
+
+  test("lists nothing off Vercel or when no run has a workflow", async () => {
+    let listings = 0;
+    const counted = async () => {
+      listings += 1;
+      return live();
+    };
+    expect(
+      await RunHold.readDeployments({
+        current: undefined,
+        runs: [active({ runId: "a" })],
+        listLiveRuns: counted,
+        timeoutMs: 1000,
+      }),
+    ).toMatchObject({ status: "unavailable" });
+    for (const runs of [[], [active({ runId: "a", workflowRunId: null })]]) {
+      expect(
+        await RunHold.readDeployments({
+          current: "dpl_new",
+          runs,
+          listLiveRuns: counted,
+          timeoutMs: 1000,
+        }),
+      ).toEqual({
+        status: "read",
+        current: "dpl_new",
+        byWorkflowRun: new Map(),
+      });
+    }
+    expect(listings).toBe(0);
+  });
+
+  test("a listing that fails or does not answer in time leaves every run unknown", async () => {
+    expect(
+      await RunHold.readDeployments({
+        current: "dpl_new",
+        runs: [active({ runId: "a" })],
+        listLiveRuns: async () => {
+          throw new Error("workflow backend returned 503");
+        },
+        timeoutMs: 1000,
+      }),
+    ).toEqual({
+      status: "unavailable",
+      message: "workflow backend returned 503",
+    });
+    expect(
+      await RunHold.readDeployments({
+        current: "dpl_new",
+        runs: [active({ runId: "a" })],
+        listLiveRuns: () => new Promise(() => undefined),
+        timeoutMs: 5,
+      }),
+    ).toEqual({
+      status: "unavailable",
+      message:
+        "The workflow backend did not list live ingestion workflows within 0.005 s, so every run's code version shows as unknown.",
+    });
+  });
+});
+
 describe("RunHold.attention", () => {
   test("a long commit hold says how long and what queues behind it", () => {
     const items = RunHold.attention(
@@ -191,6 +269,7 @@ describe("RunHold.attention", () => {
             name: "Hollander Stores",
             source: "hollanderstores",
             stage: "reconcile_upsert",
+            deployment: { kind: "other", deploymentId: "dpl_old" },
           },
         ],
       },
@@ -229,14 +308,14 @@ describe("RunHold.attention", () => {
       "2 runs run code from another deployment",
     ]);
     expect(items[1]).toMatchObject({
-      href: "/admin/sources",
+      href: "/admin/sources/pyp",
       runs: [
         { runId: "a", name: "LKQ Pick Your Part", stage: "validated" },
         { runId: "b", name: "Row52", stage: "sources" },
       ],
     });
-    expect(items[1]?.detail).toContain(
-      "Workflow runs keep the code they started on",
+    expect(items[1]?.detail).toBe(
+      "Workflow runs keep the code they started on, so fixes deployed since do not reach them. Most finish on their own. Stop one that is stuck or holding others up; Stop and run again restarts it on current code.",
     );
   });
 

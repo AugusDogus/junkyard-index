@@ -64,6 +64,8 @@ export type StoppableRun = {
   name: string;
   source: IngestionSource | null;
   stage: string;
+  /** Today's retries run the pass's code, so an old run's may too. */
+  deployment: RunDeployment;
 };
 
 /** A run problem for the overview's Needs attention list. */
@@ -127,7 +129,13 @@ function stoppable(hold: ActiveRunHold): StoppableRun {
     name: hold.name,
     source: hold.source,
     stage: hold.run.stage,
+    deployment: hold.deployment,
   };
+}
+
+/** A run's source page, or the overview for a run across every source. */
+function sourceHref(source: IngestionSource | null): string {
+  return source === null ? "/admin" : `/admin/sources/${source}`;
 }
 
 function queueSentence(queue: CommitQueue): string {
@@ -150,8 +158,79 @@ function deploymentClause(deployment: RunDeployment): string {
   }
 }
 
+/** Resolves "timeout" after `ms`, unless `work` settles first. */
+async function withTimeout<Value>(
+  work: Promise<Value>,
+  ms: number,
+): Promise<Value | "timeout"> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      work,
+      new Promise<"timeout">((resolve) => {
+        timer = setTimeout(() => resolve("timeout"), ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export const RunHold = {
   stoppable,
+
+  /**
+   * Which deployment each live ingestion workflow runs on. Lists only when
+   * one of `runs` has a workflow attached, and gives up after `timeoutMs` so
+   * a slow workflow backend cannot stall the page. Any failure leaves every
+   * run's code unknown.
+   */
+  async readDeployments(params: {
+    /** VERCEL_DEPLOYMENT_ID of the process serving the page. */
+    current: string | undefined;
+    /** The runs whose deployment the page shows. */
+    runs: readonly ActiveRun[];
+    listLiveRuns: () => Promise<
+      readonly { runId: string; deploymentId: string }[]
+    >;
+    timeoutMs: number;
+  }): Promise<WorkflowDeployments> {
+    const { current } = params;
+    if (!current) {
+      return {
+        status: "unavailable",
+        message:
+          "This process has no VERCEL_DEPLOYMENT_ID (it is not running on Vercel), so no run can be matched to the current deployment.",
+      };
+    }
+    if (params.runs.every((run) => run.workflowRunId === null)) {
+      return { status: "read", current, byWorkflowRun: new Map() };
+    }
+    try {
+      const live = await withTimeout(params.listLiveRuns(), params.timeoutMs);
+      if (live === "timeout") {
+        const message = `The workflow backend did not list live ingestion workflows within ${params.timeoutMs / 1000} s, so every run's code version shows as unknown.`;
+        console.error(`Admin dashboard: ${message}`);
+        return { status: "unavailable", message };
+      }
+      return {
+        status: "read",
+        current,
+        byWorkflowRun: new Map(
+          live.map((run) => [run.runId, run.deploymentId]),
+        ),
+      };
+    } catch (error) {
+      console.error(
+        "Admin dashboard could not list live ingestion workflows, so every run's deployment shows as unknown",
+        error,
+      );
+      return {
+        status: "unavailable",
+        message: error instanceof Error ? error.message : String(error),
+      };
+    }
+  },
 
   /** One entry per active run, in the order given. */
   assess(input: {
@@ -196,10 +275,7 @@ export const RunHold = {
       items.push({
         title: `${hold.name}'s run has held the publish slot for ${duration(hold.commit.heldMs)}`,
         detail: `Only one run publishes at a time. ${queueSentence(hold.commit.queue)} It is at the ${hold.run.stage} stage${deploymentClause(hold.deployment)}.`,
-        href:
-          hold.source === null
-            ? "/admin/sources"
-            : `/admin/sources/${hold.source}`,
+        href: sourceHref(hold.source),
         runs: [stoppable(hold)],
       });
     }
@@ -220,8 +296,8 @@ export const RunHold = {
             ? "1 run runs code from another deployment"
             : `${others.length} runs run code from another deployment`,
         detail:
-          "Workflow runs keep the code they started on, so fixes deployed since do not reach them. Most finish on their own. Stop one that is stuck or holding others up; its source's next run starts on current code.",
-        href: "/admin/sources",
+          "Workflow runs keep the code they started on, so fixes deployed since do not reach them. Most finish on their own. Stop one that is stuck or holding others up; Stop and run again restarts it on current code.",
+        href: sourceHref(others[0]?.source ?? null),
         runs: others,
       });
     }

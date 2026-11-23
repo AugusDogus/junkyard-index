@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   AdminPageHeader,
   AdminSection,
+  LoadFailure,
   RawText,
   Stat,
   WhenLoaded,
@@ -27,11 +28,15 @@ export function generateMetadata() {
 export default async function AdminOverviewPage() {
   await requireAdmin();
   const now = new Date();
-  const [sources, search, alerts] = await Promise.all([
+  const [sources, holds, search, alerts] = await Promise.all([
     AdminData.sources(now),
+    AdminData.holds(now),
     AdminData.search(now),
     AdminData.alerts(now),
   ]);
+  // A run holding up others comes first: it blocks every source behind it.
+  const runAttention =
+    holds.status === "ok" ? RunHold.attention(holds.value) : [];
   const attention = Attention.collect({
     now,
     sources: sources.status === "ok" ? sources.value.summaries : [],
@@ -43,10 +48,10 @@ export default async function AdminOverviewPage() {
       alerts.status === "ok" && alerts.value.status.status === "unhealthy"
         ? alerts.value.status.problems
         : [],
+    listedRunIds: new Set(
+      runAttention.flatMap((item) => item.runs.map((run) => run.runId)),
+    ),
   });
-  // A run holding up others comes first: it blocks every source behind it.
-  const runAttention =
-    sources.status === "ok" ? RunHold.attention(sources.value.holds) : [];
 
   return (
     <div className="space-y-12">
@@ -56,6 +61,11 @@ export default async function AdminOverviewPage() {
       />
 
       <AdminSection title="Needs attention">
+        {holds.status === "failed" && (
+          <div className="mb-3">
+            <LoadFailure failure={holds} />
+          </div>
+        )}
         {attention.length === 0 && runAttention.length === 0 ? (
           <p className="text-muted-foreground text-sm">
             Nothing needs attention right now.

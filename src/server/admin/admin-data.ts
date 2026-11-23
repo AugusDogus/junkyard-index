@@ -27,11 +27,7 @@ import {
   type AlertCheckSummary,
 } from "./alert-check-overview";
 import { Attention } from "./attention";
-import {
-  RunHold,
-  type ActiveRunHold,
-  type WorkflowDeployments,
-} from "./run-hold";
+import { RunHold, type ActiveRunHold } from "./run-hold";
 import { SearchOverview } from "./search-overview";
 import { SearchRepository, type SearchPublication } from "./search-repository";
 import {
@@ -100,63 +96,34 @@ async function readSourceFlags(): Promise<SourceFlagsReading> {
 const INGESTION_RUN_WORKFLOW =
   "workflow//./src/workflows/vehicle-ingestion//vehicleIngestionWorkflow" satisfies keyof typeof SEARCH_WRITER_WORKFLOWS;
 
-/**
- * Which deployment each live ingestion workflow runs on: two listing calls
- * to the workflow backend (pending, running), made only while a run has a
- * workflow attached. A failed listing marks every run's code unknown.
- */
-async function readWorkflowDeployments(
-  activeRuns: readonly ActiveRun[],
-): Promise<WorkflowDeployments> {
-  const current = process.env.VERCEL_DEPLOYMENT_ID;
-  if (!current) {
-    return {
-      status: "unavailable",
-      message:
-        "This process has no VERCEL_DEPLOYMENT_ID (it is not running on Vercel), so no run can be matched to the current deployment.",
-    };
-  }
-  if (activeRuns.every((run) => run.workflowRunId === null)) {
-    return { status: "read", current, byWorkflowRun: new Map() };
-  }
-  try {
-    const world = await getWorld();
-    const live = await SearchWriters.listLiveRuns(
-      world.runs,
-      INGESTION_RUN_WORKFLOW,
-    );
-    return {
-      status: "read",
-      current,
-      byWorkflowRun: new Map(live.map((run) => [run.runId, run.deploymentId])),
-    };
-  } catch (error) {
-    console.error(
-      "Admin dashboard could not list live ingestion workflows, so every run's deployment shows as unknown",
-      error,
-    );
-    return {
-      status: "unavailable",
-      message: error instanceof Error ? error.message : String(error),
-    };
-  }
-}
+/** How long a page waits for the workflow backend's listing. */
+const WORKFLOW_LISTING_TIMEOUT_MS = 5000;
 
+/**
+ * Every active run's hold. The queue counts every active run; only
+ * `shown` runs' deployments are looked up, so the workflow backend is
+ * listed only while one of them has a workflow attached.
+ */
 async function loadHolds(
   activeRuns: readonly ActiveRun[],
+  shown: readonly ActiveRun[],
   now: Date,
 ): Promise<ActiveRunHold[]> {
-  return RunHold.assess({
-    now,
-    activeRuns,
-    deployments: await readWorkflowDeployments(activeRuns),
+  const deployments = await RunHold.readDeployments({
+    current: process.env.VERCEL_DEPLOYMENT_ID,
+    runs: shown,
+    listLiveRuns: async () =>
+      SearchWriters.listLiveRuns(
+        (await getWorld()).runs,
+        INGESTION_RUN_WORKFLOW,
+      ),
+    timeoutMs: WORKFLOW_LISTING_TIMEOUT_MS,
   });
+  return RunHold.assess({ now, activeRuns, deployments });
 }
 
 export type SourcesData = {
   summaries: SourceSummary[];
-  /** Every active run, with the commit it holds and the code it runs. */
-  holds: ActiveRunHold[];
   /**
    * Error excerpts of each source's latest run, by source run id: only runs
    * that were rejected or whose source the overview lists as failing.
@@ -203,16 +170,12 @@ async function loadSources(now: Date): Promise<SourcesData> {
     flags,
     controls,
   });
-  const [latestErrors, holds] = await Promise.all([
-    SourceRunRepository.errorExcerpts(
-      db,
-      Attention.runsShowingErrors(summaries),
-    ),
-    loadHolds(activeRuns, now),
-  ]);
+  const latestErrors = await SourceRunRepository.errorExcerpts(
+    db,
+    Attention.runsShowingErrors(summaries),
+  );
   return {
     summaries,
-    holds,
     latestErrors,
     lastRunStartedAt: SourceOverview.lastRunStartedAt(runs),
     flags,
@@ -298,7 +261,8 @@ async function loadSource(
       `SourceOverview.build returned no summary for ingestion source "${source}", which INGESTION_SOURCES lists. This is a bug in src/server/admin/source-overview.ts.`,
     );
   }
-  const holds = await loadHolds(activeRuns, now);
+  const own = activeRuns.filter((run) => run.source === source);
+  const holds = await loadHolds(activeRuns, own, now);
   return {
     summary,
     hold: holds.find((hold) => hold.run.source === source) ?? null,
@@ -314,6 +278,12 @@ async function loadSource(
  */
 export const AdminData = {
   sources: (now: Date) => loadPart("source runs", () => loadSources(now)),
+  /** Every active run, with the commit it holds and the code it runs. */
+  holds: (now: Date) =>
+    loadPart("active runs", async () => {
+      const activeRuns = await SourceRunRepository.activeRuns(db);
+      return loadHolds(activeRuns, activeRuns, now);
+    }),
   search: (now: Date) => loadPart("search status", () => loadSearch(now)),
   alerts: (now: Date) => loadPart("saved-search alerts", () => loadAlerts(now)),
   source: (source: IngestionSource, now: Date) =>

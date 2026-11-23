@@ -54,6 +54,7 @@ const quiet = {
   latestErrors: new Map(),
   searchProblems: [],
   alertProblems: [],
+  listedRunIds: new Set<string>(),
 };
 
 describe("Attention.collect", () => {
@@ -173,6 +174,26 @@ describe("Attention.collect", () => {
         href: "/admin/sources/pyp",
       },
     ]);
+  });
+
+  test("leaves out a stalled run the run-hold items already list with a stop", () => {
+    expect(
+      Attention.collect({
+        ...quiet,
+        listedRunIds: new Set(["run-9"]),
+        sources: [
+          summary({
+            state: "running",
+            consecutiveFailures: 0,
+            stuck: {
+              runId: "run-9",
+              stage: "reconcile_upsert",
+              lastProgressAt: new Date(now.getTime() - 5.5 * HOUR),
+            },
+          }),
+        ],
+      }),
+    ).toEqual([]);
   });
 
   test("lists search and alert problems with their raw text", () => {
