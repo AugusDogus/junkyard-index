@@ -1,6 +1,10 @@
 import { afterEach, expect, spyOn, test } from "bun:test";
-import { Effect } from "effect";
-import { fetchCitymotorsPage } from "./citymotors-client";
+import { Effect, Either, Fiber, Logger, TestClock, TestContext } from "effect";
+import {
+  CITYMOTORS_REQUEST_BUDGET_MS,
+  CitymotorsTransientFailure,
+  fetchCitymotorsPage,
+} from "./citymotors-client";
 import {
   CITYMOTORS_CHUNK_DEADLINE_MS,
   CITYMOTORS_COMPLETION_RESERVE_MS,
@@ -31,8 +35,16 @@ function mockInventory(
     response?: ResponseInit;
     networkFailure?: boolean;
     redirected?: boolean;
-    /** 1-based request numbers that time out or answer HTTP 503. */
-    transientFailures?: { at: number[]; kind: "timeout" | "server" };
+    /**
+     * 1-based request numbers that time out before headers, answer HTTP 503,
+     * send HTML headers whose body never ends, or never answer at all.
+     */
+    transientFailures?: {
+      at: number[];
+      kind: "timeout" | "server" | "stalledBody" | "hang";
+    };
+    /** Called when a stalled body starts, so a test can fire its deadline. */
+    onStalledBody?: () => void;
   } = {},
 ) {
   const posts = Array.from({ length: 10 }, (_, index) => ({
@@ -49,6 +61,15 @@ function mockInventory(
       if (options.transientFailures?.at.includes(requests.length)) {
         if (options.transientFailures.kind === "timeout")
           throw new DOMException("The operation timed out.", "TimeoutError");
+        if (options.transientFailures.kind === "stalledBody")
+          return new Response(
+            new ReadableStream({ start: options.onStalledBody }),
+            {
+              headers: { "content-type": "text/html" },
+            },
+          );
+        if (options.transientFailures.kind === "hang")
+          return new Promise<Response>(() => {});
         return new Response("Service Unavailable", {
           status: 503,
           headers: { "content-type": "text/html" },
@@ -241,8 +262,30 @@ test("City Motors returns the last validated checkpoint when a GET fails twice a
   const requests = mockInventory({
     transientFailures: { at: [2, 3], kind: "timeout" },
   });
-  const paused = await run(undefined, 3);
+  const logs: string[] = [];
+  const paused = await Effect.runPromise(
+    streamCitymotorsInventoryWithRequestGate(
+      { maxPages: 3, onBatch: () => Effect.void },
+      gate,
+    ).pipe(
+      Effect.provide(
+        Logger.replace(
+          Logger.defaultLogger,
+          Logger.make(({ logLevel, message }) => {
+            logs.push(`${logLevel.label} ${String(message)}`);
+          }),
+        ),
+      ),
+    ),
+  );
   expect(paused).toMatchObject({ status: "paused", pagesProcessed: 1 });
+  expect(logs).toEqual([
+    expect.stringMatching(
+      new RegExp(
+        `^WARN City Motors ${requests[1]} failed after one resend \\(.*timed out.*\\); returning the last validated checkpoint`,
+      ),
+    ),
+  ]);
   expect(paused.cursor.phase).toBe("details");
   if (paused.cursor.phase !== "details")
     throw new Error("Expected native detail checkpoint");
@@ -257,8 +300,63 @@ test("City Motors fails a chunk whose first GET fails twice without advancing", 
   const requests = mockInventory({
     transientFailures: { at: [1, 2], kind: "server" },
   });
-  await expect(run()).rejects.toThrow("prior inventory is preserved");
+  await expect(run()).rejects.toThrow(
+    /after one resend: .*answered HTTP 503\..*prior inventory is preserved/,
+  );
   expect(requests).toHaveLength(2);
+});
+
+test("City Motors resends a GET whose body stalls until the body deadline", async () => {
+  const deadlines: AbortController[] = [];
+  const requests = mockInventory({
+    transientFailures: { at: [2], kind: "stalledBody" },
+    onStalledBody: () => {
+      setTimeout(() => {
+        for (const deadline of deadlines)
+          deadline.abort(
+            new DOMException("The operation timed out.", "TimeoutError"),
+          );
+      }, 10);
+    },
+  });
+  const timeout = spyOn(AbortSignal, "timeout").mockImplementation(() => {
+    const deadline = new AbortController();
+    deadlines.push(deadline);
+    return deadline.signal;
+  });
+  try {
+    const result = await run();
+    expect(result).toMatchObject({ status: "complete", pagesProcessed: 12 });
+    expect(requests).toHaveLength(13);
+    expect(requests[2]).toBe(requests[1]);
+  } finally {
+    timeout.mockRestore();
+  }
+});
+
+test("City Motors treats the combined request deadline as transient", async () => {
+  const requests = mockInventory({
+    transientFailures: { at: [1], kind: "hang" },
+  });
+  const timeout = spyOn(AbortSignal, "timeout").mockImplementation(
+    () => new AbortController().signal,
+  );
+  try {
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const fiber = yield* Effect.fork(
+          Effect.either(fetchCitymotorsPage(CITYMOTORS_CATALOG, gate)),
+        );
+        yield* TestClock.adjust(CITYMOTORS_REQUEST_BUDGET_MS);
+        return yield* Fiber.join(fiber);
+      }).pipe(Effect.provide(TestContext.TestContext)),
+    );
+    if (Either.isRight(result)) throw new Error("Expected a timed-out GET");
+    expect(result.left).toBeInstanceOf(CitymotorsTransientFailure);
+    expect(requests).toHaveLength(1);
+  } finally {
+    timeout.mockRestore();
+  }
 });
 
 test("City Motors resends a failed GET only when it still fits the chunk deadline", async () => {

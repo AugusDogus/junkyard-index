@@ -205,19 +205,29 @@ export function streamCitymotorsInventoryWithRequestGate<E, R>(
       // already validated pages returns that checkpoint so the next chunk
       // resumes there; one that has not fails without advancing.
       let fetched = yield* Effect.either(fetchCitymotorsPage(url, gate));
-      if (
+      const resent =
         Either.isLeft(fetched) &&
         fetched.left instanceof CitymotorsTransientFailure &&
-        requestFits()
-      )
+        requestFits();
+      if (resent)
         fetched = yield* Effect.either(fetchCitymotorsPage(url, gate));
       if (Either.isLeft(fetched)) {
         const failure = fetched.left;
         if (failure instanceof CitymotorsProviderError)
           return yield* Effect.fail(failure);
-        if (summary.pagesProcessed > 0) break;
+        const attempts = resent ? "after one resend" : "with no time to resend";
+        if (summary.pagesProcessed > 0) {
+          const detail =
+            failure.cause instanceof Error
+              ? failure.cause.message
+              : String(failure.cause);
+          yield* Effect.logWarning(
+            `City Motors ${url} failed ${attempts} (${detail}); returning the last validated checkpoint so the next chunk resumes at this GET.`,
+          );
+          break;
+        }
         return yield* new CitymotorsProviderError({
-          operation: url,
+          operation: `${url} ${attempts}`,
           cause: failure.cause,
         });
       }

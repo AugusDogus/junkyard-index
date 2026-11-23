@@ -62,7 +62,7 @@ export function fetchCitymotorsPage(url: string, gate: ProviderRequestGate) {
           onResponse: (result) => {
             if (result.status >= 500)
               throw new CitymotorsServerStatus(
-                "City Motors origin answered HTTP" + result.status,
+                `City Motors origin answered HTTP ${result.status}`,
               );
             if (
               result.status !== 200 ||
