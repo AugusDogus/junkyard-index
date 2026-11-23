@@ -115,10 +115,8 @@ export const TERMINAL_CURSOR_FIXTURES: {
     kind: "wire",
     terminal: '{"source":"kodak","version":1,"phase":"complete"}',
   },
-  six03: {
-    kind: "wire",
-    terminal: '{"source":"six03","version":1,"phase":"complete"}',
-  },
+  // Finished cursors carry the donor census, so the connector test asserts them.
+  six03: { kind: "connector-test", file: "six03-connector.test.ts" },
   rohner: { kind: "connector-test", file: "rohner-connector.test.ts" },
   pratt: {
     kind: "wire",

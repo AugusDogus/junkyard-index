@@ -9,8 +9,12 @@ import {
 import {
   Six03Cursor,
   Six03CursorSchema,
+  six03Census,
+  six03CensusPlan,
+  six03ClosingDonors,
   type Six03Progress,
 } from "./six03-cursor";
+import { ModelCensus } from "./model-census";
 import {
   parseSix03Catalog,
   parseSix03Contact,
@@ -41,6 +45,10 @@ import { ProviderChunkClock } from "./provider-chunk-clock";
 
 interface Six03Options<E, R> {
   startCursor?: Six03Cursor;
+  /** Terminal cursor of the last accepted, published run; read only when the
+   * start cursor has not begun a census yet. */
+  previousCursor?: unknown;
+  now?: () => number;
   maxPages?: number;
   onBatch: (vehicles: Six03CanonicalVehicle[]) => Effect.Effect<void, E, R>;
   onYards?: (yards: Six03Yard[]) => Effect.Effect<void, E, R>;
@@ -99,6 +107,16 @@ export function streamSix03InventoryWithRequestGate<E, R>(
         }),
       );
     let cursor = validated.data;
+    const warnings: string[] = [];
+    if (cursor.phase !== "complete") {
+      const pending = cursor;
+      const now = options.now ?? Date.now;
+      const begun = yield* parse("begin donor census", () =>
+        Six03Cursor.begin(pending, now(), options.previousCursor),
+      );
+      cursor = begun.cursor;
+      if (begun.warning) warnings.push(begun.warning);
+    }
     let pagesProcessed = 0;
     let count = 0;
     let observedVins: string[] = [];
@@ -131,14 +149,23 @@ export function streamSix03InventoryWithRequestGate<E, R>(
           const catalog = yield* parse("complete native catalog", () =>
             parseSix03Catalog(html),
           );
-          cursor = yield* parse("catalog checkpoint", () =>
-            Six03Cursor.checkpoint({
+          cursor = yield* parse("catalog checkpoint", () => {
+            // Carried donors before the first due read cost no request.
+            const details = ModelCensus.carriedRun(
+              six03CensusPlan({ ...state, catalog }),
+              0,
+            );
+            return Six03Cursor.checkpoint({
               ...state,
               catalog,
-              phase: six03PendingPosts(catalog).length ? "details" : "closing",
+              details,
+              phase:
+                details.length === six03PendingPosts(catalog).length
+                  ? "closing"
+                  : "details",
               requests: state.requests + 1,
-            }),
-          );
+            });
+          });
           break;
         }
         case "details": {
@@ -162,15 +189,23 @@ export function streamSix03InventoryWithRequestGate<E, R>(
           const record = yield* parse("native donor " + post[0], () =>
             parseSix03Detail(html, post),
           );
-          const details = [...state.details, record];
-          cursor = yield* parse("detail checkpoint", () =>
-            Six03Cursor.checkpoint({
+          const catalog = state.catalog;
+          cursor = yield* parse("detail checkpoint", () => {
+            const details = [
+              ...state.details,
+              record,
+              ...ModelCensus.carriedRun(
+                six03CensusPlan({ ...state, catalog }),
+                state.details.length + 1,
+              ),
+            ];
+            return Six03Cursor.checkpoint({
               ...state,
               details,
               phase: details.length === posts.length ? "closing" : "details",
               requests: state.requests + 1,
-            }),
-          );
+            });
+          });
           break;
         }
         case "closing": {
@@ -220,9 +255,11 @@ export function streamSix03InventoryWithRequestGate<E, R>(
               );
           } else {
             const posts = six03PendingPosts(catalog);
-            const index = state.closing === 2 ? 0 : posts.length - 1;
-            const post = posts[index];
-            const expected = state.details[index];
+            const donors = six03ClosingDonors({ ...state, catalog });
+            const index = donors?.[state.closing === 2 ? 0 : 1];
+            const post = index === undefined ? undefined : posts[index];
+            const expected =
+              index === undefined ? undefined : state.details[index];
             if (post && expected) {
               const html = yield* load(SIX03_ORIGIN + post[0]);
               const actual = yield* parse("closing native donor", () =>
@@ -257,6 +294,20 @@ export function streamSix03InventoryWithRequestGate<E, R>(
                 return value;
               },
             );
+            // Validated before any callback, so a terminal cursor that cannot
+            // be serialized fails the run before it publishes.
+            const terminal = yield* parse("close donor census", () =>
+              Six03CursorSchema.parse({
+                source: "six03",
+                version: 1,
+                phase: "complete",
+                census: six03Census(state),
+              }),
+            );
+            warnings.push(
+              "603 donor census: " +
+                ModelCensus.summary(six03CensusPlan({ ...state, catalog })),
+            );
             if (options.onYards) yield* options.onYards([{ ...SIX03_YARD }]);
             yield* options.onBatch(
               snapshot.vehicles.map((vehicle) => ({ ...vehicle })),
@@ -264,7 +315,7 @@ export function streamSix03InventoryWithRequestGate<E, R>(
             count = snapshot.vehicles.length;
             observedVins = snapshot.observedVins;
             accounting = snapshot.accounting;
-            cursor = { source: "six03", version: 1, phase: "complete" };
+            cursor = terminal;
           } else
             cursor = yield* parse("closing checkpoint", () =>
               Six03Cursor.checkpoint({
@@ -289,9 +340,10 @@ export function streamSix03InventoryWithRequestGate<E, R>(
       errors: [],
       warnings: accounting.recordsRejected
         ? [
+            ...warnings,
             "603 retained every required-identity rejection and quarantined all conflicting owned-donor groups. Valid rejected VINs supply presence only.",
           ]
-        : [],
+        : warnings,
     } satisfies Six03StreamResult;
   }).pipe(
     // Waiting for the browser session lease is not provider work.

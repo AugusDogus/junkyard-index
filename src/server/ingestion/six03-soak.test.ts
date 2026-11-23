@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { ModelCensus } from "./model-census";
 import { soakSix03Inventory } from "../../../scripts/soak-six03";
 import type { Six03StreamResult } from "./six03-connector";
 import { Six03Cursor } from "./six03-cursor";
@@ -10,6 +11,7 @@ const cursor = Six03Cursor.checkpoint({
   phase: "catalog",
   contact: parseSix03Contact(six03NativeFixtures().contact),
   requests: 1,
+  day: ModelCensus.day(Date.parse("2026-11-22")),
 });
 const paused = (): Six03StreamResult => ({
   source: "six03",
