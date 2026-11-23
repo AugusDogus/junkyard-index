@@ -22,6 +22,7 @@ function dependencies(
   return {
     readRun: async () => run,
     abandon: async ({ runId }) => ({
+      status: "abandoned",
       abandoned: { runId, workflowRunId: "wrun-1" },
       workflowCancellation: "cancelled",
       rebuildCleanup: "done",
@@ -100,7 +101,7 @@ describe("StopRunAction.perform", () => {
     expect(result).toEqual({
       status: "done",
       message:
-        "Stopped Hollander Stores's run run-1. Its workflow was cancelled, and runs queued behind it can go ahead. Data it already wrote stays. Its next scheduled run starts fresh on current code.",
+        "Stopped Hollander Stores's run run-1. Its workflow was cancelled, and runs queued behind it can go ahead. Vehicles it already published stay. Its next scheduled retry is started by today's ingestion pass, which runs the code that pass started on and may be this same old code. Use Run now to restart it on current code.",
     });
   });
 
@@ -148,10 +149,37 @@ describe("StopRunAction.perform", () => {
     expect(abandon).not.toHaveBeenCalled();
   });
 
+  test("a run that ended after it was read is reported unchanged and not logged", async () => {
+    const logStop = mock(dependencies(crawling).logStop);
+    const startRun = mock(dependencies(crawling).startRun);
+    for (const kind of ["stop", "stop_and_run"]) {
+      const result = await perform(
+        dependencies(crawling, {
+          abandon: async ({ runId }) => ({
+            status: "already_ended",
+            runId,
+            runStatus: "success",
+          }),
+          logStop,
+          startRun,
+        }),
+        { kind, runId: "run-1", force: false },
+      );
+      expect(result).toEqual({
+        status: "unchanged",
+        message:
+          "Hollander Stores's run run-1 already ended (success), so nothing was stopped.",
+      });
+    }
+    expect(logStop).not.toHaveBeenCalled();
+    expect(startRun).not.toHaveBeenCalled();
+  });
+
   test("a workflow that could not be cancelled is named so it can be cancelled by hand", async () => {
     const result = await perform(
       dependencies(crawling, {
         abandon: async ({ runId }) => ({
+          status: "abandoned",
           abandoned: { runId, workflowRunId: "wrun-1" },
           workflowCancellation: "failed",
           rebuildCleanup: "done",

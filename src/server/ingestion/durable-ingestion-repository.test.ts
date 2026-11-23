@@ -890,6 +890,41 @@ describe("durable ingestion repository", () => {
     }
   });
 
+  test("abandoning names the workflow it detached, or the status a run already ended with", async () => {
+    const testDatabase = createTestClient();
+    const { client } = testDatabase;
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const repository = createDurableIngestionRepository(
+        drizzle(client),
+        client,
+        IngestionSnapshotStore.memory(),
+      );
+      await client.execute(`
+        insert into ingestion_run (
+          id, source, workflow_run_id, status, stage, active_slot,
+          started_at, last_progress_at
+        ) values
+          ('live', 'pyp', 'wrun-live', 'running', 'sources', 1, 1, 1),
+          ('done', 'row52', 'wrun-done', 'success', 'released', null, 1, 1)
+      `);
+      expect(await repository.abandon("live", false)).toEqual({
+        status: "abandoned",
+        workflowRunId: "wrun-live",
+      });
+      expect(await repository.abandon("live", false)).toEqual({
+        status: "already_ended",
+        runStatus: "abandoned",
+      });
+      expect(await repository.abandon("done", true)).toEqual({
+        status: "already_ended",
+        runStatus: "success",
+      });
+    } finally {
+      testDatabase.cleanup();
+    }
+  });
+
   test("abandons a run after repeated execution failures", async () => {
     const testDatabase = createTestClient();
     const { client } = testDatabase;

@@ -48,6 +48,7 @@ async function stopAs(admin: boolean, input: unknown) {
           calls.push(["abandon", runId, force]);
           await cancelWorkflow("wrun-1");
           return {
+            status: "abandoned",
             abandoned: { runId, workflowRunId: "wrun-1" },
             workflowCancellation: "cancelled",
             rebuildCleanup: "done",
