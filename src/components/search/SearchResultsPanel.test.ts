@@ -35,8 +35,8 @@ function resolve(input: {
     header: { actions: null, visibleCount: null },
     loading: { showMore },
     empty: {
-      activeFilterCount: 0,
-      clearAllFilters: () => undefined,
+      clearFilters: null,
+      includeAllYards: null,
       isLoggedIn: false,
       query: "honda",
       filters: {},
@@ -54,7 +54,7 @@ function resolve(input: {
 }
 
 describe("search results state", () => {
-  test("zero results suggest changing the query even with the default yard filter", () => {
+  test("zero results at the default yard scope offer all yards", () => {
     const model = resolve({});
     if (model.kind !== "empty")
       throw new Error("Expected an empty result model");
@@ -63,14 +63,15 @@ describe("search results state", () => {
         model: {
           ...model,
           query: "1990 toyota tacoma",
-          activeFilterCount: 1,
+          includeAllYards: () => undefined,
           filters: { yardTypes: ["self_service"] },
         },
       }),
     );
     expect(markup).toContain("Try nearby years or remove a search term");
-    expect(markup).toContain("include more yard types");
-    expect(markup).not.toContain("Clear the filters to broaden the search");
+    expect(markup).toContain("You can also include all yards.");
+    expect(markup).toMatch(/<button[^>]*>Include all yards<\/button>/);
+    expect(markup).not.toContain("Clear filters");
   });
 
   test("the results heading uses the singular for one vehicle", () => {
@@ -90,14 +91,48 @@ describe("search results state", () => {
       createElement(SearchResultsPanel, {
         model: {
           ...model,
-          activeFilterCount: 1,
+          clearFilters: () => undefined,
           filters: { states: ["Alabama"], yardTypes: [] },
         },
       }),
     );
     expect(markup).toContain("Try nearby years or remove a search term");
-    expect(markup).toContain("You can also clear filters");
-    expect(markup).not.toContain("include more yard types");
+    expect(markup).toContain("You can also clear filters.");
+    expect(markup).toMatch(/<button[^>]*>Clear filters<\/button>/);
+    expect(markup).not.toContain("Include all yards");
+  });
+
+  test("an all-yards search with nothing else to clear offers no narrower clear", () => {
+    const model = resolve({});
+    if (model.kind !== "empty")
+      throw new Error("Expected an empty result model");
+    const markup = renderToStaticMarkup(
+      createElement(SearchResultsPanel, {
+        model: { ...model, filters: { yardTypes: [] } },
+      }),
+    );
+    expect(markup).toContain("No vehicles found");
+    expect(markup).not.toContain("Clear filters");
+    expect(markup).not.toContain("You can also");
+    expect(markup).not.toContain("Include all yards");
+  });
+
+  test("both recoveries read as one sentence", () => {
+    const model = resolve({});
+    if (model.kind !== "empty")
+      throw new Error("Expected an empty result model");
+    const markup = renderToStaticMarkup(
+      createElement(SearchResultsPanel, {
+        model: {
+          ...model,
+          clearFilters: () => undefined,
+          includeAllYards: () => undefined,
+        },
+      }),
+    );
+    expect(markup).toContain(
+      "You can also clear filters or include all yards.",
+    );
   });
 
   test("the zero self-service fallback still offers full-service recovery", () => {
@@ -130,9 +165,10 @@ describe("search results state", () => {
         },
       }),
     );
-    // The h2 column closes before the hint starts.
+    // The h2 column closes before the hint starts. Phones get a shorter
+    // line that fits beside the count, and the link never wraps.
     expect(markup).toMatch(
-      /<h2[^>]*>3 vehicles<\/h2><\/div><p[^>]*>Also 84,925 at full-service yards\. <button[^>]*>Show them<\/button><\/p>/,
+      /<h2[^>]*>3 vehicles<\/h2><\/div><p[^>]*><span class="sm:hidden">\+84,925 full-service\.<\/span><span class="hidden sm:inline">Also 84,925 at full-service yards\.<\/span> <button[^>]*whitespace-nowrap[^>]*>Show them<\/button><\/p>/,
     );
     expect(markup).not.toContain("py-12");
     expect(markup).not.toContain("Show full-service results");
@@ -158,7 +194,7 @@ describe("search results state", () => {
     expect(markup.match(/Show full-service results/g)?.length).toBe(1);
   });
 
-  test("the header is the count alone, plus the visible count when capped", () => {
+  test("the header is the count alone, or one visible-of-total phrase when capped", () => {
     const uncapped = renderToStaticMarkup(
       createElement(SearchResultsPanel, {
         model: resolve({ searchResult: { ...emptyResult, totalCount: 2 } }),
@@ -180,9 +216,8 @@ describe("search results state", () => {
         },
       }),
     );
-    expect(capped).toMatch(
-      /<h2[^>]*>96 vehicles<\/h2><span[^>]*>Showing 24<\/span>/,
-    );
+    expect(capped).toMatch(/<h2[^>]*>24 of 96 vehicles<\/h2><\/div>/);
+    expect(capped).not.toContain("Showing 24");
   });
 
   test("distinguishes loading, error, empty, and result states", () => {

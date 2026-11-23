@@ -11,11 +11,16 @@ import {
   ActiveSearchFilter,
   type DistanceOrigin,
 } from "./active-search-filters";
-import { SearchScopeFilters } from "./SearchScopeFilters";
+import {
+  AdvancedSearchButton,
+  AdvancedSearchGroup,
+  FilterRow,
+  SearchScopeFilters,
+} from "./SearchScopeFilters";
 
 import { sanitizeYardTypes } from "./search-routing";
 import type { YardType } from "~/lib/yard-service";
-import { Filter, LocateFixed, LockKeyhole, MapPin } from "lucide-react";
+import { Filter, LocateFixed, MapPin } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import { Analytics } from "~/lib/analytics";
@@ -77,7 +82,6 @@ import {
 } from "~/components/ui/dialog";
 import { Input } from "~/components/ui/input";
 import { SearchSortControl } from "./SearchSortControl";
-import { Toggle } from "~/components/ui/toggle";
 import {
   getSearchableVinPattern,
   getSearchSortIndex,
@@ -807,11 +811,19 @@ function AlgoliaSearchInner({
     () => (expressionOwnsYardTypes ? [] : ["self_service"]),
     [expressionOwnsYardTypes],
   );
-  const distanceOrigin: DistanceOrigin = routedArea
-    ? { kind: "savedSearch" }
-    : effectiveLocationPreference?.zipCode
-      ? { kind: "zip", zipCode: effectiveLocationPreference.zipCode }
-      : { kind: "approximate" };
+  // A routed area at the visitor's own ZIP (the homepage New near me link) is
+  // that ZIP, not a saved search's location.
+  const preferenceZipCode = effectiveLocationPreference?.zipCode ?? null;
+  const routedAreaIsPreference =
+    routedArea !== undefined &&
+    effectiveLocationPreference?.lat === routedArea.lat &&
+    effectiveLocationPreference.lng === routedArea.lng;
+  const distanceOrigin: DistanceOrigin =
+    routedArea && !routedAreaIsPreference
+      ? { kind: "savedSearch" }
+      : preferenceZipCode
+        ? { kind: "zip", zipCode: preferenceZipCode }
+        : { kind: "approximate" };
   // Non-default choices only: the Filters count and the chips agree.
   const activeFilters = ActiveSearchFilter.list({
     arrivalWindow,
@@ -871,12 +883,13 @@ function AlgoliaSearchInner({
   );
 
   // VIN searches can run alone from the primary search bar. Any yard facet,
-  // including the self-service default, shows results; all yards alone does not.
+  // including the self-service default, shows results, and so does any
+  // active filter chip, All yards included: the results match the chips.
   const hasActiveSearch =
     query.length > 0 ||
     Boolean(effectiveVinPatternFilter) ||
     selectedYardTypes.length > 0 ||
-    activeFilters.some((filter) => filter.kind !== "yardTypes");
+    activeFilters.length > 0;
   const analyticsSearchValue = effectiveVinPatternFilter ? vinPattern : query;
 
   // Loading = Algolia is actively fetching (not stale "0 results")
@@ -1143,41 +1156,48 @@ function AlgoliaSearchInner({
     ],
   );
 
-  const clearAllFilters = useCallback(() => {
-    Analytics.capture(AnalyticsEvents.FILTERS_CLEARED, {
-      previous_filter_count: activeFilterCount,
-    });
-    const helper = instantSearch.mainIndex.getHelper();
-    if (!helper) return;
-    // Clear facets without searching the old window/radius. Configure performs
-    // the combined search once the URL-controlled filters have been cleared.
-    helper.clearRefinements();
-    // The default yard scope is not a filter, so clearing returns to it.
-    for (const type of defaultYardTypes)
-      helper.addDisjunctiveFacetRefinement("yardTypes", type);
-    // Typed years filter results too, so clearing filters drops them as well.
-    if (typedYears?.range) helper.setQuery(typedYears.query);
-    // The route write for the cleared facets runs before nuqs writes these.
-    SearchOwnedUrlParams.hold(
-      new URLSearchParams(),
-      Promise.all([
-        setArrivalParams({ arrivalWindow: null, "arrivalWindow[]": null }),
-        setRadius(null),
-        setOriginParams({ lat: null, lng: null }),
-      ]),
-    );
-    if (!arrivalWindow && radiusMiles === null) helper.search();
-  }, [
-    activeFilterCount,
-    defaultYardTypes,
-    instantSearch,
-    arrivalWindow,
-    radiusMiles,
-    setArrivalParams,
-    setOriginParams,
-    setRadius,
-    typedYears,
-  ]);
+  /** Clears every filter, then applies `yardTypes` as the yard scope. */
+  const clearFilters = useCallback(
+    (yardTypes: readonly YardType[]) => {
+      Analytics.capture(AnalyticsEvents.FILTERS_CLEARED, {
+        previous_filter_count: activeFilterCount,
+      });
+      const helper = instantSearch.mainIndex.getHelper();
+      if (!helper) return;
+      // Clear facets without searching the old window/radius. Configure performs
+      // the combined search once the URL-controlled filters have been cleared.
+      helper.clearRefinements();
+      for (const type of yardTypes)
+        helper.addDisjunctiveFacetRefinement("yardTypes", type);
+      // Typed years filter results too, so clearing filters drops them as well.
+      if (typedYears?.range) helper.setQuery(typedYears.query);
+      // The route write for the cleared facets runs before nuqs writes these.
+      SearchOwnedUrlParams.hold(
+        new URLSearchParams(),
+        Promise.all([
+          setArrivalParams({ arrivalWindow: null, "arrivalWindow[]": null }),
+          setRadius(null),
+          setOriginParams({ lat: null, lng: null }),
+        ]),
+      );
+      if (!arrivalWindow && radiusMiles === null) helper.search();
+    },
+    [
+      activeFilterCount,
+      instantSearch,
+      arrivalWindow,
+      radiusMiles,
+      setArrivalParams,
+      setOriginParams,
+      setRadius,
+      typedYears,
+    ],
+  );
+  // The default yard scope is not a filter, so clearing all returns to it.
+  const clearAllFilters = useCallback(
+    () => clearFilters(defaultYardTypes),
+    [clearFilters, defaultYardTypes],
+  );
 
   const handleSearchModeChange = useCallback(
     async (value: { query: string | null; vinPattern: string | null }) => {
@@ -1448,11 +1468,13 @@ function AlgoliaSearchInner({
       arrivalWindow={arrivalWindow}
       onArrivalWindowChange={setArrivalWindow}
       locationLabel={
-        routedArea
-          ? "Saved search location"
-          : effectiveLocationPreference?.zipCode
-            ? `ZIP ${effectiveLocationPreference.zipCode}`
-            : "Distance location"
+        distanceOrigin.kind === "savedSearch"
+          ? "Saved location"
+          : distanceOrigin.kind === "zip"
+            ? `ZIP ${distanceOrigin.zipCode}`
+            : effectiveLocationPreference?.mode === "auto"
+              ? "Approximate location"
+              : "Set location"
       }
       onChooseLocation={openDistancePreference}
       radiusMiles={radiusMiles}
@@ -1466,11 +1488,20 @@ function AlgoliaSearchInner({
     />
   );
 
+  // What the search covers with no filters: the self-service default, or
+  // the yard types the expression names.
+  const defaultScopeLabel = expressionOwnsYardTypes
+    ? "No filters applied"
+    : "Self-service yards";
   const mobileFiltersDrawer = (
     <MobileFiltersDrawer
       scope={scopeFilters}
       onAdvancedSearch={() => setAdvancedSearchOpen(true)}
       activeFilterCount={activeFilterCount}
+      defaultScopeLabel={defaultScopeLabel}
+      resultCount={
+        searchResult && !isSearching ? searchResult.totalCount : null
+      }
       clearAllFilters={clearAllFilters}
       makes={selectedMakes}
       colors={selectedColors}
@@ -1493,26 +1524,28 @@ function AlgoliaSearchInner({
 
   // One row: what shapes the results on the left, saving on the right.
   const workspaceActions = (
-    <div className="flex w-full items-center gap-2 [&_[data-slot=select-trigger]]:h-11 md:[&_[data-slot=select-trigger]]:h-9 [&_button]:h-11 [&_button]:min-w-11 md:[&_button]:h-9">
+    <div className="flex w-full items-center gap-1.5 md:gap-2 [&_[data-slot=select-trigger]]:h-11 md:[&_[data-slot=select-trigger]]:h-9 [&_button]:h-11 [&_button]:min-w-11 md:[&_button]:h-9">
       <div className="md:hidden">{mobileFiltersDrawer}</div>
-      <Toggle
+      <Button
+        type="button"
         variant="outline"
-        pressed={showFilters}
-        onPressedChange={setShowFilters}
-        className="hidden shrink-0 px-3 md:flex"
+        aria-pressed={showFilters}
+        onClick={() => setShowFilters((open) => !open)}
+        // A quiet fill only while the panel is open.
+        className={cn("hidden md:flex", showFilters && "bg-muted")}
       >
         <Filter data-icon="inline-start" />
         Filters
         {activeFilterCount > 0 && (
           <span className="tabular-nums">({activeFilterCount})</span>
         )}
-      </Toggle>
+      </Button>
       <SearchSortControl
         value={sortBy}
         onChange={handleSortChange}
         options={sortOptions}
       />
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex items-center gap-1.5 md:gap-2">
         <SaveSearchDialog
           query={expressionMode ? "" : query}
           filters={currentSaveSearchFilters}
@@ -1566,8 +1599,12 @@ function AlgoliaSearchInner({
       showMore,
     },
     empty: {
-      activeFilterCount,
-      clearAllFilters,
+      // Recovery only widens: yard scope stays when clearing the rest.
+      clearFilters: activeFilters.some((filter) => filter.kind !== "yardTypes")
+        ? () => clearFilters(selectedYardTypes)
+        : null,
+      includeAllYards:
+        selectedYardTypes.length > 0 ? () => handleYardTypesChange([]) : null,
       isLoggedIn,
       query,
       filters: currentSaveSearchFilters,
@@ -1654,48 +1691,37 @@ function AlgoliaSearchInner({
           className="mb-3 hidden flex-col gap-5 rounded-md border p-4 md:flex"
         >
           {scopeFilters}
-          <div className="grid grid-cols-[7rem_minmax(0,1fr)] items-start gap-4 border-t pt-5">
-            <span className="text-muted-foreground pt-2 text-sm">
-              More filters
-            </span>
-            <DesktopFiltersBar
-              advancedSearchControl={
-                <Button
-                  type="button"
-                  variant="link"
-                  size="sm"
-                  aria-label={
-                    canUseAdvancedFilters
-                      ? undefined
-                      : "Advanced search, upgrade required"
-                  }
-                  onClick={() => setAdvancedSearchOpen(true)}
-                >
-                  {!canUseAdvancedFilters && (
-                    <LockKeyhole data-icon="inline-start" aria-hidden="true" />
-                  )}
-                  Advanced search
-                </Button>
-              }
-              activeFilterCount={activeFilterCount}
-              clearAllFilters={clearAllFilters}
-              makes={selectedMakes}
-              colors={selectedColors}
-              states={selectedStates}
-              salvageYards={selectedLocations}
-              sources={selectedSources}
-              yearRange={yearRange}
-              filterOptions={filterOptions}
-              filterOptionsFeedback={filterBarFeedback}
-              onMakesChange={handleMakesChange}
-              onColorsChange={handleColorsChange}
-              onStatesChange={handleStatesChange}
-              onSalvageYardsChange={handleLocationsChange}
-              onSourcesChange={handleSourcesChange}
-              onYearRangeChange={handleYearRangeChange}
-              yearRangeLimits={{ min: yearMin, max: yearMax }}
-              canUseAdvancedFilters={canUseAdvancedFilters}
-            />
+          <div className="border-t pt-5">
+            <FilterRow label="More filters">
+              <DesktopFiltersBar
+                activeFilterCount={activeFilterCount}
+                defaultScopeLabel={defaultScopeLabel}
+                makes={selectedMakes}
+                colors={selectedColors}
+                states={selectedStates}
+                salvageYards={selectedLocations}
+                sources={selectedSources}
+                yearRange={yearRange}
+                filterOptions={filterOptions}
+                filterOptionsFeedback={filterBarFeedback}
+                onMakesChange={handleMakesChange}
+                onColorsChange={handleColorsChange}
+                onStatesChange={handleStatesChange}
+                onSalvageYardsChange={handleLocationsChange}
+                onSourcesChange={handleSourcesChange}
+                onYearRangeChange={handleYearRangeChange}
+                yearRangeLimits={{ min: yearMin, max: yearMax }}
+                canUseAdvancedFilters={canUseAdvancedFilters}
+              />
+            </FilterRow>
+          </div>
+          <div className="border-t pt-5">
+            <AdvancedSearchGroup locked={!canUseAdvancedFilters}>
+              <AdvancedSearchButton
+                locked={!canUseAdvancedFilters}
+                onClick={() => setAdvancedSearchOpen(true)}
+              />
+            </AdvancedSearchGroup>
           </div>
         </section>
       )}

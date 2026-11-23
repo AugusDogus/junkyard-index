@@ -1,8 +1,9 @@
 import { Button } from "~/components/ui/button";
-import { Checkbox } from "~/components/ui/checkbox";
 import { SearchYardSelection } from "~/lib/search-yard-selection";
-import { cn } from "~/lib/utils";
 import { YARD_TYPE_OPTIONS, type YardType } from "~/lib/yard-service";
+
+// Matches ArrivalWindowChips, so both rows read as one set of toggles.
+const TOGGLE_CLASS = "min-h-11 px-1 sm:min-h-9 sm:px-3";
 
 export function SearchYardTypeControls({
   types,
@@ -40,51 +41,48 @@ export function SearchYardTypeControls({
       )}
       {(!expressionOwnsTypes || types.length > 0) && (
         <>
-          <div className="flex flex-wrap items-center gap-2">
-            {expressionOwnsTypes && (
-              <span className="text-muted-foreground w-full text-xs sm:w-auto">
-                Additional yard filter
-              </span>
-            )}
+          {expressionOwnsTypes && (
+            <span className="text-muted-foreground text-xs">
+              Additional yard filter
+            </span>
+          )}
+          <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:flex-wrap">
             <Button
               type="button"
-              variant="outline"
-              className={cn(
-                "min-h-11 px-1.5 text-xs sm:min-h-9 sm:px-2 sm:text-sm",
-                types.length === 0 && "bg-ink text-paper",
-              )}
+              size="sm"
+              className={TOGGLE_CLASS}
+              variant={types.length === 0 ? "default" : "outline"}
               aria-label="All yards, including unclassified"
+              title="Includes yards not yet classified as self-service or full-service"
               aria-pressed={types.length === 0}
               onClick={() => onChange([])}
             >
               All yards
             </Button>
-            {YARD_TYPE_OPTIONS.map(({ value, label }) => (
-              <label
-                key={value}
-                className={cn(
-                  "border-ink flex min-h-11 cursor-pointer items-center gap-1.5 rounded-md border-2 px-1 text-xs font-medium has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus sm:min-h-9 sm:px-2 sm:text-sm",
-                  types.includes(value) && "bg-ink text-paper",
-                )}
-              >
-                <Checkbox
-                  checked={types.includes(value)}
-                  onCheckedChange={(checked) =>
+            {/* Self-service and full-service combine; neither means all. */}
+            {YARD_TYPE_OPTIONS.map(({ value, label }) => {
+              const pressed = types.includes(value);
+              return (
+                <Button
+                  key={value}
+                  type="button"
+                  size="sm"
+                  className={TOGGLE_CLASS}
+                  variant={pressed ? "default" : "outline"}
+                  aria-pressed={pressed}
+                  onClick={() =>
                     onChange(
-                      checked === true
-                        ? [...types, value]
-                        : types.filter((type) => type !== value),
+                      pressed
+                        ? types.filter((type) => type !== value)
+                        : [...types, value],
                     )
                   }
-                />
-                {label}
-              </label>
-            ))}
+                >
+                  {label}
+                </Button>
+              );
+            })}
           </div>
-          <p className="text-muted-foreground text-xs text-pretty">
-            Select one or both service types. All yards also includes
-            unclassified yards.
-          </p>
         </>
       )}
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Filter, LockKeyhole } from "lucide-react";
+import { Filter } from "lucide-react";
 import { useRef, type ReactNode } from "react";
 import { Button } from "~/components/ui/button";
 import {
@@ -16,6 +16,10 @@ import {
 import { Separator } from "~/components/ui/separator";
 import type { DataSource } from "~/lib/types";
 import { MobileFilterContent } from "./MobileFilterContent";
+import {
+  AdvancedSearchButton,
+  AdvancedSearchGroup,
+} from "./SearchScopeFilters";
 import type { SearchFilterOptions } from "./search-filter-options";
 
 interface MobileFiltersDrawerProps {
@@ -23,6 +27,10 @@ interface MobileFiltersDrawerProps {
   /** Arrival, distance and yard type, shown above the other filters. */
   scope?: ReactNode;
   activeFilterCount: number;
+  /** What the search covers with no filters, such as "Self-service yards". */
+  defaultScopeLabel: string;
+  /** The current result count, or null while it loads. */
+  resultCount: number | null;
   clearAllFilters: () => void;
   makes: string[];
   colors: string[];
@@ -49,6 +57,8 @@ export function MobileFiltersDrawer({
   onAdvancedSearch,
   scope,
   activeFilterCount,
+  defaultScopeLabel,
+  resultCount,
   clearAllFilters,
   makes,
   colors,
@@ -72,9 +82,19 @@ export function MobileFiltersDrawer({
   return (
     <Drawer autoFocus>
       <DrawerTrigger asChild>
-        <Button ref={triggerRef} variant="outline">
+        <Button ref={triggerRef} variant="outline" className="gap-1.5">
           <Filter data-icon="inline-start" />
-          Filters
+          {/* On narrow phones the label gives way to the icon and count, so
+              the toolbar keeps every control on one legible row. */}
+          <span
+            className={
+              activeFilterCount > 0
+                ? "max-[389px]:sr-only"
+                : "max-[359px]:sr-only"
+            }
+          >
+            Filters
+          </span>
           {activeFilterCount > 0 && (
             <span className="tabular-nums">({activeFilterCount})</span>
           )}
@@ -100,36 +120,15 @@ export function MobileFiltersDrawer({
               <DrawerDescription className="tabular-nums">
                 {activeFilterCount > 0
                   ? `${activeFilterCount} active`
-                  : "No filters applied"}
+                  : defaultScopeLabel}
               </DrawerDescription>
             </div>
             {activeFilterCount > 0 && (
               <Button variant="ghost" size="sm" onClick={clearAllFilters}>
-                Clear
+                Clear all
               </Button>
             )}
           </div>
-          <DrawerClose asChild>
-            <Button
-              type="button"
-              variant="link"
-              size="sm"
-              className="-ml-3 self-start"
-              aria-label={
-                canUseAdvancedFilters
-                  ? undefined
-                  : "Advanced search, upgrade required"
-              }
-              onClick={() => {
-                openAdvancedOnClose.current = true;
-              }}
-            >
-              {!canUseAdvancedFilters && (
-                <LockKeyhole data-icon="inline-start" aria-hidden="true" />
-              )}
-              Advanced search
-            </Button>
-          </DrawerClose>
         </DrawerHeader>
         <Separator />
         <div className="min-h-0 flex-1 overflow-y-auto px-4">
@@ -152,11 +151,27 @@ export function MobileFiltersDrawer({
             yearRangeLimits={yearRangeLimits}
             canUseAdvancedFilters={canUseAdvancedFilters}
           />
+          <div className="border-t py-4">
+            <AdvancedSearchGroup locked={!canUseAdvancedFilters}>
+              <DrawerClose asChild>
+                <AdvancedSearchButton
+                  locked={!canUseAdvancedFilters}
+                  onClick={() => {
+                    openAdvancedOnClose.current = true;
+                  }}
+                />
+              </DrawerClose>
+            </AdvancedSearchGroup>
+          </div>
         </div>
         <Separator />
         <DrawerFooter className="pb-[max(1rem,env(safe-area-inset-bottom))]">
           <DrawerClose asChild>
-            <Button className="h-11 w-full">Show results</Button>
+            <Button className="h-11 w-full tabular-nums">
+              {resultCount === null
+                ? "Show results"
+                : `Show ${resultCount.toLocaleString()} ${resultCount === 1 ? "vehicle" : "vehicles"}`}
+            </Button>
           </DrawerClose>
         </DrawerFooter>
       </DrawerContent>

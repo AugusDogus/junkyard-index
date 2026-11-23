@@ -197,7 +197,7 @@ describe("auth save-search funnel", () => {
           `?free=1&save-query=Saab${newFree ? "&new-free=1" : ""}`,
         );
         await page
-          .getByRole("button", { name: "Save Search", exact: true })
+          .getByRole("button", { name: "Save search", exact: true })
           .click();
         const dialog = page.getByRole("dialog");
         await dialog
@@ -354,7 +354,7 @@ describe("saved search browser flow", () => {
       try {
         await openFixture(page, "?fail=1");
         await page
-          .getByRole("button", { name: "Save Search", exact: true })
+          .getByRole("button", { name: "Save search", exact: true })
           .click();
         await page
           .getByLabel("Name", { exact: true })

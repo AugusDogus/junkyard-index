@@ -16,15 +16,22 @@ Links that still carry `yardTypes[]=self_service` select the default and lose
 the parameter on the next URL write. `SearchYardSelection.isImplied` decides
 whether a selection needs a URL value: the self-service default and
 expression-owned types do not.
-The unrestricted state has its own "All yards" control, named "All yards,
-including unclassified" for assistive technology. Only that control is pressed
-for `all`; selecting both known types presses the two service controls instead.
+The three yard-type controls are toggle buttons, styled like the arrival
+window chips. The unrestricted state has its own "All yards" control, named
+"All yards, including unclassified" for assistive technology. Only that control
+is pressed for `all`; selecting both known types presses the two service
+controls instead, and releasing both returns to `all`.
 
 The default scope is not a filter. It adds nothing to the Filters count and
 shows no chip. Any other scope shows one removable chip ("Full-service
 included", "Full-service only", "All yards"); removing it, or Clear all,
-returns to the default. A search with all yards and nothing else still shows
-the start panel instead of results.
+returns to the default. Any chip makes the search active, so all yards with
+nothing else shows every yard's results, as its chip says.
+
+With zero results, recovery only widens the search. "Clear filters" drops the
+other filters and keeps the current yard scope, and appears only when another
+filter is active. "Include all yards" appears whenever the scope is narrower
+than all yards, including the self-service default.
 
 A parsed `yardType` term anywhere in an expression suppresses the implicit
 self-service facet. The expression retains its Boolean matching, including OR

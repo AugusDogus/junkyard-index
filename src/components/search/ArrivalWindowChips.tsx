@@ -13,7 +13,8 @@ export function ArrivalWindowChips({
       <div
         role="group"
         aria-label="Arrival window"
-        className="flex flex-wrap gap-2"
+        // Two equal columns on phones, so the four chips form a tidy block.
+        className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap"
       >
         <Button
           type="button"

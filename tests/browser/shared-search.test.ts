@@ -298,11 +298,11 @@ for (const width of [390, 1440]) {
         await page.goto(
           `http://shared-search.test/search?q=${encodeURIComponent(query)}`,
         );
-        const self = page.getByRole("checkbox", {
+        const self = page.getByRole("button", {
           name: "Self-service",
           exact: true,
         });
-        const full = page.getByRole("checkbox", {
+        const full = page.getByRole("button", {
           name: "Full-service",
           exact: true,
         });
@@ -399,8 +399,8 @@ for (const width of [390, 1440]) {
           .first()
           .waitFor();
         await openFilterPanel(page);
-        expect(await self.getAttribute("aria-checked")).toBe("true");
-        expect(await full.getAttribute("aria-checked")).toBe("true");
+        expect(await self.getAttribute("aria-pressed")).toBe("true");
+        expect(await full.getAttribute("aria-pressed")).toBe("true");
         expect(await recoveryButtons()).toEqual([0, 0]);
         expect(
           await page.evaluate(
@@ -421,8 +421,8 @@ for (const width of [390, 1440]) {
           .first()
           .waitFor();
         await openFilterPanel(page);
-        expect(await self.getAttribute("aria-checked")).toBe("false");
-        expect(await full.getAttribute("aria-checked")).toBe("true");
+        expect(await self.getAttribute("aria-pressed")).toBe("false");
+        expect(await full.getAttribute("aria-pressed")).toBe("true");
         expect(await recoveryButtons()).toEqual([0, 0]);
       } finally {
         await closePage(page);
@@ -461,13 +461,13 @@ for (const width of [390, 1440]) {
       expect(await all.getAttribute("aria-pressed")).toBe("true");
       expect(
         await page
-          .getByRole("checkbox", { name: "Self-service", exact: true })
-          .getAttribute("aria-checked"),
+          .getByRole("button", { name: "Self-service", exact: true })
+          .getAttribute("aria-pressed"),
       ).toBe("false");
       expect(
         await page
-          .getByRole("checkbox", { name: "Full-service", exact: true })
-          .getAttribute("aria-checked"),
+          .getByRole("button", { name: "Full-service", exact: true })
+          .getAttribute("aria-pressed"),
       ).toBe("false");
       await page
         .getByRole("heading", {
@@ -477,7 +477,7 @@ for (const width of [390, 1440]) {
         })
         .waitFor();
       await page
-        .getByRole("checkbox", { name: "Self-service", exact: true })
+        .getByRole("button", { name: "Self-service", exact: true })
         .click();
       await page
         .getByRole("heading", {
@@ -488,7 +488,7 @@ for (const width of [390, 1440]) {
         .waitFor();
       expect(await all.getAttribute("aria-pressed")).toBe("false");
       await page
-        .getByRole("checkbox", { name: "Full-service", exact: true })
+        .getByRole("button", { name: "Full-service", exact: true })
         .click();
       await page
         .getByRole("heading", {
@@ -555,7 +555,7 @@ test("expression-owned yard types are visible without an implicit self-service f
     ).toBe(0);
     expect(
       await page
-        .getByRole("checkbox", { name: "Self-service", exact: true })
+        .getByRole("button", { name: "Self-service", exact: true })
         .count(),
     ).toBe(0);
     await page

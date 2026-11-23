@@ -1,6 +1,6 @@
 "use client";
 
-import { Bookmark, Lock, Search, Settings } from "lucide-react";
+import { List, Lock, Search, Settings } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Analytics } from "~/lib/analytics";
@@ -51,7 +51,7 @@ export function SavedSearchesDropdown({
         size={compact || iconOnly ? "sm" : "default"}
         disabled
       >
-        <Bookmark data-icon="inline-start" />
+        <List data-icon="inline-start" />
         {!iconOnly && (
           <span className={responsive ? "sr-only md:not-sr-only" : undefined}>
             Saved
@@ -77,13 +77,19 @@ export function SavedSearchesDropdown({
               : undefined
           }
         >
-          <Bookmark data-icon="inline-start" />
+          <List data-icon="inline-start" />
           {iconOnly ? (
             savedSearches.length
+          ) : responsive ? (
+            // Phones keep the count visible beside the icon.
+            <>
+              <span className="tabular-nums md:hidden">
+                {savedSearches.length}
+              </span>
+              <span className="hidden md:inline">{`Saved (${savedSearches.length})`}</span>
+            </>
           ) : (
-            <span
-              className={responsive ? "sr-only md:not-sr-only" : undefined}
-            >{`Saved (${savedSearches.length})`}</span>
+            `Saved (${savedSearches.length})`
           )}
         </Button>
       </DropdownMenuTrigger>

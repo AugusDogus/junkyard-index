@@ -825,12 +825,12 @@ test("a shared distance URL remains selected without opening a dialog", async ()
   try {
     await page.getByRole("button", { name: /^Filters/ }).click();
     await page
-      .getByRole("button", { name: "Distance location", exact: true })
+      .getByRole("button", { name: "Set location", exact: true })
       .waitFor();
     expect(await page.getByRole("dialog").count()).toBe(0);
     expect(new URL(page.url()).searchParams.get("sort")).toBe("distance");
     await page
-      .getByRole("button", { name: "Distance location", exact: true })
+      .getByRole("button", { name: "Set location", exact: true })
       .click();
     await page.getByRole("dialog").waitFor();
     await page.keyboard.press("Escape");

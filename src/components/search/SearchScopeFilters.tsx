@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { ChevronDown, LockKeyhole } from "lucide-react";
+import type { ComponentProps, ReactNode } from "react";
 import type { ArrivalWindow } from "~/lib/arrival-window";
 import { SEARCH_RADIUS_MILES } from "~/lib/search-radius";
 import type { YardType } from "~/lib/yard-service";
@@ -6,7 +7,8 @@ import { Button } from "~/components/ui/button";
 import { ArrivalWindowChips } from "./ArrivalWindowChips";
 import { SearchYardTypeControls } from "./SearchYardTypeControls";
 
-function FilterRow({
+/** One labeled group in the Filters panel and drawer. */
+export function FilterRow({
   label,
   children,
 }: {
@@ -57,21 +59,16 @@ export function SearchScopeFilters({
         />
       </FilterRow>
       <FilterRow label="Distance">
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="min-h-11 sm:min-h-9"
-            onClick={onChooseLocation}
-          >
-            {locationLabel}
-          </Button>
-          <label className="flex items-center gap-2">
-            Within
+        {/* Reads as a sentence: Within [radius] of [location]. Phones stack
+            the two controls full width. */}
+        <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 text-sm sm:flex sm:flex-wrap">
+          <label htmlFor="search-distance-radius">Within</label>
+          <div className="relative sm:w-auto">
             <select
+              id="search-distance-radius"
               aria-label="Distance radius"
-              className="bg-background border-input min-h-11 rounded-md border px-3 text-sm sm:min-h-9"
+              // Native, for the phone picker, styled like the other controls.
+              className="border-ink text-ink bg-background focus-visible:outline-focus h-11 w-full appearance-none rounded-md border-2 pr-9 pl-3 text-sm font-extrabold focus-visible:outline-2 focus-visible:outline-offset-2 sm:h-9 sm:w-auto"
               value={radiusMiles ?? "all"}
               onChange={(event) =>
                 onRadiusChange(
@@ -88,7 +85,21 @@ export function SearchScopeFilters({
                 </option>
               ))}
             </select>
-          </label>
+            <ChevronDown
+              aria-hidden="true"
+              className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2"
+            />
+          </div>
+          <span>of</span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-11 w-full sm:h-9 sm:w-auto"
+            onClick={onChooseLocation}
+          >
+            {locationLabel}
+          </Button>
         </div>
       </FilterRow>
       <FilterRow label="Yard type">
@@ -100,5 +111,48 @@ export function SearchScopeFilters({
         />
       </FilterRow>
     </div>
+  );
+}
+
+/** Opens the advanced search dialog; locked plans see the upgrade there. */
+export function AdvancedSearchButton({
+  locked,
+  ...props
+}: { locked: boolean } & ComponentProps<typeof Button>) {
+  return (
+    <Button
+      type="button"
+      variant="link"
+      size="sm"
+      className="h-auto min-h-11 self-start px-0 sm:min-h-8"
+      aria-label={locked ? "Advanced search, upgrade required" : undefined}
+      {...props}
+    >
+      {locked && <LockKeyhole data-icon="inline-start" aria-hidden="true" />}
+      Advanced search
+    </Button>
+  );
+}
+
+/** The last group of the Filters panel and drawer. */
+export function AdvancedSearchGroup({
+  locked,
+  children,
+}: {
+  locked: boolean;
+  /** The entry button, so the drawer can close before the dialog opens. */
+  children: ReactNode;
+}) {
+  return (
+    <FilterRow label="Advanced">
+      <div className="flex flex-col items-start">
+        {children}
+        <p className="text-muted-foreground text-xs text-pretty">
+          {locked
+            ? "Combine terms with AND and OR. Paid plans."
+            : "Combine terms with AND and OR across every filter."}
+        </p>
+      </div>
+    </FilterRow>
   );
 }

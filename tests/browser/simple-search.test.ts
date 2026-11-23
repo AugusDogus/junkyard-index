@@ -74,6 +74,9 @@ async function settle(page: Page) {
 const urlSearch = (page: Page) => new URL(page.url()).search;
 
 async function openFilters(page: Page) {
+  // The desktop panel stays open until its toggle closes it.
+  if (await page.getByRole("group", { name: "Arrival window" }).isVisible())
+    return;
   await page.getByRole("button", { name: /^Filters/ }).click();
   await page.getByRole("group", { name: "Arrival window" }).waitFor();
 }
@@ -81,7 +84,9 @@ async function openFilters(page: Page) {
 /** Phones edit filters in a drawer; close it to reach the page again. */
 async function closeFilters(page: Page, width: number) {
   if (width < 768) {
-    await page.getByRole("button", { name: "Show results" }).click();
+    await page
+      .getByRole("button", { name: /^Show (results|[\d,]+ vehicles?)$/ })
+      .click();
     await page
       .getByRole("dialog", { name: "Filters" })
       .waitFor({ state: "detached" });
@@ -133,11 +138,41 @@ for (const viewport of VIEWPORTS) {
       expect(
         await page.getByRole("button", { name: /^Advanced search/ }).count(),
       ).toBe(1);
+      // Arrival and yard type share one toggle style, sized alike, and no
+      // toggle clips its label.
+      const toggles = await page
+        .getByRole("group", { name: /^(Arrival window|Yard type)$/ })
+        .getByRole("button")
+        .evaluateAll((buttons) =>
+          buttons.map((button) => ({
+            name: button.textContent,
+            pressed: button.getAttribute("aria-pressed"),
+            fontSize: getComputedStyle(button).fontSize,
+            height: button.getBoundingClientRect().height,
+            fits: button.scrollWidth <= button.clientWidth,
+          })),
+        );
+      expect(toggles.map((toggle) => toggle.name)).toEqual([
+        "Any arrival date",
+        "Last 24 hours",
+        "Last 48 hours",
+        "Last 7 days",
+        "All yards",
+        "Self-service",
+        "Full-service",
+      ]);
+      expect(toggles.every((toggle) => toggle.fits)).toBe(true);
+      expect(new Set(toggles.map((toggle) => toggle.fontSize)).size).toBe(1);
+      expect(new Set(toggles.map((toggle) => toggle.height)).size).toBe(1);
+      expect(toggles.filter((toggle) => toggle.pressed === "true")).toEqual([
+        expect.objectContaining({ name: "Any arrival date" }),
+        expect.objectContaining({ name: "Self-service" }),
+      ]);
       await page
         .getByRole("button", { name: "Last 7 days", exact: true })
         .click();
       await page
-        .getByRole("checkbox", { name: "Full-service", exact: true })
+        .getByRole("button", { name: "Full-service", exact: true })
         .click();
       await page.waitForFunction(() => {
         const params = new URL(location.href).searchParams;
@@ -165,6 +200,13 @@ for (const viewport of VIEWPORTS) {
           .first()
           .textContent(),
       ).toBe("Filters(2)");
+      // The chips stay on one line above the results.
+      const chipTops = await chips
+        .getByRole("button")
+        .evaluateAll((buttons) =>
+          buttons.map((button) => button.getBoundingClientRect().top),
+        );
+      expect(new Set(chipTops).size).toBe(1);
       await chips
         .getByRole("button", { name: "Remove Last 7 days", exact: true })
         .click();
@@ -175,9 +217,31 @@ for (const viewport of VIEWPORTS) {
       expect(
         await chips.getByRole("button", { name: /^Remove / }).count(),
       ).toBe(1);
-      await chips
-        .getByRole("button", { name: "Clear all", exact: true })
+      // One chip clears with its own x.
+      expect(
+        await chips.getByRole("button", { name: "Clear all" }).count(),
+      ).toBe(0);
+      await openFilters(page);
+      await page
+        .getByRole("button", { name: "Last 7 days", exact: true })
         .click();
+      await page.waitForFunction(
+        () =>
+          new URL(location.href).searchParams.get("arrivalWindow[]") === "7d",
+      );
+      if (viewport.width < 768) {
+        // Phones clear everything from the drawer.
+        await page
+          .getByRole("dialog", { name: "Filters" })
+          .getByRole("button", { name: "Clear all", exact: true })
+          .click();
+        await page.waitForFunction(() => location.search === "");
+        await closeFilters(page, viewport.width);
+      } else {
+        await chips
+          .getByRole("button", { name: "Clear all", exact: true })
+          .click();
+      }
       await page.waitForFunction(() => location.search === "");
       await settle(page);
       expect(urlSearch(page)).toBe("");
@@ -208,8 +272,8 @@ test("legacy self-service links keep the default scope without a chip", async ()
     await openFilters(page);
     expect(
       await page
-        .getByRole("checkbox", { name: "Self-service", exact: true })
-        .getAttribute("aria-checked"),
+        .getByRole("button", { name: "Self-service", exact: true })
+        .getAttribute("aria-pressed"),
     ).toBe("true");
   } finally {
     await closePage(page);
@@ -242,6 +306,190 @@ test("the free New near me link lands on an arrival-filtered search", async () =
         .getByRole("button", { name: "Last 7 days", exact: true })
         .getAttribute("aria-pressed"),
     ).toBe("true");
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
+
+test("All yards shows every yard's results beside its chip", async () => {
+  const page = await createPage(browser, {
+    viewport: { width: 1440, height: 900 },
+  });
+  try {
+    await open(page, "");
+    await openFilters(page);
+    await page
+      .getByRole("button", {
+        name: "All yards, including unclassified",
+        exact: true,
+      })
+      .click();
+    await page.waitForFunction(() => {
+      const params = new URL(location.href).searchParams;
+      return (
+        [
+          ...params.getAll("yardTypes"),
+          ...params.getAll("yardTypes[]"),
+        ].join() === "all"
+      );
+    });
+    const chips = page.getByRole("group", { name: "Active filters" });
+    await chips
+      .getByRole("button", { name: "Remove All yards", exact: true })
+      .waitFor();
+    // Every fixture vehicle, unclassified yards included.
+    await page
+      .getByRole("heading", { name: "10 vehicles", exact: true })
+      .waitFor();
+    expect(
+      await page.getByRole("heading", { name: "Try a search" }).count(),
+    ).toBe(0);
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
+
+test("the Filters panel groups Advanced search last with one quiet upsell line", async () => {
+  const page = await createPage(browser, {
+    viewport: { width: 1440, height: 900 },
+  });
+  try {
+    await open(page, "?fixturePlan=free");
+    await openFilters(page);
+    const panel = page.getByRole("region", { name: "Filters" });
+    const tops = await Promise.all(
+      ["Arrived", "Distance", "Yard type", "More filters", "Advanced"].map(
+        async (label) =>
+          (await panel.getByText(label, { exact: true }).boundingBox())?.y ??
+          Number.NaN,
+      ),
+    );
+    expect(tops).toEqual([...tops].sort((left, right) => left - right));
+    expect(
+      await panel
+        .getByRole("button", { name: "Advanced search, upgrade required" })
+        .count(),
+    ).toBe(1);
+    expect(await panel.getByRole("button", { name: "Clear" }).count()).toBe(0);
+    expect(await panel.getByText("Filter the full inventory").count()).toBe(0);
+    expect(
+      await panel.getByRole("link", { name: "Compare plans" }).count(),
+    ).toBe(1);
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
+
+test("paid Year sits in one row with the other filters", async () => {
+  const page = await createPage(browser, {
+    viewport: { width: 1440, height: 900 },
+  });
+  try {
+    await open(page, "");
+    await openFilters(page);
+    const panel = page.getByRole("region", { name: "Filters" });
+    const tops = await Promise.all(
+      ["Year", "Make", "Inventory sources"].map(async (name) => {
+        const box = await panel
+          .getByRole("button", { name, exact: true })
+          .boundingBox();
+        return box?.y;
+      }),
+    );
+    expect(new Set(tops).size).toBe(1);
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
+
+for (const width of [320, 360, 390])
+  for (const filters of ["none", "two"] as const)
+    test(`a signed-in toolbar keeps four distinct, legible controls on one row: ${width}px, ${filters} filters`, async () => {
+      const page = await createPage(browser, {
+        viewport: { width, height: 844 },
+      });
+      try {
+        await open(
+          page,
+          filters === "none"
+            ? "?fixtureSaved=1"
+            : "?fixtureSaved=1&yardTypes=all&minYear=2010",
+        );
+        const save = page.getByRole("button", { name: "Save search" });
+        const saved = page.getByRole("button", {
+          name: "Open 1 saved searches",
+        });
+        await saved.waitFor();
+        // Different glyphs, and the saved count stays visible.
+        expect(await save.locator("svg").getAttribute("class")).toContain(
+          "lucide-bookmark-plus",
+        );
+        expect(await saved.locator("svg").getAttribute("class")).toContain(
+          "lucide-list",
+        );
+        expect((await saved.innerText()).trim()).toBe("1");
+        const controls = [
+          page.getByRole("button", { name: /^Filters/ }),
+          page.getByRole("combobox", { name: /^Sort vehicles/ }),
+          save,
+          saved,
+        ];
+        const boxes = await Promise.all(
+          controls.map((control) => control.boundingBox()),
+        );
+        expect(new Set(boxes.map((box) => box?.y)).size).toBe(1);
+        // No control clips its own label.
+        for (const control of controls)
+          expect(
+            await control.evaluate(
+              (element) => element.scrollWidth <= element.clientWidth,
+            ),
+          ).toBe(true);
+        expect(
+          await page.evaluate(
+            () => document.documentElement.scrollWidth <= innerWidth,
+          ),
+        ).toBe(true);
+      } finally {
+        await closePage(page);
+      }
+    }, 30_000);
+
+test("the homepage New near me link names the visitor's ZIP, not a saved search", async () => {
+  const page = await createPage(browser, {
+    viewport: { width: 1440, height: 900 },
+  });
+  try {
+    await page.addInitScript(() =>
+      localStorage.setItem(
+        "junkyard-index:location-preference",
+        JSON.stringify({
+          mode: "zip",
+          zipCode: "32571",
+          lat: 30.4,
+          lng: -87.2,
+        }),
+      ),
+    );
+    // The link HomeSearchHero builds from that preference.
+    await open(
+      page,
+      "?arrivalWindow%5B%5D=7d&lat=30.4&lng=-87.2&radius=50",
+      "chips",
+    );
+    await page
+      .getByRole("group", { name: "Active filters" })
+      .getByRole("button", {
+        name: "Remove Within 50 mi of 32571",
+        exact: true,
+      })
+      .waitFor();
+    await openFilters(page);
+    expect(
+      await page
+        .getByRole("button", { name: "ZIP 32571", exact: true })
+        .count(),
+    ).toBe(1);
   } finally {
     await closePage(page);
   }
