@@ -22,6 +22,7 @@ function dependencies(
     }),
     logRun: async () => undefined,
     expireHiddenSources: () => undefined,
+    prewarmHiddenSources: async () => undefined,
     ...overrides,
   };
 }
@@ -175,6 +176,51 @@ describe("SourceControlAction.perform", () => {
     expect(result.message).toContain("is hidden; that is saved");
     expect(result.message).toContain("up to a day");
     expect(result.message).not.toContain("Nothing was changed");
+  });
+
+  test("a hide or show reloads the expired list, so the next page request does not read the database", async () => {
+    const calls: string[] = [];
+    const result = await SourceControlAction.perform(
+      dependencies({
+        expireHiddenSources: () => {
+          calls.push("expire");
+        },
+        prewarmHiddenSources: async () => {
+          calls.push("prewarm");
+        },
+      }),
+      "owner",
+      { kind: "show", source: "pyp" },
+      now,
+    );
+    expect(result.status).toBe("unchanged");
+    expect(calls).toEqual(["expire", "prewarm"]);
+  });
+
+  test("a saved hide whose reload failed still reports the hide", async () => {
+    const result = await SourceControlAction.perform(
+      dependencies({
+        prewarmHiddenSources: async () => {
+          throw new Error("SQLITE_BUSY: database is locked");
+        },
+      }),
+      "owner",
+      { kind: "hide", source: "pratt", reason: "Hacked" },
+      now,
+    );
+    expect(result.status).toBe("done");
+    expect(result.message).toStartWith("Hidden.");
+  });
+
+  test("a pause does not reload the hidden list", async () => {
+    const prewarmHiddenSources = mock(async () => undefined);
+    await SourceControlAction.perform(
+      dependencies({ prewarmHiddenSources }),
+      "owner",
+      { kind: "pause", source: "pyp" },
+      now,
+    );
+    expect(prewarmHiddenSources).not.toHaveBeenCalled();
   });
 
   test("repeating a hide or show expires the cached list again", async () => {

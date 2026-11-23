@@ -52,6 +52,10 @@ The search filter options are cached by hidden list. The first request after
 a toggle to a list not seen that day reads the states and colors of every
 live vehicle once, as the daily refresh does.
 
+After expiring the cached list, the toggle reads it once, so the first public
+request finds the new list cached instead of reading the database. If that
+read fails, the change is still saved and the next request reads the list.
+
 If the cached list's expiry were ever lost, the cache falls back to a daily
 lifetime, the same as the pages that read it.
 
