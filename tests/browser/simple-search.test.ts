@@ -258,6 +258,93 @@ for (const viewport of VIEWPORTS) {
       await closePage(page);
     }
   }, 30_000);
+
+  // Safari throws once a page writes history 100 times in 10 seconds, and a
+  // drag across the Year slider passes through over 100 years.
+  test(`dragging the Year slider writes one history entry: ${viewport.width}px`, async () => {
+    const page = await createPage(browser, { viewport });
+    try {
+      await page.addInitScript(() => {
+        const writes: string[] = [];
+        Reflect.set(window, "historyWrites", writes);
+        for (const method of ["pushState", "replaceState"] as const) {
+          const write = History.prototype[method];
+          History.prototype[method] = function (
+            this: History,
+            ...args: Parameters<History["pushState"]>
+          ) {
+            writes.push(`${method} ${String(args[2])}`);
+            write.apply(this, args);
+          };
+        }
+      });
+      const historyWrites = () =>
+        page.evaluate(() => {
+          const writes: unknown = Reflect.get(window, "historyWrites");
+          return Array.isArray(writes) ? writes.map(String) : [];
+        });
+      await open(page, "?q=volvo&yardTypes=all");
+      await openFilters(page);
+      if (viewport.width >= 768)
+        await page.getByRole("button", { name: "Year", exact: true }).click();
+      const latest = page.getByRole("slider").nth(1);
+      await latest.scrollIntoViewIfNeeded();
+      await settle(page);
+      const start = new URL(page.url());
+      const before = await page.evaluate(() => window.history.length);
+      const written = (await historyWrites()).length;
+      const thumb = await latest.boundingBox();
+      const track = await page.locator("[data-slot=slider]").boundingBox();
+      if (!thumb || !track) throw new Error("The Year slider is not visible.");
+      const y = thumb.y + thumb.height / 2;
+      await page.mouse.move(thumb.x + thumb.width / 2, y);
+      await page.mouse.down();
+      const shown = new Set<string | null>();
+      for (let step = 1; step <= 40; step++) {
+        await page.mouse.move(
+          thumb.x + thumb.width / 2 - (step * track.width) / 80,
+          y,
+        );
+        shown.add(await page.locator("output").nth(1).textContent());
+      }
+      // Record every year shown after release, to catch a snap back.
+      await page
+        .locator("output")
+        .nth(1)
+        .evaluate((output) => {
+          const seen: string[] = [];
+          Reflect.set(window, "releasedYears", seen);
+          new MutationObserver(() => seen.push(output.textContent)).observe(
+            output,
+            { characterData: true, childList: true, subtree: true },
+          );
+        });
+      await page.mouse.up();
+      await settle(page);
+      const releasedYears = await page.evaluate(() => {
+        const seen: unknown = Reflect.get(window, "releasedYears");
+        return Array.isArray(seen) ? seen.map(String) : [];
+      });
+      // The slider still follows the drag year by year.
+      expect(shown.size).toBeGreaterThan(20);
+      const maxYear = Number(new URL(page.url()).searchParams.get("maxYear"));
+      expect(maxYear).toBeLessThan(2000);
+      expect(await page.locator("output").nth(1).textContent()).toBe(
+        String(maxYear),
+      );
+      expect(releasedYears.every((year) => year === String(maxYear))).toBe(
+        true,
+      );
+      expect((await historyWrites()).slice(written)).toEqual([
+        `pushState ${page.url()}`,
+      ]);
+      expect(await page.evaluate(() => window.history.length)).toBe(before + 1);
+      await page.goBack();
+      await page.waitForFunction((href) => location.href === href, start.href);
+    } finally {
+      await closePage(page);
+    }
+  }, 30_000);
 }
 
 test("legacy self-service links keep the default scope without a chip", async () => {
