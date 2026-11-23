@@ -1,0 +1,5 @@
+DROP INDEX `ingestion_source_run_started_at_idx`;--> statement-breakpoint
+CREATE INDEX `ingestion_source_run_source_started_at_idx` ON `ingestion_source_run` (`source`,`started_at`,`acceptance_status`,`run_id`,`id`,`status`,`completed_at`,`pages_processed`,`vehicles_processed`,`unique_vehicles`,`duplicate_vehicles`,`rejected_vehicles`,`errors`,`validation_errors`);--> statement-breakpoint
+CREATE INDEX `ingestion_source_run_started_at_idx` ON `ingestion_source_run` (`started_at`,`source`,`acceptance_status`,`run_id`,`id`,`status`,`completed_at`,`pages_processed`,`vehicles_processed`,`unique_vehicles`,`duplicate_vehicles`,`rejected_vehicles`);--> statement-breakpoint
+CREATE INDEX `ingestion_run_admin_idx` ON `ingestion_run` (`id`,`status`,`stage`,`inventory_published_at`);--> statement-breakpoint
+CREATE INDEX `ingestion_run_full_reindex_required_idx` ON `ingestion_run` (`full_reindex_required`);

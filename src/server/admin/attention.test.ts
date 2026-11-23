@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { Attention } from "./attention";
 import type { SourceSummary } from "./source-overview";
-import type { SourceRun } from "./source-run";
+import type { RunOutcome, SourceRun } from "./source-run";
 
 const HOUR = 60 * 60 * 1000;
 const now = new Date("2026-11-22T15:00:00Z");
@@ -194,5 +194,47 @@ describe("Attention.collect", () => {
         href: "/admin/search",
       },
     ]);
+  });
+});
+
+describe("Attention.runsShowingErrors", () => {
+  const latest = (
+    id: string,
+    outcome: RunOutcome,
+  ): SourceSummary["latestRun"] => ({
+    run: { ...failedRun, id },
+    outcome,
+  });
+  const accepted: RunOutcome = { kind: "accepted", publishedAt: now };
+
+  test("reads errors only for rejected latest runs and listed sources", () => {
+    expect(
+      Attention.runsShowingErrors([
+        // Rejected once: the sources table shows why.
+        summary({
+          latestRun: latest("rejected", { kind: "rejected", reason: "error" }),
+          consecutiveFailures: 1,
+        }),
+        // Out of date with an accepted latest run: the overview lists it.
+        summary({
+          source: "row52",
+          latestRun: latest("stale", accepted),
+          consecutiveFailures: 0,
+          stale: true,
+        }),
+        // Fresh and accepted: no page shows its errors.
+        summary({
+          source: "pullapart",
+          latestRun: latest("fresh", accepted),
+          consecutiveFailures: 0,
+        }),
+        summary({
+          source: "tearapart",
+          latestRun: latest("running", { kind: "running" }),
+          consecutiveFailures: 0,
+        }),
+        summary({ source: "upullitne", latestRun: null }),
+      ]).map((run) => run.id),
+    ).toEqual(["rejected", "stale"]);
   });
 });

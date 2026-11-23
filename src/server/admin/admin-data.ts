@@ -17,6 +17,7 @@ import {
   AlertCheckOverview,
   type AlertCheckSummary,
 } from "./alert-check-overview";
+import { Attention } from "./attention";
 import { SearchOverview } from "./search-overview";
 import { SearchRepository, type SearchPublication } from "./search-repository";
 import {
@@ -80,7 +81,10 @@ async function readSourceFlags(): Promise<SourceFlagsReading> {
 
 export type SourcesData = {
   summaries: SourceSummary[];
-  /** Error excerpts of each source's latest run, by source run id. */
+  /**
+   * Error excerpts of each source's latest run, by source run id: only runs
+   * that were rejected or whose source the overview lists as failing.
+   */
   latestErrors: Map<string, SourceRunErrors>;
   lastRunStartedAt: Date | null;
   flags: SourceFlagsReading;
@@ -118,9 +122,7 @@ async function loadSources(now: Date): Promise<SourcesData> {
   });
   const latestErrors = await SourceRunRepository.errorExcerpts(
     db,
-    summaries.flatMap((summary) =>
-      summary.latestRun === null ? [] : [summary.latestRun.run.id],
-    ),
+    Attention.runsShowingErrors(summaries),
   );
   return {
     summaries,

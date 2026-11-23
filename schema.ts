@@ -487,6 +487,19 @@ export const ingestionRun = sqliteTable(
     index("ingestion_run_schedule_key_idx").on(table.scheduleKey),
     index("ingestion_run_search_published_at_idx").on(table.searchPublishedAt),
     index("ingestion_run_stage_idx").on(table.stage),
+    // The admin run lists join each source run to these. They are stored
+    // after errors, so the table read walked each run's error text.
+    index("ingestion_run_admin_idx").on(
+      table.id,
+      table.status,
+      table.stage,
+      table.inventoryPublishedAt,
+    ),
+    // The admin search page asks whether any run owes a full rebuild; a
+    // table scan walked every run's error text to reach the flag.
+    index("ingestion_run_full_reindex_required_idx").on(
+      table.fullReindexRequired,
+    ),
   ],
 );
 
@@ -518,14 +531,42 @@ export const ingestionSourceRun = sqliteTable(
     index("ingestion_source_run_run_id_idx").on(table.runId),
     index("ingestion_source_run_source_idx").on(table.source),
     index("ingestion_source_run_status_idx").on(table.status),
-    // Status and page freshness read each source's recent runs. The index
-    // covers that read: acceptance_status is stored after the cursors, which
-    // reach megabytes, so reading it from the table pulled ~130 MB per query.
+    // Every column after the cursors, which reach megabytes, costs a walk
+    // through them: reading acceptance_status from the table pulled ~130 MB
+    // per query. These two indexes cover the recent-run reads instead.
+    // Status, page freshness and the admin sources list read every source's
+    // recent runs through this one.
     index("ingestion_source_run_started_at_idx").on(
       table.startedAt,
       table.source,
       table.acceptanceStatus,
       table.runId,
+      table.id,
+      table.status,
+      table.completedAt,
+      table.pagesProcessed,
+      table.vehiclesProcessed,
+      table.uniqueVehicles,
+      table.duplicateVehicles,
+      table.rejectedVehicles,
+    ),
+    // One source's runs, newest first, with their error text (about 2.6 MB
+    // across every row), for its admin page and the latest runs' errors.
+    index("ingestion_source_run_source_started_at_idx").on(
+      table.source,
+      table.startedAt,
+      table.acceptanceStatus,
+      table.runId,
+      table.id,
+      table.status,
+      table.completedAt,
+      table.pagesProcessed,
+      table.vehiclesProcessed,
+      table.uniqueVehicles,
+      table.duplicateVehicles,
+      table.rejectedVehicles,
+      table.errors,
+      table.validationErrors,
     ),
   ],
 );

@@ -89,9 +89,9 @@ export const SearchRepository = {
   },
 
   /**
-   * Whether a run is marked as owing a full search rebuild. ingestion_run
-   * keeps 90 days of runs (about 1,500 rows), so this unindexed check is
-   * bounded by retention.
+   * Whether a run is marked as owing a full search rebuild, through the
+   * full_reindex_required index: the table stores the flag after each run's
+   * error text.
    */
   async fullReindexRequired(database: LibSQLDatabase): Promise<boolean> {
     const [row] = await database

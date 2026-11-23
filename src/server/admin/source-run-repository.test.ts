@@ -89,9 +89,10 @@ describe("SourceRunRepository", () => {
     const long = JSON.stringify(["x".repeat(ERROR_EXCERPT_CHARS * 2)]);
     await addRun({ id: "a", source: "pyp", startedAt: now, errors: long });
     await addRun({ id: "b", source: "row52", startedAt: now });
+    await addRun({ id: "c", source: "pyp", startedAt: now, errors: long });
     const excerpts = await SourceRunRepository.errorExcerpts(db, [
-      "a-source",
-      "b-source",
+      { id: "a-source", source: "pyp", startedAt: new Date(now) },
+      { id: "b-source", source: "row52", startedAt: new Date(now) },
     ]);
     expect(excerpts.get("a-source")?.errors).toBe(
       long.slice(0, ERROR_EXCERPT_CHARS),
@@ -101,6 +102,7 @@ describe("SourceRunRepository", () => {
       validationErrors: null,
       runErrors: null,
     });
+    expect(excerpts.has("c-source")).toBe(false);
     expect(await SourceRunRepository.errorExcerpts(db, [])).toEqual(new Map());
   });
 
@@ -118,9 +120,11 @@ describe("SourceRunRepository", () => {
       runErrors: expired,
     });
     expect(
-      (await SourceRunRepository.errorExcerpts(db, ["expired-source"])).get(
-        "expired-source",
-      ),
+      (
+        await SourceRunRepository.errorExcerpts(db, [
+          { id: "expired-source", source: "pyp", startedAt: new Date(now) },
+        ])
+      ).get("expired-source"),
     ).toEqual({ errors: null, validationErrors: null, runErrors: expired });
     const [run] = await SourceRunRepository.forSource(db, "pyp", 1);
     expect(run).toMatchObject({

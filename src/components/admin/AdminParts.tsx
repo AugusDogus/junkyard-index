@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
 import { Badge } from "~/components/ui/badge";
+import { AdminLinkPending } from "./AdminLinkPending";
 import type { Loaded } from "~/server/admin/admin-data";
 import type {
   IngestionFlag,
@@ -169,9 +170,10 @@ export function SourceLink({
   return (
     <Link
       href={`/admin/sources/${source}`}
-      className="font-medium underline-offset-4 hover:underline"
+      className="inline-flex items-center gap-1.5 font-medium underline-offset-4 hover:underline"
     >
       {children}
+      <AdminLinkPending />
     </Link>
   );
 }
