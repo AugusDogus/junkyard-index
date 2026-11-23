@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import type { ReactNode } from "react";
+import { useHiddenSources } from "~/components/HiddenSourcesContext";
 import { Button } from "~/components/ui/button";
 import { ActiveSearchFilter } from "./active-search-filters";
 
@@ -16,6 +17,7 @@ export function ActiveFilterChips({
   /** A note about the filters, such as a radius still waiting for a location. */
   notice?: ReactNode;
 }) {
+  const hiddenSources = useHiddenSources();
   if (filters.length === 0 && !notice) return null;
   return (
     <div className="flex flex-col gap-2 pb-1">
@@ -26,7 +28,7 @@ export function ActiveFilterChips({
           className="flex flex-wrap items-center gap-x-2 gap-y-2.5"
         >
           {filters.map((filter) => {
-            const label = ActiveSearchFilter.label(filter);
+            const label = ActiveSearchFilter.label(filter, hiddenSources);
             return (
               <button
                 key={filter.kind}

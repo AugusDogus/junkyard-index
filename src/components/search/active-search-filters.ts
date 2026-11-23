@@ -83,7 +83,7 @@ function yardTypesLabel(types: readonly YardType[]): string {
     : "Self-service only";
 }
 
-function label(filter: ActiveSearchFilter): string {
+function label(filter: ActiveSearchFilter, hidden: HiddenSources): string {
   switch (filter.kind) {
     case "arrival":
       return (
@@ -106,7 +106,7 @@ function label(filter: ActiveSearchFilter): string {
         : `${filter.range[0]} to ${filter.range[1]}`;
     case "sources": {
       // Hidden sources still filter, so count them when nothing else shows.
-      const shown = HiddenSources.shown(filter.sources);
+      const shown = HiddenSources.shown(hidden, filter.sources);
       const named = shown.length > 0 ? shown : filter.sources;
       const only = named.length === 1 ? named[0] : undefined;
       return only === undefined
