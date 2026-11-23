@@ -55,13 +55,14 @@ a combined 20-second request/body deadline, complete owned HTTP 200 HTML, a
 intermittently answers HTTP 5xx, drops connections (including mid-body) or
 stalls, so a page that fails that way gets two more attempts, 5 then 10 seconds
 apart. Redirects, 4xx, partial content, wrong MIME and other body or parse
-failures are never retried, and a page that fails all three attempts still
-fails the run. An attempt that could not end, after its backoff, within the
+failures are never retried, and a page that fails every attempt it gets still
+fails the run. Because a chunk can defer mid-retry, one page can get two
+attempts in one chunk and three more in the next. An attempt that could not end, after its backoff, within the
 chunk's remaining work allowance is not sent and its backoff is skipped: a
 chunk that already advanced returns its last validated checkpoint and the next
 chunk retries the page. A shared serial gate preserves a 1.6-second completion gap
 across chunks and attempts. Whole runs permit at most
-1,024 requests and 128 MiB, reserving one maximum-sized document before each
+1,024 accepted pages (retried attempts are not counted) and 128 MiB, reserving one maximum-sized document before each
 request. Validated serialized cursors are capped at 8 MiB and bind the exact
 qualification contract, native control prefix and retained evidence.
 

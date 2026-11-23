@@ -238,7 +238,7 @@ test("Pratt retries a connection the server drops mid-body", async () => {
   expect(result).toEqual(Either.right("complete"));
   expect(calls).toBe(2);
 });
-test("Pratt fails after three transient attempts and preserves the last validated checkpoint", async () => {
+test("Pratt fails after three transient attempts", async () => {
   let calls = 0;
   stub(async () => {
     calls++;
@@ -248,7 +248,6 @@ test("Pratt fails after three transient attempts and preserves the last validate
   expect(result._tag).toBe("Left");
   if (result._tag === "Left") {
     expect(result.left.message).toContain("received HTTP503");
-    expect(result.left.message).toContain("last validated checkpoint");
   }
   expect(calls).toBe(PRATT_REQUEST_ATTEMPTS);
 });

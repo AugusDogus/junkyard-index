@@ -22,10 +22,12 @@ export const PRATT_MAX_BODY_BYTES = 2 * 1024 * 1024;
  * one page takes at most about 80 seconds, inside the 110-second URG turn. */
 export const PRATT_REQUEST_ATTEMPTS = 3;
 /** Chunk work one attempt may take: its deadline, the 1.6-second client gap,
- * the 3.5-second URG gap its turn holds after the page and checkpoint
- * validation. A failed attempt that leaves no room for the next one's backoff
- * and work defers at once, so the turn holds that gap only once. */
-const PRATT_ATTEMPT_WORK_MS = PRATT_REQUEST_TIMEOUT_MS + 10_000;
+ * the 3.5-second URG gap its turn holds after the page, up to 5 seconds for
+ * the turn's lease release and a margin for checkpoint validation. A failed
+ * attempt that leaves no room for the next one's backoff and work defers at
+ * once, so the turn holds that gap only once. */
+const PRATT_ATTEMPT_WORK_MS =
+  PRATT_REQUEST_TIMEOUT_MS + 1_600 + 3_500 + 5_000 + 5_000;
 const serial = Effect.runSync(Effect.makeSemaphore(1));
 /** Hold the permit through body completion and padding, including failures.
  * Module scope preserves the gap across consecutive connector chunks. */
