@@ -219,14 +219,8 @@ const nvpapEmptyModelRecord: NvpapRecord = {
   stock: "H065832",
   images: [],
 };
-// Same-length substitution keeps the native length prefix valid.
-function emptyModelResponse(cell: string, record = nvpapEmptyModelRecord) {
-  const from = ">" + record.make + " " + record.model + "</div>";
-  if (cell.length > from.length - 7) throw new Error("Cell would move JSON");
-  return nvpapTestResponse([record], "1075").replace(
-    from,
-    ">" + cell.padEnd(from.length - 7) + "</div>",
-  );
+function emptyModelResponse(modelCell: string, record = nvpapEmptyModelRecord) {
+  return nvpapTestResponse([{ ...record, modelCell }], "1075");
 }
 test("Nevada parses an empty source model whose cell is only the make, then withholds it as incomplete", () => {
   const parsed = parseNvpapPage(emptyModelResponse("Ford"), "1075", 2016);
@@ -241,6 +235,7 @@ test.each([
   { cell: "Dodge", record: nvpapEmptyModelRecord },
   { cell: "F150", record: nvpapEmptyModelRecord },
   { cell: "Ford", record: { ...nvpapEmptyModelRecord, model: "F150" } },
+  { cell: "", record: { ...nvpapEmptyModelRecord, make: "" } },
 ])(
   "Nevada still rejects a model cell of $cell for JSON model '$record.model'",
   ({ cell, record }) => {

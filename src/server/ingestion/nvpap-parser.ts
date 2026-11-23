@@ -169,7 +169,10 @@ export function parseNvpapPage(
           // withholds that donor as incomplete rather than inventing a model.
           () =>
             cell("model").toLowerCase() ===
-            (model === "" ? make : make + " " + model).toLowerCase(),
+            (model === "" && make !== ""
+              ? make
+              : make + " " + model
+            ).toLowerCase(),
         ],
         ["store cell", () => cell("store") === expectedStore],
         ["stock format", () => /^[LH]\d{6}$/.test(stock)],

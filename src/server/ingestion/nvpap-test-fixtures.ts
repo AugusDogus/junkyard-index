@@ -44,8 +44,9 @@ export const nvpapTestContext =
   }) +
   "</script></html>";
 
+// `modelCell` overrides the rendered model cell to simulate source mismatches.
 export function nvpapTestResponse(
-  records: NvpapRecord[],
+  records: readonly (NvpapRecord & { modelCell?: string })[],
   code: NvpapYardCode,
   omittedFields: readonly ("color" | "row" | "date")[] = [],
 ) {
@@ -63,7 +64,10 @@ export function nvpapTestResponse(
               r.images.map((src) => '<img src="' + src + '">').join("") +
               Object.entries({
                 year: String(r.year),
-                model: r.make + " " + r.model,
+                // The source renders an empty model as the make alone.
+                model:
+                  r.modelCell ??
+                  (r.model === "" ? r.make : r.make + " " + r.model),
                 row: r.row,
                 store: code === "1074" ? "Las Vegas" : "Henderson",
                 color: r.color,
