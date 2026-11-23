@@ -237,4 +237,25 @@ describe("Attention.runsShowingErrors", () => {
       ]).map((run) => run.id),
     ).toEqual(["rejected", "stale"]);
   });
+
+  test("skips the errors of out-of-date sources the overview leaves out", () => {
+    expect(
+      Attention.runsShowingErrors([
+        summary({
+          source: "row52",
+          flag: "off",
+          latestRun: latest("off", accepted),
+          consecutiveFailures: 0,
+          stale: true,
+        }),
+        summary({
+          source: "pullapart",
+          retired: true,
+          latestRun: latest("retired", accepted),
+          consecutiveFailures: 5,
+          stale: true,
+        }),
+      ]),
+    ).toEqual([]);
+  });
 });

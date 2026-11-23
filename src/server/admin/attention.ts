@@ -33,9 +33,14 @@ export type AttentionInput = {
   alertProblems: readonly string[];
 };
 
+/** Whether the overview leaves the source out entirely. */
+function isQuiet(summary: SourceSummary): boolean {
+  return summary.retired || summary.flag === "off";
+}
+
 /** Whether the overview lists the source as failing or out of date. */
 function listsFailure(summary: SourceSummary): boolean {
-  if (summary.retired || summary.flag === "off") return false;
+  if (isQuiet(summary)) return false;
   return summary.stale || summary.consecutiveFailures >= ATTENTION_FAILURES;
 }
 
@@ -43,7 +48,7 @@ function sourceItems(
   summary: SourceSummary,
   input: AttentionInput,
 ): AttentionItem[] {
-  if (summary.retired || summary.flag === "off") return [];
+  if (isQuiet(summary)) return [];
   const href = `/admin/sources/${summary.source}`;
   const items: AttentionItem[] = [];
   if (summary.stuck !== null) {

@@ -6,6 +6,7 @@ import {
   Stat,
   WhenLoaded,
 } from "~/components/admin/AdminParts";
+import { AdminLinkPending } from "~/components/admin/AdminLinkPending";
 import { AdminTime } from "~/components/admin/AdminTime";
 import {
   alertCheckStatusText,
@@ -60,9 +61,10 @@ export default async function AdminOverviewPage() {
               <li key={`${item.href}:${item.title}`} className="p-4 text-sm">
                 <Link
                   href={item.href}
-                  className="font-medium underline-offset-4 hover:underline"
+                  className="inline-flex items-center gap-1.5 font-medium underline-offset-4 hover:underline"
                 >
                   {item.title}
+                  <AdminLinkPending />
                 </Link>
                 <div className="text-muted-foreground mt-1">
                   <RawText summary={item.detail} raw={item.raw} />
@@ -105,9 +107,10 @@ export default async function AdminOverviewPage() {
                     `${counts.byState.waiting} more have not updated yet today. `}
                   <Link
                     href="/admin/sources"
-                    className="underline underline-offset-4"
+                    className="inline-flex items-center gap-1.5 underline underline-offset-4"
                   >
                     See every source
+                    <AdminLinkPending />
                   </Link>
                 </p>
                 {data.flags.status === "unavailable" && (
