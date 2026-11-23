@@ -13,7 +13,11 @@ export type SearchPublication = {
   inventoryPublishedAt: Date | null;
   /** Vehicles in Turso when the run committed. */
   publishedVehicleCount: number | null;
-  /** published, or published_degraded when some sources were left out. */
+  /**
+   * published, or published_degraded when a source run in it was rejected:
+   * for a single-source run, that source kept its previous inventory; for an
+   * older run of every source ("all"), some sources were left out.
+   */
   inventoryOutcome: string | null;
 };
 

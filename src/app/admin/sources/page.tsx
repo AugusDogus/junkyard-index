@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import {
   AdminPageHeader,
   formatChange,
@@ -12,13 +11,17 @@ import {
 import { AdminTime } from "~/components/admin/AdminTime";
 import { Badge } from "~/components/ui/badge";
 import { ADMIN_WINDOW_DAYS, AdminData } from "~/server/admin/admin-data";
-import { requireAdmin } from "~/server/admin/require-admin";
+import { adminMetadata, requireAdmin } from "~/server/admin/require-admin";
 import type { SourceSummary } from "~/server/admin/source-overview";
-import { SourceRun, type SourceRunErrors } from "~/server/admin/source-run";
+import {
+  NO_SOURCE_RUN_ERRORS,
+  SourceRun,
+  type SourceRunErrors,
+} from "~/server/admin/source-run";
 
-export const metadata: Metadata = { title: "Sources" };
-
-const NO_ERRORS: SourceRunErrors = { errors: null, validationErrors: null };
+export function generateMetadata() {
+  return adminMetadata({ title: "Sources" });
+}
 
 function LatestOutcome({
   summary,
@@ -143,9 +146,9 @@ export default async function AdminSourcesPage() {
                         summary={summary}
                         errors={
                           summary.latestRun === null
-                            ? NO_ERRORS
+                            ? NO_SOURCE_RUN_ERRORS
                             : (latestErrors.get(summary.latestRun.run.id) ??
-                              NO_ERRORS)
+                              NO_SOURCE_RUN_ERRORS)
                         }
                       />
                     </td>

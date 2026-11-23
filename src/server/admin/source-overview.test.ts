@@ -184,6 +184,58 @@ describe("SourceOverview.build", () => {
     });
   });
 
+  test("an unpaused source with no runs in the window is stale", () => {
+    expect(summaryFor(SourceOverview.build(input()), "pyp")).toMatchObject({
+      state: "stale",
+      stale: true,
+      consecutiveFailures: 0,
+      lastAcceptedAt: null,
+    });
+  });
+
+  test("a source last accepted over 36 hours ago is stale, though its runs did not fail", () => {
+    expect(
+      summaryFor(
+        SourceOverview.build(
+          input({
+            runs: [run("pyp", twoDaysAgo, { kind: "accepted", vehicles: 1 })],
+          }),
+        ),
+        "pyp",
+      ),
+    ).toMatchObject({ state: "stale", stale: true });
+  });
+
+  test("a failing source past the freshness limit stays failing and is marked stale", () => {
+    expect(
+      summaryFor(
+        SourceOverview.build(
+          input({
+            runs: [
+              run("pyp", twoDaysAgo, { kind: "accepted", vehicles: 1 }),
+              run("pyp", today, { kind: "rejected" }),
+            ],
+          }),
+        ),
+        "pyp",
+      ),
+    ).toMatchObject({ state: "failing", stale: true, consecutiveFailures: 1 });
+  });
+
+  test("paused and retired sources are never stale", () => {
+    const summaries = SourceOverview.build(
+      input({ flags: { status: "read", enabled: new Set() } }),
+    );
+    expect(summaryFor(summaries, "pyp")).toMatchObject({
+      state: "paused",
+      stale: false,
+    });
+    expect(summaryFor(summaries, "brandywine")).toMatchObject({
+      state: "retired",
+      stale: false,
+    });
+  });
+
   test("a source whose flag serves false is paused", () => {
     expect(
       summaryFor(
@@ -199,7 +251,10 @@ describe("SourceOverview.build", () => {
     expect(
       summaryFor(
         SourceOverview.build(
-          input({ flags: { status: "unavailable", message: "boom" } }),
+          input({
+            runs: [run("pyp", yesterday, { kind: "accepted", vehicles: 1 })],
+            flags: { status: "unavailable", message: "boom" },
+          }),
         ),
         "pyp",
       ),
@@ -233,6 +288,27 @@ describe("SourceOverview.build", () => {
     expect(order.slice(0, 2)).toEqual(["row52", "meeks"]);
     expect(order.indexOf("pyp")).toBeLessThan(order.indexOf("brandywine"));
     expect(order.at(-1)).toBe("upullitne");
+  });
+
+  test("orders a stuck run before every failing source", () => {
+    const summaries = SourceOverview.build(
+      input({
+        runs: [run("row52", today, { kind: "error" })],
+        activeRuns: [
+          {
+            runId: "run-x",
+            source: "pyp",
+            stage: "reconcile_upsert",
+            startedAt: twoDaysAgo,
+            lastProgressAt: new Date(now.getTime() - STUCK_AFTER_MS - 1),
+          },
+        ],
+      }),
+    );
+    expect(summaries.map((entry) => entry.source).slice(0, 2)).toEqual([
+      "pyp",
+      "row52",
+    ]);
   });
 });
 

@@ -26,6 +26,17 @@ export type SourceRun = {
 export type SourceRunErrors = {
   errors: string | null;
   validationErrors: string | null;
+  /**
+   * The ingestion run's own errors. Commit failures and expired snapshots
+   * are stored only here.
+   */
+  runErrors: string | null;
+};
+
+export const NO_SOURCE_RUN_ERRORS: SourceRunErrors = {
+  errors: null,
+  validationErrors: null,
+  runErrors: null,
 };
 
 /**
@@ -36,11 +47,16 @@ export type SourceRunErrors = {
 export type RunOutcome =
   | { kind: "accepted"; publishedAt: Date }
   | { kind: "running" }
-  | { kind: "rejected"; reason: "error" | "validation" | "unpublished" };
+  | {
+      kind: "rejected";
+      reason: "error" | "validation" | "expired" | "unpublished";
+    };
 
 const REJECTION_FALLBACK = {
   error: "The run stopped with an error.",
   validation: "The data failed our checks, so it was not used.",
+  expired:
+    "It waited over 24 hours for its turn to publish, so nothing was published.",
   unpublished: "The run ended without publishing.",
 } as const;
 
@@ -57,15 +73,24 @@ export const SourceRun = {
     if (run.acceptanceStatus === "rejected") {
       return { kind: "rejected", reason: "validation" };
     }
+    if (run.acceptanceStatus === "expired") {
+      return { kind: "rejected", reason: "expired" };
+    }
     if (run.runStatus === "running") return { kind: "running" };
     return { kind: "rejected", reason: "unpublished" };
   },
 
-  /** Every stored message, the run's errors before its validation errors. */
+  /**
+   * Every stored message once: the source's errors, its validation errors,
+   * then the ingestion run's errors (which often repeat the source's).
+   */
   messages(errors: SourceRunErrors): string[] {
     return [
-      ...ErrorText.messages(errors.errors),
-      ...ErrorText.messages(errors.validationErrors),
+      ...new Set([
+        ...ErrorText.messages(errors.errors),
+        ...ErrorText.messages(errors.validationErrors),
+        ...ErrorText.messages(errors.runErrors),
+      ]),
     ];
   },
 
@@ -74,6 +99,8 @@ export const SourceRun = {
     outcome: Extract<RunOutcome, { kind: "rejected" }>,
     errors: SourceRunErrors,
   ): string {
+    // Its stored text names internal machinery; the fallback says it plainly.
+    if (outcome.reason === "expired") return REJECTION_FALLBACK.expired;
     return (
       ErrorText.summary(SourceRun.messages(errors)) ??
       REJECTION_FALLBACK[outcome.reason]

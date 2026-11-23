@@ -1,11 +1,18 @@
+import { SOURCE_STALE_AFTER_HOURS } from "~/server/ingestion/durable-health";
 import type { SourceSummary } from "./source-overview";
-import { SourceRun, type SourceRunErrors } from "./source-run";
+import {
+  NO_SOURCE_RUN_ERRORS,
+  SourceRun,
+  type SourceRunErrors,
+} from "./source-run";
 
-/** A source must fail this many runs in a row to need attention. */
+/**
+ * A source must fail this many runs in a row to need attention, unless it
+ * is already stale.
+ */
 export const ATTENTION_FAILURES = 2;
 
 const HOUR = 60 * 60 * 1000;
-const NO_ERRORS: SourceRunErrors = { errors: null, validationErrors: null };
 
 /** One problem for the overview, in plain words, with the raw text if any. */
 export type AttentionItem = {
@@ -44,21 +51,40 @@ function sourceItems(
       href,
     });
   }
+  const failures = summary.consecutiveFailures;
+  if (!summary.stale && failures < ATTENTION_FAILURES) return items;
   const latest = summary.latestRun;
-  if (summary.consecutiveFailures >= ATTENTION_FAILURES && latest !== null) {
-    const errors = input.latestErrors.get(latest.run.id) ?? NO_ERRORS;
-    const messages = SourceRun.messages(errors);
-    items.push({
-      title: `${summary.name} failed its last ${summary.consecutiveFailures} runs`,
-      detail:
-        latest.outcome.kind === "rejected"
-          ? SourceRun.rejectionSummary(latest.outcome, errors)
-          : "A new run is in progress.",
-      raw: messages.length === 0 ? null : messages.join("\n"),
-      href,
-    });
-  }
+  const errors =
+    latest === null
+      ? NO_SOURCE_RUN_ERRORS
+      : (input.latestErrors.get(latest.run.id) ?? NO_SOURCE_RUN_ERRORS);
+  const messages = SourceRun.messages(errors);
+  items.push({
+    title: summary.stale
+      ? `${summary.name} has not been updated for over ${SOURCE_STALE_AFTER_HOURS} hours${failureNote(failures)}`
+      : `${summary.name} failed its last ${failures} runs`,
+    detail: latestDetail(latest, errors),
+    raw: messages.length === 0 ? null : messages.join("\n"),
+    href,
+  });
   return items;
+}
+
+function failureNote(failures: number): string {
+  if (failures === 0) return "";
+  if (failures === 1) return " (its last run failed)";
+  return ` (failed its last ${failures} runs)`;
+}
+
+function latestDetail(
+  latest: SourceSummary["latestRun"],
+  errors: SourceRunErrors,
+): string {
+  if (latest?.outcome.kind === "rejected") {
+    return SourceRun.rejectionSummary(latest.outcome, errors);
+  }
+  if (latest?.outcome.kind === "running") return "A new run is in progress.";
+  return "No run of it has been accepted since, so its vehicles on the site may be out of date.";
 }
 
 /** The short "needs attention" list on the admin overview. */

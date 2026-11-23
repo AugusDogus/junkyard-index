@@ -5,6 +5,7 @@ import {
   isRetiredIngestionSource,
   type IngestionSource,
 } from "~/lib/ingestion-source";
+import { isFreshPublication } from "~/server/ingestion/durable-health";
 import { IngestionDay } from "~/server/ingestion/ingestion-day";
 import { SourceRun, type RunOutcome } from "./source-run";
 
@@ -35,18 +36,22 @@ export type IngestionFlag = "on" | "off" | "unknown";
 /**
  * One state per source, the first that applies in this order: retired,
  * paused by its flag, running, failing (its latest finished run did not
- * publish), accepted today, else waiting for today's update.
+ * publish), stale (no accepted publication within SOURCE_STALE_AFTER_HOURS,
+ * the rule /api/status uses), accepted today, else waiting for today's
+ * update.
  */
 export type SourceState =
   | "retired"
   | "paused"
   | "running"
   | "failing"
+  | "stale"
   | "accepted_today"
   | "waiting";
 
 export const SOURCE_STATES: readonly SourceState[] = [
   "failing",
+  "stale",
   "running",
   "paused",
   "waiting",
@@ -67,6 +72,11 @@ export type SourceSummary = {
   consecutiveFailures: number;
   /** Null when no accepted run falls in the loaded window. */
   lastAcceptedAt: Date | null;
+  /**
+   * Expected to publish (not retired or paused) but not accepted within
+   * SOURCE_STALE_AFTER_HOURS. A running or failing source can be stale too.
+   */
+  stale: boolean;
   /** Vehicles on the site now, from yard_inventory; null without any. */
   publishedVehicles: number | null;
   /** Unique vehicles of the last accepted run minus the one before it. */
@@ -122,6 +132,10 @@ function summarize(
   const [newest, previous] = accepted;
   const retired = isRetiredIngestionSource(source);
   const flag = flagFor(source, input.flags);
+  const stale =
+    !retired &&
+    flag !== "off" &&
+    !isFreshPublication(lastAcceptedAt?.getTime() ?? null, input.now);
   const state: SourceState = retired
     ? "retired"
     : flag === "off"
@@ -130,10 +144,12 @@ function summarize(
         ? "running"
         : consecutiveFailures > 0
           ? "failing"
-          : lastAcceptedAt !== null &&
-              lastAcceptedAt >= IngestionDay.start(input.now)
-            ? "accepted_today"
-            : "waiting";
+          : stale
+            ? "stale"
+            : lastAcceptedAt !== null &&
+                lastAcceptedAt >= IngestionDay.start(input.now)
+              ? "accepted_today"
+              : "waiting";
   return {
     source,
     name: INGESTION_SOURCE_DISPLAY_NAMES[source],
@@ -144,6 +160,7 @@ function summarize(
     latestRun,
     consecutiveFailures,
     lastAcceptedAt,
+    stale,
     publishedVehicles: input.publishedCounts.get(source) ?? null,
     vehicleChange:
       newest === undefined || previous === undefined
@@ -153,10 +170,11 @@ function summarize(
   };
 }
 
+// A stuck run blocks its source's next run, so it sorts above every state.
 function compare(a: SourceSummary, b: SourceSummary): number {
   return (
-    SOURCE_STATES.indexOf(a.state) - SOURCE_STATES.indexOf(b.state) ||
     Number(b.stuck !== null) - Number(a.stuck !== null) ||
+    SOURCE_STATES.indexOf(a.state) - SOURCE_STATES.indexOf(b.state) ||
     b.consecutiveFailures - a.consecutiveFailures ||
     a.name.localeCompare(b.name)
   );
@@ -168,7 +186,9 @@ export const SourceOverview = {
   build(input: SourceOverviewInput): SourceSummary[] {
     const bySource = new Map<string, SourceRun[]>();
     for (const run of input.runs) {
-      bySource.set(run.source, [...(bySource.get(run.source) ?? []), run]);
+      const runs = bySource.get(run.source) ?? [];
+      runs.push(run);
+      bySource.set(run.source, runs);
     }
     return INGESTION_SOURCES.map((source) =>
       summarize(source, bySource.get(source) ?? [], input),
@@ -181,6 +201,7 @@ export const SourceOverview = {
   } {
     const byState: Record<SourceState, number> = {
       failing: 0,
+      stale: 0,
       running: 0,
       paused: 0,
       waiting: 0,

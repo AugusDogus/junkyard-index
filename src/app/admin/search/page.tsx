@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import {
   AdminPageHeader,
   AdminSection,
@@ -9,6 +8,8 @@ import {
 } from "~/components/admin/AdminParts";
 import { AdminTime } from "~/components/admin/AdminTime";
 import {
+  alertCheckStatusText,
+  publicationResultText,
   SearchBacklogText,
   searchStatusText,
 } from "~/components/admin/SearchParts";
@@ -22,10 +23,12 @@ import {
   SEARCH_PAGE_PUBLICATIONS,
 } from "~/server/admin/admin-data";
 import type { ChannelCounts } from "~/server/admin/alert-check-overview";
-import { requireAdmin } from "~/server/admin/require-admin";
+import { adminMetadata, requireAdmin } from "~/server/admin/require-admin";
 import { SearchAlertsFlag } from "~/server/alerts/search-alerts-flag";
 
-export const metadata: Metadata = { title: "Search & alerts" };
+export function generateMetadata() {
+  return adminMetadata({ title: "Search & alerts" });
+}
 
 function sourceName(source: string): string {
   // Runs from before per-source runs covered every source at once.
@@ -40,6 +43,7 @@ function channelText(counts: ChannelCounts): string {
   if (counts.waiting > 0) parts.push(`${counts.waiting} waiting`);
   if (counts.retrying > 0) parts.push(`${counts.retrying} failed, retrying`);
   if (counts.cancelled > 0) parts.push(`${counts.cancelled} cancelled`);
+  if (counts.other > 0) parts.push(`${counts.other} in another state`);
   return parts.join(", ");
 }
 
@@ -159,7 +163,7 @@ export default async function AdminSearchPage() {
 
       <AdminSection
         title="Recent search updates"
-        description={`The last ${SEARCH_PAGE_PUBLICATIONS} runs that updated search. "Some sources left out" means the run published while other sources were failing.`}
+        description={`The last ${SEARCH_PAGE_PUBLICATIONS} runs that updated search. "Rejected, previous vehicles kept" means that source's run failed, so search kept its vehicles from before. "Some sources left out" (older runs of every source at once) means the run published while some sources failed.`}
       >
         <WhenLoaded loaded={search}>
           {({ publications }) =>
@@ -202,11 +206,7 @@ export default async function AdminSearchPage() {
                           {formatCount(publication.publishedVehicleCount)}
                         </td>
                         <td className="px-3 py-2">
-                          {publication.inventoryOutcome === "published_degraded"
-                            ? "Some sources left out"
-                            : publication.inventoryOutcome === "published"
-                              ? "Published"
-                              : (publication.inventoryOutcome ?? "Unknown")}
+                          {publicationResultText(publication)}
                         </td>
                       </tr>
                     ))}
@@ -285,15 +285,7 @@ export default async function AdminSearchPage() {
                         <tr key={check.id} className="align-top">
                           <td className="px-3 py-2 font-medium">{check.day}</td>
                           <td className="px-3 py-2 text-xs leading-5">
-                            <div>
-                              {check.status === "complete"
-                                ? "Finished"
-                                : check.status === "running"
-                                  ? "Running"
-                                  : check.status === "superseded"
-                                    ? "Replaced by a later check"
-                                    : check.status}
-                            </div>
+                            <div>{alertCheckStatusText(check.status)}</div>
                             <AdminTime
                               date={check.completedAt ?? check.startedAt}
                             />

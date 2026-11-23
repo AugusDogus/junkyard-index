@@ -6,13 +6,15 @@ import { searchAlertCheck, searchNotificationIntent } from "~/schema";
  * A channel's notifications from one alert check, by where they stand.
  * Waiting: not yet sent (pending, or being sent now). Retrying: a send
  * failed and is tried again later. Cancelled: dropped before sending, for
- * example after the saved search changed.
+ * example after the saved search changed. Other: a status this page does
+ * not know yet, counted so the totals stay complete.
  */
 export type ChannelCounts = {
   delivered: number;
   waiting: number;
   retrying: number;
   cancelled: number;
+  other: number;
 };
 
 export type AlertCheckSummary = {
@@ -44,7 +46,7 @@ const STATUS_COLUMN: Record<string, keyof ChannelCounts> = {
 };
 
 function emptyCounts(): ChannelCounts {
-  return { delivered: 0, waiting: 0, retrying: 0, cancelled: 0 };
+  return { delivered: 0, waiting: 0, retrying: 0, cancelled: 0, other: 0 };
 }
 
 export const AlertCheckOverview = {
@@ -96,8 +98,7 @@ export const AlertCheckOverview = {
       const channels: Record<string, ChannelCounts> = {};
       for (const row of counts) {
         if (row.alertCheckId !== check.id) continue;
-        const column = STATUS_COLUMN[row.status];
-        if (column === undefined) continue;
+        const column = STATUS_COLUMN[row.status] ?? "other";
         const channel = channels[row.channel] ?? emptyCounts();
         channel[column] += row.intents;
         channels[row.channel] = channel;

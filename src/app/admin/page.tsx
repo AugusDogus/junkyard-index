@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import {
   AdminPageHeader,
@@ -8,14 +7,19 @@ import {
   WhenLoaded,
 } from "~/components/admin/AdminParts";
 import { AdminTime } from "~/components/admin/AdminTime";
-import { SearchBacklogText } from "~/components/admin/SearchParts";
+import {
+  alertCheckStatusText,
+  SearchBacklogText,
+} from "~/components/admin/SearchParts";
 import { AdminData } from "~/server/admin/admin-data";
 import { Attention } from "~/server/admin/attention";
-import { requireAdmin } from "~/server/admin/require-admin";
+import { adminMetadata, requireAdmin } from "~/server/admin/require-admin";
 import { SourceOverview } from "~/server/admin/source-overview";
 
 // The layout's "%s | Admin" template applies to child segments only.
-export const metadata: Metadata = { title: "Admin" };
+export function generateMetadata() {
+  return adminMetadata({ title: "Admin" });
+}
 
 export default async function AdminOverviewPage() {
   await requireAdmin();
@@ -84,6 +88,7 @@ export default async function AdminOverviewPage() {
                     value={counts.byState.accepted_today}
                   />
                   <Stat label="Failing" value={counts.byState.failing} />
+                  <Stat label="Out of date" value={counts.byState.stale} />
                   <Stat label="Running" value={counts.byState.running} />
                   <Stat label="Paused" value={counts.byState.paused} />
                   <Stat label="Hidden" value={counts.hidden} />
@@ -161,7 +166,7 @@ export default async function AdminOverviewPage() {
                         "None in 14 days"
                       ) : (
                         <>
-                          {latest.day}, {latest.status}
+                          {latest.day}, {alertCheckStatusText(latest.status)}
                         </>
                       )}
                     </span>
