@@ -81,9 +81,9 @@ snapshot emits only after all closing pages and full-population quality guards
 pass. A failed parser, guard or callback returns no advanced checkpoint. A GET
 that times out or answers HTTP 5xx is sent once more if a full request budget
 still fits; if it fails again, a chunk that already validated pages returns that
-checkpoint as paused, and one that has not fails without advancing. Prior
-accepted inventory remains preserved. A complete cursor performs no HTTP
-or callbacks when replayed.
+checkpoint as paused and logs a warning naming the URL and cause, and one that
+has not fails without advancing. Prior accepted inventory remains preserved. A
+complete cursor performs no HTTP or callbacks when replayed.
 
 Requests use normal HTTPS, manual redirects, a combined 45-second
 request/body deadline and a 2 MiB document limit. The origin can take 12 to 14
