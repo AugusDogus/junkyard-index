@@ -1,10 +1,17 @@
 # Hyperbrowser sessions
 
-U Pull It Davie, Vander Haags, Big D, Northwest, 603 Auto Salvage and Michigan
-Truck Parts load documents through Hyperbrowser sessions (`HYPERBROWSER_SOURCES` in
-`src/server/ingestion/hyperbrowser-sessions.ts`). The Hyperbrowser plan caps
-how many sessions the team may keep open at once: 1 on Free, 25 on Startup.
+U Pull It Davie and Vander Haags load documents through Hyperbrowser sessions,
+as do the retired 603 Auto Salvage and Michigan Truck Parts when resumed. Big D
+and Northwest moved to Kernel on November 23, 2026; Kernel is the long-term
+provider and Hyperbrowser remains a one-line fallback
+([browser providers](browser-providers.md)). `HYPERBROWSER_SOURCES` in
+`src/server/ingestion/hyperbrowser-sessions.ts` lists every source that may
+open a Hyperbrowser session. The Hyperbrowser plan caps how many sessions the
+team may keep open at once: 1 on Free, 25 on Startup.
 `HYPERBROWSER_CONCURRENT_SESSIONS` holds that cap; change it with the plan.
+
+Kernel browsers follow the same lease and lock order below, in their own
+`kernel` lane group sized by `KERNEL_CONCURRENT_SESSIONS`.
 
 ## Session lease
 
@@ -36,7 +43,8 @@ these sources one at a time instead.
 ## Lock order
 
 A chunk takes its session lease before any shared host turn and keeps it until
-the chunk ends. Northwest takes the lease before its one URG turn per chunk and
+the chunk ends. Northwest (now on Kernel's lease) takes the lease before its one
+URG turn per chunk and
 opens its session inside that turn, so its session never waits for a turn; the
 other sources take no shared host turns. No shared host turn holder ever waits
 for the session lease, and waiting for a scoped lease inside a held turn fails,
@@ -45,4 +53,4 @@ so the two cannot deadlock.
 While a Northwest chunk waits for its URG turn it holds the lease without a
 session. That wait is not billed, but under URG contention it keeps the other
 Hyperbrowser sources waiting for the lease, for at most the chunk's turn
-horizon.
+horizon. On Kernel that contention reaches only other Kernel sources.
