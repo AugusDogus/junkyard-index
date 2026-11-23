@@ -126,3 +126,56 @@ for (const source of ["meeks"] as const)
       client.close();
     }
   });
+
+test("with meeks hidden, no yard is meeks's and no website points to meeksrecycling.com", async () => {
+  const client = createClient({ url: ":memory:" });
+  try {
+    await client.executeMultiple(
+      readFileSync(
+        new URL("../../drizzle/0007_yard_metadata.sql", import.meta.url),
+        "utf8",
+      ),
+    );
+    await client.executeMultiple(`
+      create table vehicle (source text, location_code text, location_name text,
+        location_city text, state_abbr text, lat real, lng real, missing_since_at integer);
+      insert into vehicle values
+        ('pyp', '1', 'Sun Valley', 'Sun Valley', 'CA', 34, -118, null),
+        ('meeks', '1', 'Meeks Recycling', 'Martinsville', 'VA', 36, -79, null);
+      alter table vehicle add column details_url text;
+    `);
+    await client.executeMultiple(
+      readFileSync(
+        new URL("../../drizzle/0016_yard_inventory.sql", import.meta.url),
+        "utf8",
+      ),
+    );
+    const db = drizzle(client);
+    await db.insert(yard).values({
+      source: "meeks",
+      code: "1",
+      name: "Meeks Recycling",
+      city: "Martinsville",
+      state: "VA",
+      websiteUrl: "https://www.meeksrecycling.com/",
+      updatedAt: new Date(),
+    });
+    const exposesMeeks = (
+      yards: Awaited<ReturnType<typeof getHomepageYards>>,
+    ) =>
+      yards.some(
+        (entry) =>
+          entry.source === "meeks" ||
+          (entry.website?.href.includes("meeksrecycling.com") ?? false),
+      );
+    // Shown, its yard and website are listed, so the check below can fail.
+    expect(exposesMeeks(await getHomepageYards(db, HiddenSources.none))).toBe(
+      true,
+    );
+    const hidden = await getHomepageYards(db, HiddenSources.of(["meeks"]));
+    expect(exposesMeeks(hidden)).toBe(false);
+    expect(hidden.map((entry) => entry.source)).toEqual(["pyp"]);
+  } finally {
+    client.close();
+  }
+});
