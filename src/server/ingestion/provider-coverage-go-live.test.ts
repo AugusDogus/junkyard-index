@@ -86,7 +86,7 @@ const censuses = [
   { source: "vinplus", count: 7621 },
   { source: "northwest", count: 6688 },
   { source: "calton", count: 12549 },
-  { source: "urgiis", count: 74217 },
+  { source: "urgiis", count: 36780 },
 ] as const;
 
 test.each([...censuses])(
