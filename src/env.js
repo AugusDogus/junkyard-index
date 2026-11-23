@@ -73,6 +73,9 @@ export const env = createEnv({
     // Upstash Redis (rate limiting)
     UPSTASH_REDIS_REST_URL: z.string().url(),
     UPSTASH_REDIS_REST_TOKEN: z.string(),
+    // Comma-separated Better Auth user ids allowed into /admin. Unset or
+    // empty: no one is, and every admin page answers 404.
+    ADMIN_USER_IDS: z.string().optional(),
   },
 
   /**
@@ -132,6 +135,7 @@ export const env = createEnv({
     VERCEL_PROJECT_PRODUCTION_URL: process.env.VERCEL_PROJECT_PRODUCTION_URL,
     UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
     UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
+    ADMIN_USER_IDS: process.env.ADMIN_USER_IDS,
     NEXT_PUBLIC_ALGOLIA_APP_ID: process.env.NEXT_PUBLIC_ALGOLIA_APP_ID,
     ALGOLIA_SEARCH_API_KEY: process.env.ALGOLIA_SEARCH_API_KEY,
     ALGOLIA_SEARCH_PARENT_API_KEY: process.env.ALGOLIA_SEARCH_PARENT_API_KEY,
