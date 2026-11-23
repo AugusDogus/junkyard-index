@@ -43,6 +43,19 @@ export const createTRPCContext = async (opts: {
 };
 
 /**
+ * True for the NOT_FOUND tRPC raises itself when no procedure exists at
+ * `path`. Matched on tRPC's exact message for that path, so a procedure
+ * that throws its own NOT_FOUND is still reported.
+ */
+function isUnknownProcedure(error: TRPCError, path: string | undefined) {
+  return (
+    error.code === "NOT_FOUND" &&
+    path !== undefined &&
+    error.message === `No procedure found on path "${path}"`
+  );
+}
+
+/**
  * 2. INITIALIZATION
  *
  * This is where the tRPC API is initialized, connecting the context and transformer. We also parse
@@ -51,11 +64,14 @@ export const createTRPCContext = async (opts: {
  */
 const t = initTRPC.context<typeof createTRPCContext>().create({
   transformer: superjson,
-  errorFormatter({ shape, error }) {
+  errorFormatter({ shape, error, path }) {
     // Capture non-client errors to Sentry. Plan gate rejections are routine
     // product events (free users hitting gates), not errors worth tracking.
+    // Neither are calls to paths with no procedure (old clients and scanners
+    // asking for removed procedures); tRPC answers those with its own 404.
     if (
       !(error instanceof PlanGateError) &&
+      !isUnknownProcedure(error, path) &&
       (error.code === "INTERNAL_SERVER_ERROR" ||
         error.code === "BAD_REQUEST" ||
         !(error.cause instanceof ZodError))
