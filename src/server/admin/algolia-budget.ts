@@ -3,9 +3,10 @@ import { AlgoliaDeployment } from "~/lib/algolia-deployment";
 import { AdminSeries } from "./admin-series";
 
 /**
- * Algolia's free plan. Its search requests per period cannot be read on
- * this plan: the Usage API needs a key with the "usage" ACL and a Premium
- * plan, and Analytics keeps only 7 days (checked Nov 22, 2026).
+ * Algolia's free plan. The site cannot read its search requests per
+ * period: the Usage API refused ALGOLIA_WRITE_API_KEY because the key lacks
+ * the "usage" ACL (checked Nov 22, 2026). Algolia may also limit the Usage
+ * API to paid plans; that was not tested. Analytics keeps only 7 days.
  */
 export const ALGOLIA_FREE_PLAN = {
   searchRequestsPerMonth: 10_000,
@@ -129,9 +130,11 @@ export const AlgoliaBudget = {
   },
 
   /**
-   * The 20 most searched queries over the last 7 UTC days. Analytics counts
-   * each sort's replica as its own index (the site's default sort is a
-   * replica), so each index's top 100 are read and added together.
+   * The 20 most searched queries over the last 7 UTC days, from the
+   * deployment's own indices (preview and development ones are prefixed).
+   * Analytics counts each sort's replica as its own index (the site's
+   * default sort is a replica), so each index's top 100 are read and added
+   * together.
    */
   async topSearches(
     access: AlgoliaAccess,
@@ -144,7 +147,7 @@ export const AlgoliaBudget = {
     const lists = await Promise.all(
       indexNames.map((indexName) => {
         const params = new URLSearchParams({
-          index: indexName,
+          index: AlgoliaDeployment.indexName(access.deployment, indexName),
           startDate: days[0] ?? AdminSeries.dayKey(now),
           endDate: AdminSeries.dayKey(now),
           limit: String(ALGOLIA_TOP_SEARCHES_PER_INDEX),

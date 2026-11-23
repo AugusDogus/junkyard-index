@@ -30,21 +30,35 @@ export type HyperbrowserSnapshot = {
   daily: DayValue[];
   /**
    * Partial when the page cap stopped the read before it reached the first
-   * day: days before `fromDay` are missing, so they show 0.
+   * day: `fromDay` (the oldest day read) and the days before it are short.
+   * Unordered when Hyperbrowser did not list sessions newest first, so any
+   * day may be short.
    */
-  coverage: { kind: "complete" } | { kind: "partial"; fromDay: string };
+  coverage:
+    | { kind: "complete" }
+    | { kind: "partial"; fromDay: string }
+    | { kind: "unordered" };
   fetchedAt: number;
 };
 
-export type HyperbrowserForecast = {
-  /** Credits a day over the 7 full UTC days before today. */
-  averagePerDay: number;
-  /** Credits used by the end of this UTC month at that average. */
-  projectedMonthEndUsage: number;
-  runsOut:
-    | { kind: "never" }
-    | { kind: "on"; day: string; beforeMonthEnd: boolean };
-};
+/** Dated from the snapshot's `fetchedAt`, so a cached snapshot stays consistent. */
+export type HyperbrowserForecast =
+  /** No credits remain, whatever the recent use. */
+  | { kind: "out" }
+  /** No day before the read was read in full, so there is no pace. */
+  | { kind: "unmeasured" }
+  | {
+      kind: "measured";
+      /** Credits a day over up to 7 fully read UTC days before the read. */
+      averagePerDay: number;
+      /** How many days that average covers. */
+      fullDays: number;
+      /** Credits used by the end of that UTC month at that average. */
+      projectedMonthEndUsage: number;
+      runsOut:
+        | { kind: "never" }
+        | { kind: "on"; day: string; beforeMonthEnd: boolean };
+    };
 
 /** The parts of the Hyperbrowser client the budget reads. */
 export type HyperbrowserBudgetClient = {
@@ -92,8 +106,10 @@ function parse<Schema extends z.ZodTypeAny>(
 export const HyperbrowserBudget = {
   /**
    * Credits, and credits per day for the last 14 UTC days from the sessions
-   * list (newest first), reading pages until one reaches past the first day
-   * or the page cap. Sessions carry no source, so burn is a total.
+   * list, reading pages until one reaches past the first day or the page
+   * cap. Stopping early relies on the list being newest first, which the
+   * SDK does not document, so a session newer than one before it stops the
+   * read as `unordered`. Sessions carry no source, so burn is a total.
    */
   async read(
     client: HyperbrowserBudgetClient,
@@ -121,7 +137,10 @@ export const HyperbrowserBudget = {
           );
           for (const session of result.sessions) {
             const createdAt = new Date(session.createdAt);
-            if (oldest === null || createdAt < oldest) oldest = createdAt;
+            if (oldest !== null && createdAt > oldest) {
+              return { rows, coverage: { kind: "unordered" } as const };
+            }
+            oldest = createdAt;
             rows.push({
               day: AdminSeries.dayKey(createdAt),
               value: session.creditsUsed ?? 0,
@@ -152,31 +171,48 @@ export const HyperbrowserBudget = {
     };
   },
 
-  /** Month-end usage and the day credits run out, at the recent average. */
-  forecast(snapshot: HyperbrowserSnapshot, now: Date): HyperbrowserForecast {
-    const today = AdminSeries.dayKey(now);
-    const fullDays = snapshot.daily
-      .filter((entry) => entry.day < today)
-      .slice(-HYPERBROWSER_FORECAST_DAYS);
-    const averagePerDay =
-      fullDays.length === 0
-        ? 0
-        : fullDays.reduce((sum, entry) => sum + entry.value, 0) /
-          fullDays.length;
-    const monthEnd = Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1);
-    const daysLeft = (monthEnd - now.getTime()) / AdminSeries.DAY_MS;
+  /**
+   * Month-end usage and the day credits run out, at the recent average,
+   * as of when the snapshot was read. Only fully read days are averaged.
+   */
+  forecast(snapshot: HyperbrowserSnapshot): HyperbrowserForecast {
     const { usage, remaining } = snapshot.credits;
+    if (remaining <= 0) return { kind: "out" };
+    const { coverage } = snapshot;
+    if (coverage.kind === "unordered") return { kind: "unmeasured" };
+    const readAt = snapshot.fetchedAt;
+    const readDate = new Date(readAt);
+    const today = AdminSeries.dayKey(readDate);
+    const fullDays = snapshot.daily
+      .filter(
+        (entry) =>
+          entry.day < today &&
+          (coverage.kind === "complete" || entry.day > coverage.fromDay),
+      )
+      .slice(-HYPERBROWSER_FORECAST_DAYS);
+    if (fullDays.length === 0) return { kind: "unmeasured" };
+    const averagePerDay =
+      fullDays.reduce((sum, entry) => sum + entry.value, 0) / fullDays.length;
+    const monthEnd = Date.UTC(
+      readDate.getUTCFullYear(),
+      readDate.getUTCMonth() + 1,
+      1,
+    );
+    const daysLeft = (monthEnd - readAt) / AdminSeries.DAY_MS;
     if (averagePerDay <= 0) {
       return {
+        kind: "measured",
         averagePerDay: 0,
+        fullDays: fullDays.length,
         projectedMonthEndUsage: usage,
         runsOut: { kind: "never" },
       };
     }
-    const runsOutAt =
-      now.getTime() + (remaining / averagePerDay) * AdminSeries.DAY_MS;
+    const runsOutAt = readAt + (remaining / averagePerDay) * AdminSeries.DAY_MS;
     return {
+      kind: "measured",
       averagePerDay,
+      fullDays: fullDays.length,
       projectedMonthEndUsage: usage + averagePerDay * daysLeft,
       runsOut: {
         kind: "on",

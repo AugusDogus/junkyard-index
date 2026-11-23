@@ -52,8 +52,10 @@ const CHANGE_LABELS: Record<PaidChange["kind"], string> = {
 const count = (value: number) => formatCount(value);
 const weekOf = (day: string) => `Week of ${formatDay(day)}`;
 
-function percent(part: number, whole: number): string {
-  return whole === 0 ? "" : `${Math.round((part / whole) * 100)}% of users`;
+function percent(part: number, whole: number): string | undefined {
+  return whole === 0
+    ? undefined
+    : `${Math.round((part / whole) * 100)}% of users`;
 }
 
 export default async function AdminAnalyticsPage() {
@@ -180,6 +182,10 @@ export default async function AdminAnalyticsPage() {
                     ))}
                   </ul>
                 )}
+                <p className="text-muted-foreground mt-2 text-xs">
+                  A plan that ended here but was cancelled earlier may be
+                  missing.
+                </p>
               </div>
               <p className="text-muted-foreground text-sm">
                 Checked <AdminTime date={new Date(snapshot.fetchedAt)} />.
@@ -216,7 +222,7 @@ export default async function AdminAnalyticsPage() {
 
       <AdminSection
         title="Alerts sent"
-        description="Saved-search alerts delivered per day. A failed send is retried later; a cancelled one was dropped before sending, for example because the search changed or alerts were turned off."
+        description="Emails and Discord messages sent per day. One email can cover several of a user's saved searches; Discord sends one message per saved search. The other counts are per saved search: a failed send is retried later, and a cancelled one was dropped before sending, for example because the search changed or alerts were turned off."
       >
         <WhenLoaded loaded={alerts}>
           {(stats) => (

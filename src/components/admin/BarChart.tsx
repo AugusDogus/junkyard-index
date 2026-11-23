@@ -17,8 +17,9 @@ export function formatAmount(value: number): string {
 
 /**
  * One series of bars, one per day or week, with no client script. Hovering
- * a bar shows its value; "Show numbers" opens the same figures as a table,
- * which is also what screen readers get.
+ * a bar shows its value; "Show numbers" opens the same figures as a table.
+ * The bars are hidden from screen readers, which read the caption's
+ * summary (total, highest, first and last point) and can open the table.
  */
 export function BarChart({
   title,
@@ -36,6 +37,7 @@ export function BarChart({
   valueLabel?: (value: number) => string;
 }) {
   const max = Math.max(0, ...data.map((point) => point.value));
+  const total = data.reduce((sum, point) => sum + point.value, 0);
   const first = data[0];
   const last = data.at(-1);
   return (
@@ -45,6 +47,11 @@ export function BarChart({
         <span className="text-muted-foreground text-xs">
           Highest: {valueLabel(max)}
         </span>
+        {first !== undefined && last !== undefined && (
+          <span className="sr-only">
+            {`Total ${valueLabel(total)}. ${pointLabel(first.day)}: ${valueLabel(first.value)}; ${pointLabel(last.day)}: ${valueLabel(last.value)}.`}
+          </span>
+        )}
       </figcaption>
       {max === 0 ? (
         <p className="text-muted-foreground mt-3 flex h-28 items-center justify-center rounded-lg border border-dashed text-sm">

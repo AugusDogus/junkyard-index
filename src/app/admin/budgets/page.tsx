@@ -12,7 +12,6 @@ import { ALGOLIA_FREE_PLAN } from "~/server/admin/algolia-budget";
 import { BudgetData } from "~/server/admin/budget-data";
 import {
   HYPERBROWSER_BURN_DAYS,
-  HYPERBROWSER_FORECAST_DAYS,
   HyperbrowserBudget,
 } from "~/server/admin/hyperbrowser-budget";
 import { adminMetadata, requireAdmin } from "~/server/admin/require-admin";
@@ -32,7 +31,6 @@ function monthEndLabel(now: Date): string {
 
 export default async function AdminBudgetsPage() {
   await requireAdmin();
-  const now = new Date();
   const [hyperbrowser, algoliaRecords] = await Promise.all([
     BudgetData.hyperbrowser(),
     BudgetData.algoliaRecords(),
@@ -52,14 +50,25 @@ export default async function AdminBudgetsPage() {
         <WhenLoaded loaded={hyperbrowser}>
           {(snapshot) => {
             const { credits, daily, coverage } = snapshot;
-            const forecast = HyperbrowserBudget.forecast(snapshot, now);
-            const monthEnd = monthEndLabel(now);
+            const forecast = HyperbrowserBudget.forecast(snapshot);
+            const monthEnd = monthEndLabel(new Date(snapshot.fetchedAt));
             const runsOutBeforeMonthEnd =
-              forecast.runsOut.kind === "on" && forecast.runsOut.beforeMonthEnd
+              forecast.kind === "measured" &&
+              forecast.runsOut.kind === "on" &&
+              forecast.runsOut.beforeMonthEnd
                 ? formatDay(forecast.runsOut.day)
                 : null;
             return (
               <div className="space-y-6">
+                {forecast.kind === "out" && (
+                  <Alert variant="destructive">
+                    <AlertTitle>Hyperbrowser credits are used up</AlertTitle>
+                    <AlertDescription>
+                      The yards that use Hyperbrowser are not updating. They
+                      start again once Hyperbrowser has credits.
+                    </AlertDescription>
+                  </Alert>
+                )}
                 {runsOutBeforeMonthEnd !== null && (
                   <Alert variant="destructive">
                     <AlertTitle>
@@ -82,31 +91,46 @@ export default async function AdminBudgetsPage() {
                     label="Remaining"
                     value={formatAmount(credits.remaining)}
                   />
-                  <Stat
-                    label="Average per day"
-                    value={formatAmount(forecast.averagePerDay)}
-                    hint={`Over the last ${HYPERBROWSER_FORECAST_DAYS} full days`}
-                  />
-                  <Stat
-                    label={`Used by ${monthEnd} at that pace`}
-                    value={formatAmount(forecast.projectedMonthEndUsage)}
-                    hint={
-                      forecast.projectedMonthEndUsage > credits.limit
-                        ? "More than the plan has"
-                        : `of ${formatCount(credits.limit)}`
-                    }
-                  />
-                  <Stat
-                    label="Remaining credits last until"
-                    value={
-                      <span className="text-base">
-                        {forecast.runsOut.kind === "never"
-                          ? "No recent use"
-                          : formatDay(forecast.runsOut.day)}
-                      </span>
-                    }
-                    hint="At the average above"
-                  />
+                  {forecast.kind === "unmeasured" && (
+                    <Stat
+                      label="Average per day"
+                      value={<span className="text-base">Not known</span>}
+                      hint="No whole day of sessions could be read, so there is no pace to forecast from."
+                    />
+                  )}
+                  {forecast.kind === "measured" && (
+                    <>
+                      <Stat
+                        label="Average per day"
+                        value={formatAmount(forecast.averagePerDay)}
+                        hint={
+                          forecast.fullDays === 1
+                            ? "Over the last full day"
+                            : `Over the last ${forecast.fullDays} full days`
+                        }
+                      />
+                      <Stat
+                        label={`Used by ${monthEnd} at that pace`}
+                        value={formatAmount(forecast.projectedMonthEndUsage)}
+                        hint={
+                          forecast.projectedMonthEndUsage > credits.limit
+                            ? "More than the plan has"
+                            : `of ${formatCount(credits.limit)}`
+                        }
+                      />
+                      <Stat
+                        label="Remaining credits last until"
+                        value={
+                          <span className="text-base">
+                            {forecast.runsOut.kind === "never"
+                              ? "No recent use"
+                              : formatDay(forecast.runsOut.day)}
+                          </span>
+                        }
+                        hint="At the average above"
+                      />
+                    </>
+                  )}
                 </dl>
                 <BarChart
                   title={`Credits used per day, last ${HYPERBROWSER_BURN_DAYS} days`}
@@ -119,9 +143,16 @@ export default async function AdminBudgetsPage() {
                   </p>
                   {coverage.kind === "partial" && (
                     <p>
-                      There were too many sessions to read them all, so days
-                      before {formatDay(coverage.fromDay)} show less than was
-                      used.
+                      There were too many sessions to read them all, so{" "}
+                      {formatDay(coverage.fromDay)} and the days before it show
+                      less than was used. The average leaves those days out.
+                    </p>
+                  )}
+                  {coverage.kind === "unordered" && (
+                    <p>
+                      Hyperbrowser did not list its sessions newest first, so
+                      the reading stopped early and any day may show less than
+                      was used.
                     </p>
                   )}
                   <p>
@@ -142,13 +173,12 @@ export default async function AdminBudgetsPage() {
           <dl>
             <Stat
               label="Search requests this period"
-              value={
-                <span className="text-base">Not available on this plan</span>
-              }
+              value={<span className="text-base">Not readable</span>}
               hint={
                 <>
-                  Algolia only reports this count to paid Premium plans. See
-                  Usage in the{" "}
+                  The site&apos;s Algolia key lacks the Usage permission, and
+                  Algolia may also keep this count for paid plans. See Usage in
+                  the{" "}
                   <a
                     href={ALGOLIA_DASHBOARD_URL}
                     target="_blank"

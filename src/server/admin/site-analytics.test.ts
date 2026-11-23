@@ -66,43 +66,60 @@ describe("SiteAnalytics.savedSearches", () => {
 });
 
 describe("SiteAnalytics.alerts", () => {
-  test("counts sends per day by channel, and retrying and cancelled ones", async () => {
+  test("counts emails and Discord messages sent per day, and retrying and cancelled ones", async () => {
     const { client, db } = await createAdminTestDatabase();
     await client.execute({
       sql: `insert into search_notification_intent
-        (id, alert_check_id, channel, status, created_at, delivered_at) values
-        ('e1', 'c', 'email', 'delivered', ?, ?),
-        ('e2', 'c', 'email', 'delivered', ?, ?),
-        ('d1', 'c', 'discord', 'delivered', ?, ?),
-        ('old', 'c', 'email', 'delivered', ?, ?),
-        ('r1', 'c', 'discord', 'retry', ?, null),
-        ('x1', 'c', 'email', 'cancelled', ?, null),
-        ('xold', 'c', 'email', 'cancelled', ?, null)`,
+        (id, alert_check_id, channel, status, delivery_group_id, created_at, delivered_at, cancelled_at) values
+        ('e1', 'c', 'email', 'delivered', 'g1', ?, ?, null),
+        ('e2', 'c', 'email', 'delivered', 'g1', ?, ?, null),
+        ('e3', 'c', 'email', 'delivered', 'g2', ?, ?, null),
+        ('e4', 'c', 'email', 'delivered', null, ?, ?, null),
+        ('d1', 'c', 'discord', 'delivered', 'g3', ?, ?, null),
+        ('d2', 'c', 'discord', 'delivered', 'g3', ?, ?, null),
+        ('old', 'c', 'email', 'delivered', 'g4', ?, ?, null),
+        ('r1', 'c', 'discord', 'retry', null, ?, null, null),
+        ('x1', 'c', 'email', 'cancelled', null, ?, null, ?),
+        ('xlate', 'c', 'email', 'cancelled', null, ?, null, ?),
+        ('xold', 'c', 'email', 'cancelled', null, ?, null, ?)`,
       args: [
+        // Two saved searches in one email digest are one email.
+        at("2026-11-21T07:00:00Z"),
+        at("2026-11-21T07:05:00Z"),
         at("2026-11-21T07:00:00Z"),
         at("2026-11-21T07:05:00Z"),
         at("2026-11-22T07:00:00Z"),
         at("2026-11-22T07:05:00Z"),
+        at("2026-11-22T07:00:00Z"),
+        at("2026-11-22T07:05:00Z"),
+        // Discord sends one message per saved search, even in a group.
+        at("2026-11-21T07:00:00Z"),
+        at("2026-11-21T07:05:00Z"),
         at("2026-11-21T07:00:00Z"),
         at("2026-11-21T07:05:00Z"),
         at("2026-09-01T07:00:00Z"),
         at("2026-09-01T07:05:00Z"),
         at("2026-11-22T07:00:00Z"),
         at("2026-11-20T07:00:00Z"),
+        at("2026-11-20T08:00:00Z"),
+        // Created long ago, cancelled after days of retries: counted.
+        at("2026-10-01T07:00:00Z"),
+        at("2026-11-19T07:00:00Z"),
         at("2026-09-01T07:00:00Z"),
+        at("2026-09-02T07:00:00Z"),
       ],
     });
     const alerts = await SiteAnalytics.alerts(db, NOW);
     expect(alerts.sent.email).toHaveLength(ANALYTICS_DAYS);
     expect(alerts.sent.email.slice(-2)).toEqual([
       { day: "2026-11-21", value: 1 },
-      { day: "2026-11-22", value: 1 },
+      { day: "2026-11-22", value: 2 },
     ]);
     expect(alerts.sent.discord.slice(-2)).toEqual([
-      { day: "2026-11-21", value: 1 },
+      { day: "2026-11-21", value: 2 },
       { day: "2026-11-22", value: 0 },
     ]);
     expect(alerts.retrying).toEqual({ email: 0, discord: 1 });
-    expect(alerts.cancelled).toEqual({ email: 1, discord: 0 });
+    expect(alerts.cancelled).toEqual({ email: 2, discord: 0 });
   });
 });
