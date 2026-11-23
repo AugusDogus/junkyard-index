@@ -10,6 +10,7 @@ import {
   JolietCursorSchema,
 } from "./joliet-cursor";
 import {
+  JOLIET_MAX_QUERIES,
   jolietPairKey,
   parseJolietInventory,
   parseJolietSearch,
@@ -632,7 +633,21 @@ async function stageChunk(
   };
 }
 
-test("Joliet restarts from query 0 when the official context changes between chunks", async () => {
+/** The complete cursor written before restarts existed. Code rolled back past
+ * restarts unions every staged chunk, so it must reject a restarted run's
+ * terminal cursor instead of publishing superseded vehicles. */
+const PreRestartCompleteSchema = z
+  .object({ source: z.literal("joliet"), phase: z.literal("complete") })
+  .strict();
+function expectRestartedCompletion(cursor: JolietCursor, restarts: number) {
+  expect(cursor).toEqual({ source: "joliet", phase: "complete", restarts });
+  expect(JolietCursorSchema.parse(cursor)).toEqual(cursor);
+  expect(PreRestartCompleteSchema.safeParse(cursor).success).toBe(false);
+}
+
+/** The overnight publish lands between the first and second chunks and
+ * removes the stock the first query found. */
+function publishBetweenChunks() {
   const before = [jolietTestRecord, second, third];
   const firstPair = parseJolietInventory(jolietTestInventory(before)).pairs[0];
   const removed = before.find((record) => record.model === firstPair?.model);
@@ -646,8 +661,12 @@ test("Joliet restarts from query 0 when the official context changes between chu
       model: "ESCAPE",
     },
   ];
-  // The overnight publish lands between the first and second chunks.
   mock({ records: (ordinal) => (ordinal < 2 ? before : after) });
+  return { removed, after };
+}
+
+test("Joliet restarts from query 0 when the official context changes between chunks", async () => {
+  const { removed, after } = publishBetweenChunks();
   let { result, staged } = await stageChunk([], JolietCursor.initial, 1);
   expect(result.restart).toBeUndefined();
   expect(staged).toEqual([removed.vin]);
@@ -674,8 +693,35 @@ test("Joliet restarts from query 0 when the official context changes between chu
     ({ result, staged } = await stageChunk(staged, result.cursor, 16));
   expect(result.status).toBe("complete");
   expect(result.restart).toBeUndefined();
+  expectRestartedCompletion(result.cursor, 1);
   expect(staged.sort()).toEqual(after.map((record) => record.vin).sort());
   expect(staged).not.toContain(removed.vin);
+});
+
+test("Joliet soak clears its caller's collected vehicles when a chunk restarts", async () => {
+  const { removed, after } = publishBetweenChunks();
+  const collected = new Set<string>();
+  let resets = 0;
+  const summary = await soakJolietInventory(
+    (cursor, _budget, onBatch) => run(cursor, 1, onBatch),
+    JOLIET_MAX_QUERIES,
+    {
+      add: (vehicles) => {
+        for (const vehicle of vehicles) collected.add(vehicle.vin);
+      },
+      reset: () => {
+        resets++;
+        collected.clear();
+      },
+    },
+  );
+  expect(summary.status).toBe("complete");
+  expect(resets).toBe(1);
+  expect([...collected].sort()).toEqual(
+    after.map((record) => record.vin).sort(),
+  );
+  expect(collected.has(removed.vin)).toBe(false);
+  expect(summary.count).toBe(after.length);
 });
 
 test("Joliet restarts when the terminal closing context differs and publishes only the new context", async () => {
@@ -705,6 +751,7 @@ test("Joliet restarts when the terminal closing context differs and publishes on
   ({ result, staged } = await stageChunk(staged, result.cursor, 16));
   expect(result.status).toBe("complete");
   expect(result.restart).toBeUndefined();
+  expectRestartedCompletion(result.cursor, 1);
   expect(staged.sort()).toEqual(after.map((record) => record.vin).sort());
 });
 

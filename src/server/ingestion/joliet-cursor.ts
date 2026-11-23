@@ -41,7 +41,7 @@ export type JolietSeen = z.infer<typeof seenSchema>;
 /** Restarts one run may take after the official context changes mid-crawl.
  * A source that keeps changing still fails instead of crawling forever. */
 export const JOLIET_MAX_RESTARTS = 2;
-const restarts = z.number().int().min(0).max(JOLIET_MAX_RESTARTS);
+const restarts = z.number().int().min(1).max(JOLIET_MAX_RESTARTS);
 interface JolietProgress {
   contextHash: string;
   restarts: number;
@@ -53,7 +53,9 @@ interface JolietProgress {
 /** Detect corruption of trusted internal state, without relying on JSON key order.
  * This checksum is not cursor authentication.
  */
-function progressHash(progress: JolietProgress): string {
+function progressHash(
+  progress: Omit<JolietProgress, "restarts"> & { restarts?: number },
+): string {
   return jolietHash({
     // Omitted at zero so checkpoints written before restarts keep their hash.
     ...(progress.restarts ? { restarts: progress.restarts } : {}),
@@ -86,7 +88,9 @@ export const JolietCursorSchema = z
         phase: z.literal("queries"),
         contextHash: hash,
         progressHash: hash,
-        restarts: restarts.default(0),
+        // Absent at zero, so checkpoints written before restarts round-trip
+        // byte for byte through the guarded durable update.
+        restarts: restarts.optional(),
         nextQuery: z
           .number()
           .int()
@@ -117,11 +121,17 @@ export const JolietCursorSchema = z
       .object({
         source: z.literal("joliet"),
         phase: z.literal("restart"),
-        restarts: restarts.min(1),
+        restarts,
       })
       .strict(),
+    // A restarted run records its restarts, so code that predates restarts
+    // rejects the terminal cursor instead of publishing superseded chunks.
     z
-      .object({ source: z.literal("joliet"), phase: z.literal("complete") })
+      .object({
+        source: z.literal("joliet"),
+        phase: z.literal("complete"),
+        restarts: restarts.optional(),
+      })
       .strict(),
   ])
   .superRefine((cursor, context) => {
@@ -159,12 +169,13 @@ export const JolietCursorSchema = z
 export type JolietCursor = z.infer<typeof JolietCursorSchema>;
 export const JolietCursor = {
   initial: { source: "joliet", phase: "start" },
-  checkpoint(progress: JolietProgress): JolietCursor {
+  checkpoint({ restarts, ...progress }: JolietProgress): JolietCursor {
     return JolietCursorSchema.parse({
       source: "joliet",
       phase: "queries",
       ...progress,
-      progressHash: progressHash(progress),
+      ...(restarts ? { restarts } : {}),
+      progressHash: progressHash({ ...progress, restarts }),
     });
   },
 } as const satisfies {

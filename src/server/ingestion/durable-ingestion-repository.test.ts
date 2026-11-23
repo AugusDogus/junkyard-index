@@ -11,9 +11,13 @@ import type {
 } from "./durable-ingestion-types";
 import {
   DURABLE_INGESTION_SOURCES,
+  durableSourceChunkProgressError,
+  parseDurableSourceCursor,
+  serializeDurableSourceCursor,
   type DurableSourceCursor,
 } from "./durable-source";
 import type { PypStoreCursor } from "./durable-cursor";
+import { JolietCursor } from "./joliet-cursor";
 import type { Yard } from "~/lib/yard";
 import {
   createTestClient,
@@ -1397,6 +1401,80 @@ test("a restarted crawl replaces every chunk and count staged before the restart
     expect((await stagedSnapshots(client, store, "restart-run")).vins).toEqual([
       fresh.vin,
     ]);
+  } finally {
+    testDatabase.cleanup();
+  }
+});
+
+test("a Joliet checkpoint written before restarts existed resumes and advances", async () => {
+  const testDatabase = createTestClient();
+  const { client } = testDatabase;
+  try {
+    await client.executeMultiple(TEST_SCHEMA);
+    const repository = createDurableIngestionRepository(
+      drizzle(client),
+      client,
+      IngestionSnapshotStore.memory(),
+    );
+    await repository.initialize("old-joliet-run", async () => ["joliet"]);
+    const receipt = (hash: string) => ({ hash, count: 0, newStocks: 0 });
+    const progress = {
+      contextHash: "c".repeat(64),
+      pairCount: 3,
+      seen: [],
+    };
+    // The exact wire main wrote: no restarts key, schema key order.
+    const first = JolietCursor.checkpoint({
+      ...progress,
+      restarts: 0,
+      nextQuery: 1,
+      receipts: [receipt("a".repeat(64))],
+    });
+    if (first.phase !== "queries") throw new Error("Expected query cursor");
+    const oldWire = JSON.stringify({
+      phase: "queries",
+      contextHash: first.contextHash,
+      progressHash: first.progressHash,
+      nextQuery: first.nextQuery,
+      pairCount: first.pairCount,
+      seen: first.seen,
+      receipts: first.receipts,
+    });
+    await client.execute({
+      sql: "update ingestion_source_run set next_cursor = ? where id = ?",
+      args: [oldWire, "old-joliet-run:joliet"],
+    });
+    const requestedCursor = parseDurableSourceCursor("joliet", oldWire);
+    expect(serializeDurableSourceCursor(requestedCursor)).toBe(oldWire);
+    const next = JolietCursor.checkpoint({
+      ...progress,
+      restarts: 0,
+      nextQuery: 2,
+      receipts: [receipt("a".repeat(64)), receipt("b".repeat(64))],
+    });
+    const result = await repository.checkpointChunk({
+      runId: "old-joliet-run",
+      requestedCursor,
+      fetched: {
+        cursor: next,
+        status: "paused",
+        pagesProcessed: 1,
+        vehiclesProcessed: 0,
+        uniqueVehicles: 0,
+        duplicateVehicles: 0,
+        rejectedVehicles: 0,
+        errors: [],
+        vehicles: [],
+        yards: [],
+        observedVins: [],
+      },
+    });
+    expect(result).toMatchObject({
+      status: "paused",
+      cursor: next,
+      pagesProcessed: 1,
+    });
+    expect(durableSourceChunkProgressError(requestedCursor, result)).toBeNull();
   } finally {
     testDatabase.cleanup();
   }

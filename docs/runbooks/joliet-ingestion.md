@@ -133,6 +133,15 @@ Strict cursors have `start`, `queries`, `restart` and `complete` phases. A
 `restart` cursor holds only the restart count. A query cursor stores the
 owner/scope digest, restart count, next query index, pair count, native response
 receipts and cumulative per-stock identity/status/fingerprint/first-query state.
+Query and `complete` cursors omit the restart count at zero, so checkpoints
+written before restarts resume unchanged.
+
+Rollback: code that predates restarts ignores restart markers on staged chunks
+and would union superseded chunks into the snapshot. A restarted run therefore
+ends with `complete` plus its restart count, which that code's strict cursor
+rejects, so the source fails and prior inventory stays published. After a
+rollback, an in-flight restarted Joliet run fails the same way; let the next
+scheduled run crawl from `start`.
 A checksum binds every resume field independently of JSON property order. This
 detects corruption of trusted durable state and does not authenticate arbitrary
 rewritten cursors. Unique stock/VIN states, sequential own-query coverage and
