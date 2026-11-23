@@ -45,7 +45,11 @@ describe("search yard selection", () => {
         buildSearchUrl("Volvo", { yardTypes: [...types] }),
         "https://example.com",
       );
-      expect(SearchYardSelection.fromUrl(url.searchParams)).toEqual(selection);
+      const effective = (params: URLSearchParams) =>
+        SearchYardSelection.effectiveTypes(SearchYardSelection.fromUrl(params));
+      expect(effective(url.searchParams)).toEqual(
+        SearchYardSelection.effectiveTypes(selection),
+      );
       const state = restore(url);
       expect(state.vehicles?.refinementList).toEqual({ yardTypes: [...types] });
       const rewritten = new URL(
@@ -54,8 +58,8 @@ describe("search yard selection", () => {
           location: { href: url.href, search: url.search },
         }),
       );
-      expect(SearchYardSelection.fromUrl(rewritten.searchParams)).toEqual(
-        selection,
+      expect(effective(rewritten.searchParams)).toEqual(
+        SearchYardSelection.effectiveTypes(selection),
       );
     },
   );

@@ -12,6 +12,21 @@ describe("buildSearchUrl", () => {
     );
   });
 
+  test("omits the self-service default and keeps legacy all types", () => {
+    expect(buildSearchUrl("Volvo", { yardTypes: ["self_service"] })).toBe(
+      "/search?q=Volvo",
+    );
+    expect(buildSearchUrl("Volvo", { yardTypes: [] })).toBe(
+      "/search?q=Volvo&yardTypes=all",
+    );
+    expect(
+      buildSearchUrl("", {
+        expression: "yardType:full_service",
+        yardTypes: [],
+      }),
+    ).toBe("/search?syntax=expression&q=yardType%3Afull_service");
+  });
+
   test("uses q for VIN pattern searches", () => {
     expect(
       buildSearchUrl(null, {

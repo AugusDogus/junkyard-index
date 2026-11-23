@@ -47,6 +47,21 @@ function effectiveTypes(selection: SearchYardSelection): YardType[] {
   return selection.kind === "expression" ? [] : selection.types;
 }
 
+/**
+ * Whether `params`, which carry no yard types yet, already select `types`.
+ * The self-service default and expression-owned types need no URL value.
+ */
+function isImplied(
+  params: URLSearchParams,
+  types: readonly YardType[],
+): boolean {
+  const implied = effectiveTypes(fromUrl(params));
+  return (
+    implied.length === types.length &&
+    implied.every((type) => types.includes(type))
+  );
+}
+
 function fromSaved(types: YardType[] | undefined): SearchYardSelection {
   return { kind: "explicit", types: types ?? [] };
 }
@@ -66,6 +81,7 @@ export const SearchYardSelection = {
   expressionTypes,
   fromSaved,
   effectiveTypes,
+  isImplied,
   suggestion,
   fallbackThreshold,
 } as const;

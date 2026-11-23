@@ -49,8 +49,11 @@ export function buildSearchUrl(
   const yardTypes = SearchYardSelection.effectiveTypes(
     SearchYardSelection.fromSaved(filters.yardTypes),
   );
-  if (yardTypes.length) SearchFilterUrl.write(params, "yardTypes", yardTypes);
-  else params.set("yardTypes", "all");
+  // The self-service default and expression-owned types need no parameter.
+  if (!SearchYardSelection.isImplied(params, yardTypes)) {
+    if (yardTypes.length) SearchFilterUrl.write(params, "yardTypes", yardTypes);
+    else params.set("yardTypes", "all");
+  }
   if (filters.minYear) {
     params.set("minYear", filters.minYear.toString());
   }
