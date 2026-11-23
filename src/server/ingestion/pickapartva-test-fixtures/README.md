@@ -48,4 +48,19 @@ The make split test serves the November 12 census with the 2026-10-16
 unfiltered and Fredericksburg searches capped. Its make searches are the
 captured Fredericksburg cards of each make, plus the ones the November 12
 catalog shows that were gone by November 19, in the native make page format,
-and the live empty answer for makes with no donors.
+and the live empty answer for makes with no donors. Like the live search
+below, its DATSUN search answers with the NISSAN cards.
+
+`make-alias-2026-11-21.json.br` holds 2 raw native Fredericksburg make
+searches for Set Date 2026-11-21 as `{ url, body }`, captured live on
+November 23, 2026 (HTTP 200, about 06:30 UTC):
+
+- `/inventory/DATSUN/ANY/?k=1&id=TT87&search=2026-11-21`: 47 cards, all
+  NISSAN and all Fredericksburg, with `var setMake = "DATSUN"` and the DATSUN
+  make path as the form action.
+- `/inventory/NISSAN/ANY/?k=1&id=TT87&search=2026-11-21`: the same 47 stocks
+  in the same order, with `var setMake = "NISSAN"`. The two pages differ only
+  in the make they name.
+
+The native DATSUN search answers for its NISSAN group, so it proves that no
+DATSUN donor was set that day while the NISSAN search lists the NISSAN donors.
