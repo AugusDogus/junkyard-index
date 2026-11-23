@@ -137,7 +137,7 @@ from missing/deletion reconciliation.
   stock prefixes, part acquisition dates and photo timestamps used for currency
   qualification are not promoted to arrival dates. The guard skips these
   snapshots. See [Hollander](hollanderstores-ingestion.md).
-- `heavytruckparts` (all six stores), `cstruck`, `dutchers` and `vanderhaags`
+- `heavytruckparts` (all five stores), `cstruck`, `dutchers` and `vanderhaags`
   (all configured physical yards) also emit no arrival dates. Their slow truck
   turnover therefore needs no numeric override.
 - `chesterfield` retains native arrival dates for all three yards. The saved
