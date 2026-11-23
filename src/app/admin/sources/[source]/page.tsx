@@ -199,7 +199,7 @@ export default async function AdminSourcePage({ params }: Params) {
                         By{" "}
                         {action.userId === userId
                           ? "you"
-                          : `user ${action.userId}`}
+                          : (action.userName ?? "a removed account")}
                         {action.detail !== null && <>: {action.detail}</>}
                       </p>
                     </li>

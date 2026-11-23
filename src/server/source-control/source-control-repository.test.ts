@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { drizzle, type LibSQLDatabase } from "drizzle-orm/libsql";
 import { readFileSync } from "node:fs";
 import { HiddenSources } from "~/lib/hidden-source";
+import { SourceControl } from "./source-control";
 import { SourceControlRepository } from "./source-control-repository";
 
 const migration = readFileSync(
@@ -15,6 +16,9 @@ let db: LibSQLDatabase;
 beforeEach(async () => {
   client = createClient({ url: ":memory:" });
   await client.executeMultiple(migration);
+  await client.execute(
+    "create table user (id text primary key, name text not null, email text not null)",
+  );
   db = drizzle(client);
 });
 afterEach(() => client.close());
@@ -130,6 +134,66 @@ describe("SourceControlRepository", () => {
     ]);
   });
 
+  test("keeps both of two overlapping changes to one source", async () => {
+    const [hidden, paused] = await Promise.all([
+      SourceControlRepository.apply(db, {
+        source: "pratt",
+        change: { kind: "hide", reason: "Hacked" },
+        userId: "owner",
+        now,
+      }),
+      SourceControlRepository.apply(db, {
+        source: "pratt",
+        change: { kind: "pause" },
+        userId: "owner",
+        now,
+      }),
+    ]);
+    expect([hidden.status, paused.status]).toEqual(["changed", "changed"]);
+    const pratt = await SourceControlRepository.forSource(db, "pratt");
+    expect(pratt.ingestion).toBe("paused");
+    expect(pratt.visibility).toEqual({ status: "hidden", reason: "Hacked" });
+  });
+
+  test("decides unchanged from the stored row, not an earlier read", async () => {
+    const [first, second] = await Promise.all([
+      SourceControlRepository.apply(db, {
+        source: "pratt",
+        change: { kind: "pause" },
+        userId: "owner",
+        now,
+      }),
+      SourceControlRepository.apply(db, {
+        source: "pratt",
+        change: { kind: "pause" },
+        userId: "owner",
+        now,
+      }),
+    ]);
+    expect([first.status, second.status]).toEqual(["changed", "unchanged"]);
+    expect(
+      await SourceControlRepository.recentActions(db, "pratt", 10),
+    ).toHaveLength(1);
+  });
+
+  test("resuming or showing a source without a row changes nothing", async () => {
+    for (const change of [{ kind: "resume" }, { kind: "show" }] as const) {
+      const applied = await SourceControlRepository.apply(db, {
+        source: "pyp",
+        change,
+        userId: "owner",
+        now,
+      });
+      expect(applied.status).toBe("unchanged");
+    }
+    expect(await SourceControlRepository.forSource(db, "pyp")).toEqual(
+      SourceControl.initial("pyp"),
+    );
+    expect(
+      await SourceControlRepository.recentActions(db, "pyp", 10),
+    ).toHaveLength(0);
+  });
+
   test("logs a manual run with its run ids", async () => {
     await SourceControlRepository.logRun(db, {
       source: "pyp",
@@ -144,8 +208,33 @@ describe("SourceControlRepository", () => {
       action: "run_now",
       source: "pyp",
       userId: "owner",
+      userName: null,
       detail: "Run run-1, workflow wrun-1",
       createdAt: now,
     });
+  });
+
+  test("names who made each change, by name, else email", async () => {
+    await client.executeMultiple(`
+      insert into user values ('owner', 'Sam Owner', 'sam@example.com');
+      insert into user values ('helper', ' ', 'helper@example.com');
+    `);
+    for (const userId of ["owner", "helper", "gone"])
+      await SourceControlRepository.logRun(db, {
+        source: "pyp",
+        userId,
+        runId: `run-${userId}`,
+        workflowRunId: "wrun",
+        now,
+      });
+    expect(
+      (await SourceControlRepository.recentActions(db, "pyp", 5)).map(
+        ({ userId, userName }) => ({ userId, userName }),
+      ),
+    ).toEqual([
+      { userId: "gone", userName: null },
+      { userId: "helper", userName: "helper@example.com" },
+      { userId: "owner", userName: "Sam Owner" },
+    ]);
   });
 });
