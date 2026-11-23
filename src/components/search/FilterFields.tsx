@@ -124,9 +124,10 @@ interface InventorySourcesFilterProps {
 
 export function InventorySourcesFilter({
   idPrefix,
-  sources,
+  sources: selectedSources,
   onSourcesChange,
 }: InventorySourcesFilterProps) {
+  const sources = HiddenSources.shown(selectedSources);
   return (
     <FieldSet className="gap-3">
       <FieldLegend className="sr-only">Inventory sources</FieldLegend>
