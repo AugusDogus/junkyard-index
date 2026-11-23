@@ -83,6 +83,10 @@ export const HiddenSources = {
   has(source: string): boolean {
     return list.some((hidden) => hidden === source);
   },
+  /** Why the source is hidden, or undefined while it is shown. */
+  reason(source: IngestionSource): string | undefined {
+    return HIDDEN_SOURCES[source];
+  },
   /**
    * A saved or URL source selection without its hidden sources, so pickers
    * that offer only shown sources toggle and count it correctly.
