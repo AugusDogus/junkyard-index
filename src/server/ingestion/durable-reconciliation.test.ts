@@ -415,7 +415,7 @@ describe("bounded durable reconciliation", () => {
       );
       const runId = "urg-tenant-isolation";
       await repository.initialize(runId, async () => ["urgiis"]);
-      const healthy = URGIIS_TENANTS.find((t) => t.code === "mars");
+      const healthy = URGIIS_TENANTS.find((t) => t.code === "higgins");
       const blocked = URGIIS_TENANTS.find((t) => t.code === "eagle");
       if (!healthy || !blocked)
         throw new Error("Missing configured test yards");

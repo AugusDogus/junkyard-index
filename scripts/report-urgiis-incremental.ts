@@ -1,7 +1,4 @@
-import {
-  urgiisCoverageProbe,
-  urgiisEquinoxProbe,
-} from "../src/server/ingestion/urgiis-route-probe";
+import { urgiisCoverageProbe } from "../src/server/ingestion/urgiis-route-probe";
 import {
   urgiisBrokenModelRoute,
   urgiisModelCoverage,
@@ -112,11 +109,7 @@ for (const tenant of URGIIS_TENANTS) {
     let retryRequests = 0;
     for (const model of ordinary) {
       const url = tenant.origin + model.path;
-      const probe =
-        urgiisCoverageProbe(tenant, url) ??
-        (tenant.code === "revolution" && url === urgiisEquinoxProbe().url
-          ? urgiisEquinoxProbe()
-          : undefined);
+      const probe = urgiisCoverageProbe(tenant, url);
       if (probe) {
         const entry = entries.find((e) => e.kind === "model" && e.url === url);
         if (entry?.kind !== "model")

@@ -289,15 +289,7 @@ describe("YardService", () => {
   });
 
   test("reviewed URG parts shipping and dismantling policies establish full service", () => {
-    for (const code of [
-      "chuckran",
-      "dings",
-      "higgins",
-      "lambert",
-      "norbs",
-      "revolution",
-      "stroud",
-    ]) {
+    for (const code of ["chuckran", "higgins", "lambert", "norbs", "stroud"]) {
       expect(YardService.resolve("urgiis", code)).toEqual({
         kind: "full_service",
       });

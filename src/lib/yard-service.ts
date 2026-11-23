@@ -353,27 +353,15 @@ const yardOverrides: Partial<
   ),
   // Evidence: docs/runbooks/yard-service-classification.md#urgiis, by exact location code.
   urgiis: new Map<string, YardService>([
-    ["ace-iowa", fullService], // Ace Auto Recyclers
     ["ace-st-paul", fullService], // Ace Auto Parts
-    ["az", fullService], // A-Z Auto Parts & Auto Sales
-    ["bishops", fullService], // Bishop's Auto Parts
-    ["central-nh", fullService], // Central Auto Recyclers
     ["chuckran", fullService], // Chuckran Auto Parts
     ["chucks", fullService], // Chuck's Auto Salvage
-    ["dings", fullService], // Ding's Auto Parts
     ["eagle-martinsburg", fullService], // Eagle Auto Parts
     ["higgins", fullService], // Higgins Auto Parts
-    ["junior-sinn", fullService], // Junior Sinn Auto Parts
     ["lambert", fullService], // Lambert Auto Salvage
-    ["lentini-port-murray", fullService], // Lentini Auto Salvage - Port Murray
-    ["lentini-ringoes", fullService], // Lentini Auto Salvage - Ringoes
     ["linders", fullService], // Linder's Inc
-    ["mars", fullService], // Mars Auto Parts & Engine Swaps
     ["norbs", fullService], // Norb's Auto Salvage
-    ["premier", fullService], // Premier Auto & Truck Parts
-    ["revolution", fullService], // Revolution Auto Parts
     ["stroud", fullService], // R. Stroud's Auto Parts
-    ["united", fullService], // United Auto Recyclers
   ]),
   // Evidence: docs/runbooks/yard-service-classification.md#vinplus, by exact location code.
   vinplus: new Map<string, YardService>([

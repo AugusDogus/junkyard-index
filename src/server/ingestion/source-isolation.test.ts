@@ -39,8 +39,10 @@ test.each(
       );
       const runId = "yard-isolation";
       await repository.initialize(runId, async () => [source]);
-      const healthy = URGIIS_TENANTS.find((tenant) => tenant.code === "mars");
-      if (!healthy) throw new Error("Missing Mars fixture");
+      const healthy = URGIIS_TENANTS.find(
+        (tenant) => tenant.code === "higgins",
+      );
+      if (!healthy) throw new Error("Missing Higgins fixture");
       const code = source === "autorecycler" ? "healthy" : healthy.yard.code;
       const preserved = source === "autorecycler" ? birmingham : "linders";
       const floor = source === "autorecycler" ? 100 : healthy.minimumInventory;

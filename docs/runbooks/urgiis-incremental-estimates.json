@@ -78,108 +78,6 @@
       "retryRequests": 0
     },
     {
-      "tenant": "united",
-      "status": "published",
-      "accepted": 12356,
-      "candidates": 12356,
-      "advertised": 12491,
-      "unreachable": 29,
-      "unreachableModels": [
-        {
-          "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
-          "label": "TOWN & COUNTRY",
-          "count": 29
-        }
-      ],
-      "warnings": [
-        "29/12491 advertised donors are platform-unreachable (TOWN & COUNTRY: 29 [/parts/CHRYSLER/TOWN_-and_COUNTRY/]); maximum is 1%"
-      ],
-      "reasons": [],
-      "retryRequests": 0
-    },
-    {
-      "tenant": "ace-iowa",
-      "status": "published",
-      "accepted": 1524,
-      "candidates": 1524,
-      "advertised": 1812,
-      "unreachable": 8,
-      "unreachableModels": [
-        {
-          "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
-          "label": "TOWN & COUNTRY",
-          "count": 5
-        },
-        {
-          "path": "/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/",
-          "label": "LINCOLN & TOWN CAR",
-          "count": 1
-        },
-        {
-          "path": "/parts/SUBARU/SUBARU_PASS./",
-          "label": "SUBARU PASS/",
-          "count": 2
-        }
-      ],
-      "warnings": [
-        "8/1812 advertised donors are platform-unreachable (TOWN & COUNTRY: 5 [/parts/CHRYSLER/TOWN_-and_COUNTRY/], LINCOLN & TOWN CAR: 1 [/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/], SUBARU PASS/: 2 [/parts/SUBARU/SUBARU_PASS./]); maximum is 1%"
-      ],
-      "reasons": [],
-      "retryRequests": 0
-    },
-    {
-      "tenant": "lentini",
-      "status": "published",
-      "accepted": 3353,
-      "candidates": 3353,
-      "advertised": 3556,
-      "unreachable": 6,
-      "unreachableModels": [
-        {
-          "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
-          "label": "TOWN & COUNTRY",
-          "count": 6
-        }
-      ],
-      "warnings": [
-        "6/3556 advertised donors are platform-unreachable (TOWN & COUNTRY: 6 [/parts/CHRYSLER/TOWN_-and_COUNTRY/]); maximum is 1%"
-      ],
-      "reasons": [],
-      "retryRequests": 0
-    },
-    {
-      "tenant": "dings",
-      "status": "published",
-      "accepted": 1110,
-      "candidates": 1110,
-      "advertised": 1254,
-      "unreachable": 2,
-      "unreachableModels": [
-        {
-          "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
-          "label": "TOWN & COUNTRY",
-          "count": 2
-        }
-      ],
-      "warnings": [
-        "2/1254 advertised donors are platform-unreachable (TOWN & COUNTRY: 2 [/parts/CHRYSLER/TOWN_-and_COUNTRY/]); maximum is 1%"
-      ],
-      "reasons": [],
-      "retryRequests": 0
-    },
-    {
-      "tenant": "bishops",
-      "status": "published",
-      "accepted": 3362,
-      "candidates": 3362,
-      "advertised": 3436,
-      "unreachable": 0,
-      "unreachableModels": [],
-      "warnings": [],
-      "reasons": [],
-      "retryRequests": 0
-    },
-    {
       "tenant": "ace-st-paul",
       "status": "published",
       "accepted": 3070,
@@ -230,31 +128,6 @@
       "retryRequests": 0
     },
     {
-      "tenant": "central-nh",
-      "status": "published",
-      "accepted": 2477,
-      "candidates": 2477,
-      "advertised": 2672,
-      "unreachable": 16,
-      "unreachableModels": [
-        {
-          "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
-          "label": "TOWN & COUNTRY",
-          "count": 11
-        },
-        {
-          "path": "/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/",
-          "label": "LINCOLN & TOWN CAR",
-          "count": 5
-        }
-      ],
-      "warnings": [
-        "16/2672 advertised donors are platform-unreachable (TOWN & COUNTRY: 11 [/parts/CHRYSLER/TOWN_-and_COUNTRY/], LINCOLN & TOWN CAR: 5 [/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/]); maximum is 1%"
-      ],
-      "reasons": [],
-      "retryRequests": 0
-    },
-    {
       "tenant": "higgins",
       "status": "published",
       "accepted": 1477,
@@ -270,106 +143,6 @@
       ],
       "warnings": [
         "6/1705 advertised donors are platform-unreachable (TOWN & COUNTRY: 6 [/parts/CHRYSLER/TOWN_-and_COUNTRY/]); maximum is 1%"
-      ],
-      "reasons": [],
-      "retryRequests": 0
-    },
-    {
-      "tenant": "premier",
-      "status": "published",
-      "accepted": 2568,
-      "candidates": 2568,
-      "advertised": 2689,
-      "unreachable": 9,
-      "unreachableModels": [
-        {
-          "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
-          "label": "TOWN & COUNTRY",
-          "count": 9
-        }
-      ],
-      "warnings": [
-        "9/2689 advertised donors are platform-unreachable (TOWN & COUNTRY: 9 [/parts/CHRYSLER/TOWN_-and_COUNTRY/]); maximum is 1%"
-      ],
-      "reasons": [],
-      "retryRequests": 0
-    },
-    {
-      "tenant": "junior-sinn",
-      "status": "published",
-      "accepted": 3313,
-      "candidates": 3313,
-      "advertised": 3602,
-      "unreachable": 26,
-      "unreachableModels": [
-        {
-          "path": "/parts/CHEVROLET/BLAZER.JIMMY_(FULL_SIZE)/",
-          "label": "BLAZER/JIMMY (FULL SIZE)",
-          "count": 2
-        },
-        {
-          "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
-          "label": "TOWN & COUNTRY",
-          "count": 18
-        },
-        {
-          "path": "/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/",
-          "label": "LINCOLN & TOWN CAR",
-          "count": 6
-        }
-      ],
-      "warnings": [
-        "26/3602 advertised donors are platform-unreachable (BLAZER/JIMMY (FULL SIZE): 2 [/parts/CHEVROLET/BLAZER.JIMMY_(FULL_SIZE)/], TOWN & COUNTRY: 18 [/parts/CHRYSLER/TOWN_-and_COUNTRY/], LINCOLN & TOWN CAR: 6 [/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/]); maximum is 1%"
-      ],
-      "reasons": [],
-      "retryRequests": 0
-    },
-    {
-      "tenant": "revolution",
-      "status": "published",
-      "accepted": 5276,
-      "candidates": 5276,
-      "advertised": 5397,
-      "unreachable": 25,
-      "unreachableModels": [
-        {
-          "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
-          "label": "TOWN & COUNTRY",
-          "count": 23
-        },
-        {
-          "path": "/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/",
-          "label": "LINCOLN & TOWN CAR",
-          "count": 2
-        }
-      ],
-      "warnings": [
-        "25/5397 advertised donors are platform-unreachable (TOWN & COUNTRY: 23 [/parts/CHRYSLER/TOWN_-and_COUNTRY/], LINCOLN & TOWN CAR: 2 [/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/]); maximum is 1%"
-      ],
-      "reasons": [],
-      "retryRequests": 1
-    },
-    {
-      "tenant": "az",
-      "status": "published",
-      "accepted": 1739,
-      "candidates": 1739,
-      "advertised": 1783,
-      "unreachable": 3,
-      "unreachableModels": [
-        {
-          "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
-          "label": "TOWN & COUNTRY",
-          "count": 2
-        },
-        {
-          "path": "/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/",
-          "label": "LINCOLN & TOWN CAR",
-          "count": 1
-        }
-      ],
-      "warnings": [
-        "3/1783 advertised donors are platform-unreachable (TOWN & COUNTRY: 2 [/parts/CHRYSLER/TOWN_-and_COUNTRY/], LINCOLN & TOWN CAR: 1 [/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/]); maximum is 1%"
       ],
       "reasons": [],
       "retryRequests": 0
@@ -451,18 +224,6 @@
       "warnings": [
         "16/10258 advertised donors are platform-unreachable (BLAZER/JIMMY (FULL SIZE): 3 [/parts/CHEVROLET/BLAZER.JIMMY_(FULL_SIZE)/], CHEVROLET PASS/: 2 [/parts/CHEVROLET/CHEVROLET_PASS./], NEW YORKER (FWD): 5 [/parts/CHRYSLER/NEW_YORKER_(FWD)/], FORD PASS/: 1 [/parts/FORD/FORD_PASS./], SAFARI (GMC): 4 [/parts/GMC/SAFARI_(GMC)/], SUBARU PASS/: 1 [/parts/SUBARU/SUBARU_PASS./]); maximum is 1%"
       ],
-      "reasons": [],
-      "retryRequests": 0
-    },
-    {
-      "tenant": "mars",
-      "status": "published",
-      "accepted": 381,
-      "candidates": 381,
-      "advertised": 993,
-      "unreachable": 0,
-      "unreachableModels": [],
-      "warnings": [],
       "reasons": [],
       "retryRequests": 0
     },
@@ -571,126 +332,6 @@
       "censusBytes": 1398328
     },
     {
-      "tenant": "united",
-      "makes": 46,
-      "models": 526,
-      "fullRequests": 623,
-      "unchangedNoSweep": 97,
-      "weeklyRequests": [185, 185, 184, 184, 185, 185, 185],
-      "dailyAverage": 184.7,
-      "beforeMinutes": 85.1,
-      "afterMinutes": 25.2,
-      "recoveryRequests": 359,
-      "recoveryMinutes": 49.1,
-      "modelStocks": 12409,
-      "arrivalStocks": 6,
-      "purchaseDatedArrivals": 0,
-      "datedArrivals": 6,
-      "comparableDatePairs": 5,
-      "outOfOrderDatePairs": 0,
-      "comparablePurchasePairs": 0,
-      "outOfOrderPurchasePairs": 0,
-      "arrivalModelOverlap": 6,
-      "arrivalsOnly": 0,
-      "censusBytes": 4304968
-    },
-    {
-      "tenant": "ace-iowa",
-      "makes": 42,
-      "models": 376,
-      "fullRequests": 465,
-      "unchangedNoSweep": 89,
-      "weeklyRequests": [152, 152, 151, 151, 152, 152, 152],
-      "dailyAverage": 151.7,
-      "beforeMinutes": 63.5,
-      "afterMinutes": 20.7,
-      "recoveryRequests": 276,
-      "recoveryMinutes": 37.7,
-      "modelStocks": 1586,
-      "arrivalStocks": 60,
-      "purchaseDatedArrivals": 0,
-      "datedArrivals": 60,
-      "comparableDatePairs": 59,
-      "outOfOrderDatePairs": 0,
-      "comparablePurchasePairs": 0,
-      "outOfOrderPurchasePairs": 0,
-      "arrivalModelOverlap": 60,
-      "arrivalsOnly": 0,
-      "censusBytes": 668294
-    },
-    {
-      "tenant": "lentini",
-      "makes": 39,
-      "models": 336,
-      "fullRequests": 3969,
-      "unchangedNoSweep": 83,
-      "weeklyRequests": [162, 174, 173, 164, 170, 163, 162],
-      "dailyAverage": 166.9,
-      "beforeMinutes": 542.4,
-      "afterMinutes": 22.8,
-      "recoveryRequests": 345,
-      "recoveryMinutes": 47.1,
-      "modelStocks": 3548,
-      "arrivalStocks": 60,
-      "purchaseDatedArrivals": 0,
-      "datedArrivals": 60,
-      "comparableDatePairs": 59,
-      "outOfOrderDatePairs": 0,
-      "comparablePurchasePairs": 0,
-      "outOfOrderPurchasePairs": 0,
-      "arrivalModelOverlap": 60,
-      "arrivalsOnly": 0,
-      "censusBytes": 1824441
-    },
-    {
-      "tenant": "dings",
-      "makes": 36,
-      "models": 246,
-      "fullRequests": 323,
-      "unchangedNoSweep": 77,
-      "weeklyRequests": [118, 118, 118, 118, 118, 118, 118],
-      "dailyAverage": 118,
-      "beforeMinutes": 44.1,
-      "afterMinutes": 16.1,
-      "recoveryRequests": 200,
-      "recoveryMinutes": 27.3,
-      "modelStocks": 1090,
-      "arrivalStocks": 60,
-      "purchaseDatedArrivals": 60,
-      "datedArrivals": 60,
-      "comparableDatePairs": 59,
-      "outOfOrderDatePairs": 0,
-      "comparablePurchasePairs": 59,
-      "outOfOrderPurchasePairs": 0,
-      "arrivalModelOverlap": 27,
-      "arrivalsOnly": 33,
-      "censusBytes": 456342
-    },
-    {
-      "tenant": "bishops",
-      "makes": 35,
-      "models": 322,
-      "fullRequests": 396,
-      "unchangedNoSweep": 74,
-      "weeklyRequests": [128, 128, 127, 127, 128, 128, 128],
-      "dailyAverage": 127.7,
-      "beforeMinutes": 62.7,
-      "afterMinutes": 20.2,
-      "recoveryRequests": 234,
-      "recoveryMinutes": 37,
-      "modelStocks": 3385,
-      "arrivalStocks": 0,
-      "purchaseDatedArrivals": 0,
-      "datedArrivals": 0,
-      "comparableDatePairs": 0,
-      "outOfOrderDatePairs": 0,
-      "comparablePurchasePairs": 0,
-      "outOfOrderPurchasePairs": 0,
-      "arrivalModelOverlap": 0,
-      "arrivalsOnly": 0,
-      "censusBytes": 1198234
-    },
-    {
       "tenant": "ace-st-paul",
       "makes": 38,
       "models": 342,
@@ -726,7 +367,7 @@
       "afterMinutes": 24.7,
       "recoveryRequests": 294,
       "recoveryMinutes": 46.5,
-      "modelStocks": 2841,
+      "modelStocks": 2865,
       "arrivalStocks": 43,
       "purchaseDatedArrivals": 0,
       "datedArrivals": 43,
@@ -736,31 +377,7 @@
       "outOfOrderPurchasePairs": 0,
       "arrivalModelOverlap": 43,
       "arrivalsOnly": 0,
-      "censusBytes": 1117468
-    },
-    {
-      "tenant": "central-nh",
-      "makes": 43,
-      "models": 380,
-      "fullRequests": 471,
-      "unchangedNoSweep": 91,
-      "weeklyRequests": [154, 154, 154, 154, 155, 155, 154],
-      "dailyAverage": 154.3,
-      "beforeMinutes": 64.4,
-      "afterMinutes": 21.1,
-      "recoveryRequests": 280,
-      "recoveryMinutes": 38.3,
-      "modelStocks": 2578,
-      "arrivalStocks": 60,
-      "purchaseDatedArrivals": 0,
-      "datedArrivals": 60,
-      "comparableDatePairs": 59,
-      "outOfOrderDatePairs": 0,
-      "comparablePurchasePairs": 0,
-      "outOfOrderPurchasePairs": 0,
-      "arrivalModelOverlap": 59,
-      "arrivalsOnly": 1,
-      "censusBytes": 946962
+      "censusBytes": 1126456
     },
     {
       "tenant": "higgins",
@@ -785,102 +402,6 @@
       "arrivalModelOverlap": 52,
       "arrivalsOnly": 8,
       "censusBytes": 552842
-    },
-    {
-      "tenant": "premier",
-      "makes": 35,
-      "models": 264,
-      "fullRequests": 339,
-      "unchangedNoSweep": 75,
-      "weeklyRequests": [119, 119, 119, 119, 119, 119, 119],
-      "dailyAverage": 119,
-      "beforeMinutes": 53.7,
-      "afterMinutes": 18.8,
-      "recoveryRequests": 207,
-      "recoveryMinutes": 32.8,
-      "modelStocks": 2621,
-      "arrivalStocks": 60,
-      "purchaseDatedArrivals": 0,
-      "datedArrivals": 60,
-      "comparableDatePairs": 59,
-      "outOfOrderDatePairs": 0,
-      "comparablePurchasePairs": 0,
-      "outOfOrderPurchasePairs": 0,
-      "arrivalModelOverlap": 48,
-      "arrivalsOnly": 12,
-      "censusBytes": 972994
-    },
-    {
-      "tenant": "junior-sinn",
-      "makes": 40,
-      "models": 355,
-      "fullRequests": 440,
-      "unchangedNoSweep": 85,
-      "weeklyRequests": [144, 144, 144, 144, 145, 144, 144],
-      "dailyAverage": 144.1,
-      "beforeMinutes": 69.7,
-      "afterMinutes": 22.8,
-      "recoveryRequests": 262,
-      "recoveryMinutes": 41.5,
-      "modelStocks": 3360,
-      "arrivalStocks": 26,
-      "purchaseDatedArrivals": 0,
-      "datedArrivals": 26,
-      "comparableDatePairs": 25,
-      "outOfOrderDatePairs": 0,
-      "comparablePurchasePairs": 0,
-      "outOfOrderPurchasePairs": 0,
-      "arrivalModelOverlap": 26,
-      "arrivalsOnly": 0,
-      "censusBytes": 1279349
-    },
-    {
-      "tenant": "revolution",
-      "makes": 43,
-      "models": 389,
-      "fullRequests": 480,
-      "unchangedNoSweep": 90,
-      "weeklyRequests": [155, 155, 155, 154, 155, 155, 155],
-      "dailyAverage": 154.9,
-      "beforeMinutes": 76,
-      "afterMinutes": 24.5,
-      "recoveryRequests": 284,
-      "recoveryMinutes": 45,
-      "modelStocks": 5293,
-      "arrivalStocks": 0,
-      "purchaseDatedArrivals": 0,
-      "datedArrivals": 0,
-      "comparableDatePairs": 0,
-      "outOfOrderDatePairs": 0,
-      "comparablePurchasePairs": 0,
-      "outOfOrderPurchasePairs": 0,
-      "arrivalModelOverlap": 0,
-      "arrivalsOnly": 0,
-      "censusBytes": 1891690
-    },
-    {
-      "tenant": "az",
-      "makes": 27,
-      "models": 183,
-      "fullRequests": 242,
-      "unchangedNoSweep": 59,
-      "weeklyRequests": [90, 89, 89, 89, 90, 90, 90],
-      "dailyAverage": 89.6,
-      "beforeMinutes": 38.3,
-      "afterMinutes": 14.2,
-      "recoveryRequests": 149,
-      "recoveryMinutes": 23.6,
-      "modelStocks": 1752,
-      "arrivalStocks": 60,
-      "purchaseDatedArrivals": 0,
-      "datedArrivals": 0,
-      "comparableDatePairs": 0,
-      "outOfOrderDatePairs": 0,
-      "comparablePurchasePairs": 0,
-      "outOfOrderPurchasePairs": 0,
-      "arrivalModelOverlap": 40,
-      "arrivalsOnly": 20,
-      "censusBytes": 630857
     },
     {
       "tenant": "lambert",
@@ -931,30 +452,6 @@
       "censusBytes": 3208288
     },
     {
-      "tenant": "mars",
-      "makes": 7,
-      "models": 41,
-      "fullRequests": 60,
-      "unchangedNoSweep": 19,
-      "weeklyRequests": [26, 26, 26, 25, 26, 26, 26],
-      "dailyAverage": 25.9,
-      "beforeMinutes": 9.5,
-      "afterMinutes": 4.1,
-      "recoveryRequests": 39,
-      "recoveryMinutes": 6.2,
-      "modelStocks": 378,
-      "arrivalStocks": 28,
-      "purchaseDatedArrivals": 28,
-      "datedArrivals": 28,
-      "comparableDatePairs": 27,
-      "outOfOrderDatePairs": 0,
-      "comparablePurchasePairs": 27,
-      "outOfOrderPurchasePairs": 0,
-      "arrivalModelOverlap": 6,
-      "arrivalsOnly": 22,
-      "censusBytes": 147728
-    },
-    {
       "tenant": "stroud",
       "makes": 43,
       "models": 438,
@@ -980,19 +477,19 @@
     }
   ],
   "totals": {
-    "publishedTenants": 20,
+    "publishedTenants": 9,
     "blockedTenants": 0,
-    "accepted": 74217,
-    "unreachableAdvertised": 236,
-    "beforeRequests": 12339,
-    "afterRequests": 2857.5,
-    "beforeMinutes": 1847.3,
-    "afterMinutes": 441.7,
-    "censusBytes": 28046369,
+    "accepted": 36780,
+    "unreachableAdvertised": 86,
+    "beforeRequests": 4531,
+    "afterRequests": 1420.7,
+    "beforeMinutes": 737.9,
+    "afterMinutes": 231.2,
+    "censusBytes": 13733498,
     "worstRecovery": {
-      "tenant": "lentini",
-      "requests": 8920,
-      "minutes": 1314.1
+      "tenant": "norbs",
+      "requests": 2995,
+      "minutes": 486
     }
   }
 }
