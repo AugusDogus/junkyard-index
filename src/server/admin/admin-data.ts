@@ -47,7 +47,7 @@ export type Loaded<Value> =
   | { status: "ok"; value: Value }
   | { status: "failed"; what: string; message: string };
 
-async function load<Value>(
+export async function loadPart<Value>(
   what: string,
   work: () => Promise<Value>,
 ): Promise<Loaded<Value>> {
@@ -208,9 +208,9 @@ async function loadSource(
  * passed requireAdmin first.
  */
 export const AdminData = {
-  sources: (now: Date) => load("source runs", () => loadSources(now)),
-  search: (now: Date) => load("search status", () => loadSearch(now)),
-  alerts: (now: Date) => load("saved-search alerts", () => loadAlerts(now)),
+  sources: (now: Date) => loadPart("source runs", () => loadSources(now)),
+  search: (now: Date) => loadPart("search status", () => loadSearch(now)),
+  alerts: (now: Date) => loadPart("saved-search alerts", () => loadAlerts(now)),
   source: (source: IngestionSource, now: Date) =>
-    load("this source's runs", () => loadSource(source, now)),
+    loadPart("this source's runs", () => loadSource(source, now)),
 } as const;
