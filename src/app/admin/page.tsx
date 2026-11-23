@@ -8,6 +8,7 @@ import {
 } from "~/components/admin/AdminParts";
 import { AdminLinkPending } from "~/components/admin/AdminLinkPending";
 import { AdminTime } from "~/components/admin/AdminTime";
+import { StopRunControl } from "~/components/admin/StopRunControl";
 import {
   alertCheckStatusText,
   SearchBacklogText,
@@ -15,6 +16,7 @@ import {
 import { AdminData } from "~/server/admin/admin-data";
 import { Attention } from "~/server/admin/attention";
 import { adminMetadata, requireAdmin } from "~/server/admin/require-admin";
+import { RunHold } from "~/server/admin/run-hold";
 import { SourceOverview } from "~/server/admin/source-overview";
 
 // The layout's "%s | Admin" template applies to child segments only.
@@ -42,6 +44,9 @@ export default async function AdminOverviewPage() {
         ? alerts.value.status.problems
         : [],
   });
+  // A run holding up others comes first: it blocks every source behind it.
+  const runAttention =
+    sources.status === "ok" ? RunHold.attention(sources.value.holds) : [];
 
   return (
     <div className="space-y-12">
@@ -51,12 +56,36 @@ export default async function AdminOverviewPage() {
       />
 
       <AdminSection title="Needs attention">
-        {attention.length === 0 ? (
+        {attention.length === 0 && runAttention.length === 0 ? (
           <p className="text-muted-foreground text-sm">
             Nothing needs attention right now.
           </p>
         ) : (
           <ul className="divide-y rounded-lg border">
+            {runAttention.map((item) => (
+              <li key={`${item.href}:${item.title}`} className="p-4 text-sm">
+                <Link
+                  href={item.href}
+                  className="inline-flex items-center gap-1.5 font-medium underline-offset-4 hover:underline"
+                >
+                  {item.title}
+                  <AdminLinkPending />
+                </Link>
+                <p className="text-muted-foreground mt-1">{item.detail}</p>
+                <ul className="mt-3 grid gap-3">
+                  {item.runs.map((run) => (
+                    <li key={run.runId} className="grid gap-1">
+                      {item.runs.length > 1 && (
+                        <span>
+                          {run.name}: run {run.runId}, at the {run.stage} stage
+                        </span>
+                      )}
+                      <StopRunControl run={run} />
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
             {attention.map((item) => (
               <li key={`${item.href}:${item.title}`} className="p-4 text-sm">
                 <Link

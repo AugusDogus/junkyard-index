@@ -50,7 +50,7 @@ function ControlRow({
   );
 }
 
-function ResultMessage({ result }: { result: SourceControlResult }) {
+export function ResultMessage({ result }: { result: SourceControlResult }) {
   const failed =
     result.status === "failed" ||
     result.status === "refused" ||

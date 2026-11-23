@@ -7,7 +7,8 @@ vehicle table and never searches Algolia, so opening it costs no Algolia
 searches.
 
 Each source's page also has controls: pause or resume its daily runs, hide it
-from the public site or show it again, and start a run now.
+from the public site or show it again, start a run now, and stop a run that
+is stuck or holding others up.
 
 ## Who can open it
 
@@ -48,11 +49,14 @@ error" opens the exact text the system stored.
 
 ### Overview (`/admin`)
 
-- **Needs attention**: sources that failed their last 2 or more runs or have
-  not been updated for over 36 hours (the same rule `/api/status` uses), a
-  run that has made no progress for over 3 hours (it blocks that source's
-  next run), search falling behind, and late saved-search alerts. Each links
-  to the page with details.
+- **Needs attention**: first, a run that has held the publish slot for over
+  an hour (with how many runs wait behind it and for how long) and runs that
+  run code from another deployment; each has a **Stop this run** button (see
+  [Stop a run](#stop-a-run)). Then sources that failed their last 2 or more
+  runs or have not been updated for over 36 hours (the same rule
+  `/api/status` uses), a run that has made no progress for over 3 hours (it
+  blocks that source's next run), search falling behind, and late
+  saved-search alerts. Each links to the page with details.
 - **Sources**: how many are updated today, failing, out of date, running,
   paused (here or by their Vercel flag), hidden from the public site and
   retired, plus when the latest run started.
@@ -95,7 +99,10 @@ and hovering "Paused" says what paused it.
 Its state and counts (from the last 14 days, as on the sources page), its
 controls, the last 20 changes made to it here, and its last 14 runs: when
 each started, how it ended, how long it took, pages and vehicles read, and
-its full error text.
+its full error text. While a run is active, Status also shows its stage,
+whether it holds the publish slot (since when, and the runs queued behind
+it), and whether it runs the current deployment's code; its row under
+Recent runs has **Stop this run**.
 
 #### Controls
 
@@ -124,6 +131,48 @@ Every change applies without a deploy, shows a result message in plain words
 
 The controls are stored in the `source_control` table and the log in
 `admin_action_log`.
+
+#### Stop a run
+
+Only one run publishes at a time (the publish slot, `commit_started_at` on
+`ingestion_run`), and each source has one active run. A workflow run keeps
+the code of the deployment it started on, so a fix deployed later never
+reaches it. On Nov 23, 2026 a Hollander Stores run on a deployment with slow
+reconciliation held the slot for over 12 hours while 17 runs waited, and
+those sources could not start their next daily runs either.
+
+Use **Stop this run** when a run has held the publish slot for over an hour
+and is not finishing (check its last progress on its source page), when it
+is stuck, or when it runs another deployment's code that a later fix
+replaced. Runs on another deployment usually finish on their own; leave
+those that are publishing promptly.
+
+The dialog says what happens, and the stop works like the cron-secret
+`POST /api/cron/vehicle-ingestion/abandon` route:
+
+- The run is abandoned and its workflow cancelled. Runs queued behind it go
+  ahead, and the source's slot is free.
+- Data it already wrote stays.
+- The source's next scheduled run starts fresh on current code: 2 hours
+  after the stop while it has attempts left today (3 a day), otherwise in
+  tomorrow's daily pass. **Stop and run again** starts one right away
+  instead, like Run now (it is refused, with the reason, if the source is
+  paused or retired; the stop still happens).
+- A run past its crawl (any stage but `sources`) may have written part of
+  its data, so stopping it makes the next run rebuild search in full. The
+  dialog asks you to confirm that first. If the run moved past its crawl
+  after the page loaded, the stop is refused; reload and confirm.
+- A run with an unconfirmed Algolia index move (`full_reindex_move_pending`)
+  cannot be stopped; the dialog says so. Wait for the move to be confirmed.
+- If its workflow could not be cancelled, the result names it: cancel it in
+  the Vercel dashboard. The run is stopped in the database either way.
+
+Each stop is logged under Recent actions as "Stopped a run" with the run id,
+stage, workflow and whether a full rebuild follows. Whether a run runs the
+current deployment's code comes from the workflow backend's list of live
+ingestion workflows; it shows as unknown off Vercel, when the list cannot be
+read, or for a workflow it does not list (one that ended, or started over
+two days ago).
 
 ### Search & alerts (`/admin/search`)
 

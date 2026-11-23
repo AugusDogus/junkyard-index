@@ -16,6 +16,7 @@ export const ADMIN_ACTIONS = [
   "hide_source",
   "show_source",
   "run_now",
+  "abandon_run",
 ] as const;
 
 /** What an admin did, as `admin_action_log.action` stores it. */
@@ -30,7 +31,7 @@ export type AdminActionEntry = {
   userId: string;
   /** The admin's name, else email; null once their account is removed. */
   userName: string | null;
-  /** The hide reason, or the run ids of a manual run. */
+  /** The hide reason, or the run ids of a manual or stopped run. */
   detail: string | null;
   createdAt: Date;
 };
@@ -200,6 +201,35 @@ export const SourceControlRepository = {
       action: "run_now",
       source: input.source,
       detail: `Run ${input.runId}, workflow ${input.workflowRunId}`,
+      createdAt: input.now,
+    });
+  },
+
+  /**
+   * A run an admin stopped (abandoned). `source` is the run's source as
+   * stored, "all" for a run across every source.
+   */
+  async logStop(
+    database: LibSQLDatabase,
+    input: {
+      source: string;
+      userId: string;
+      runId: string;
+      workflowRunId: string | null;
+      stage: string;
+      fullRebuild: boolean;
+      now: Date;
+    },
+  ): Promise<void> {
+    const workflow =
+      input.workflowRunId === null
+        ? "no workflow attached"
+        : `workflow ${input.workflowRunId}`;
+    await database.insert(adminActionLog).values({
+      userId: input.userId,
+      action: "abandon_run",
+      source: input.source,
+      detail: `Run ${input.runId} at the ${input.stage} stage, ${workflow}${input.fullRebuild ? "; a full search rebuild follows" : ""}`,
       createdAt: input.now,
     });
   },

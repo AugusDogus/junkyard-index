@@ -4,6 +4,7 @@ import type { IngestionSource } from "~/lib/ingestion-source";
 import { ingestionRun, ingestionSourceRun, yardInventory } from "~/schema";
 import type { ActiveRun } from "./source-overview";
 import type { SourceRun, SourceRunErrors } from "./source-run";
+import type { StopRunRecord } from "./stop-run-action";
 
 /** Characters of error text a list loads per run, enough for a summary. */
 export const ERROR_EXCERPT_CHARS = 4_000;
@@ -153,18 +154,42 @@ export const SourceRunRepository = {
       .limit(limit);
   },
 
-  /** Runs holding a source's active slot: at most one per source. */
+  /**
+   * Runs holding a source's active slot: at most one per source, and one of
+   * them may hold the shared commit.
+   */
   activeRuns(database: LibSQLDatabase): Promise<ActiveRun[]> {
     return database
       .select({
         runId: ingestionRun.id,
         source: ingestionRun.source,
         stage: ingestionRun.stage,
+        workflowRunId: ingestionRun.workflowRunId,
         startedAt: ingestionRun.startedAt,
         lastProgressAt: ingestionRun.lastProgressAt,
+        readyAt: ingestionRun.readyAt,
+        commitStartedAt: ingestionRun.commitStartedAt,
       })
       .from(ingestionRun)
       .where(eq(ingestionRun.activeSlot, 1));
+  },
+
+  /** What the stop control checks before stopping a run; null if missing. */
+  async stopTarget(
+    database: LibSQLDatabase,
+    runId: string,
+  ): Promise<StopRunRecord | null> {
+    const [run] = await database
+      .select({
+        runId: ingestionRun.id,
+        source: ingestionRun.source,
+        status: ingestionRun.status,
+        stage: ingestionRun.stage,
+      })
+      .from(ingestionRun)
+      .where(eq(ingestionRun.id, runId))
+      .limit(1);
+    return run ?? null;
   },
 
   /** Vehicles on the site per source, summed from yard_inventory. */

@@ -234,6 +234,43 @@ describe("SourceControlRepository", () => {
     });
   });
 
+  test("logs a stopped run with its stage, workflow and whether search rebuilds", async () => {
+    await SourceControlRepository.logStop(db, {
+      source: "hollanderstores",
+      userId: "owner",
+      runId: "run-1",
+      workflowRunId: "wrun-1",
+      stage: "reconcile_upsert",
+      fullRebuild: true,
+      now,
+    });
+    await SourceControlRepository.logStop(db, {
+      source: "hollanderstores",
+      userId: "owner",
+      runId: "run-2",
+      workflowRunId: null,
+      stage: "sources",
+      fullRebuild: false,
+      now: new Date(now.getTime() + 1),
+    });
+    expect(
+      await SourceControlRepository.recentActions(db, "hollanderstores", 5),
+    ).toMatchObject([
+      {
+        action: "abandon_run",
+        detail: "Run run-2 at the sources stage, no workflow attached",
+      },
+      {
+        action: "abandon_run",
+        source: "hollanderstores",
+        userId: "owner",
+        detail:
+          "Run run-1 at the reconcile_upsert stage, workflow wrun-1; a full search rebuild follows",
+        createdAt: now,
+      },
+    ]);
+  });
+
   test("names who made each change, by name, else email", async () => {
     await client.executeMultiple(`
       insert into user values ('owner', 'Sam Owner', 'sam@example.com');

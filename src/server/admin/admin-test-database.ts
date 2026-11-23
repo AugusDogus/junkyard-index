@@ -5,8 +5,9 @@ import { drizzle } from "drizzle-orm/libsql";
 const ADMIN_TEST_SCHEMA = `
   create table ingestion_run (
     id text primary key, source text not null, status text not null,
-    schedule_key text, stage text not null default 'sources',
-    active_slot integer, full_reindex_required integer not null default 0,
+    schedule_key text, workflow_run_id text,
+    stage text not null default 'sources',
+    active_slot integer, commit_started_at integer, ready_at integer, full_reindex_required integer not null default 0,
     inventory_outcome text, publication_sequence integer,
     published_vehicle_count integer, errors text,
     started_at integer not null, last_progress_at integer not null,

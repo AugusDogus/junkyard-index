@@ -24,8 +24,17 @@ export type ActiveRun = {
   runId: string;
   source: string;
   stage: string;
+  /** The workflow driving it; null until its workflow attaches. */
+  workflowRunId: string | null;
   startedAt: Date;
   lastProgressAt: Date;
+  /**
+   * When validation queued it for the shared commit; null while crawling,
+   * and for runs validated by earlier code, which queued at lastProgressAt.
+   */
+  readyAt: Date | null;
+  /** When it took the shared commit; null unless it holds it. */
+  commitStartedAt: Date | null;
 };
 
 /** The ingestion-source-<source> Vercel flags, read once for every source. */
