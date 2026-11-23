@@ -20,7 +20,7 @@ import type {
 } from "~/server/source-control/source-control";
 
 /** Which confirm step is open; only one at a time. */
-type Confirming = "none" | "hide" | "run";
+type Confirming = "none" | "hide" | "show" | "run";
 
 const PAUSE_LABELS: Record<PauseCause, string> = {
   admin: "Paused here",
@@ -78,8 +78,8 @@ function ResultMessage({ result }: { result: SourceControlResult }) {
 
 /**
  * The owner's controls for one source: pause or resume its runs, hide it
- * from the public site or show it again, and start a run now. Hiding and
- * running ask for a confirm step first.
+ * from the public site or show it again, and start a run now. Hiding,
+ * showing and running ask for a confirm step first.
  */
 export function SourceControls({
   source,
@@ -106,7 +106,19 @@ export function SourceControls({
   function send(input: SourceControlInput) {
     setResult(null);
     startTransition(async () => {
-      const next = await applySourceControl(input);
+      let next: SourceControlResult;
+      try {
+        next = await applySourceControl(input);
+      } catch (error) {
+        // An expired session, a lost connection or a new deploy can stop the
+        // request before it answers, so whether it applied is unknown.
+        next = {
+          status: "failed",
+          message:
+            "The page lost touch with the server, so it cannot tell whether this happened. Reload the page and check Recent actions before trying again.",
+          detail: error instanceof Error ? error.message : String(error),
+        };
+      }
       setResult(next);
       if (next.status === "done" || next.status === "unchanged") {
         setConfirming("none");
@@ -118,9 +130,11 @@ export function SourceControls({
 
   const runBlocked = retired
     ? "Retired sources are never fetched."
-    : pausedBy !== null
-      ? "Resume it first."
-      : null;
+    : pausedBy === "flag"
+      ? "Turn its Vercel flag on first."
+      : pausedBy !== null
+        ? "Resume it first."
+        : null;
 
   return (
     <div className="grid gap-4">
@@ -177,14 +191,16 @@ export function SourceControls({
         >
           {visibility.status === "hidden" ? (
             <>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={pending}
-                onClick={() => send({ kind: "show", source })}
-              >
-                Show on site
-              </Button>
+              {confirming !== "show" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={pending}
+                  onClick={() => setConfirming("show")}
+                >
+                  Show on site
+                </Button>
+              )}
               {confirming !== "hide" && (
                 <Button
                   variant="ghost"
@@ -210,6 +226,30 @@ export function SourceControls({
                 Hide from site
               </Button>
             )
+          )}
+          {confirming === "show" && (
+            <div className="grid w-full gap-2">
+              <p className="text-sm">
+                Show {name} again? Visitors will be linked to its website.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  disabled={pending}
+                  onClick={() => send({ kind: "show", source })}
+                >
+                  {pending ? "Showing" : `Show ${name}`}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={pending}
+                  onClick={() => setConfirming("none")}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
           )}
           {confirming === "hide" && (
             <form
@@ -241,7 +281,13 @@ export function SourceControls({
                   size="sm"
                   disabled={pending || reason.trim() === ""}
                 >
-                  {pending ? "Hiding" : `Hide ${name}`}
+                  {visibility.status === "hidden"
+                    ? pending
+                      ? "Saving"
+                      : "Save reason"
+                    : pending
+                      ? "Hiding"
+                      : `Hide ${name}`}
                 </Button>
                 <Button
                   type="button"
