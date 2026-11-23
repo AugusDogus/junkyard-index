@@ -173,7 +173,7 @@ function filterSummary(key: FilterKey, value: SearchCriteria) {
     ? `${value.yearRange[0]}–${value.yearRange[1]}`
     : key === "sources"
       ? value.sources.length
-        ? `${value.sources.length} selected`
+        ? `${HiddenSources.shown(value.sources).length} selected`
         : "All sources"
       : value[key].join(", ") || "Any";
 }
@@ -188,6 +188,7 @@ export function FilterEditor({
   const container = useContext(EditorPortal);
   const yardTypeId = useId();
   const suggestions = useFilterSuggestions();
+  const shownSources = HiddenSources.shown(value.sources);
   const choices = {
     makes: suggestions.make,
     colors: suggestions.color,
@@ -309,12 +310,12 @@ export function FilterEditor({
                       <input
                         type="checkbox"
                         checked={
-                          value.sources.length === 0 ||
-                          value.sources.includes(source)
+                          shownSources.length === 0 ||
+                          shownSources.includes(source)
                         }
                         onChange={(e) => {
-                          const selected = value.sources.length
-                            ? value.sources
+                          const selected = shownSources.length
+                            ? shownSources
                             : SHOWN_SOURCES.map(([code]) => code);
                           const next = e.target.checked
                             ? [...selected, source]

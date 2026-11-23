@@ -37,6 +37,13 @@ describe("HiddenSources", () => {
     );
   });
 
+  test("drops hidden sources from a saved selection", () => {
+    expect(
+      HiddenSources.shown(["pyp", ...HiddenSources.list, "row52"]),
+    ).toEqual(["pyp", "row52"]);
+    expect(HiddenSources.shown([])).toEqual([]);
+  });
+
   test("excludes every hidden source from an Algolia filter", () => {
     expect(HiddenSources.filterFor([])).toBeUndefined();
     expect(HiddenSources.filterFor(["meeks"])).toBe('NOT source:"meeks"');

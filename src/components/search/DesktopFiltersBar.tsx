@@ -14,6 +14,7 @@ import {
   PopoverTrigger,
 } from "~/components/ui/popover";
 import { trackRequestYardClick } from "~/lib/track-request-yard-click";
+import { HiddenSources } from "~/lib/hidden-source";
 import type { DataSource } from "~/lib/types";
 import {
   AdvancedFiltersUpsell,
@@ -277,7 +278,7 @@ export function DesktopFiltersBar({
               </FilterPopover>
               <FilterPopover
                 title="Inventory sources"
-                summary={`${sources.length} of ${AVAILABLE_SOURCES.length}`}
+                summary={`${HiddenSources.shown(sources).length} of ${AVAILABLE_SOURCES.length}`}
                 active={sources.length > 0}
                 description="Choose which inventory networks to include."
               >

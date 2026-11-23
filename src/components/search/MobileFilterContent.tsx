@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { trackRequestYardClick } from "~/lib/track-request-yard-click";
+import { HiddenSources } from "~/lib/hidden-source";
 import type { DataSource } from "~/lib/types";
 import {
   AdvancedFiltersUpsell,
@@ -204,7 +205,7 @@ export function MobileFilterContent({
           summary={
             sources.length === 0
               ? "All sources"
-              : `${sources.length} of ${AVAILABLE_SOURCES.length} selected`
+              : `${HiddenSources.shown(sources).length} of ${AVAILABLE_SOURCES.length} selected`
           }
           defaultOpen={allSectionsOpen || addedSections.includes("sources")}
         >

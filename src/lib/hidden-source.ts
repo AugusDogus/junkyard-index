@@ -83,6 +83,13 @@ export const HiddenSources = {
   has(source: string): boolean {
     return list.some((hidden) => hidden === source);
   },
+  /**
+   * A saved or URL source selection without its hidden sources, so pickers
+   * that offer only shown sources toggle and count it correctly.
+   */
+  shown<Source extends string>(sources: readonly Source[]): Source[] {
+    return sources.filter((source) => !HiddenSources.has(source));
+  },
   filterFor,
   /** Every public search's exclusion, or undefined when nothing is hidden. */
   algoliaFilter,
