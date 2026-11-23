@@ -20,14 +20,22 @@ export const ADMIN_CACHE_SECONDS = 10 * 60;
  * cache stores JSON, so a read must return plain data (no Dates). A failed
  * read throws and is not cached. Bump the version in `name` whenever a
  * read's result shape changes: cached entries outlive deployments.
+ *
+ * Each key names its 10-minute window. `unstable_cache` serves an expired
+ * entry while it refreshes in the background, which could show figures
+ * days old; a new window is a new key, so its first visit waits for a
+ * fresh read instead, and nothing shown is more than 10 minutes old.
  */
 function cacheAdminRead<Result>(
   name: string,
   read: () => Promise<Result>,
 ): () => Promise<Result> {
-  return unstable_cache(read, ["admin", name], {
-    revalidate: ADMIN_CACHE_SECONDS,
-  });
+  return () => {
+    const window = Math.floor(Date.now() / (ADMIN_CACHE_SECONDS * 1000));
+    return unstable_cache(read, ["admin", name, String(window)], {
+      revalidate: ADMIN_CACHE_SECONDS,
+    })();
+  };
 }
 
 function algoliaAccess(): AlgoliaAccess {
@@ -43,7 +51,7 @@ function algoliaAccess(): AlgoliaAccess {
  * searches Algolia. Callers must have passed `requireAdmin`.
  */
 export const AdminCachedReads = {
-  hyperbrowser: cacheAdminRead("hyperbrowser-budget-v1", () =>
+  hyperbrowser: cacheAdminRead("hyperbrowser-budget-v2", () =>
     HyperbrowserBudget.read(
       new Hyperbrowser({ apiKey: env.HYPERBROWSER_API_KEY }),
       new Date(),

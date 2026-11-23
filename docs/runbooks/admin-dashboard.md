@@ -121,35 +121,46 @@ admins together; the page says when the figures were checked.
   used per UTC day for 14 days, the average over the last 7 full days, the
   credits used by month end at that pace, and the day the remaining credits
   run out at that pace. A red notice shows when that day comes before the
-  month ends. Hyperbrowser sessions do not record which yard opened them, so
-  the daily figures are totals for all yards (the Hyperbrowser yards are
-  listed in [hyperbrowser-sessions.md](hyperbrowser-sessions.md)). The page
-  reads up to 30 pages of 100 sessions; if that does not reach 14 days back,
-  it says which days are short.
+  month ends, and another when no credits remain. Hyperbrowser sessions do
+  not record which yard opened them, so the daily figures are totals for
+  all yards (the Hyperbrowser yards are listed in
+  [hyperbrowser-sessions.md](hyperbrowser-sessions.md)). The page reads up
+  to 30 pages of 100 sessions, newest first; if that does not reach 14 days
+  back, it says which days are short and leaves them out of the average.
+  If Hyperbrowser ever lists sessions out of order, the read stops, the page
+  says so and shows no forecast.
 - **Algolia**: records stored, against the free plan's 1,000,000. Search
-  requests used this period show as "Not available on this plan": Algolia's
-  Usage API needs a key with the "usage" permission and a Premium plan
-  (checked Nov 22, 2026: the write key is refused). Check Usage in the
-  Algolia dashboard, and see [search-quota.md](search-quota.md) for the
-  alarms. Records are read with the write key, so only production shows
-  them; other deployments say "Production only".
+  requests used this period show as "Not readable": Algolia's Usage API
+  refused the site's write key because it lacks the "usage" permission
+  (checked Nov 22, 2026). Algolia may also keep the Usage API for paid
+  plans; that was not tested. Check Usage in the Algolia dashboard, and see
+  [search-quota.md](search-quota.md) for the alarms. Records are read with
+  the write key, so only production shows them; other deployments say
+  "Production only".
 
 ### Analytics (`/admin/analytics`)
 
 Days are UTC. Database figures are read fresh on each visit; they touch the
-user, saved search and alert tables only.
+user, saved search and alert tables only. The alert reads pick delivered or
+cancelled alerts by status and then filter by date. That stays small
+because ingestion maintenance deletes delivered and cancelled alerts after
+30 days. If that purge stops or is lengthened, add an index on
+`search_notification_intent(status, delivered_at)`.
 
 - **Users**: total, verified emails, and sign-ups per day for 30 days.
 - **Paid plans**: from Polar, which holds every subscription (the database
   keeps none), at most every 10 minutes. Paying accounts (customers with an
   active subscription), active subscriptions per plan, how many are set to
   cancel at the end of their paid period, and plans started, cancelled or
-  ended in the last 30 days (newest 20). No names or emails are shown.
+  ended in the last 30 days (newest 20). A plan that ended in the window
+  but was cancelled before it may be missing. No names or emails are shown.
 - **Saved searches**: total, how many have email or Discord alerts on, and
   new ones per week (weeks start Monday) for 12 weeks.
 - **Alerts sent**: emails and Discord messages delivered per day for 30
-  days, sends that failed and are waiting to retry, and those cancelled in
-  the last 30 days.
+  days (one email digest can cover several saved searches, so emails are
+  counted by delivery group; Discord sends one message per saved search),
+  saved-search alerts that failed and are waiting to retry, and those
+  cancelled in the last 30 days.
 - **Top searches**: the 20 most searched queries over the last 7 days, from
   Algolia Analytics, with every sort order added together. Reading Analytics
   is not a search, so it costs none of the plan's searches. The free plan
@@ -162,6 +173,9 @@ user, saved search and alert tables only.
 [`admin-cached-reads.ts`](../../src/server/admin/admin-cached-reads.ts)
 holds every read of Hyperbrowser, Algolia and Polar. Each is cached for 10
 minutes in the Next.js data cache under a key starting with `admin`, and
-only admin pages call them, after `requireAdmin`. A failed read is not
+only admin pages call them, after `requireAdmin`. The key names its
+10-minute window, so the first visit in a new window waits for a fresh read
+instead of being shown an old entry while it refreshes in the background;
+nothing shown is more than 10 minutes old. A failed read is not
 cached, so reloading tries again. Bump a read's version (`-v1`) when its
 result shape changes, since cached entries outlive deployments.

@@ -102,6 +102,23 @@ describe("AlgoliaBudget.topSearches", () => {
     ]);
   });
 
+  test("reads a preview deployment's own indices on its own app", async () => {
+    const calls: string[] = [];
+    const fetch = async (url: string) => {
+      calls.push(url);
+      return new Response(JSON.stringify({ searches: [] }), { status: 200 });
+    };
+    await AlgoliaBudget.topSearches(
+      { ...ACCESS, appId: "PREVIEWAPP", deployment: "preview" },
+      ["vehicles"],
+      new Date("2026-11-22T12:00:00Z"),
+      fetch,
+    );
+    expect(calls).toEqual([
+      "https://analytics.algolia.com/2/searches?index=preview_vehicles&startDate=2026-11-16&endDate=2026-11-22&limit=100",
+    ]);
+  });
+
   test("keeps the 20 most searched", async () => {
     const fetch = async () =>
       new Response(

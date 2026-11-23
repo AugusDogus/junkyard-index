@@ -57,8 +57,9 @@ const ADMIN_TEST_SCHEMA = `
     search_match_version integer not null default 1,
     channel_config_version integer not null default 1,
     payload text not null default '{}', status text not null default 'pending',
-    attempts integer not null default 0, last_error text,
-    created_at integer not null default 0, delivered_at integer
+    attempts integer not null default 0, delivery_group_id text,
+    last_error text, created_at integer not null default 0,
+    delivered_at integer, cancelled_at integer
   );
   create index search_notification_intent_alert_check_idx on search_notification_intent(alert_check_id);
   create table user (

@@ -1,4 +1,13 @@
-import { and, count, eq, gte, isNotNull, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  count,
+  countDistinct,
+  eq,
+  gte,
+  isNotNull,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import type { SQLiteColumn } from "drizzle-orm/sqlite-core";
 import { savedSearch, searchNotificationIntent, user } from "~/schema";
@@ -32,11 +41,15 @@ export type SavedSearchStats = {
 };
 
 export type AlertStats = {
-  /** Notifications delivered per UTC day. */
+  /**
+   * Emails and Discord messages delivered per UTC day. One email digest
+   * covers every saved search in its delivery group; Discord sends one
+   * message per saved search.
+   */
   sent: Record<AlertChannel, DayValue[]>;
   /** A send failed and is tried again later; counted whatever their age. */
   retrying: Record<AlertChannel, number>;
-  /** Dropped before sending, of those created in the last 30 days. */
+  /** Saved-search alerts dropped before sending in the last 30 days. */
   cancelled: Record<AlertChannel, number>;
 };
 
@@ -62,7 +75,8 @@ function byChannel(
 /**
  * Site analytics from the database. Each read touches the user, saved
  * search or notification tables only, which are small (hundreds of rows in
- * Nov 2026), and windows by time where the table grows daily.
+ * Nov 2026). Delivered and cancelled notifications are purged after 30
+ * days by ingestion maintenance, so reading them by status stays small.
  */
 export const SiteAnalytics = {
   async users(database: LibSQLDatabase, now: Date): Promise<UserStats> {
@@ -139,18 +153,27 @@ export const SiteAnalytics = {
     const since = AdminSeries.dayStart(days[0] ?? AdminSeries.dayKey(now));
     const intent = searchNotificationIntent;
     const day = utcDay(intent.deliveredAt);
-    const [sent, retrying, cancelled] = await Promise.all([
+    const delivered = and(
+      eq(intent.status, "delivered"),
+      isNotNull(intent.deliveredAt),
+      gte(intent.deliveredAt, since),
+    );
+    const [emails, discordMessages, retrying, cancelled] = await Promise.all([
       database
-        .select({ day, channel: intent.channel, value: count() })
-        .from(intent)
-        .where(
-          and(
-            eq(intent.status, "delivered"),
-            isNotNull(intent.deliveredAt),
-            gte(intent.deliveredAt, since),
+        .select({
+          day,
+          value: countDistinct(
+            sql`coalesce(${intent.deliveryGroupId}, ${intent.id})`,
           ),
-        )
-        .groupBy(day, intent.channel),
+        })
+        .from(intent)
+        .where(and(delivered, eq(intent.channel, "email")))
+        .groupBy(day),
+      database
+        .select({ day, value: count() })
+        .from(intent)
+        .where(and(delivered, eq(intent.channel, "discord")))
+        .groupBy(day),
       database
         .select({ channel: intent.channel, value: count() })
         .from(intent)
@@ -160,17 +183,15 @@ export const SiteAnalytics = {
         .select({ channel: intent.channel, value: count() })
         .from(intent)
         .where(
-          and(eq(intent.status, "cancelled"), gte(intent.createdAt, since)),
+          and(eq(intent.status, "cancelled"), gte(intent.cancelledAt, since)),
         )
         .groupBy(intent.channel),
     ]);
-    const sentFor = (channel: AlertChannel) =>
-      AdminSeries.fillDays(
-        sent.filter((row) => row.channel === channel),
-        days,
-      );
     return {
-      sent: { email: sentFor("email"), discord: sentFor("discord") },
+      sent: {
+        email: AdminSeries.fillDays(emails, days),
+        discord: AdminSeries.fillDays(discordMessages, days),
+      },
       retrying: byChannel(retrying),
       cancelled: byChannel(cancelled),
     };
