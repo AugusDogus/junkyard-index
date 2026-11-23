@@ -7,6 +7,7 @@ import { workflowStartRetryOptions } from "~/server/workflows/start-retry";
 import { vehicleIngestionWorkflow } from "~/workflows/vehicle-ingestion";
 import {
   ManualIngestionRun,
+  type ManualIngestionRunCaller,
   type ManualIngestionRunStart,
 } from "./manual-ingestion-run";
 
@@ -16,6 +17,7 @@ import {
  */
 export function startManualIngestionRun(
   source: IngestionSource,
+  caller: ManualIngestionRunCaller,
 ): Promise<ManualIngestionRunStart> {
   return ManualIngestionRun.start(
     {
@@ -28,5 +30,6 @@ export function startManualIngestionRun(
         ),
     },
     source,
+    caller,
   );
 }

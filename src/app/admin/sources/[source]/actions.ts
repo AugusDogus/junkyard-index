@@ -24,7 +24,7 @@ export async function applySourceControl(
     {
       apply: (change) => SourceControlRepository.apply(db, change),
       pauseCause: IngestionPause.cause,
-      startRun: startManualIngestionRun,
+      startRun: (source) => startManualIngestionRun(source, "admin"),
       logRun: (entry) => SourceControlRepository.logRun(db, entry),
       expireHiddenSources: () => updateTag(SOURCE_CONTROL_CACHE_TAG),
     },

@@ -6,9 +6,11 @@ import { hasValidCronAuthorization } from "~/server/workflows/cron-authorization
 
 /**
  * Starts one source's ingestion now, outside the daily pass. It counts as one
- * of today's attempts. Retired and paused sources are refused. Authorized
- * with the cron secret; the owner can also use "Run now" on
- * /admin/sources/<source>:
+ * of today's attempts. Retired sources and sources paused from /admin are
+ * refused. A source only its ingestion-source-<source> Vercel flag pauses
+ * still runs, so an operator can test a fix before turning the flag on.
+ * Authorized with the cron secret; the owner can also use "Run now" on
+ * /admin/sources/<source>, which refuses every paused source:
  *
  *   curl -X POST -H "Authorization: Bearer $CRON_SECRET" \
  *     https://junkyardindex.com/api/admin/ingestion/run?source=upullrparts
@@ -31,7 +33,7 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
-  const run = await startManualIngestionRun(source);
+  const run = await startManualIngestionRun(source, "cron_api");
   if (run.status !== "started") {
     return Response.json(
       { error: ManualIngestionRun.message(run) },
