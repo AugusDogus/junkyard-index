@@ -1,5 +1,5 @@
 import { sharedProviderHostSlot } from "./shared-provider-host";
-import { Effect, Schedule } from "effect";
+import { Effect, Either } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import type { ProviderRequestGate } from "./provider-http-client";
 import {
@@ -11,7 +11,7 @@ import {
 import { PrattResult, type PrattError } from "./pratt-result";
 import {
   ProviderChunkClock,
-  ProviderTurnDeferred,
+  type ProviderTurnDeferred,
 } from "./provider-chunk-clock";
 
 export const PRATT_REQUEST_TIMEOUT_MS = 20_000;
@@ -21,11 +21,10 @@ export const PRATT_MAX_BODY_BYTES = 2 * 1024 * 1024;
  * to fail the whole run. Two more attempts follow 5 then 10 seconds apart, so
  * one page takes at most about 80 seconds, inside the 110-second URG turn. */
 export const PRATT_REQUEST_ATTEMPTS = 3;
-const retrySchedule = Schedule.exponential("5 seconds").pipe(
-  Schedule.intersect(Schedule.recurs(PRATT_REQUEST_ATTEMPTS - 1)),
-);
 /** Chunk work one attempt may take: its deadline, the 1.6-second client gap,
- * the 3.5-second URG host gap and checkpoint validation. */
+ * the 3.5-second URG gap its turn holds after the page and checkpoint
+ * validation. A failed attempt that leaves no room for the next one's backoff
+ * and work defers at once, so the turn holds that gap only once. */
 const PRATT_ATTEMPT_WORK_MS = PRATT_REQUEST_TIMEOUT_MS + 10_000;
 const serial = Effect.runSync(Effect.makeSemaphore(1));
 /** Hold the permit through body completion and padding, including failures.
@@ -55,13 +54,15 @@ class PrattStatusRefusal extends Error {
   }
 }
 
-/** HTTP 5xx, undici's network failure and the request signal's deadline.
- * Redirects, 4xx, partial content, wrong MIME and body or parse failures say
- * something about the page and stay fatal. */
+/** HTTP 5xx, undici's network failure or mid-body connection reset
+ * (`terminated`) and the request signal's deadline. Redirects, 4xx, partial
+ * content, wrong MIME and other body or parse failures say something about
+ * the page and stay fatal. */
 function isTransientCause(cause: unknown): boolean {
   return (
     (cause instanceof PrattStatusRefusal && cause.status >= 500) ||
-    (cause instanceof TypeError && cause.message === "fetch failed") ||
+    (cause instanceof TypeError &&
+      (cause.message === "fetch failed" || cause.message === "terminated")) ||
     (cause instanceof DOMException && cause.name === "TimeoutError")
   );
 }
@@ -182,24 +183,24 @@ export function readPrattPage(
         : cause,
     ),
   );
-  const attempt = Effect.gen(function* () {
-    if (!(yield* ProviderChunkClock.workFits(PRATT_ATTEMPT_WORK_MS)))
-      return yield* Effect.flip(
-        ProviderChunkClock.deferred("Pratt", "allowance"),
-      );
-    return yield* request;
+  return Effect.gen(function* () {
+    for (let attempt = 1; ; attempt++) {
+      // The fit covers the backoff too: checked after it, a late failure
+      // could sleep past the work deadline before deferring.
+      const backoffMs = attempt === 1 ? 0 : 5_000 * 2 ** (attempt - 2);
+      if (
+        !(yield* ProviderChunkClock.workFits(backoffMs + PRATT_ATTEMPT_WORK_MS))
+      )
+        return yield* Effect.flip(
+          ProviderChunkClock.deferred("Pratt", "allowance"),
+        );
+      yield* Effect.sleep(backoffMs);
+      const outcome = yield* Effect.either(request);
+      if (Either.isRight(outcome)) return outcome.right;
+      const failure = outcome.left;
+      if (failure.tag === "PrattError") return yield* Effect.fail(failure);
+      if (attempt === PRATT_REQUEST_ATTEMPTS)
+        return yield* Effect.fail(failure.error);
+    }
   });
-  return attempt.pipe(
-    Effect.retry({
-      schedule: retrySchedule,
-      while: (failure) =>
-        !(failure instanceof ProviderTurnDeferred) &&
-        failure.tag === "PrattTransientFailure",
-    }),
-    Effect.mapError((failure) =>
-      failure instanceof ProviderTurnDeferred || failure.tag === "PrattError"
-        ? failure
-        : failure.error,
-    ),
-  );
 }

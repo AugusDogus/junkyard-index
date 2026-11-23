@@ -218,6 +218,26 @@ test("Pratt retries HTTP 5xx and failed fetches, 5 then 10 seconds apart, and ac
   expect(result).toEqual(Either.right("complete"));
   expect(sent).toEqual([0, 5_000, 15_000]);
 });
+test("Pratt retries a connection the server drops mid-body", async () => {
+  // undici reports a reset after the headers as `TypeError: terminated`.
+  let calls = 0;
+  stub(async () => {
+    calls++;
+    return calls === 1
+      ? new Response(
+          new ReadableStream<Uint8Array>({
+            pull(controller) {
+              controller.error(new TypeError("terminated"));
+            },
+          }),
+          { headers: { "content-type": "text/html" } },
+        )
+      : new Response("complete", { headers: { "content-type": "text/html" } });
+  });
+  const result = await onTestClock(readPrattPage(url, direct));
+  expect(result).toEqual(Either.right("complete"));
+  expect(calls).toBe(2);
+});
 test("Pratt fails after three transient attempts and preserves the last validated checkpoint", async () => {
   let calls = 0;
   stub(async () => {
