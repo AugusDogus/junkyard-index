@@ -31,7 +31,7 @@ import {
 import { IngestionSchedule } from "./ingestion-schedule";
 import { SourcePublication } from "./source-publication";
 import { CommitLease } from "./commit-lease";
-import { RunAbandonment } from "./run-abandonment";
+import { RunAbandonment, type RunAbandonmentResult } from "./run-abandonment";
 import {
   loadSourceFreshness,
   type IngestionSourceFreshness,
@@ -989,7 +989,10 @@ export function createDurableIngestionRepository(
       }
     },
 
-    async abandon(runId: string, force: boolean): Promise<string | null> {
+    async abandon(
+      runId: string,
+      force: boolean,
+    ): Promise<RunAbandonmentResult> {
       for (let attempt = 0; attempt < 3; attempt += 1) {
         const [run] = await database
           .select({
@@ -1002,7 +1005,9 @@ export function createDurableIngestionRepository(
           .where(eq(ingestionRun.id, runId))
           .limit(1);
         if (!run) throw new Error(`Cannot abandon missing run ${runId}.`);
-        if (run.status !== "running") return null;
+        if (run.status !== "running") {
+          return { status: "already_ended", runStatus: run.status };
+        }
         const check = RunAbandonment.check({ runId, stage: run.stage, force });
         if (check.status !== "allowed") throw new Error(check.message);
         const reconciliationStarted = check.fullRebuild;
@@ -1058,7 +1063,9 @@ export function createDurableIngestionRepository(
         if (!abandoned) {
           throw new Error(`Abandoning ingestion run ${runId} had no result.`);
         }
-        if (abandoned.rowsAffected === 1) return run.workflowRunId;
+        if (abandoned.rowsAffected === 1) {
+          return { status: "abandoned", workflowRunId: run.workflowRunId };
+        }
       }
       throw new Error(
         `Ingestion run ${runId} kept advancing while abandonment was attempted. Retry the request.`,

@@ -66,9 +66,9 @@ function sourceName(source: string): string {
     : "Every source";
 }
 
-function cancellationSentence(
-  abandonment: DurableIngestionAbandonment,
-): string {
+type Abandoned = Extract<DurableIngestionAbandonment, { status: "abandoned" }>;
+
+function cancellationSentence(abandonment: Abandoned): string {
   const workflowRunId = abandonment.abandoned.workflowRunId;
   switch (abandonment.workflowCancellation) {
     case "cancelled":
@@ -194,9 +194,9 @@ export const StopRunAction = {
         break;
     }
 
-    let abandonment: DurableIngestionAbandonment;
+    let result: DurableIngestionAbandonment;
     try {
-      abandonment = await deps.abandon({ runId, force });
+      result = await deps.abandon({ runId, force });
     } catch (error) {
       console.error(`Admin stop of ${label} failed`, error);
       return {
@@ -205,16 +205,24 @@ export const StopRunAction = {
         detail: error instanceof Error ? error.message : String(error),
       };
     }
+    // It ended (or another admin stopped it) after it was read above.
+    if (result.status === "already_ended") {
+      return {
+        status: "unchanged",
+        message: `${label} already ended (${result.runStatus}), so nothing was stopped.`,
+      };
+    }
+    const abandonment = result;
 
     const parts = [
       `Stopped ${label}.`,
       cancellationSentence(abandonment),
-      "Data it already wrote stays.",
+      "Vehicles it already published stay.",
       check.fullRebuild
         ? "It had started writing, so a full search rebuild runs next."
         : null,
       kind === "stop"
-        ? "Its next scheduled run starts fresh on current code."
+        ? "Its next scheduled retry is started by today's ingestion pass, which runs the code that pass started on and may be this same old code. Use Run now to restart it on current code."
         : null,
     ];
     try {

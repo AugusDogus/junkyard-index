@@ -358,12 +358,19 @@ export async function cleanupStaleDurableAlgoliaRebuilds(): Promise<void> {
 
 export type WorkflowCancellation = "cancelled" | "not_attached" | "failed";
 
-export interface DurableIngestionAbandonment {
-  abandoned: { runId: string; workflowRunId: string | null };
-  workflowCancellation: WorkflowCancellation;
-  /** Whether the run's temporary Algolia rebuild index is already gone. */
-  rebuildCleanup: RebuildCleanup;
-}
+/**
+ * What an abandon did. Already ended: the run finished or was abandoned
+ * before this request got to it, so nothing was cancelled or cleaned up.
+ */
+export type DurableIngestionAbandonment =
+  | {
+      status: "abandoned";
+      abandoned: { runId: string; workflowRunId: string | null };
+      workflowCancellation: WorkflowCancellation;
+      /** Whether the run's temporary Algolia rebuild index is already gone. */
+      rebuildCleanup: RebuildCleanup;
+    }
+  | { status: "already_ended"; runId: string; runStatus: string };
 
 /**
  * Abandons a run in Turso, cancels its Workflow, then deletes its rebuild copy
@@ -375,7 +382,15 @@ export async function abandonDurableIngestion(params: {
   force: boolean;
   cancelWorkflow: (workflowRunId: string) => Promise<void>;
 }): Promise<DurableIngestionAbandonment> {
-  const workflowRunId = await repository.abandon(params.runId, params.force);
+  const result = await repository.abandon(params.runId, params.force);
+  if (result.status === "already_ended") {
+    return {
+      status: "already_ended",
+      runId: params.runId,
+      runStatus: result.runStatus,
+    };
+  }
+  const { workflowRunId } = result;
   let workflowCancellation: WorkflowCancellation = "not_attached";
   if (workflowRunId) {
     try {
@@ -390,6 +405,7 @@ export async function abandonDurableIngestion(params: {
     }
   }
   return {
+    status: "abandoned",
     abandoned: { runId: params.runId, workflowRunId },
     workflowCancellation,
     rebuildCleanup: await cleanupRunRebuildBestEffort(params.runId),

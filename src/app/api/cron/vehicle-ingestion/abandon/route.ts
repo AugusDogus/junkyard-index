@@ -31,6 +31,12 @@ export async function POST(request: Request) {
       force: parsed.data.force,
       cancelWorkflow: (workflowRunId) => getRun(workflowRunId).cancel(),
     });
+    if (result.status === "already_ended") {
+      return Response.json({
+        message: `Ingestion run ${result.runId} already ended (${result.runStatus}), so nothing was abandoned.`,
+        ...result,
+      });
+    }
     return Response.json({
       message: "Ingestion run abandoned",
       runId: parsed.data.runId,

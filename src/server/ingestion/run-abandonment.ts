@@ -10,6 +10,14 @@ export type RunAbandonmentCheck =
   | { status: "force_required"; message: string }
   | { status: "move_pending"; message: string };
 
+/**
+ * What abandoning a run did: it abandoned the run (naming the workflow it
+ * detached, if any), or the run had already ended, so nothing changed.
+ */
+export type RunAbandonmentResult =
+  | { status: "abandoned"; workflowRunId: string | null }
+  | { status: "already_ended"; runStatus: string };
+
 export const RunAbandonment = {
   check(params: {
     runId: string;

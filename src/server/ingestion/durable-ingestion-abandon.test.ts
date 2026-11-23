@@ -48,6 +48,15 @@ const SCRIPT = `
     force: true,
     cancelWorkflow: async () => {},
   });
+  // A second abandon finds the run ended: no cancel, no cleanup.
+  const cancelled = [];
+  const again = await abandonDurableIngestion({
+    runId: "run-abandon",
+    force: true,
+    cancelWorkflow: async (workflowRunId) => {
+      cancelled.push(workflowRunId);
+    },
+  });
 
   // The fifth failure abandons the run.
   await client.execute({
@@ -63,6 +72,8 @@ const SCRIPT = `
   );
   console.log(JSON.stringify({
     abandonment,
+    again,
+    cancelled,
     deleteIndexCalls,
     runs: runs.rows.map((row) => [row.id, row.status]),
   }));
@@ -95,10 +106,17 @@ test.each([
   (deleteIndex, rebuildCleanup) => {
     expect(run(deleteIndex)).toEqual({
       abandonment: {
+        status: "abandoned",
         abandoned: { runId: "run-abandon", workflowRunId: "wf-1" },
         workflowCancellation: "cancelled",
         rebuildCleanup,
       },
+      again: {
+        status: "already_ended",
+        runId: "run-abandon",
+        runStatus: "abandoned",
+      },
+      cancelled: [],
       deleteIndexCalls: [
         "vehicles__rebuild_run-abandon",
         "vehicles__rebuild_run-fail",
