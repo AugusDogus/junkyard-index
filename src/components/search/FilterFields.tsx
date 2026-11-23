@@ -1,5 +1,6 @@
 import { YARD_TYPE_OPTIONS, type YardType } from "~/lib/yard-service";
 import Link from "next/link";
+import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import {
@@ -203,26 +204,44 @@ export function YearRangeFilter({
   minimumYear,
   maximumYear,
 }: YearRangeFilterProps) {
+  // A drag passes through every year, and each applied range writes the URL.
+  // Safari throws after 100 history writes in 10 seconds, so show the dragged
+  // years here and apply only the released range. The drag stays shown until
+  // the applied range replaces the one it started from.
+  const [drag, setDrag] = useState<{
+    from: string;
+    range: [number, number];
+  } | null>(null);
+  const appliedKey = yearRange.join(":");
+  const shownRange = drag?.from === appliedKey ? drag.range : yearRange;
+  const toRange = (value: number[]): [number, number] | null => {
+    const min = value[0];
+    const max = value[1];
+    return typeof min === "number" && typeof max === "number"
+      ? [min, max]
+      : null;
+  };
   return (
     <div className="flex flex-col gap-5 px-2">
       <div className="grid grid-cols-2 gap-4 text-sm tabular-nums">
         <div>
           <span className="text-muted-foreground block text-xs">Earliest</span>
-          <output className="mt-1 block font-medium">{yearRange[0]}</output>
+          <output className="mt-1 block font-medium">{shownRange[0]}</output>
         </div>
         <div className="text-right">
           <span className="text-muted-foreground block text-xs">Latest</span>
-          <output className="mt-1 block font-medium">{yearRange[1]}</output>
+          <output className="mt-1 block font-medium">{shownRange[1]}</output>
         </div>
       </div>
       <Slider
-        value={yearRange}
+        value={shownRange}
         onValueChange={(value) => {
-          const min = value[0];
-          const max = value[1];
-          if (typeof min === "number" && typeof max === "number") {
-            onYearRangeChange([min, max]);
-          }
+          const range = toRange(value);
+          if (range) setDrag({ from: appliedKey, range });
+        }}
+        onValueCommit={(value) => {
+          const range = toRange(value);
+          if (range) onYearRangeChange(range);
         }}
         min={minimumYear}
         max={maximumYear}
