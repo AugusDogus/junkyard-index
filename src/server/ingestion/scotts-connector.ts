@@ -152,9 +152,15 @@ function advance(state: ScottsProgress, raw: string): ScottsProgress {
           same(state.root, parseScottsRoot(raw), "official owner");
           break;
         case "directory":
+          // Make badges drift as donors arrive or leave during a run and feed
+          // no census or coverage check, so closing compares only each make's
+          // path and label, in order. Model cards keep their closing re-reads.
           same(
-            state.makes.map(({ models: _models, ...make }) => make),
-            parseScottsDirectory(raw, "makes"),
+            state.makes.map(({ path, label }) => ({ path, label })),
+            parseScottsDirectory(raw, "makes").map(({ path, label }) => ({
+              path,
+              label,
+            })),
             "make graph",
           );
           break;

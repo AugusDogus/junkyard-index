@@ -9,8 +9,10 @@ import {
 
 // Actual complete native HTTP200 bodies captured 2026-11-15 UTC. Full dated
 // receipts remain in research/mt_wy_id_ut_co/refill-02/evidence/.
+// no-results is /used-parts/SATURN/ASTRA, an unlisted model, captured
+// 2026-11-23 UTC: the native explicit empty, with no scope banner.
 export const scottsFixture = (
-  name: "root" | "makes" | "acura" | "cl" | "mdx",
+  name: "root" | "makes" | "acura" | "cl" | "mdx" | "no-results",
 ) =>
   gunzipSync(
     readFileSync(
