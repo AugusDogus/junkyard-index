@@ -38,15 +38,15 @@ test("filter options list every live make, color, state and yard from Turso", as
     await client.execute({
       sql: "insert into inventory_snapshot (key, data, updated_at) values (?, ?, 0)",
       args: [
-        "v3:make-counts",
+        "v4:make-source-counts",
         JSON.stringify([
-          { make: "Toyota", count: 2 },
-          { make: "Ford", count: 1 },
+          ["Toyota", "pyp", 2],
+          ["Ford", "pyp", 1],
           // Raw spellings the index stores as Volkswagen and Chevrolet.
-          { make: "Vw", count: 3 },
-          { make: "Chevy", count: 1 },
-          { make: "Chevrolet", count: 4 },
-          { make: "Retired", count: 0 },
+          ["Vw", "pyp", 3],
+          ["Chevy", "pyp", 1],
+          ["Chevrolet", "row52", 4],
+          ["Retired", "pyp", 0],
         ]),
       ],
     });
@@ -86,7 +86,7 @@ test("lists more than 500 yards, the old facet limit", async () => {
     await client.executeMultiple(migration("0016_yard_inventory.sql"));
     await client.executeMultiple(migration("0020_inventory_snapshot.sql"));
     await client.execute(
-      "insert into inventory_snapshot (key, data, updated_at) values ('v3:make-counts', '[]', 0)",
+      "insert into inventory_snapshot (key, data, updated_at) values ('v4:make-source-counts', '[]', 0)",
     );
 
     const options = await SearchFilterOptions.load(
@@ -100,7 +100,7 @@ test("lists more than 500 yards, the old facet limit", async () => {
 });
 
 for (const source of ["meeks"] as const)
-  test(`${source} is hidden, so filters offer none of its yards, states or colors`, async () => {
+  test(`${source} is hidden, so filters offer none of its makes, yards, states or colors`, async () => {
     const client = createClient({ url: ":memory:" });
     try {
       await client.executeMultiple(`
@@ -116,7 +116,13 @@ for (const source of ["meeks"] as const)
       await client.executeMultiple(migration("0020_inventory_snapshot.sql"));
       await client.execute({
         sql: "insert into inventory_snapshot (key, data, updated_at) values (?, ?, 0)",
-        args: ["v3:make-counts", JSON.stringify([{ make: "Ford", count: 1 }])],
+        args: [
+          "v4:make-source-counts",
+          JSON.stringify([
+            ["Ford", "pyp", 1],
+            ["Honda", source, 2],
+          ]),
+        ],
       });
       expect(
         await SearchFilterOptions.load(
@@ -124,6 +130,7 @@ for (const source of ["meeks"] as const)
           HiddenSources.of([source]),
         ),
       ).toMatchObject({
+        makes: ["Ford"],
         colors: ["Red"],
         states: ["California"],
         salvageYards: ["LKQ Pick Your Part - Sun Valley"],

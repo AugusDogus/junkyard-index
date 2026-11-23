@@ -76,7 +76,7 @@ export async function changedInventoryPaths(
     // Read directly, not through the caches: right after a refresh those
     // still hold the previous publication.
     getHomepageYards(db, hidden).then(routedYards),
-    InventorySnapshot.makeCounts(db).then(MakeInventory.makes),
+    InventorySnapshot.makeCounts(db, hidden).then(MakeInventory.makes),
   ]);
   const changed = new Set(
     [...arrivals, ...removals, ...departures].map(

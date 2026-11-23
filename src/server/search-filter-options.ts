@@ -34,7 +34,7 @@ async function load(
   hidden: HiddenSources,
 ): Promise<InventoryFilterOptions> {
   const [makeCounts, yards, stateColors] = await Promise.all([
-    InventorySnapshot.makeCounts(database),
+    InventorySnapshot.makeCounts(database, hidden),
     database
       .select({
         source: yardInventory.source,

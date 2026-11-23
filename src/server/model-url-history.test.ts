@@ -28,7 +28,7 @@ test("captures preferred URLs in every retained snapshot before changes, so inde
         ),
     );
     const database = drizzle(client);
-    for (const version of ["v2", "v3"])
+    for (const version of ["v3", "v4"])
       await database.insert(inventorySnapshot).values([
         {
           key: `${version}:make-counts`,
@@ -42,7 +42,7 @@ test("captures preferred URLs in every retained snapshot before changes, so inde
               "pyp",
               "1",
               "Ford",
-              version === "v2" ? "F150NEW" : "TRUCK F150",
+              version === "v3" ? "F150NEW" : "TRUCK F150",
               100,
               1990,
               2015,
