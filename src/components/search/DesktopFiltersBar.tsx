@@ -1,6 +1,5 @@
 "use client";
 
-import { YARD_TYPE_OPTIONS, type YardType } from "~/lib/yard-service";
 import { ChevronDown } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -21,7 +20,6 @@ import {
   AdvancedFiltersUpsell,
   availableSources,
   InventorySourcesFilter,
-  YardTypeFilter,
   YearRangeFilter,
 } from "./FilterFields";
 import type { SearchFilterOptions } from "./search-filter-options";
@@ -36,7 +34,6 @@ interface DesktopFiltersBarProps {
   states: string[];
   salvageYards: string[];
   sources: DataSource[];
-  yardTypes: YardType[];
   yearRange: [number, number];
   filterOptions: SearchFilterOptions;
   /** Loading or error state for `filterOptions`, shown in each list. */
@@ -46,7 +43,6 @@ interface DesktopFiltersBarProps {
   onStatesChange: (states: string[]) => void;
   onSalvageYardsChange: (salvageYards: string[]) => void;
   onSourcesChange: (sources: DataSource[]) => void;
-  onYardTypesChange: (types: YardType[]) => void;
   onYearRangeChange: (range: [number, number]) => void;
   yearRangeLimits: {
     min: number;
@@ -111,7 +107,6 @@ export function DesktopFiltersBar({
   states,
   salvageYards,
   sources,
-  yardTypes,
   yearRange,
   filterOptions,
   filterOptionsFeedback,
@@ -120,7 +115,6 @@ export function DesktopFiltersBar({
   onStatesChange,
   onSalvageYardsChange,
   onSourcesChange,
-  onYardTypesChange,
   onYearRangeChange,
   yearRangeLimits,
   canUseAdvancedFilters,
@@ -261,23 +255,6 @@ export function DesktopFiltersBar({
                 />
               </FilterPopover>
 
-              <FilterPopover
-                title="Yard type"
-                summary={selectionSummary(
-                  YARD_TYPE_OPTIONS.filter((option) =>
-                    yardTypes.includes(option.value),
-                  ).map((option) => option.label),
-                  "types",
-                )}
-                active={yardTypes.length > 0}
-                description="Choose who pulls the parts. Yards offering both match either option."
-              >
-                <YardTypeFilter
-                  idPrefix="desktop-yard-type"
-                  yardTypes={yardTypes}
-                  onYardTypesChange={onYardTypesChange}
-                />
-              </FilterPopover>
               <FilterPopover
                 title="Inventory sources"
                 summary={`${HiddenSources.shown(hiddenSources, sources).length} of ${availableSources(hiddenSources).length}`}

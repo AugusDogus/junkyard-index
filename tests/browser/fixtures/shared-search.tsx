@@ -138,7 +138,25 @@ function Fixture() {
     const navigate = () =>
       setRouteParams(new URLSearchParams(window.location.search));
     window.addEventListener("popstate", navigate);
-    return () => window.removeEventListener("popstate", navigate);
+    // Next's app router mirrors history writes into useSearchParams, so nuqs
+    // sees the params InstantSearch's router wrote. Sync after the write
+    // returns, since the router can write while React renders.
+    const { pushState, replaceState } = window.history;
+    window.history.pushState = (...args: Parameters<History["pushState"]>) => {
+      pushState.apply(window.history, args);
+      queueMicrotask(navigate);
+    };
+    window.history.replaceState = (
+      ...args: Parameters<History["replaceState"]>
+    ) => {
+      replaceState.apply(window.history, args);
+      queueMicrotask(navigate);
+    };
+    return () => {
+      window.removeEventListener("popstate", navigate);
+      window.history.pushState = pushState;
+      window.history.replaceState = replaceState;
+    };
   }, []);
   return (
     <AppRouterContext.Provider value={router}>

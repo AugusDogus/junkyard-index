@@ -32,7 +32,7 @@ function resolve(input: {
       searchResult:
         "searchResult" in input ? (input.searchResult ?? null) : emptyResult,
     },
-    header: { actions: null, processingTimeMS: 10, visibleCount: null },
+    header: { actions: null, visibleCount: null },
     loading: { showMore },
     empty: {
       activeFilterCount: 0,
@@ -118,7 +118,7 @@ describe("search results state", () => {
     expect(markup).not.toContain("Try nearby years");
   });
 
-  test("the full-service hint sits in the header row beside the count", () => {
+  test("the full-service hint is one quiet line beside the count", () => {
     const markup = renderToStaticMarkup(
       createElement(SearchResultsPanel, {
         model: resolve({ searchResult: { ...emptyResult, totalCount: 3 } }),
@@ -132,9 +132,10 @@ describe("search results state", () => {
     );
     // The h2 column closes before the hint starts.
     expect(markup).toMatch(
-      /<h2[^>]*>3 vehicles at self-service<span class="sr-only sm:not-sr-only"> yards<\/span><\/h2><span class="[^"]* hidden sm:inline">Results in 10 ms<\/span><\/div><div[^>]*><p[^>]*>\+84,925 more vehicles at full-service<span class="sr-only sm:not-sr-only"> yards<\/span>\.<span class="hidden sm:block"> They pull the parts for you, so call first\.<\/span><\/p><button[^>]*>Show full-service results<\/button><\/div>/,
+      /<h2[^>]*>3 vehicles<\/h2><\/div><p[^>]*>Also 84,925 at full-service yards\. <button[^>]*>Show them<\/button><\/p>/,
     );
     expect(markup).not.toContain("py-12");
+    expect(markup).not.toContain("Show full-service results");
   });
 
   test("the full-service fallback keeps its tall block above the results", () => {
@@ -157,15 +158,14 @@ describe("search results state", () => {
     expect(markup.match(/Show full-service results/g)?.length).toBe(1);
   });
 
-  test("the timing reads inline after the count, capped or not", () => {
+  test("the header is the count alone, plus the visible count when capped", () => {
     const uncapped = renderToStaticMarkup(
       createElement(SearchResultsPanel, {
         model: resolve({ searchResult: { ...emptyResult, totalCount: 2 } }),
       }),
     );
-    expect(uncapped).toMatch(
-      /<h2[^>]*>2 vehicles<\/h2><span[^>]*>Results in 10 ms<\/span>/,
-    );
+    expect(uncapped).toMatch(/<h2[^>]*>2 vehicles<\/h2><\/div>/);
+    expect(uncapped).not.toContain(" ms");
     const model = resolve({ searchResult: { ...emptyResult, totalCount: 96 } });
     if (model.kind !== "results" || model.header.status.kind !== "ready")
       throw new Error("Expected a ready result model");
@@ -181,7 +181,7 @@ describe("search results state", () => {
       }),
     );
     expect(capped).toMatch(
-      /<h2[^>]*>96 vehicles<\/h2><span[^>]*>Showing 24 · 10 ms<\/span>/,
+      /<h2[^>]*>96 vehicles<\/h2><span[^>]*>Showing 24<\/span>/,
     );
   });
 

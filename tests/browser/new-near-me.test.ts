@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import type { Browser } from "playwright-core";
+import tailwind from "@tailwindcss/postcss";
+import postcss from "postcss";
+import type { Browser, Page } from "playwright-core";
 import { closePage, createPage, launchBrowser } from "./browser-page";
 import {
   bundleSharedSearchFixture,
@@ -8,10 +10,35 @@ import {
 
 let browser: Browser;
 let script: string;
+let stylesheet: string;
 beforeAll(async () => {
-  script = await (await bundleSharedSearchFixture("browser")).text();
+  [script, stylesheet] = await Promise.all([
+    bundleSharedSearchFixture("browser").then((output) => output.text()),
+    Bun.file("src/styles/globals.css")
+      .text()
+      .then(async (source) => {
+        const result = await postcss([tailwind()]).process(source, {
+          from: "src/styles/globals.css",
+        });
+        return result.css;
+      }),
+  ]);
   browser = await launchBrowser();
 }, 30000);
+
+/** The real layout, with room for the site header the toolbar sticks under. */
+async function addStyles(page: Page) {
+  await page.addStyleTag({ content: stylesheet });
+  await page.addStyleTag({ content: "body{padding-top:6.375rem}" });
+}
+
+/** Arrival and distance live in Filters: a panel on desktop, a drawer on phones. */
+async function openFilters(page: Page) {
+  const arrival = page.getByRole("group", { name: "Arrival window" });
+  if (await arrival.isVisible()) return;
+  await page.getByRole("button", { name: /^Filters/ }).click();
+  await arrival.waitFor();
+}
 afterAll(async () => {
   await browser?.close();
 });
@@ -36,9 +63,11 @@ for (const width of [390, 1440]) {
       await page.goto(
         "http://shared-search.test/search?q=arrivals&arrivalWindow[]=7d&radius=50&lat=33.448&lng=-112.074&fixtureGuest=1",
       );
+      await addStyles(page);
       await page
         .getByRole("heading", { name: "2 vehicles", exact: true })
         .waitFor();
+      await openFilters(page);
       const requests = () =>
         page.evaluate(() => {
           const log = JSON.parse(
@@ -97,9 +126,11 @@ for (const width of [390, 1440]) {
           .getAttribute("aria-pressed"),
       ).toBe("true");
       await page.reload();
+      await addStyles(page);
       await page
         .getByRole("heading", { name: "2 vehicles", exact: true })
         .waitFor();
+      await openFilters(page);
       expect(
         await page.getByRole("group", { name: "Arrival window" }).count(),
       ).toBe(1);
@@ -141,6 +172,7 @@ test("clearing year, arrival and radius filters spends one results request", asy
     await page.goto(
       "http://shared-search.test/search?q=arrivals&arrivalWindow[]=7d&radius=50&lat=33.448&lng=-112.074&minYear=2011&fixtureGuest=1",
     );
+    await addStyles(page);
     await page
       .getByRole("button", { name: "Clear filters", exact: true })
       .waitFor();
@@ -183,10 +215,12 @@ test("clearing year, arrival and radius filters spends one results request", asy
     };
     await expectClearedUrl();
     await page.reload();
+    await addStyles(page);
     await page
       .getByRole("heading", { name: "5 vehicles", exact: true })
       .waitFor();
     await expectClearedUrl();
+    await openFilters(page);
     expect(
       await page
         .getByRole("combobox", { name: "Distance radius", exact: true })

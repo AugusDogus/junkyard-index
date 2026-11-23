@@ -2,7 +2,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import tailwind from "@tailwindcss/postcss";
 import postcss from "postcss";
-import type { Browser } from "playwright-core";
+import type { Browser, Page } from "playwright-core";
 import {
   bundleSharedSearchFixture,
   renderSharedSearchFixture,
@@ -33,6 +33,24 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
 });
+
+/**
+ * Yard type lives in Filters. Unstyled pages render the desktop toggle at
+ * every width; the phone drawer is covered by simple-search.test.ts.
+ */
+async function openFilterPanel(page: Page) {
+  await page
+    .locator("button[aria-pressed]")
+    .filter({ hasText: /^Filters/ })
+    .click();
+  await page.getByRole("group", { name: "Yard type", exact: true }).waitFor();
+}
+
+/** Styled pages open Filters from whichever trigger the width shows. */
+async function openFilters(page: Page) {
+  await page.getByRole("button", { name: /^Filters/ }).click();
+  await page.getByRole("group", { name: "Yard type", exact: true }).waitFor();
+}
 
 for (const ready of [true, false]) {
   test(`phone sort labels and options honor chronological readiness: ${ready}`, async () => {
@@ -280,9 +298,6 @@ for (const width of [390, 1440]) {
         await page.goto(
           `http://shared-search.test/search?q=${encodeURIComponent(query)}`,
         );
-        await page
-          .getByRole("group", { name: "Yard type", exact: true })
-          .waitFor();
         const self = page.getByRole("checkbox", {
           name: "Self-service",
           exact: true,
@@ -291,19 +306,28 @@ for (const width of [390, 1440]) {
           name: "Full-service",
           exact: true,
         });
+        // A few matches get one quiet line; none get the tall fallback.
+        const recoveryName =
+          query === "Volvo 740" ? "Show full-service results" : "Show them";
+        const recoveryButtons = () =>
+          Promise.all(
+            ["Show full-service results", "Show them"].map((name) =>
+              page.getByRole("button", { name, exact: true }).count(),
+            ),
+          );
         await page
-          .getByRole("button", {
-            name: "Show full-service results",
-            exact: true,
-          })
+          .getByRole("button", { name: recoveryName, exact: true })
           .waitFor();
-        expect(await self.getAttribute("aria-checked")).toBe("true");
-        expect(await full.getAttribute("aria-checked")).toBe("false");
+        // The self-service default stays out of the URL.
+        expect(new URL(page.url()).searchParams.has("yardTypes[]")).toBe(false);
         expect(
           await page
-            .getByText("+3 more vehicles at full-service yards.", {
-              exact: false,
-            })
+            .getByText(
+              query === "Volvo 740"
+                ? "+3 more vehicles at full-service yards."
+                : "Also 3 at full-service yards.",
+              { exact: false },
+            )
             .count(),
         ).toBe(1);
         if (query === "Volvo 740")
@@ -318,24 +342,22 @@ for (const width of [390, 1440]) {
           ).toBe(0);
         if (query === "Volvo") {
           const count = page.getByRole("heading", {
-            name: "3 vehicles at self-service yards",
+            name: "3 vehicles",
             exact: true,
           });
           await count.waitFor();
           const header = count.locator("xpath=../..");
           expect(
-            await header
-              .getByRole("button", { name: "Show full-service results" })
-              .count(),
+            await header.getByRole("button", { name: "Show them" }).count(),
           ).toBe(1);
           expect(
             await header
-              .getByRole("button", { name: "Show full-service results" })
+              .getByRole("button", { name: "Show them" })
               .getAttribute("data-slot"),
           ).toBe("button");
         }
         const showThem = page.getByRole("button", {
-          name: "Show full-service results",
+          name: recoveryName,
           exact: true,
         });
         await showThem.focus();
@@ -367,7 +389,6 @@ for (const width of [390, 1440]) {
             new URL(location.href).searchParams.getAll("yardTypes[]").length ===
             2,
         );
-        expect(await full.getAttribute("aria-checked")).toBe("true");
         expect(new URL(page.url()).searchParams.getAll("yardTypes[]")).toEqual([
           "self_service",
           "full_service",
@@ -377,16 +398,10 @@ for (const width of [390, 1440]) {
           .getByRole("heading", { name: "1987 Volvo 740" })
           .first()
           .waitFor();
+        await openFilterPanel(page);
         expect(await self.getAttribute("aria-checked")).toBe("true");
         expect(await full.getAttribute("aria-checked")).toBe("true");
-        expect(
-          await page
-            .getByRole("button", {
-              name: "Show full-service results",
-              exact: true,
-            })
-            .count(),
-        ).toBe(0);
+        expect(await recoveryButtons()).toEqual([0, 0]);
         expect(
           await page.evaluate(
             () => document.documentElement.scrollWidth <= window.innerWidth,
@@ -405,16 +420,10 @@ for (const width of [390, 1440]) {
           .getByRole("heading", { name: "1987 Volvo 740" })
           .first()
           .waitFor();
+        await openFilterPanel(page);
         expect(await self.getAttribute("aria-checked")).toBe("false");
         expect(await full.getAttribute("aria-checked")).toBe("true");
-        expect(
-          await page
-            .getByRole("button", {
-              name: "Show full-service results",
-              exact: true,
-            })
-            .count(),
-        ).toBe(0);
+        expect(await recoveryButtons()).toEqual([0, 0]);
       } finally {
         await closePage(page);
       }
@@ -438,6 +447,12 @@ for (const width of [390, 1440]) {
       });
       await page.goto("http://shared-search.test/search?q=Volvo&yardTypes=all");
       await page.addStyleTag({ content: stylesheet });
+      // Room for the site header the sticky toolbar sits under.
+      await page.addStyleTag({ content: "body{padding-top:6.375rem}" });
+      await openFilters(page);
+      // The phone drawer is modal and hides the page from the accessibility
+      // tree; the counts behind it still update.
+      const includeHidden = width < 768;
       const all = page.getByRole("button", {
         name: "All yards, including unclassified",
         exact: true,
@@ -455,15 +470,20 @@ for (const width of [390, 1440]) {
           .getAttribute("aria-checked"),
       ).toBe("false");
       await page
-        .getByRole("heading", { name: "7 vehicles", exact: true })
+        .getByRole("heading", {
+          name: "7 vehicles",
+          exact: true,
+          includeHidden,
+        })
         .waitFor();
       await page
         .getByRole("checkbox", { name: "Self-service", exact: true })
         .click();
       await page
         .getByRole("heading", {
-          name: "3 vehicles at self-service yards",
+          name: "3 vehicles",
           exact: true,
+          includeHidden,
         })
         .waitFor();
       expect(await all.getAttribute("aria-pressed")).toBe("false");
@@ -471,12 +491,20 @@ for (const width of [390, 1440]) {
         .getByRole("checkbox", { name: "Full-service", exact: true })
         .click();
       await page
-        .getByRole("heading", { name: "6 vehicles", exact: true })
+        .getByRole("heading", {
+          name: "6 vehicles",
+          exact: true,
+          includeHidden,
+        })
         .waitFor();
       expect(await all.getAttribute("aria-pressed")).toBe("false");
       await all.click();
       await page
-        .getByRole("heading", { name: "7 vehicles", exact: true })
+        .getByRole("heading", {
+          name: "7 vehicles",
+          exact: true,
+          includeHidden,
+        })
         .waitFor();
       expect(await all.getAttribute("aria-pressed")).toBe("true");
       expect(
@@ -507,6 +535,11 @@ test("expression-owned yard types are visible without an implicit self-service f
     await page
       .getByRole("heading", { name: "4 vehicles", exact: true })
       .waitFor();
+    // Nothing non-default is active, so there are no chips.
+    expect(
+      await page.getByRole("group", { name: "Active filters" }).count(),
+    ).toBe(0);
+    await openFilterPanel(page);
     expect(
       await page
         .getByText("Yard types set in advanced search", { exact: true })
@@ -558,9 +591,7 @@ test("settled counts replace the full-service announcement after another query",
       .getByRole("status")
       .filter({ hasText: "3 vehicles found at self-service yards." });
     await status.waitFor();
-    await page
-      .getByRole("button", { name: "Show full-service results", exact: true })
-      .click();
+    await page.getByRole("button", { name: "Show them", exact: true }).click();
     await page
       .getByRole("status")
       .filter({ hasText: "6 vehicles found. Full-service yards included." })
@@ -616,17 +647,20 @@ for (const width of [360, 390, 1390]) {
       );
       await page.addStyleTag({ content: stylesheet });
       // next/font defines this in the app; without it text is proportional.
+      // The padding stands in for the site header the toolbar sticks under.
       await page.addStyleTag({
-        content: ':root{--font-chivo-mono:"Chivo Mono"}',
+        content:
+          ':root{--font-chivo-mono:"Chivo Mono"}body{padding-top:6.375rem}',
       });
       const count = page.getByRole("heading", {
-        name: "12,345 vehicles at self-service yards",
+        name: "12,345 vehicles",
         exact: true,
       });
       await count.waitFor();
+      expect(await page.getByText(/Results in \d+ ms/).count()).toBe(0);
       const header = count.locator("xpath=../..");
       const button = header.getByRole("button", {
-        name: "Show full-service results",
+        name: "Show them",
         exact: true,
       });
       await button.waitFor();
@@ -638,17 +672,26 @@ for (const width of [360, 390, 1390]) {
       if (!headerBox || !countBox || !buttonBox)
         throw new Error("Expected the results header to be laid out");
       if (width === 1390) {
-        expect(headerBox.height).toBeLessThanOrEqual(64);
-        // The button shares the count's row instead of sitting below it.
+        // One line: the full-service line shares the count's row.
+        expect(headerBox.height).toBeLessThanOrEqual(48);
         expect(buttonBox.y).toBeLessThan(countBox.y + countBox.height);
       } else {
-        expect(headerBox.height).toBeLessThanOrEqual(120);
-        expect(buttonBox.height).toBeGreaterThanOrEqual(44);
+        expect(headerBox.height).toBeLessThanOrEqual(96);
+        // The inline link keeps a 44px touch target around its text.
+        const reach = await button.evaluate((element) => {
+          const box = element.getBoundingClientRect();
+          const x = box.left + box.width / 2;
+          const middle = box.top + box.height / 2;
+          return [middle - 21, middle + 21].every((y) =>
+            element.contains(document.elementFromPoint(x, y)),
+          );
+        });
+        expect(reach).toBe(true);
       }
-      // The hint is text and an outline button, never a filled panel.
+      // The hint is a quiet line of text and a link, never a filled panel.
       expect(
         await header
-          .getByText("+12,345 more vehicles at full-service yards.", {
+          .getByText("Also 12,345 at full-service yards.", {
             exact: false,
           })
           .evaluate((element) => {
