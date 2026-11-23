@@ -28,7 +28,7 @@ export const HyperbrowserConcurrency = {
     const parsed = ConcurrencySchema.safeParse(raw);
     if (!parsed.success)
       throw new Error(
-        `HYPERBROWSER_CONCURRENT_SESSIONS must be the Hyperbrowser plan's concurrent session limit as a whole number from 1 to 999 (1 on Free, 25 on Startup), but it is ${JSON.stringify(raw)}. Sources that open Hyperbrowser sessions cannot start until it is fixed; unset it to use 1.`,
+        `HYPERBROWSER_CONCURRENT_SESSIONS must be the Hyperbrowser plan's concurrent session limit as a whole number from 1 to 999 (1 on Free, 25 on Startup), but it is ${JSON.stringify(raw)}. It is read when the ingestion modules load, so no ingestion source can start until it is fixed; set it to the plan's limit, or unset it to use 1.`,
       );
     return parsed.data;
   },

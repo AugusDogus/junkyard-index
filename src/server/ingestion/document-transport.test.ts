@@ -749,6 +749,35 @@ test("a failed browser connection still stops the created session", async () => 
   expect(events).toEqual(["lease", "create s1", "stop s1", "release"]);
 });
 
+test("a failed browser connection stops its session before the next use creates another", async () => {
+  const failure = new Error("CDP connect timed out");
+  const { sessions, events } = fakeSessions(servingPage());
+  let failures = 1;
+  const flaky: BrowserSessions = {
+    ...sessions,
+    connect: (wsEndpoint) =>
+      failures-- > 0 ? Promise.reject(failure) : sessions.connect(wsEndpoint),
+  };
+  await Effect.runPromise(
+    Effect.scoped(
+      Effect.gen(function* () {
+        const transport = yield* acquireBigdBrowser(flaky);
+        expect(yield* Effect.either(transport.open)).toEqual(
+          Either.left(
+            new BrowserSessionError({ phase: "open", cause: failure }),
+          ),
+        );
+        // Stopped now, not when the chunk ends, so it stops billing and the
+        // retry's session is the only one open against the plan's limit.
+        expect(events).toEqual(["lease", "create s1", "stop s1"]);
+        yield* transport.open;
+        expect(events.slice(3)).toEqual(["create s2", "connect"]);
+      }),
+    ),
+  );
+  expect(events.slice(5)).toEqual(["disconnect", "stop s2", "release"]);
+});
+
 const config = { betterStackHeartbeatUrl: undefined, hyperbrowserApiKey: "" };
 const ignore = () => Effect.void;
 

@@ -31,7 +31,8 @@ import { withProviderHostLease } from "./provider-host-slot";
 import { URGIIS_TENANTS } from "./urgiis-configuration";
 import { UrgiisCensus } from "./urgiis-census";
 
-// The Hyperbrowser client refuses an empty key even when no session opens.
+// A placeholder key; the Hyperbrowser client is built only when a session
+// opens, which the fixtures replace.
 const config = {
   betterStackHeartbeatUrl: undefined,
   hyperbrowserApiKey: "unused",
@@ -1752,4 +1753,41 @@ test("a tenant's transport is outside its qualification scope, so switching it k
   expect(() =>
     UrgiisCensus.parse(state, [flip(nativeSite)], Date.now()),
   ).not.toThrow();
+});
+
+test("native tenants publish without a usable Hyperbrowser key, since only a browser tenant's first request creates the client", async () => {
+  serveNative();
+  const saved = process.env.HYPERBROWSER_API_KEY;
+  delete process.env.HYPERBROWSER_API_KEY;
+  try {
+    let cursor = UrgiisCursor.initial([nativeSite]);
+    let state: unknown;
+    const published: string[] = [];
+    for (let chunks = 0; cursor.phase !== "complete"; chunks++) {
+      if (chunks > 20)
+        throw new Error("The crawl did not reach terminal evidence");
+      const run = await runWithQueuedHost(
+        streamUrgiisInventoryFromProvider({
+          tenants: [nativeSite],
+          startCursor: cursor,
+          censusState: state,
+          maxPages: 3,
+          onBatch: (batch) =>
+            Effect.sync(() =>
+              published.push(...batch.map((v) => v.locationCode)),
+            ),
+        }).pipe(
+          Effect.provideService(Config, { ...config, hyperbrowserApiKey: "" }),
+        ),
+        { turnWaitMs: 0 },
+      );
+      if (Either.isLeft(run.result)) throw run.result.left;
+      state = run.result.right.checkpointState ?? state;
+      cursor = run.result.right.cursor;
+    }
+    expect(cursor.completed).toEqual([{ code: nativeSite.code, accepted: 1 }]);
+    expect(published).toEqual([nativeSite.code]);
+  } finally {
+    if (saved !== undefined) process.env.HYPERBROWSER_API_KEY = saved;
+  }
 });

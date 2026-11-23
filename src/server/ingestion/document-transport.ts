@@ -1,6 +1,12 @@
 import { Hyperbrowser } from "@hyperbrowser/sdk";
 import { chromium } from "playwright-core";
-import { Effect, Scope, SynchronizedRef } from "effect";
+import {
+  Effect,
+  ExecutionStrategy,
+  Exit,
+  Scope,
+  SynchronizedRef,
+} from "effect";
 import { BrowserSessionError } from "./errors";
 import {
   HyperbrowserSessions,
@@ -370,24 +376,27 @@ async function preparePage(
 
 /** `source`'s Hyperbrowser sessions, under the cross-source session lease,
  * with stealth and accepted cookies only: no proxy and no CAPTCHA solving.
- * Their pages load `subresources` besides the transport's documents. */
+ * Their pages load `subresources` besides the transport's documents. The SDK
+ * client, which refuses a missing key, is built by the first session create,
+ * so a chunk that opens no session never needs the key. */
 function hyperbrowser(
   apiKey: string,
   source: HyperbrowserSource,
   subresources: BrowserSubresources,
 ): BrowserSessions {
-  const client = new Hyperbrowser({ apiKey });
+  let built: Hyperbrowser | undefined;
+  const client = () => (built ??= new Hyperbrowser({ apiKey }));
   return {
     lease: HyperbrowserSessions.lease(source),
-    create: () =>
-      HyperbrowserSessions.create(client, {
+    create: async () =>
+      HyperbrowserSessions.create(client(), {
         useStealth: true,
         useProxy: false,
         solveCaptchas: false,
         acceptCookies: true,
         region: "us-west",
       }),
-    stop: (id) => client.sessions.stop(id),
+    stop: async (id) => client().sessions.stop(id),
     connect: async (wsEndpoint) => {
       const connected = await chromium.connectOverCDP(wsEndpoint, {
         timeout: CDP_CONNECT_TIMEOUT_MS,
@@ -409,8 +418,29 @@ function hyperbrowser(
 }
 
 /** One session page for the enclosing scope, stopped when it closes. The
- * plan's concurrent session refusal defers the chunk. */
+ * plan's concurrent session refusal defers the chunk. A failed open stops the
+ * session it created at once, so it is neither billed until the scope closes
+ * nor counted against the plan when the next use creates another. */
 function acquirePage(
+  sessions: BrowserSessions,
+): Effect.Effect<
+  BrowserDocumentPage,
+  BrowserSessionError | ProviderCapacityDeferred,
+  Scope.Scope
+> {
+  return Effect.gen(function* () {
+    const attempt = yield* Scope.fork(
+      yield* Effect.scope,
+      ExecutionStrategy.sequential,
+    );
+    return yield* openPage(sessions).pipe(
+      Scope.extend(attempt),
+      Effect.onError((cause) => Scope.close(attempt, Exit.failCause(cause))),
+    );
+  });
+}
+
+function openPage(
   sessions: BrowserSessions,
 ): Effect.Effect<
   BrowserDocumentPage,
