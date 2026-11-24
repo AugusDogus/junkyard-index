@@ -1,6 +1,12 @@
 import { VehicleName } from "./vehicle-name";
 
-type Arrival = { make: string; model: string; imageUrl: string | null };
+type Arrival = {
+  make: string;
+  model: string;
+  imageUrl: string | null;
+  source: string;
+  locationCode: string;
+};
 
 function identity({ make, model }: Arrival): string {
   const makeKey = VehicleName.makeKey(make) ?? make.trim().toUpperCase();
@@ -10,10 +16,11 @@ function identity({ make, model }: Arrival): string {
 }
 
 /**
- * A varied showcase of new arrivals. One ingestion batch can list dozens of
- * the same model in a row, so this keeps one of each make and model, those
- * with photos first, and repeats a model only when there are too few to fill
- * `count`. Order within each group follows the input (newest first).
+ * A varied showcase of new arrivals. One yard's ingestion batch can fill the
+ * newest arrivals, often with dozens of one model, so this keeps one of each
+ * make and model, those with photos first, and takes one from each yard
+ * before a second from any. A model repeats only when there are too few to
+ * fill `count`. Order otherwise follows the input (newest first).
  */
 export const RecentArrivals = {
   pick<Vehicle extends Arrival>(
@@ -25,17 +32,31 @@ export const RecentArrivals = {
       ...vehicles.filter((vehicle) => !vehicle.imageUrl),
     ];
     const seen = new Set<string>();
-    const varied: Vehicle[] = [];
-    const repeats: Vehicle[] = [];
-    for (const vehicle of ranked) {
-      const key = identity(vehicle);
-      if (seen.has(key)) {
-        repeats.push(vehicle);
-      } else {
+    const perYard = new Map<string, number>();
+    return ranked
+      .map((vehicle, index) => {
+        const key = identity(vehicle);
+        const repeat = seen.has(key);
         seen.add(key);
-        varied.push(vehicle);
-      }
-    }
-    return [...varied, ...repeats].slice(0, count);
+        const yard = JSON.stringify([vehicle.source, vehicle.locationCode]);
+        const yardRank = perYard.get(yard) ?? 0;
+        if (!repeat) perYard.set(yard, yardRank + 1);
+        return {
+          vehicle,
+          index,
+          repeat,
+          photo: Boolean(vehicle.imageUrl),
+          yardRank,
+        };
+      })
+      .sort(
+        (a, b) =>
+          Number(a.repeat) - Number(b.repeat) ||
+          Number(b.photo) - Number(a.photo) ||
+          a.yardRank - b.yardRank ||
+          a.index - b.index,
+      )
+      .slice(0, count)
+      .map(({ vehicle }) => vehicle);
   },
 } as const;

@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { VehicleImage } from "~/components/search/VehicleImage";
 import { Button } from "~/components/ui/button";
 import type { RecentVehicle } from "~/lib/homepage-inventory";
+import { VehicleName } from "~/lib/vehicle-name";
 
 /**
  * The visitor's reduced-motion setting, or null until the browser answers.
@@ -128,7 +129,7 @@ export function RecentVehicles({ vehicles }: { vehicles: RecentVehicle[] }) {
           >
             <div className="flex touch-pan-y touch-pinch-zoom">
               {vehicles.map((vehicle, index) => {
-                const title = `${vehicle.year} ${vehicle.make} ${vehicle.model}`;
+                const title = `${vehicle.year} ${VehicleName.display(vehicle.make)} ${VehicleName.display(vehicle.model)}`;
                 return (
                   <Link
                     key={index}

@@ -13,13 +13,25 @@ async function getHomepageInventoryInternal(hiddenList: readonly string[]) {
   const hidden = HiddenSources.of(hiddenList);
   const [yards, recentVehicles] = await Promise.all([
     getHomepageYards(db, hidden),
-    // Read more established-yard arrivals so the showcase can vary models.
-    getRecentHomepageVehicles(db, hidden, 80),
+    // Read more established-yard arrivals so the showcase can vary models
+    // and yards.
+    getRecentHomepageVehicles(db, hidden, 500),
   ]);
 
   return {
     yards,
-    recentVehicles: RecentArrivals.pick(recentVehicles, 12),
+    // The yard identity only varies the pick; the carousel does not need it.
+    recentVehicles: RecentArrivals.pick(recentVehicles, 12).map(
+      ({ year, make, model, city, state, imageUrl, indexedAt }) => ({
+        year,
+        make,
+        model,
+        city,
+        state,
+        imageUrl,
+        indexedAt,
+      }),
+    ),
   };
 }
 
@@ -34,7 +46,12 @@ export type RecentVehicle = Awaited<
 // show reads a fresh entry at once.
 const getCachedHomepageInventory = cacheInventory(
   getHomepageInventoryInternal,
-  ["homepage-inventory", "active-yards-v4", ...RETIRED_INGESTION_SOURCES],
+  [
+    "homepage-inventory",
+    "active-yards-v4",
+    "recent-yard-mix-v1",
+    ...RETIRED_INGESTION_SOURCES,
+  ],
 );
 
 export async function getHomepageInventory() {
