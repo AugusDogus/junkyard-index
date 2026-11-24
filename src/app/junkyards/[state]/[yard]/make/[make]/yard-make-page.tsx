@@ -61,10 +61,13 @@ export async function yardMakePageMetadata(
   const loaded = await load(params, page);
   if (!loaded?.inventory) return {};
   const { data, make, summary } = loaded;
+  const total = YardInventory.makeArrivals(summary, make.key).total;
+  // The page answers 404 for a make the yard has none of.
+  if (total === 0) return {};
   return yardMakeMetadata(
     data.yard,
     { name: make.name, slug: make.slug },
-    YardInventory.makeArrivals(summary, make.key).total,
+    total,
     data.publishedAt,
     page,
   );
