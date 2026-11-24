@@ -32,6 +32,7 @@ import {
 } from "./upullrparts-cursor";
 import {
   checkUpullRPartsSearch,
+  UPULLRPARTS_CANARY_SEARCHES,
   crawlUpullRPartsDayByMake,
   crawlUpullRPartsWindows,
   planUpullRPartsWindows,
@@ -82,15 +83,10 @@ export const UPULLRPARTS_BATCH_SIZE = 250;
  */
 export const UPULLRPARTS_SEARCH_INTERVAL = Duration.millis(7_500);
 /** The most searches one chunk sends, both canaries included. */
-export const UPULLRPARTS_CHUNK_SEARCHES = 30;
-const CANARIES = 2;
-/** An empty window's canary and its one re-search. */
-const EMPTY_WINDOW_SEARCHES = 2;
-/** Day and make searches kept for models that more than one make lists. */
-export const UPULLRPARTS_MAKE_SEARCHES = 3;
-/** Searches for halving windows that fill the limit, as after a stale
- * snapshot, beyond the plan. */
-const SPLIT_SEARCHES = 3;
+export const UPULLRPARTS_CHUNK_SEARCHES = 32;
+/** The most one window search can take: itself, then, when empty, its
+ * canary (retried once) and its one re-search. */
+const WINDOW_STEP_SEARCHES = 1 + UPULLRPARTS_CANARY_SEARCHES + 1;
 /** Tokens for searches that fail in transit and are sent again. */
 const TOKEN_RETRIES = 2;
 /**
@@ -354,17 +350,17 @@ function searchChunk<E, R, S>(
             (make) => cursor.afterMake === null || make > cursor.afterMake,
           ).length
         : 0;
-    // Tokens are minted for the plan, not a fixed count: the browser bills
-    // every second it mints.
+    // Tokens are minted for the plan, not a fixed count, since the browser
+    // bills every second it mints: each planned window (or make), both
+    // canaries with a retry each, and room for one window to come back empty
+    // (its canary, retried, and re-search). What a chunk leaves unused goes
+    // to day and make searches and to splitting full windows.
     const budget = Math.min(
       UPULLRPARTS_CHUNK_SEARCHES,
-      cursor.phase === "crawl"
-        ? windows.length +
-            CANARIES +
-            EMPTY_WINDOW_SEARCHES +
-            UPULLRPARTS_MAKE_SEARCHES +
-            SPLIT_SEARCHES
-        : splitMakes + CANARIES,
+      (cursor.phase === "crawl"
+        ? windows.length + WINDOW_STEP_SEARCHES - 1
+        : splitMakes) +
+        2 * UPULLRPARTS_CANARY_SEARCHES,
     );
     const opened = yield* deps.openSearch(budget + TOKEN_RETRIES);
     let sent = 0;
@@ -396,8 +392,10 @@ function searchChunk<E, R, S>(
           makes: directory.makes,
           from: { afterMake: cursor.afterMake, missing: cursor.missing },
           search,
-          // A whole make search and the closing canary must still fit.
-          mayStart: () => now() < deadline && sent + 2 <= budget,
+          // A make search and the closing canary, retried, must still fit.
+          mayStart: () =>
+            now() < deadline &&
+            sent + 1 + UPULLRPARTS_CANARY_SEARCHES <= budget,
         });
         yield* checkUpullRPartsSearch(site, search, "after");
         const found: FoundVehicle[] = split.results.flatMap((result) =>
@@ -435,12 +433,13 @@ function searchChunk<E, R, S>(
         site,
         windows,
         search,
-        // A window with its canary and re-search, the make searches and the
-        // closing canary must still fit.
+        // A window and the closing canary, retried, must still fit; an empty
+        // window is rechecked only when its canary and re-search fit too.
         mayStart: () =>
-          now() < deadline &&
-          sent + 1 + EMPTY_WINDOW_SEARCHES + UPULLRPARTS_MAKE_SEARCHES + 1 <=
-            budget,
+          now() < deadline && sent + 1 + UPULLRPARTS_CANARY_SEARCHES <= budget,
+        mayRecheck: () =>
+          sent + WINDOW_STEP_SEARCHES - 1 + UPULLRPARTS_CANARY_SEARCHES <=
+          budget,
       });
       const records = crawl.results.flatMap((result) => result.records);
       const known = new Map(
@@ -457,7 +456,7 @@ function searchChunk<E, R, S>(
         known,
         index: UpullRPartsDirectory.index(directory),
         search,
-        searchBudget: budget - sent - 1,
+        searchBudget: budget - sent - UPULLRPARTS_CANARY_SEARCHES,
         decodeVins: deps.decodeVins,
       });
       warnings.push(...resolved.warnings);

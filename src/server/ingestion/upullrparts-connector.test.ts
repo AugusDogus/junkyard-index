@@ -320,9 +320,10 @@ describe("U Pull R Parts date crawl", () => {
     await Effect.runPromise(
       streamUpullRPartsInventoryWithSearch(collect(crawlAt("1")), chunkDeps),
     );
-    // Today plus five 80-vehicle days, in 6 windows, the canaries, an empty
-    // window's re-check, make and split searches, and transit retries.
-    expect(opened).toEqual([6 + 2 + 2 + 3 + 3 + 2]);
+    // Today plus five 80-vehicle days in 6 windows; both canaries with a
+    // retry each; an empty window's canary, retried, and re-search; and two
+    // transit retries.
+    expect(opened).toEqual([6 + 2 * 2 + 3 + 2]);
     expect(opened[0]).toBeLessThan(UPULLRPARTS_CHUNK_SEARCHES + 2);
   });
 
@@ -456,6 +457,7 @@ describe("U Pull R Parts date crawl", () => {
     mockDirectory();
     const day = "2026-11-23";
     const inventory = [
+      car(1, TODAY),
       ...Array.from({ length: 60 }, () => car(1, day)),
       ...Array.from({ length: 50 }, () =>
         car(2, day, { make: "Kia", Model: "SOUL" }),
@@ -488,7 +490,8 @@ describe("U Pull R Parts date crawl", () => {
     const split = await Effect.runPromise(
       streamUpullRPartsInventoryWithSearch(second, splitDeps),
     );
-    expect(opened).toEqual([DIRECTORY.makes.length + 2 + 2]);
+    // Its makes, both canaries with a retry each, and two transit retries.
+    expect(opened).toEqual([DIRECTORY.makes.length + 2 * 2 + 2]);
     expect(split.cursor).toMatchObject({
       phase: "crawl",
       location: "1",
@@ -539,6 +542,24 @@ describe("U Pull R Parts date crawl", () => {
     expect(actions).not.toContain("getVehicleImages");
     expect(sink.vehicles).toEqual([]);
     expect(UpullRPartsCursorSchema.safeParse(result.cursor).success).toBe(true);
+  });
+
+  test("searches an empty canary once more with a fresh token, since one rejected token also returns nothing", async () => {
+    mockDirectory();
+    const { search, sent } = site([car(1, "2026-11-23"), car(2, "2026-11-20")]);
+    let rejected = 1;
+    const sink = collect(crawlAt("1"));
+    const result = await Effect.runPromise(
+      streamUpullRPartsInventoryWithSearch(
+        sink,
+        deps((params) => (rejected-- > 0 ? Effect.succeed([]) : search(params)))
+          .deps,
+      ),
+    );
+    expect(result).toMatchObject({ status: "paused", count: 2 });
+    expect(result.cursor).not.toHaveProperty("retryAt");
+    expect(sent[0]).toMatchObject({ beginDate: "", makes: "Ford" });
+    expect(sink.vehicles).toHaveLength(2);
   });
 
   test("pauses at the same cursor when the closing canary finds the IP blocked", async () => {
