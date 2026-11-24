@@ -218,7 +218,14 @@ export function YardInventoryView({
             ))}
           </ul>
         )}
-        <Pagination yard={yard} inventory={inventory} />
+        <Pagination
+          inventory={inventory}
+          pageHref={(page) =>
+            filter && !("model" in filter)
+              ? YardPath.makePageHref(yard.path, filter.slug, page)
+              : YardPath.pageHref(yard.path, page)
+          }
+        />
         <div className="mt-8 grid gap-y-4 lg:grid-cols-12 lg:gap-x-8">
           <p className="text-ink-2 max-w-[65ch] text-sm leading-relaxed text-pretty lg:col-span-7">
             Listings come from the yard. Vehicles can be crushed or picked over
@@ -448,12 +455,13 @@ function MakeChips({
   );
 }
 
+/** Links to every page of the list; `pageHref` gives each page's URL. */
 function Pagination({
-  yard,
   inventory,
+  pageHref,
 }: {
-  yard: RoutedYard;
   inventory: YardInventoryPage;
+  pageHref: (page: number) => string;
 }) {
   if (inventory.pageCount <= 1) return null;
   const pages = Array.from({ length: inventory.pageCount }, (_, i) => i + 1);
@@ -473,7 +481,7 @@ function Pagination({
               </span>
             ) : (
               <Link
-                href={YardPath.pageHref(yard.path, page)}
+                href={pageHref(page)}
                 prefetch={false}
                 className={cn(
                   cell,

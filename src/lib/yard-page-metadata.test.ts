@@ -59,3 +59,17 @@ test("yard make and model metadata share the five-vehicle indexing threshold", (
     ).robots,
   ).toEqual({ index: false, follow: true });
 });
+
+test("yard make pages after the first name their page and range", () => {
+  const make = { name: "Chevrolet", slug: "chevrolet" };
+  const first = yardMakeMetadata(yard, make, 271, null, 1);
+  const second = yardMakeMetadata(yard, make, 271, null, 2);
+  expect(first.alternates?.canonical).toBe(`${yard.path.href}/make/chevrolet`);
+  expect(first.title).not.toContain("Page");
+  expect(second.alternates?.canonical).toBe(
+    `${yard.path.href}/make/chevrolet/page/2`,
+  );
+  expect(second.title).toContain("Chevrolet at Weber Brothers Auto, Page 2");
+  expect(second.description).toContain("Page 2, vehicles 101 to 200 of 271");
+  expect(second.openGraph?.url).toBe(`${yard.path.href}/make/chevrolet/page/2`);
+});

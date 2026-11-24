@@ -74,6 +74,15 @@ export const YardPath = {
   pageHref(path: YardPath, page: number): string {
     return page <= 1 ? path.href : `${path.href}/page/${page}`;
   },
+  /** The URL of page `page` (1-based) of one make at a yard. */
+  makePageHref(path: YardPath, makeSlug: string, page: number): string {
+    const href = YardPath.makeHref(path, makeSlug);
+    return page <= 1 ? href : `${href}/page/${page}`;
+  },
+  /** A /page/{n} segment: canonical decimals up to 9999, else not a page. */
+  pageNumber(segment: string): number | null {
+    return /^[1-9]\d{0,3}$/.test(segment) ? Number(segment) : null;
+  },
   /**
    * Gives every yard in a recognized region a slug from its name and city.
    * Yards whose slugs still collide within a region add a stable hash of
