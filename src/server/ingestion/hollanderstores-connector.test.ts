@@ -117,6 +117,20 @@ describe("Hollander Stores saved complete census", () => {
     ).toContain(
       "Hollander Stores inventory fell below the previous-run 50% drift limit",
     );
+    // A whole-source count cannot bound a census that preserves a yard;
+    // shared validation compares the publishing yards' live inventory.
+    expect(
+      hollanderstoresSnapshot(
+        pages(),
+        hollanderstoresSeed,
+        expected.count * 3,
+        new Set(["standardauto"]),
+      ).errors,
+    ).toEqual([]);
+    expect(
+      hollanderstoresSnapshot(failing, hollanderstoresSeed, expected.count * 3)
+        .errors,
+    ).toEqual([]);
   });
   test("rejects count loss, truncation, foreign tenant links and yard substitution", () => {
     const raw = fixture("standardauto");
