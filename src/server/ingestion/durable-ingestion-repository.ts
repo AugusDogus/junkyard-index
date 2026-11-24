@@ -23,9 +23,10 @@ import {
   type DurableCursorFor,
   type DurableIngestionSource,
 } from "./durable-source";
-import type { IngestionSnapshotStore } from "./ingestion-snapshot-store";
+import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import {
   IngestionSnapshotCleanup,
+  parseSnapshotChunks,
   type StaleSnapshotCleanup,
 } from "./ingestion-snapshot-cleanup";
 import { IngestionSchedule } from "./ingestion-schedule";
@@ -152,6 +153,23 @@ function toChunkResult<Source extends DurableIngestionSource>(
 }
 
 export { parseSnapshotChunks } from "./ingestion-snapshot-cleanup";
+
+/**
+ * The separate checkpoint state blob a cursor resumes from, when this source
+ * run registered it. Null for any other statePath, such as a chunk staged
+ * before checkpoint state had its own blobs or another run's census.
+ */
+function supersededStatePath(
+  cursor: object,
+  snapshotChunks: string,
+): string | null {
+  const statePath = "statePath" in cursor ? cursor.statePath : null;
+  return typeof statePath === "string" &&
+    IngestionSnapshotStore.isCheckpointStatePath(statePath) &&
+    parseSnapshotChunks(snapshotChunks).includes(statePath)
+    ? statePath
+    : null;
+}
 
 export function createDurableIngestionRepository(
   database: LibSQLDatabase,
@@ -698,37 +716,73 @@ export function createDurableIngestionRepository(
         params.requestedCursor,
       );
       const statements: InStatement[] = [];
-      // Stage the chunk before the guarded checkpoint that records it. A lost
-      // race leaves an unreferenced blob, which is deleted below. A restart
-      // chunk is always staged: its marker supersedes the earlier chunks,
-      // which stay registered for cleanup and Workflow cursor references.
-      const snapshotPathname =
-        params.fetched.vehicles.length > 0 ||
-        observedVins.length > 0 ||
-        params.fetched.checkpointState !== undefined ||
-        params.fetched.restart
-          ? await snapshotStore.put({
+      // Stage blobs before the guarded checkpoint that records them. A lost
+      // race or a failed write leaves unreferenced blobs, which are deleted
+      // below. A restart chunk is always staged: its marker supersedes the
+      // earlier chunks, which stay registered for cleanup and Workflow cursor
+      // references.
+      //
+      // Provider checkpoint state (Hollander's ~19 MiB census) is staged in
+      // its own blob, never inside the vehicle chunk, so loading a run's
+      // inventory does not fetch it once per chunk. Invariant: the resume
+      // cursor's statePath names a blob staged for exactly that cursor, under
+      // a unique pathname, and both commit in one guarded statement. A blob is
+      // never overwritten, so a lost race, a crash or a partial write can
+      // only leave the previous cursor paired with the previous state.
+      const staged: string[] = [];
+      const unstage = async () => {
+        if (staged.length > 0) await snapshotStore.delete(staged);
+      };
+      let statePathname: string | null = null;
+      try {
+        if (
+          params.fetched.vehicles.length > 0 ||
+          observedVins.length > 0 ||
+          params.fetched.restart
+        ) {
+          staged.push(
+            await snapshotStore.put({
               runId: params.runId,
               source,
               chunk: {
                 vehicles: params.fetched.vehicles,
                 observedVins,
-                checkpointState: params.fetched.checkpointState,
                 ...(params.fetched.restart ? { restart: true } : {}),
               },
-            })
-          : null;
+            }),
+          );
+        }
+        if (params.fetched.checkpointState !== undefined) {
+          statePathname = await snapshotStore.putCheckpointState({
+            runId: params.runId,
+            source,
+            state: params.fetched.checkpointState,
+          });
+          staged.push(statePathname);
+        }
+      } catch (error) {
+        await unstage();
+        throw error;
+      }
+      // The state this checkpoint replaces, once it commits: only a separate
+      // state blob this source run registered. A chunk that embeds state from
+      // before the split also holds vehicles, and URG may resume from the
+      // census of an earlier run, so neither is ever deleted here.
+      const supersededState =
+        statePathname === null
+          ? null
+          : supersededStatePath(params.requestedCursor, current.snapshotChunks);
 
       // Store provider progress in the same guarded checkpoint as its resume
       // cursor. Cleanup and lost-race deletion use the existing snapshot lifecycle.
       const next =
-        params.fetched.checkpointState === undefined
+        statePathname === null
           ? params.fetched.cursor
           : parseDurableSourceCursor(
               source,
               JSON.stringify({
                 ...params.fetched.cursor,
-                statePath: snapshotPathname,
+                statePath: statePathname,
               }),
             );
       const nextCursor = serializeDurableSourceCursor(next);
@@ -748,6 +802,16 @@ export function createDurableIngestionRepository(
         );
       }
 
+      // Unregister the superseded state with the commit that replaces it, so
+      // every registered blob exists once it is deleted below.
+      const withoutSuperseded =
+        supersededState === null
+          ? "snapshot_chunks"
+          : "coalesce(json_remove(snapshot_chunks, (select fullkey from json_each(snapshot_chunks) where value = ? limit 1)), snapshot_chunks)";
+      const registeredChunks =
+        staged.length === 0
+          ? withoutSuperseded
+          : `json_insert(${withoutSuperseded}${", '$[#]', ?".repeat(staged.length)})`;
       const checkpointStatementIndex = statements.length;
       statements.push({
         sql: `
@@ -761,10 +825,7 @@ export function createDurableIngestionRepository(
               rejected_vehicles = ?,
               errors = ?,
               validation_errors = ?,
-              snapshot_chunks = case
-                when ? is null then snapshot_chunks
-                else json_insert(snapshot_chunks, '$[#]', ?)
-              end,
+              snapshot_chunks = ${registeredChunks},
               completed_at = ?
           where id = ?
             and run_id = ?
@@ -788,8 +849,8 @@ export function createDurableIngestionRepository(
           params.fetched.failureKind === "validation"
             ? JSON.stringify(errors)
             : null,
-          snapshotPathname,
-          snapshotPathname,
+          ...(supersededState === null ? [] : [supersededState]),
+          ...staged,
           terminal ? Date.now() : null,
           id,
           params.runId,
@@ -815,8 +876,7 @@ export function createDurableIngestionRepository(
       const results = await batchClient
         .batch(statements, "write")
         .catch(async (error: unknown) => {
-          if (snapshotPathname !== null)
-            await snapshotStore.delete([snapshotPathname]);
+          await unstage();
           throw error;
         });
       const checkpointResult = results[checkpointStatementIndex];
@@ -824,6 +884,19 @@ export function createDurableIngestionRepository(
         throw new Error(`Source run ${id} checkpoint returned no result.`);
       }
       if (checkpointResult.rowsAffected === 1) {
+        // The new state is committed, so nothing resumes from the superseded
+        // one: a replay of the old cursor gets this checkpoint back from
+        // getCheckpoint before it fetches.
+        if (supersededState !== null) {
+          try {
+            await snapshotStore.delete([supersededState]);
+          } catch (error) {
+            console.error(
+              `Could not delete superseded checkpoint state ${supersededState} of source run ${id}. The new checkpoint is saved and inventory is unaffected, but the blob is no longer registered, so snapshot cleanup will not remove it; delete it from private Blob storage by hand.`,
+              error,
+            );
+          }
+        }
         return {
           cursor: next,
           status: params.fetched.status,
@@ -840,8 +913,7 @@ export function createDurableIngestionRepository(
           `Source run ${id} checkpoint affected ${checkpointResult.rowsAffected} rows; expected 0 or 1.`,
         );
       }
-      if (snapshotPathname !== null)
-        await snapshotStore.delete([snapshotPathname]);
+      await unstage();
 
       const [latest] = await database
         .select()

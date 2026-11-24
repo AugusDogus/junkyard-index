@@ -26,6 +26,17 @@ export interface IngestionSnapshotStore {
     source: DurableIngestionSource;
     chunk: IngestionSnapshotChunk;
   }): Promise<string>;
+  /**
+   * Stores one checkpoint's provider state alone, as a chunk with no vehicles,
+   * under a new, unique pathname that {@link IngestionSnapshotStore.isCheckpointStatePath}
+   * recognizes. Inventory loads skip these, so a large state is never
+   * fetched once per chunk.
+   */
+  putCheckpointState(params: {
+    runId: string;
+    source: DurableIngestionSource;
+    state: unknown;
+  }): Promise<string>;
   load(pathname: string): Promise<IngestionSnapshotChunk>;
   delete(pathnames: readonly string[]): Promise<void>;
 }
@@ -66,12 +77,31 @@ const SnapshotChunkSchema = z.object({
 });
 
 const BLOB_PREFIX = "ingestion-runs";
+const CHECKPOINT_STATE_FOLDER = "checkpoint-state";
+const CHECKPOINT_STATE_PATH = new RegExp(
+  `^${BLOB_PREFIX}/[^/]+/[^/]+/${CHECKPOINT_STATE_FOLDER}/[^/]+$`,
+);
+/** Waits between Blob read attempts; about 31 s in all before giving up. */
+const BLOB_READ_RETRY_DELAYS_MS = [1_000, 2_000, 4_000, 8_000, 16_000] as const;
 // Vercel Blob rejects a delete of more than 1,000 URLs, and a URG run stages
 // more chunks than that.
 const BLOB_DELETE_BATCH_SIZE = 1_000;
 
 function encode(chunk: IngestionSnapshotChunk): Buffer {
   return gzipSync(JSON.stringify(chunk));
+}
+
+function checkpointStateChunk(state: unknown): IngestionSnapshotChunk {
+  return { vehicles: [], observedVins: [], checkpointState: state };
+}
+
+/** The HTTP status of a Blob read that may succeed later: throttled (429) or
+ * a server failure (5xx). The SDK reports a failed read only in its message. */
+function retryableBlobReadStatus(error: unknown): number | null {
+  if (!(error instanceof Error)) return null;
+  const match = /Failed to fetch blob: (\d{3})\b/.exec(error.message);
+  const status = match ? Number(match[1]) : null;
+  return status !== null && (status === 429 || status >= 500) ? status : null;
 }
 
 function decode(pathname: string, body: Uint8Array): IngestionSnapshotChunk {
@@ -87,6 +117,11 @@ function decode(pathname: string, body: Uint8Array): IngestionSnapshotChunk {
 }
 
 export const IngestionSnapshotStore = {
+  /** Whether a pathname holds checkpoint state alone rather than inventory. */
+  isCheckpointStatePath(pathname: string): boolean {
+    return CHECKPOINT_STATE_PATH.test(pathname);
+  },
+
   /** Private Vercel Blob store, authorized by BLOB_READ_WRITE_TOKEN. */
   vercelBlob(
     token: string,
@@ -95,27 +130,51 @@ export const IngestionSnapshotStore = {
       get,
       put,
     },
+    sleep: (ms: number) => Promise<void> = (ms) =>
+      new Promise((resolve) => setTimeout(resolve, ms)),
   ): IngestionSnapshotStore {
-    return {
-      async put({ runId, source, chunk }) {
-        const result = await client.put(
-          `${BLOB_PREFIX}/${runId}/${source}/chunk.json.gz`,
-          encode(chunk),
-          {
-            access: "private",
-            addRandomSuffix: true,
-            contentType: "application/gzip",
-            token,
-          },
-        );
-        return result.pathname;
-      },
-      async load(pathname) {
-        const result = await client.get(pathname, {
+    const putBlob = async (pathname: string, chunk: IngestionSnapshotChunk) =>
+      (
+        await client.put(pathname, encode(chunk), {
           access: "private",
-          useCache: false,
+          addRandomSuffix: true,
+          contentType: "application/gzip",
           token,
-        });
+        })
+      ).pathname;
+    // A long reconciliation reads hundreds of chunks in a row, and the store
+    // throttles bursts with 429. Back off instead of failing the step.
+    const getBlob = async (pathname: string) => {
+      for (let attempt = 0; ; attempt += 1) {
+        try {
+          return await client.get(pathname, {
+            access: "private",
+            useCache: false,
+            token,
+          });
+        } catch (error) {
+          const status = retryableBlobReadStatus(error);
+          const delay = BLOB_READ_RETRY_DELAYS_MS[attempt];
+          if (status === null) throw error;
+          if (delay === undefined)
+            throw new Error(
+              `Ingestion snapshot chunk ${pathname} could not be read from Blob storage: HTTP ${status} after ${attempt + 1} attempts over ${BLOB_READ_RETRY_DELAYS_MS.reduce((sum, ms) => sum + ms, 0) / 1_000} s. The staged chunk and its run are preserved; retry the step once the Blob store recovers.`,
+              { cause: error },
+            );
+          await sleep(delay);
+        }
+      }
+    };
+    return {
+      put: ({ runId, source, chunk }) =>
+        putBlob(`${BLOB_PREFIX}/${runId}/${source}/chunk.json.gz`, chunk),
+      putCheckpointState: ({ runId, source, state }) =>
+        putBlob(
+          `${BLOB_PREFIX}/${runId}/${source}/${CHECKPOINT_STATE_FOLDER}/state.json.gz`,
+          checkpointStateChunk(state),
+        ),
+      async load(pathname) {
+        const result = await getBlob(pathname);
         if (!result || result.statusCode !== 200) {
           throw new Error(
             `Ingestion snapshot chunk ${pathname} is missing from Blob storage. The run cannot be reconciled without it; restart the run.`,
@@ -147,6 +206,11 @@ export const IngestionSnapshotStore = {
       async put({ runId, source, chunk }) {
         const pathname = `${BLOB_PREFIX}/${runId}/${source}/${crypto.randomUUID()}.json.gz`;
         blobs.set(pathname, encode(chunk));
+        return pathname;
+      },
+      async putCheckpointState({ runId, source, state }) {
+        const pathname = `${BLOB_PREFIX}/${runId}/${source}/${CHECKPOINT_STATE_FOLDER}/${crypto.randomUUID()}.json.gz`;
+        blobs.set(pathname, encode(checkpointStateChunk(state)));
         return pathname;
       },
       async load(pathname) {
