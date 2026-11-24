@@ -40,7 +40,7 @@ export class HeavytruckpartsProviderError extends Error {
     super(
       `HTP ${operation}: ${cause instanceof Error ? cause.message : String(cause)}. ${
         cause instanceof HtpCensusDrift
-          ? "The catalog changed while it was read. Prior inventory remains published, and the source retries with a fresh census after its usual delay."
+          ? "The catalog changed while it was read. Prior inventory remains published, and the source retries with a fresh census after its usual delay if daily attempts remain, otherwise on its next daily run."
           : "Prior inventory and checkpoint remain preserved. Inspect saved evidence before restarting."
       }`,
       { cause },

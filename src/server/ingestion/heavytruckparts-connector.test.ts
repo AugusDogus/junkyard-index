@@ -122,6 +122,14 @@ function response(url: string) {
 }
 const first = HTP_SUPPLIERS[0];
 type HtpRow = HtpPage["records"][number];
+function thrown(run: () => unknown): unknown {
+  try {
+    run();
+  } catch (error) {
+    return error;
+  }
+  throw new Error("expected a throw");
+}
 
 describe("HeavyTruckParts marketplace", () => {
   test("saved original bytes and serial four-second request receipts remain auditable", () => {
@@ -598,9 +606,61 @@ describe("HeavyTruckParts marketplace", () => {
         storeCount(count),
       );
       expect(drift.message).toContain(message);
-      expect(drift.message).toContain("retries with a fresh census");
+      expect(drift.message).toContain(
+        "retries with a fresh census after its usual delay if daily attempts remain, otherwise on its next daily run",
+      );
       expect(drift.kind).toBe("transient");
     }
+    // Evidence that does not fit turnover stays deterministic: a pagination
+    // link in a new format, or a page whose cards no longer parse.
+    for (const [page, message] of [
+      [
+        (url: string) =>
+          storeCount(51)(url).replaceAll("&amp;page=2'", "&amp;p=2'"),
+        "pagination disagrees",
+      ],
+      [
+        (url: string) =>
+          response(url).replaceAll(
+            'class="product border rounded"',
+            'class="card border rounded"',
+          ),
+        "page 1 lists no items",
+      ],
+    ] as const) {
+      const broken = await failure(HeavytruckpartsCursor.initial(), page);
+      expect(broken.message).toContain(message);
+      expect(broken.message).toContain("Inspect saved evidence");
+      expect(broken.kind).toBe("deterministic");
+    }
+    // A later page that turnover emptied is still drift.
+    const emptied = await failure(HeavytruckpartsCursor.initial(), (url) =>
+      url === htpCatalogUrl(first, "DESC", 2)
+        ? response(url).replaceAll(
+            'class="product border rounded"',
+            'class="card border rounded"',
+          )
+        : response(url),
+    );
+    expect(emptied.message).toContain("page 2 lists 0 items");
+    expect(emptied.kind).toBe("transient");
+    // An empty make page is not read as a page past the last one.
+    const lastPage = read(`${first.code}-desc-${Math.ceil(45 / 25)}`);
+    const emptyMake = thrown(() =>
+      parseHtpYearFill(
+        lastPage.replaceAll(
+          'class="product border rounded"',
+          'class="card border rounded"',
+        ),
+        first,
+        { kind: "make", year: "2005", direction: "DESC", make: "Kenworth" },
+      ),
+    );
+    expect(emptyMake).not.toBeInstanceOf(HtpCensusDrift);
+    expect(emptyMake).toHaveProperty(
+      "message",
+      `HTP ${first.code} make page ${htpYearMakeUrl(first, "2005", "Kenworth")} lists no items, though the year orders showed that make in that year`,
+    );
     let closing = htpAdvance(HeavytruckpartsCursor.initial(), store);
     while (closing.phase === "catalog")
       closing = htpAdvance(
@@ -893,6 +953,25 @@ describe("HeavyTruckParts marketplace", () => {
       };
     });
     expect(() => htpRoster(westside, pages, withoutGap, total)).toThrow("2015");
+    // A fill that still misses a tied item may be an unseen make or a tie the
+    // fills cannot reach, so a lower count stays deterministic.
+    expect(
+      thrown(() => htpRoster(westside, pages, withoutGap, total)),
+    ).not.toBeInstanceOf(HtpCensusDrift);
+    // A 2015 item sold and a new 2015 item was listed before the DESC fill was
+    // read: the fill holds its 25 items, but 2015 now lists one more than the
+    // year orders counted, which only a changing catalog can explain.
+    const listed = desc.records.map((r) =>
+      r.id === repeated.id ? { ...r, id: "999999999" } : r,
+    );
+    const sold = thrown(() =>
+      htpRoster(westside, pages, [{ ...desc, records: listed }, asc], total),
+    );
+    expect(sold).toBeInstanceOf(HtpCensusDrift);
+    expect(sold).toHaveProperty(
+      "message",
+      "HTP westside year 2015 lists 36 of 35 items after year fills",
+    );
     expect(() => htpRoster(westside, pages, [desc], total)).toThrow();
     const closed = htpAdvance(cursor, raw("westside-store"));
     expect(closed.phase).toBe("store-opening");
