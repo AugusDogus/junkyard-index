@@ -585,21 +585,23 @@ test("Pick-A-Part VA reads the catalog again instead of searching for a recovery
 }, 60_000);
 
 test("Pick-A-Part VA stops planning set-date searches again when every catalog read orders a tie date differently", async () => {
-  // Every second read shows the hidden LAND ROVER in page 1's last slot and
-  // hides the donor that held it.
-  const swapped = [
-    pickapartvaTestPage([...sameDay.slice(0, 499), rover], 1, 3),
-    pickapartvaTestPage(
-      [rover, ...sameDay.slice(500), ...older.slice(0, 399)],
-      2,
-      3,
-    ),
-  ];
+  // Each read hides a different donor of the tie date, so no read orders
+  // the date like any earlier one, and every census plans it again.
+  const pool = [...sameDay, rover];
   let reads = 0;
   serve((url, body) => {
     const page = Number(new URL(url).searchParams.get("pagenum"));
     if (page === 1) reads++;
-    return reads % 2 === 0 ? (swapped[page - 1] ?? body) : body;
+    const listed = pool.filter((_, index) => index !== pool.length - reads);
+    const last = listed[499] ?? donor(0);
+    if (page === 1) return pickapartvaTestPage(listed.slice(0, 500), 1, 3);
+    if (page === 2)
+      return pickapartvaTestPage(
+        [last, ...listed.slice(500), ...older.slice(0, 399)],
+        2,
+        3,
+      );
+    return body;
   });
   let cursor: PickapartvaCursor | undefined;
   let refused: unknown = null;
@@ -622,6 +624,25 @@ test("Pick-A-Part VA stops planning set-date searches again when every catalog r
     `planned its set-date searches again 3 times and the catalog still does not match them: ${date} (shown donors or repeated slots changed)`,
   );
   expect(validationRejectionKind(refused)).toBe("transient");
+  expect(emitted).toHaveLength(0);
+}, 60_000);
+
+test("Pick-A-Part VA rejects a census whose catalog page lists one donor card twice without retrying it", async () => {
+  // The parser already refuses a repeated card id; a legacy card has none.
+  const legacy = donor(0, { cardId: null, stock: "LEGACY1" });
+  serve((url, body) =>
+    new URL(url).searchParams.get("pagenum") === "1"
+      ? pickapartvaTestPage([legacy, ...sameDay.slice(1, 499), legacy], 1, 3)
+      : body,
+  );
+  const refused = await chunk().then(
+    () => null,
+    (error: unknown) => error,
+  );
+  expect(String(refused)).toContain(
+    `catalog lists one donor card twice on page 1 (stock LEGACY1, Set Date ${date}), so its repeated slots cannot be counted. No advanced checkpoint accepted; previous inventory is preserved`,
+  );
+  expect(validationRejectionKind(refused)).toBe("deterministic");
   expect(emitted).toHaveLength(0);
 }, 60_000);
 
