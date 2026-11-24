@@ -329,9 +329,9 @@ export function streamNorthwestInventoryWithRequestGate<E, R>(
   );
 }
 /** At most one browser session per chunk, opened by the first request once
- * the chunk holds the Hyperbrowser session lease and its one URG host turn
+ * the chunk holds its provider's session lease and its one URG host turn
  * arrives, and stopped when the chunk ends. `sessions` defaults to
- * Hyperbrowser. */
+ * Northwest's provider in `BROWSER_PROVIDERS`. */
 export function streamNorthwestInventory<E, R>(
   options: NorthwestOptions<E, R>,
   sessions?: BrowserSessions,

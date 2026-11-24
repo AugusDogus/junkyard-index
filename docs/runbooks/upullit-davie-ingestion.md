@@ -7,9 +7,11 @@ inventory API, `https://upullitdavie.com/api/inventory/search?page=N`.
 
 Since August 2026 the API is read from inside a remote browser, not from the
 deployment's egress. Each chunk opens one browser under the provider's
-cross-source [session lease](hyperbrowser-sessions.md#session-lease),
-navigates to `/inventory` and waits for network idle (the page loads every
-subresource; nothing is routed), then requests each catalog page with an
+cross-source session lease (the [lease](hyperbrowser-sessions.md#session-lease)
+works the same for both providers; Kernel's limits are in
+[Kernel sessions](browser-providers.md#kernel-sessions)), navigates to
+`/inventory` and waits for network idle (the page loads every subresource;
+nothing is routed), then requests each catalog page with an
 in-page same-origin `fetch` (`Accept: application/json`, no cache, 30-second
 timeout), six at a time in groups of 24. The browser disconnects and the
 session stops when the chunk ends, before the lease is released, on success,
