@@ -23,6 +23,8 @@ import {
   getYardMapView,
   getYardMapBounds,
   hasMapCoordinates,
+  isNarrowYardMap,
+  yardMapControlsInset,
 } from "~/lib/yard-map-projection";
 
 const YardMapCanvas = memo(function YardMapCanvas({
@@ -89,10 +91,15 @@ const YardMapCanvas = memo(function YardMapCanvas({
   }, [loading]);
 
   const current = view ?? overview;
-  const bounds = useMemo(() => getYardMapBounds(yards), [yards]);
+  const narrow = isNarrowYardMap(size.width);
+  const bounds = useMemo(
+    () => getYardMapBounds(yards, narrow),
+    [yards, narrow],
+  );
   // Match getYardMapView's geographic fit before the actual size is known.
   // Scaling the estimated viewport instead changes the framing on hydration.
-  const fitScale = `calc(clamp(0.5, min(calc((100cqw - 32px) / ${bounds.width}px), calc((100cqh - 32px) / ${bounds.height}px)), 32) / ${2 ** (overview.zoom - 2)})`;
+  const controls = yardMapControlsInset(size.width);
+  const fitScale = `calc(clamp(0.5, min(calc((100cqw - ${32 + controls}px) / ${bounds.width}px), calc((100cqh - 32px) / ${bounds.height}px)), 32) / ${2 ** (overview.zoom - 2)})`;
   const mapStyle = {
     width: size.width,
     height: size.height,

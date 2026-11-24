@@ -4,7 +4,27 @@ import {
   getYardMapView,
   hasMapCoordinates,
   projectYardLocation,
+  type YardMapView,
 } from "./yard-map-projection";
+
+/** Where a location lands in a viewport showing `view`, in pixels. */
+function onScreen(
+  view: YardMapView,
+  location: { lat: number; lng: number },
+  width: number,
+  height: number,
+) {
+  const center = projectYardLocation({
+    lat: view.center[0],
+    lng: view.center[1],
+  });
+  const point = projectYardLocation(location);
+  const scale = 2 ** (view.zoom - 2);
+  return {
+    x: width / 2 + (point.x - center.x) * scale,
+    y: height / 2 + (point.y - center.y) * scale,
+  };
+}
 
 describe("yard map projection", () => {
   test("uses Web Mercator coordinates and keeps the poles finite", () => {
@@ -37,31 +57,48 @@ describe("yard map projection", () => {
     }
   });
 
-  test("fits all yards inside mobile and desktop viewports", () => {
+  test("fits all yards inside desktop viewports", () => {
     const locations = [
       { lat: 61.2, lng: -149.9 },
       { lat: 25.8, lng: -80.2 },
     ];
-    for (const { width, height } of [
-      { width: 343, height: 203 },
-      { width: 916, height: 512 },
-    ]) {
-      const view = getYardMapView(locations, width, height);
-      const center = projectYardLocation({
-        lat: view.center[0],
-        lng: view.center[1],
-      });
-      for (const location of locations) {
-        const point = projectYardLocation(location);
-        const scale = 2 ** (view.zoom - 2);
-        expect(Math.abs(point.x - center.x) * scale).toBeLessThan(
-          width / 2 - 12,
-        );
-        expect(Math.abs(point.y - center.y) * scale).toBeLessThan(
-          height / 2 - 12,
-        );
-      }
+    const width = 916;
+    const height = 512;
+    const view = getYardMapView(locations, width, height);
+    for (const location of locations) {
+      const point = onScreen(view, location, width, height);
+      expect(point.x).toBeGreaterThan(12);
+      expect(point.x).toBeLessThan(width - 12);
+      expect(point.y).toBeGreaterThan(12);
+      expect(point.y).toBeLessThan(height - 12);
     }
+  });
+
+  test("phones fit the lower 48 and Canada clear of the controls, leaving Alaska and Hawaii to panning", () => {
+    const anchorage = { lat: 61.2, lng: -149.9 };
+    const honolulu = { lat: 21.3, lng: -157.8 };
+    const shown = [
+      { lat: 44.34, lng: -69.66 }, // Maine
+      { lat: 25.8, lng: -80.2 }, // Miami
+      { lat: 32.7, lng: -117.1 }, // San Diego
+      { lat: 53.57, lng: -113.65 }, // Edmonton
+    ];
+    const width = 356;
+    const height = 285;
+    const view = getYardMapView([anchorage, honolulu, ...shown], width, height);
+    for (const location of shown) {
+      const point = onScreen(view, location, width, height);
+      expect(point.x).toBeGreaterThan(12);
+      // The zoom and fullscreen buttons take the right edge.
+      expect(point.x).toBeLessThan(width - 56);
+      expect(point.y).toBeGreaterThan(12);
+      expect(point.y).toBeLessThan(height - 12);
+    }
+    // Alaska no longer shrinks the map to a corner.
+    expect(onScreen(view, anchorage, width, height).x).toBeLessThan(0);
+    expect(getYardMapBounds([anchorage, ...shown], true)).toEqual(
+      getYardMapBounds(shown, true),
+    );
   });
 
   test("ignores missing-coordinate sentinels and invalid locations", () => {
