@@ -17,9 +17,10 @@ export function VehicleImage(props: VehicleImageProps) {
 }
 
 function Photo({ src, alt, sizes, priority = false }: VehicleImageProps) {
+  // The loader returns a bypassed host's URL unchanged.
+  const proxied = wsrvLoader({ src, width: 1 }) !== src;
   const { photo, ref, onLoad, onError } = useProxiedPhoto({
-    // The loader returns a bypassed host's URL unchanged.
-    proxied: wsrvLoader({ src, width: 1 }) !== src,
+    proxied,
     eager: priority,
   });
 
@@ -67,7 +68,8 @@ function Photo({ src, alt, sizes, priority = false }: VehicleImageProps) {
           loading={priority ? "eager" : "lazy"}
           fetchPriority={priority ? "high" : "auto"}
           decoding="async"
-          referrerPolicy="no-referrer"
+          // Only a fallback from the proxy hides the referrer from the yard.
+          referrerPolicy={proxied ? "no-referrer" : undefined}
           onLoad={onLoad}
           onError={onError}
         />

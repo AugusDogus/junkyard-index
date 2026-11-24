@@ -62,10 +62,8 @@ export function useProxiedPhoto({
     [send],
   );
 
-  return {
-    photo,
-    ref,
-    onLoad: () => send("load"),
-    onError: () => send("error"),
-  } as const;
+  // Stable handlers, so next/image does not rebuild its ref on each render.
+  const onLoad = useCallback(() => send("load"), [send]);
+  const onError = useCallback(() => send("error"), [send]);
+  return { photo, ref, onLoad, onError } as const;
 }
