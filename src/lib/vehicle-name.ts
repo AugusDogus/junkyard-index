@@ -159,18 +159,42 @@ function modelName(make: string, model: string): string {
   return PICKUP_MODELS[makeKey ?? ""]?.[key(base)] ?? name;
 }
 
+// Short words that are words, not codes, after another word ("SANTA FE",
+// "TOWN CAR", "GRAND AM", "RAM VAN"). Leading, they could be initials ("AM
+// General").
+const SHORT_WORDS_AFTER = new Set(["FE", "CAR", "AM", "VAN", "BUS", "CAB"]);
+// Short words that open a longer name ("EL CAMINO", "LE SABRE", "NEW
+// YORKER"). Alone or last, "LE" and "SE" are trims, so only an opening word
+// before another word softens.
+const SHORT_WORDS_OPENING = new Set(["NEW", "EL", "LE", "LA", "DE", "RAM"]);
+
+function titleCase(word: string): string {
+  return word.charAt(0) + word.slice(1).toLowerCase();
+}
+
 /**
  * An all-caps name with its plain words title-cased ("CIVIC CRX" → "Civic
- * CRX", "F-250 SUPER DUTY" → "F-250 Super Duty"). Words of three letters or
- * fewer, and anything with digits or hyphens, keep their capitals, since
- * those are usually initials or model codes (BMW, GMC, CR-V, MAZDA3).
+ * CRX", "F-250 SUPER DUTY" → "F-250 Super Duty", "SANTA FE" → "Santa Fe").
+ * Other words of three letters or fewer, and anything with digits or
+ * hyphens, keep their capitals, since those are usually initials, model
+ * codes, or trims (BMW, GMC, CR-V, MAZDA3, LE).
  */
 function softenCaps(name: string): string {
   if (name !== name.toUpperCase()) return name;
-  return name.replace(
-    /\b[A-Z]{4,}\b/g,
-    (word) => word.charAt(0) + word.slice(1).toLowerCase(),
-  );
+  return name
+    .replace(/\b[A-Z]{4,}\b/g, titleCase)
+    .replace(
+      /(?<!\S)[A-Z]{2,3}(?!\S)/g,
+      (word: string, offset: number, whole: string) => {
+        const before = whole.slice(0, offset).trim();
+        const after = whole.slice(offset + word.length).trim();
+        if (word === "AND" && before && after) return "and";
+        if (before && SHORT_WORDS_AFTER.has(word)) return titleCase(word);
+        if (!before && after && SHORT_WORDS_OPENING.has(word))
+          return titleCase(word);
+        return word;
+      },
+    );
 }
 
 export const VehicleName = {
@@ -275,17 +299,6 @@ export const VehicleName = {
   /** A raw make, model, or trim as displayed; see `softenCaps`. */
   display(name: string): string {
     return softenCaps(name);
-  },
-
-  /**
-   * `display` for one vehicle's raw name, which has no other spellings to
-   * outvote it: an all-caps name with a short word ("SANTA FE", "GRAND AM")
-   * stays all caps rather than reading "Santa FE".
-   */
-  displayWhole(name: string): string {
-    return /\b[A-Z]{1,3}\b/.test(name) && name === name.toUpperCase()
-      ? name
-      : softenCaps(name);
   },
 
   slug(name: string): string {
