@@ -109,7 +109,11 @@ export async function prepareIngestionPass(
   if (IngestionDay.key(now) !== day) return { status: "expired" };
   const wakeup = await prepareDurableIngestionWakeup(now);
   return wakeup.status === "active"
-    ? { status: "active", runIds: wakeup.runs.map((run) => run.runId) }
+    ? {
+        status: "active",
+        runIds: wakeup.runs.map((run) => run.runId),
+        retryAt: wakeup.retryAt,
+      }
     : wakeup;
 }
 

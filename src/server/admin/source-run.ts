@@ -49,7 +49,7 @@ export type RunOutcome =
   | { kind: "running" }
   | {
       kind: "rejected";
-      reason: "error" | "validation" | "expired" | "unpublished";
+      reason: "error" | "validation" | "expired" | "superseded" | "unpublished";
     };
 
 const REJECTION_FALLBACK = {
@@ -57,6 +57,8 @@ const REJECTION_FALLBACK = {
   validation: "The data failed our checks, so it was not used.",
   expired:
     "It waited over 24 hours for its turn to publish, so nothing was published.",
+  superseded:
+    "Its day ended while it waited for its turn to publish, so the next day's crawl replaced it and nothing was published.",
   unpublished: "The run ended without publishing.",
 } as const;
 
@@ -75,6 +77,9 @@ export const SourceRun = {
     }
     if (run.acceptanceStatus === "expired") {
       return { kind: "rejected", reason: "expired" };
+    }
+    if (run.acceptanceStatus === "superseded") {
+      return { kind: "rejected", reason: "superseded" };
     }
     if (run.runStatus === "running") return { kind: "running" };
     return { kind: "rejected", reason: "unpublished" };
@@ -99,8 +104,9 @@ export const SourceRun = {
     outcome: Extract<RunOutcome, { kind: "rejected" }>,
     errors: SourceRunErrors,
   ): string {
-    // Its stored text names internal machinery; the fallback says it plainly.
-    if (outcome.reason === "expired") return REJECTION_FALLBACK.expired;
+    // Their stored text names internal machinery; the fallback says it plainly.
+    if (outcome.reason === "expired" || outcome.reason === "superseded")
+      return REJECTION_FALLBACK[outcome.reason];
     return (
       ErrorText.summary(SourceRun.messages(errors)) ??
       REJECTION_FALLBACK[outcome.reason]

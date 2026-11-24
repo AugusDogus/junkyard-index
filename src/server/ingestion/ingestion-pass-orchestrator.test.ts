@@ -22,9 +22,10 @@ function passOperations(
     startRuns: async (runIds) => {
       events.push(`start:${runIds.join(",")}`);
     },
-    nextReport: async () => {
+    nextReport: async (deadline) => {
       const report = reports.shift();
       if (!report) throw new Error("Waited for more reports than expected");
+      if (deadline !== null) events.push(`deadline:${deadline}`);
       events.push(report === "timeout" ? "timeout" : `report:${report.runId}`);
       return report;
     },
@@ -45,9 +46,9 @@ describe("runIngestionPass", () => {
   test("runs every due source, retries a failed one, then delivers once", async () => {
     const { operations, events } = passOperations(
       [
-        { status: "active", runIds: ["row52", "pyp"] },
+        { status: "active", runIds: ["row52", "pyp"], retryAt: null },
         { status: "waiting", retryAt: 2_000 },
-        { status: "active", runIds: ["pyp-retry"] },
+        { status: "active", runIds: ["pyp-retry"], retryAt: null },
         { status: "complete" },
       ],
       [
@@ -77,9 +78,9 @@ describe("runIngestionPass", () => {
   test("re-plans after a failed run or a watchdog timeout to resume runs", async () => {
     const { operations, events } = passOperations(
       [
-        { status: "active", runIds: ["row52", "pyp"] },
-        { status: "active", runIds: ["row52", "pyp"] },
-        { status: "active", runIds: ["row52", "pyp"] },
+        { status: "active", runIds: ["row52", "pyp"], retryAt: null },
+        { status: "active", runIds: ["row52", "pyp"], retryAt: null },
+        { status: "active", runIds: ["row52", "pyp"], retryAt: null },
         { status: "complete" },
       ],
       [
@@ -104,6 +105,40 @@ describe("runIngestionPass", () => {
       "start:row52,pyp",
       "report:row52",
       "report:pyp",
+      "plan:complete",
+      "deliver",
+    ]);
+  });
+});
+
+describe("runIngestionPass with a retry due while runs are active", () => {
+  test("re-plans at the retry time instead of waiting for every report", async () => {
+    // pyp was released at validation and retries at 5000, while row52 waits
+    // for the commit and keeps reporting nothing.
+    const { operations, events } = passOperations(
+      [
+        { status: "active", runIds: ["row52"], retryAt: 5_000 },
+        { status: "active", runIds: ["row52", "pyp-retry"], retryAt: null },
+        { status: "complete" },
+      ],
+      [
+        "timeout",
+        { runId: "row52", failed: false },
+        { runId: "pyp-retry", failed: false },
+      ],
+    );
+
+    expect(await runIngestionPass(operations)).toBe("completed");
+
+    expect(events).toEqual([
+      "plan:active",
+      "start:row52",
+      "deadline:5000",
+      "timeout",
+      "plan:active",
+      "start:row52,pyp-retry",
+      "report:row52",
+      "report:pyp-retry",
       "plan:complete",
       "deliver",
     ]);

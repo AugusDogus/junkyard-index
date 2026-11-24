@@ -1,9 +1,12 @@
 /**
+ * Active: `retryAt` is when the next source without an active run is due a
+ * retry, if any, so the pass re-plans then even while active runs report
+ * nothing (such as runs waiting for the commit).
  * Expired: the pass outlived its ingestion day. It stops without delivering;
  * the current day's pass delivers once every source is done.
  */
 export type IngestionPassPlan =
-  | { status: "active"; runIds: string[] }
+  | { status: "active"; runIds: string[]; retryAt: number | null }
   | { status: "waiting"; retryAt: number }
   | { status: "complete" }
   | { status: "expired" };
@@ -27,8 +30,11 @@ export interface IngestionPassOperations {
   /** Resumes active runs and starts runs for due sources. */
   plan: () => Promise<IngestionPassPlan>;
   startRuns: (runIds: readonly string[]) => Promise<void>;
-  /** The next run report, or "timeout" once the watchdog interval passes. */
-  nextReport: () => Promise<IngestionRunReport | "timeout">;
+  /** The next run report, or "timeout" once the watchdog interval passes or
+   * `deadline` (a time, when not null) arrives. */
+  nextReport: (
+    deadline: number | null,
+  ) => Promise<IngestionRunReport | "timeout">;
   sleepUntil: (time: number) => Promise<void>;
   /** Waits before resuming a failed run, which stays active. */
   pauseAfterFailure: () => Promise<void>;
@@ -41,7 +47,8 @@ export interface IngestionPassOperations {
  * waits for their reports, sleeps until a failed source's retry is due, and
  * starts the day's saved-search alerts once every source published or used
  * its attempts. A watchdog timeout or a failed run re-plans, which resumes any run
- * whose workflow died.
+ * whose workflow died. A due retry also re-plans, so a source released while
+ * others wait for the commit retries on time.
  */
 export async function runIngestionPass(
   operations: IngestionPassOperations,
@@ -68,7 +75,7 @@ export async function runIngestionPass(
     startedRuns = true;
     const pending = new Set(next.runIds);
     while (pending.size > 0) {
-      const report = await nextReport();
+      const report = await nextReport(next.retryAt);
       if (report === "timeout") break;
       pending.delete(report.runId);
       if (report.failed) {

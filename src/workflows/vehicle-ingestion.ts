@@ -171,10 +171,14 @@ export async function vehicleIngestionPassWorkflow(day: string) {
   const outcome = await runIngestionPass({
     plan: () => prepareIngestionPassStep(day),
     startRuns: (runIds) => startIngestionRunWorkflowsStep(runIds, day),
-    nextReport: async () => {
+    nextReport: async (deadline) => {
       const next = await Promise.race([
         pendingReport,
         sleep(PASS_WATCHDOG_INTERVAL).then(() => "timeout" as const),
+        // A source's retry falls due while active runs report nothing.
+        ...(deadline === null
+          ? []
+          : [sleep(new Date(deadline)).then(() => "timeout" as const)]),
       ]);
       if (next === "timeout") return next;
       pendingReport = incoming.next();
