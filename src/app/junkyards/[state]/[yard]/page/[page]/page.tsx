@@ -27,13 +27,18 @@ async function load(params: Promise<Params>) {
   if (number === null) return null;
   const data = await getYardPageData(state, yard);
   if (!data) return null;
-  const inventory = await getYardVehiclePage(
+  const listing = await getYardVehiclePage(
     data.yard,
     data.summary,
     { kind: "yard" },
     number,
   );
-  return { data, number, inventory };
+  return {
+    data,
+    number,
+    summary: listing.summary,
+    inventory: listing.data,
+  };
 }
 
 export async function generateMetadata({
@@ -43,13 +48,8 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const loaded = await load(params);
   if (!loaded?.inventory) return {};
-  const { data, number } = loaded;
-  return yardPageMetadata(
-    data.yard,
-    data.summary.total,
-    data.publishedAt,
-    number,
-  );
+  const { data, number, summary } = loaded;
+  return yardPageMetadata(data.yard, summary.total, data.publishedAt, number);
 }
 
 export default async function YardInventoryPage({
@@ -59,18 +59,18 @@ export default async function YardInventoryPage({
 }) {
   const loaded = await load(params);
   if (!loaded) notFound();
-  const { data, number, inventory } = loaded;
+  const { data, number, summary, inventory } = loaded;
   if (number === 1) permanentRedirect(data.yard.path.href);
   if (!inventory) notFound();
-  const arrivals = YardInventory.yardArrivals(data.summary);
+  const arrivals = YardInventory.yardArrivals(summary);
 
   return (
     <PublicPageShell>
       <YardInventoryView
         yard={data.yard}
         inventory={inventory}
-        total={data.summary.total}
-        makes={data.summary.makes}
+        total={summary.total}
+        makes={summary.makes}
         makeSlugs={await getMakeSlugs()}
         hiddenSources={await getHiddenSources()}
         newArrivals={YardInventory.newArrivalsFrom(

@@ -40,19 +40,20 @@ export default async function YardPage({
 }) {
   const { state, yard } = await params;
   const data = await getYardPageData(state, yard);
-  const inventory =
+  const listing =
     data &&
     (await getYardVehiclePage(data.yard, data.summary, { kind: "yard" }, 1));
-  if (!data || !inventory) notFound();
-  const arrivals = YardInventory.yardArrivals(data.summary);
+  if (!data || !listing?.data) notFound();
+  const { summary, data: inventory } = listing;
+  const arrivals = YardInventory.yardArrivals(summary);
 
   return (
     <PublicPageShell>
       <YardInventoryView
         yard={data.yard}
         inventory={inventory}
-        total={data.summary.total}
-        makes={data.summary.makes}
+        total={summary.total}
+        makes={summary.makes}
         makeSlugs={await getMakeSlugs()}
         hiddenSources={await getHiddenSources()}
         newArrivals={YardInventory.newArrivalsFrom(
