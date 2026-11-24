@@ -45,6 +45,7 @@ function countingStore(onLoad: () => void = () => undefined) {
   let loads = 0;
   const counted: IngestionSnapshotStore = {
     put: (params) => store.put(params),
+    putCheckpointState: (params) => store.putCheckpointState(params),
     delete: (pathnames) => store.delete(pathnames),
     async load(pathname) {
       loads += 1;

@@ -724,14 +724,27 @@ export function createDurableIngestionRepository(
       //
       // Provider checkpoint state (Hollander's ~19 MiB census) is staged in
       // its own blob, never inside the vehicle chunk, so loading a run's
-      // inventory does not fetch it once per chunk. Invariant: the resume
-      // cursor's statePath names a blob staged for exactly that cursor, under
-      // a unique pathname, and both commit in one guarded statement. A blob is
-      // never overwritten, so a lost race, a crash or a partial write can
-      // only leave the previous cursor paired with the previous state.
+      // inventory does not fetch it once per chunk.
+      //
+      // Invariant: the stored cursor's statePath names a blob staged for
+      // exactly that cursor, under a unique pathname, and the cursor, the
+      // chunk and the state commit in one guarded statement. Blobs are never
+      // overwritten, so a lost race, a crash or a failed write leaves the
+      // previous cursor paired with the previous state. The state it replaces
+      // is deleted only after that commit; a Workflow step or cursor
+      // reference that still holds the older cursor gets the newer checkpoint
+      // from getCheckpoint before any provider work loads state.
       const staged: string[] = [];
       const unstage = async () => {
-        if (staged.length > 0) await snapshotStore.delete(staged);
+        if (staged.length === 0) return;
+        try {
+          await snapshotStore.delete(staged);
+        } catch (error) {
+          console.error(
+            `Could not delete unrecorded snapshot blobs ${staged.join(", ")} of source run ${id}. No checkpoint references them and the previous checkpoint is intact, but snapshot cleanup will not find them; delete them from private Blob storage by hand.`,
+            error,
+          );
+        }
       };
       let statePathname: string | null = null;
       try {
@@ -765,9 +778,10 @@ export function createDurableIngestionRepository(
         throw error;
       }
       // The state this checkpoint replaces, once it commits: only a separate
-      // state blob this source run registered. A chunk that embeds state from
-      // before the split also holds vehicles, and URG may resume from the
-      // census of an earlier run, so neither is ever deleted here.
+      // state blob this source run registered. A chunk staged before the
+      // split embeds its state but is an ordinary chunk that may hold
+      // vehicles, and URG may resume from the census of an earlier run, so
+      // neither is ever deleted here.
       const supersededState =
         statePathname === null
           ? null

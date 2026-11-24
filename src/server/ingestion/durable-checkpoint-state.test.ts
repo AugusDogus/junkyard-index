@@ -255,7 +255,8 @@ test("chunks that embedded their state before the split still resume and load", 
       fetched: hollanderChunk(2, ["1FAHP2J89EG117592"]),
     });
 
-    // The legacy chunk holds vehicles, so it is never treated as superseded state.
+    // A legacy chunk is an ordinary chunk, so it is never treated as
+    // superseded state and its vehicles still count.
     expect(store.pathnames()).toContain(legacy);
     expect(await registered()).toContain(legacy);
     expect(
@@ -331,7 +332,77 @@ test("reconciliation loads every vehicle chunk once and never checkpoint state",
 
     expect(inventory.vins).toHaveLength(3);
     expect(loads.filter(isState)).toEqual([]);
-    expect(loads).toEqual((await registered()).filter((path) => !isState(path)));
+    expect(loads).toEqual(
+      (await registered()).filter((path) => !isState(path)),
+    );
+  } finally {
+    database.cleanup();
+  }
+});
+
+test("census-only checkpoints stage no vehicle chunk, so a run keeps two blobs", async () => {
+  const { store, repository, registered, database } = await setup();
+  try {
+    // Production Hollander runs checkpoint about 548 times; every checkpoint
+    // but the last carries the census and no vehicles.
+    let cursor: HollanderCursor = HollanderstoresDurableCursor.initial();
+    for (const requests of [1, 2, 3, 4]) {
+      const saved = await repository.checkpointChunk({
+        runId: RUN_ID,
+        requestedCursor: cursor,
+        fetched: hollanderChunk(
+          requests,
+          requests === 4 ? ["1FAHP2J89EG117591"] : [],
+        ),
+      });
+      cursor = saved.cursor;
+    }
+
+    const paths = await registered();
+    expect(paths.filter((path) => !isState(path))).toHaveLength(1);
+    expect(paths.filter(isState)).toEqual([statePathOf(cursor)]);
+    expect(store.pathnames().sort()).toEqual([...paths].sort());
+  } finally {
+    database.cleanup();
+  }
+});
+
+test("a replayed step holding the cursor of deleted state gets the newer checkpoint", async () => {
+  const { database, store, repository } = await setup();
+  try {
+    const first = await repository.checkpointChunk({
+      runId: RUN_ID,
+      requestedCursor: HollanderstoresDurableCursor.initial(),
+      fetched: hollanderChunk(1, []),
+    });
+    const second = await repository.checkpointChunk({
+      runId: RUN_ID,
+      requestedCursor: first.cursor,
+      fetched: hollanderChunk(2, []),
+    });
+    // The first state is gone once the second checkpoint committed.
+    expect(store.pathnames()).not.toContain(statePathOf(first.cursor));
+
+    // A Workflow retry of the second step still holds the first cursor. It
+    // must resume from the committed checkpoint, never load the first state.
+    const replayed = await repository.getCheckpoint({
+      runId: RUN_ID,
+      requestedCursor: first.cursor,
+    });
+    expect(replayed?.cursor).toEqual(second.cursor);
+    // A late checkpoint from that older cursor loses and changes nothing.
+    const late = await repository.checkpointChunk({
+      runId: RUN_ID,
+      requestedCursor: first.cursor,
+      fetched: hollanderChunk(2, ["1FAHP2J89EG117599"]),
+    });
+    expect(late.cursor).toEqual(second.cursor);
+    expect(store.pathnames().filter(isState)).toEqual([
+      statePathOf(second.cursor),
+    ]);
+    expect(
+      (await stagedSnapshots(database.client, store, RUN_ID)).vins,
+    ).toEqual([]);
   } finally {
     database.cleanup();
   }
