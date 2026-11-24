@@ -94,8 +94,9 @@ export type UpullRPartsVinMakes = (
  * each: its make in the published snapshot (`known`); the one canonical make
  * whose getModels lists its model; for a model two makes list, one search of
  * its arrival day and each candidate make (at most `searchBudget` searches,
- * one per day and make); its decoded VIN. A vehicle none of them resolve is
- * listed under Other with a warning naming it, never silently.
+ * one per day and make, each started only while `mayStart` allows); its
+ * decoded VIN. A vehicle none of them resolve is listed under Other with a
+ * warning naming it, never silently.
  */
 export function resolveUpullRPartsMakes<S>(params: {
   site: UpullRPartsLocation;
@@ -104,6 +105,7 @@ export function resolveUpullRPartsMakes<S>(params: {
   index: UpullRPartsModelIndex;
   search: UpullRPartsSearch<S>;
   searchBudget: number;
+  mayStart: () => boolean;
   decodeVins: UpullRPartsVinMakes;
 }): Effect.Effect<
   { makes: Map<string, string>; searches: number; warnings: string[] },
@@ -143,6 +145,7 @@ export function resolveUpullRPartsMakes<S>(params: {
     const foundUnder = new Map<string, Set<string>>();
     let searches = 0;
     for (const pair of ordered.slice(0, Math.max(0, params.searchBudget))) {
+      if (!params.mayStart()) break;
       const rows = yield* params.search({
         site: params.site,
         beginDate: pair.day,
@@ -176,7 +179,7 @@ export function resolveUpullRPartsMakes<S>(params: {
     const skipped = ordered.length - searched.size;
     if (skipped > 0)
       warnings.push(
-        `U Pull R Parts location ${params.site}: ${skipped} day and make searches for models more than one make lists did not fit this chunk's search budget, so their vehicles' makes come from a VIN decode.`,
+        `U Pull R Parts location ${params.site}: ${skipped} day and make searches for models more than one make lists did not fit this chunk's search budget or time, so their vehicles' makes come from a VIN decode.`,
       );
     const decoded =
       undecided.length === 0

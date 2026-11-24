@@ -124,7 +124,13 @@ and year, about 860 searches and tokens a crawl; the date crawl needs about 60.
      that day make by make, in label order, resumably (`split` cursor). Every
      row of the full search must turn up under some make (coverage check),
      and a make that still returns 100 fails the chunk. No day has come close:
-     the most seen is 64.
+     the most seen is 64. Known limit of this never-used path: most makes
+     have no arrivals on a given day, so an empty make search is accepted
+     without a canary (one per make would cost about 56 more searches). A
+     rejected token there can only drop vehicles missing from the full
+     search's 100 rows; one among them fails the coverage check, and since a
+     retry resumes after the last finished make, the next scheduled run
+     splits the day again from its first make.
    - `[]`: may be a single rejected token (also `[]`, with no block) or a
      blocked IP, so the Ford canary runs and the window is searched exactly
      once more before it is accepted as empty, as it can be early on a
@@ -300,9 +306,10 @@ month together). When it is used up Kernel refuses every browser with HTTP
 - Every U Pull R Parts browser is recorded in `kernel_browser_usage` (from
   before its create to its delete; one never closed counts its longest
   possible life, 420 s), at $0.0001333 a headful second.
-- Two caps in `kernel-usage.ts`, checked before every create; reaching either
-  defers the chunk without opening a browser, with a message naming the cap,
-  the spend and when it resets:
+- Two caps in `kernel-usage.ts`, checked when a crawl chunk starts (before it
+  reads the snapshot) and again before every create; reaching either defers
+  the chunk without opening a browser, with a message naming the cap, the
+  spend and when it resets:
   - **$0.25 a UTC day** (`KERNEL_DAILY_BUDGET_USD`), about ten healthy
     crawls, so a day of failing retries stops long before it can eat the
     month. It resets at 00:00 UTC.

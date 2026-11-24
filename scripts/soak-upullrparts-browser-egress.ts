@@ -13,6 +13,7 @@ import {
   UpullRPartsProviderError,
 } from "../src/server/ingestion/upullrparts-client";
 import {
+  checkUpullRPartsKernelSpend,
   decodeUpullRPartsVinMakes,
   makeUpullRPartsRequestGate,
   makeUpullRPartsSearchGate,
@@ -194,6 +195,7 @@ export function streamUpullRPartsViaBrowser<E, R>(
           const pace = yield* makeUpullRPartsSearchGate;
           return yield* browserEgressSearch(sessions, pace);
         }),
+      checkSpend: checkUpullRPartsKernelSpend(database),
       loadHistory: Effect.promise(options.loadHistory),
       decodeVins: decodeUpullRPartsVinMakes,
     });

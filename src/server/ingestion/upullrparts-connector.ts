@@ -7,6 +7,7 @@ import {
   type Scope,
 } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
+import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { Config, Database } from "./context";
 import {
   DocumentTransport,
@@ -16,6 +17,7 @@ import {
 import { KernelUsage } from "./kernel-usage";
 import { normalizeCanonicalMake } from "./normalization";
 import {
+  ProviderCapacityDeferred,
   ProviderChunkClock,
   type ProviderChunkWallTimeout,
 } from "./provider-chunk-clock";
@@ -96,9 +98,12 @@ const TOKEN_RETRIES = 2;
  */
 export const UPULLRPARTS_START_BUDGET_MS = 200_000;
 /** Work after the last window starts: that window with its canary and
- * re-search, the make searches, the closing canary, a VIN decode, photo
- * lookups and callbacks. */
+ * re-search (up to 30 s), the make searches, the closing canary (up to 15 s),
+ * a VIN decode (up to 20 s), photo lookups and callbacks. */
 const UPULLRPARTS_CHUNK_TAIL_MS = 90_000;
+/** Day and make searches start no later than this past the window deadline,
+ * so they, the closing canary and the decode stay inside the tail. */
+const MAKE_SEARCH_GRACE_MS = 15_000;
 export const UPULLRPARTS_CHUNK_WORK_LIMIT = "5 minutes";
 const VIN_DECODE_TIMEOUT = "20 seconds";
 
@@ -126,6 +131,12 @@ export interface UpullRPartsChunkDeps<S> {
   openSearch: (
     tokens: number,
   ) => Effect.Effect<UpullRPartsSearch<S>, never, Scope.Scope>;
+  /** Fails when the source's Kernel spend cap is reached, before the chunk
+   * reads the snapshot or plans; the browser create checks it again. */
+  checkSpend: Effect.Effect<
+    void,
+    ProviderCapacityDeferred | UpullRPartsStreamError
+  >;
   /** Yesterday's published snapshot. */
   loadHistory: Effect.Effect<UpullRPartsHistory, UpullRPartsStreamError>;
   decodeVins: UpullRPartsVinMakes;
@@ -141,6 +152,7 @@ type StreamError =
   | UpullRPartsProviderError
   | UpullRPartsCrawlError
   | UpullRPartsStreamError
+  | ProviderCapacityDeferred
   | ProviderChunkWallTimeout;
 
 type SearchCursor = Extract<UpullRPartsCursor, { phase: "crawl" | "split" }>;
@@ -244,15 +256,17 @@ function loadDirectory(
   });
 }
 
-/** The crawl cursor of `location` after a split or window end, or of the
- * next location once `location` has none left. */
+/** The crawl cursor of `location` resuming at `end`, or of the next
+ * location once `location` has no days left (`end` null). A paused window
+ * end is always resumed, even before the first day, since the plan may start
+ * its oldest window at an earlier stored day. */
 function afterLocation(
   cursor: SearchCursor,
   end: string | null,
   storesSeen: number[],
 ): UpullRPartsCursor {
   const { today, statePath } = cursor;
-  if (end !== null && end >= UPULLRPARTS_FIRST_DAY)
+  if (end !== null)
     return {
       source: "upullrparts",
       phase: "crawl",
@@ -334,6 +348,7 @@ function searchChunk<E, R, S>(
 > {
   return Effect.gen(function* () {
     const site = cursor.location;
+    yield* deps.checkSpend;
     const history = yield* deps.loadHistory;
     const windows =
       cursor.phase === "crawl"
@@ -406,7 +421,13 @@ function searchChunk<E, R, S>(
         );
         const next: UpullRPartsCursor =
           split.progress.status === "complete"
-            ? afterLocation(cursor, UpullRPartsDay.add(cursor.day, -1), [])
+            ? afterLocation(
+                cursor,
+                cursor.day > UPULLRPARTS_FIRST_DAY
+                  ? UpullRPartsDay.add(cursor.day, -1)
+                  : null,
+                [],
+              )
             : {
                 source: "upullrparts",
                 phase: "split",
@@ -457,6 +478,7 @@ function searchChunk<E, R, S>(
         index: UpullRPartsDirectory.index(directory),
         search,
         searchBudget: budget - sent - UPULLRPARTS_CANARY_SEARCHES,
+        mayStart: () => now() < deadline + MAKE_SEARCH_GRACE_MS,
         decodeVins: deps.decodeVins,
       });
       warnings.push(...resolved.warnings);
@@ -672,6 +694,32 @@ export const makeUpullRPartsSearchGate = RateLimiter.make({
  * 2026). */
 const TOKEN_TABS = 2;
 
+/** Defers the chunk, as the metered browser create would, once U Pull R
+ * Parts' daily or monthly Kernel cap is spent, before it reads its
+ * snapshot: a deferred chunk is retried every few minutes for hours. */
+export function checkUpullRPartsKernelSpend(
+  database: LibSQLDatabase,
+): Effect.Effect<void, ProviderCapacityDeferred | UpullRPartsStreamError> {
+  return Effect.tryPromise({
+    try: () => KernelUsage.capReached(database, "upullrparts", new Date()),
+    catch: (cause) =>
+      new UpullRPartsStreamError({
+        message: `U Pull R Parts could not read its Kernel spend (kernel_browser_usage) before opening a browser: ${String(cause)}. No browser was opened, no batches were emitted and prior inventory is preserved; retry the chunk once the database answers.`,
+      }),
+  }).pipe(
+    Effect.flatMap((spent) =>
+      spent === null
+        ? Effect.void
+        : Effect.fail(
+            new ProviderCapacityDeferred({
+              provider: "The Kernel spend guard",
+              detail: spent.message,
+            }),
+          ),
+    ),
+  );
+}
+
 /** Makes of VINs from NHTSA's vPIC, which never fails the chunk: a decoder
  * that is down or slow decodes none. */
 export const decodeUpullRPartsVinMakes: UpullRPartsVinMakes = (vehicles) =>
@@ -739,6 +787,7 @@ export function streamUpullRPartsInventory<E, R>(
           );
           return makeUpullRPartsTokenSearch(minted, pace);
         }),
+      checkSpend: checkUpullRPartsKernelSpend(database),
       loadHistory: Effect.tryPromise({
         try: loadHistory,
         catch: (cause) =>

@@ -105,6 +105,22 @@ describe("planUpullRPartsWindows", () => {
       );
   });
 
+  test("starts the oldest window at a stored day before the first day, without walking every day to it", () => {
+    expect(
+      planUpullRPartsWindows({
+        end: "2026-11-24",
+        counts: new Map([
+          ["2026-11-20", 30],
+          ["0001-01-01", 1],
+        ]),
+        unknownFrom: "2026-11-25",
+        newDayEstimate: 64,
+      }),
+    ).toEqual([
+      { beginDate: "0001-01-01", endDate: "2026-11-24", expected: 31 },
+    ]);
+  });
+
   test("expects arrivals on business days the snapshot has not seen, so today gets its own window", () => {
     // Published Saturday, November 21; Monday the 23rd is today.
     const windows = planUpullRPartsWindows({

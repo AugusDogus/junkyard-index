@@ -70,6 +70,7 @@ describe("resolveUpullRPartsMakes", () => {
         index: directory,
         search,
         searchBudget: 5,
+        mayStart: () => true,
         decodeVins: noDecode,
       }),
     );
@@ -102,6 +103,7 @@ describe("resolveUpullRPartsMakes", () => {
         index: directory,
         search,
         searchBudget: 10,
+        mayStart: () => true,
         decodeVins: noDecode,
       }),
     );
@@ -137,6 +139,7 @@ describe("resolveUpullRPartsMakes", () => {
         index: directory,
         search,
         searchBudget: 0,
+        mayStart: () => true,
         decodeVins: (vehicles) =>
           Effect.sync(() => {
             decoded.push(...vehicles.map((entry) => entry.vin));
@@ -158,6 +161,27 @@ describe("resolveUpullRPartsMakes", () => {
     );
   });
 
+  test("stops starting day and make searches once the chunk's time is up, decoding the rest", async () => {
+    const { search, sent } = searches({ "2026-11-23|FORD": ["MUST1"] });
+    let starts = 0;
+    const result = await Effect.runPromise(
+      resolveUpullRPartsMakes({
+        site: "1",
+        vehicles: [vehicle("MUST1", "MUSTANG")],
+        known: new Map(),
+        index: directory,
+        search,
+        searchBudget: 10,
+        mayStart: () => starts++ < 1,
+        decodeVins: () => Effect.succeed(new Map([["MUST1", "Ford"]])),
+      }),
+    );
+    expect(sent.map((params) => params.makes)).toEqual(["FORD"]);
+    // Found under Ford only; Shelby was never searched, so it is decoded.
+    expect(result.makes.get("MUST1")).toBe("Ford");
+    expect(result.warnings[0]).toContain("search budget or time");
+  });
+
   test("lists a vehicle nothing resolves under Other with a warning naming it", async () => {
     const result = await Effect.runPromise(
       resolveUpullRPartsMakes({
@@ -167,6 +191,7 @@ describe("resolveUpullRPartsMakes", () => {
         index: directory,
         search: searches({}).search,
         searchBudget: 5,
+        mayStart: () => true,
         decodeVins: noDecode,
       }),
     );
