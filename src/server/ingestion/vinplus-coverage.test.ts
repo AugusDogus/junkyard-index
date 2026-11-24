@@ -100,6 +100,7 @@ test("deficits in years a complete live search answered are distribution lag, no
     new Map([
       [2006, 4800],
       [2007, 4999],
+      [1976, 1],
     ]),
     new Set([2006]),
   );
@@ -113,36 +114,93 @@ test("deficits in years a complete live search answered are distribution lag, no
   );
 });
 
-test("distribution lag passes at exactly 10% and fails above it", () => {
-  expect(
+const rejection = (run: () => unknown) => {
+  try {
+    run();
+  } catch (error) {
+    return error;
+  }
+  return null;
+};
+
+test("lag the same searches confirm as stale passes at exactly 50% and is a transient rejection above it", () => {
+  // A distribution frozen for days: departures and arrivals both diverge.
+  const coverage = VinplusCoverage.fromCounts(
+    "Example yard",
+    split,
+    new Map([
+      [2006, 0],
+      [2007, 5001],
+    ]),
+    new Set([2006, 2007]),
+  );
+  expect(coverage.lagging).toBe(5000);
+  expect(coverage.warnings.join(" ")).toContain(
+    "Example yard: 5000 advertised vehicles / 10000 (50.000000%) are absent from complete live searches (2006: 5000). The same searches found 1 vehicles the distribution does not count yet, so it is stale; within the 50% lag limit",
+  );
+  const above = rejection(() =>
+    VinplusCoverage.fromCounts(
+      "Example yard",
+      split,
+      new Map([
+        [2006, 0],
+        [2007, 4999],
+        [1976, 1],
+      ]),
+      new Set([2006, 2007]),
+    ),
+  );
+  expect(above instanceof Error ? above.message : "").toContain(
+    "This exceeds the 50% lag limit",
+  );
+  expect(validationRejectionKind(above)).toBe("transient");
+});
+
+test("lag the distribution has not confirmed passes at exactly 1% and is a transient rejection above it", () => {
+  const exact = VinplusCoverage.fromCounts(
+    "Example yard",
+    advertised,
+    new Map([[2006, 9900]]),
+    new Set([2006]),
+  );
+  expect(exact.lagging).toBe(100);
+  expect(exact.warnings.join(" ")).toContain(
+    "No searchable vehicle exceeds the distribution, so nothing shows it is stale and the searches may have silently returned fewer rows; within the 1% lag limit",
+  );
+  const above = rejection(() =>
     VinplusCoverage.fromCounts(
       "Example yard",
       advertised,
-      new Map([[2006, 9000]]),
-      new Set([2006]),
-    ).lagging,
-  ).toBe(1000);
-  expect(() =>
-    VinplusCoverage.fromCounts(
-      "Example yard",
-      advertised,
-      new Map([[2006, 8999]]),
+      new Map([[2006, 9899]]),
       new Set([2006]),
     ),
-  ).toThrow("exceeds the 10% lag limit");
-  const stale = (() => {
-    try {
-      VinplusCoverage.fromCounts(
-        "Example yard",
-        advertised,
-        new Map([[2006, 8999]]),
-        new Set([2006]),
-      );
-    } catch (error) {
-      return error;
-    }
-    return null;
-  })();
+  );
+  expect(above instanceof Error ? above.message : "").toContain(
+    "101 advertised vehicles / 10000 (1.010000%) are absent from complete live searches (2006: 101). No searchable vehicle exceeds the distribution",
+  );
+  expect(above instanceof Error ? above.message : "").toContain(
+    "VinPlus is not published this attempt and every VinPlus yard keeps its published inventory",
+  );
   // A refreshed distribution clears it, so the source retries the same day.
-  expect(validationRejectionKind(stale)).toBe("transient");
+  expect(validationRejectionKind(above)).toBe("transient");
+});
+
+test("unreachable rows stay a deterministic rejection when lag also exceeds its limit", () => {
+  const both = rejection(() =>
+    VinplusCoverage.fromCounts(
+      "Example yard",
+      split,
+      new Map([
+        [2006, 4899],
+        [2007, 4899],
+      ]),
+      new Set([2007]),
+    ),
+  );
+  const message = both instanceof Error ? both.message : "";
+  expect(message).toContain("101 unreachable advertised vehicles / 10000");
+  expect(message).toContain(
+    "Lag also exceeds its 1% limit: Example yard: 101 advertised vehicles",
+  );
+  expect(validationRejectionKind(both)).not.toBe("transient");
 });

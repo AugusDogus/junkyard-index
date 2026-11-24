@@ -1,4 +1,5 @@
 import { transientRejection } from "./ingestion-validation";
+import { VINPLUS_NOT_PUBLISHED } from "./vinplus-error";
 import type { parseVinplusAnalytics } from "./vinplus-protocol";
 
 export type VinplusCoverage = {
@@ -24,13 +25,21 @@ export const VinplusCoverage = {
    * they are kept and reported.
    *
    * `complete` holds the years an uncapped null-make search answered whole.
-   * The search is the inventory authority, so a shortfall in such a year is a
-   * vehicle the cache still counts after it left the yard: it is reported as
-   * lag, bounded at 10% of the yard, and retried later in the day when the
-   * bound is exceeded. Only shortfalls in make-partitioned years, where a
-   * vehicle may hide behind a make the controls never reached, are
-   * unreachable, bounded at 1%. Surpluses never offset either shortfall.
-   * Silent 100-record truncation is guarded by the range reader, not here. */
+   * The search is the inventory authority, so a shortfall in such a year is
+   * lag: a vehicle the cache still counts after it left the yard.
+   * - Confirmed lag: the same yard also has searchable vehicles the cache
+   *   does not count yet, so this run has shown the cache is stale. It may
+   *   reach 50% of the yard, so a cache frozen for days does not block every
+   *   VinPlus yard. That is tighter than the per-yard floors (about a third
+   *   of each yard); the 50% drift guard is source-wide.
+   * - Unconfirmed lag: nothing shows the cache is stale, so the shortfall
+   *   could be a search that silently returned fewer rows. It keeps the 1%
+   *   bound that every shortfall had before lag was separated.
+   * Both reject as transient, because a refreshed cache clears them.
+   * Shortfalls in make-partitioned years, where a vehicle may hide behind a
+   * make the controls never reached, are unreachable and bounded at 1%.
+   * Surpluses never offset either shortfall. Silent 100-record truncation is
+   * guarded by the range reader, not here. */
   fromCounts(
     yardName: string,
     advertised: ReturnType<typeof parseVinplusAnalytics>,
@@ -48,6 +57,7 @@ export const VinplusCoverage = {
           ? [{ year, extra: count - expected, count, expected }]
           : [];
       });
+    const extra = surplus.reduce((sum, row) => sum + row.extra, 0);
     const shortfalls = advertised.years.flatMap(({ year, count }) => {
       const missing = count - (observed.get(year) ?? 0);
       return missing > 0 ? [{ year, missing }] : [];
@@ -58,14 +68,28 @@ export const VinplusCoverage = {
     const lagging = total(lag);
     const detail = `${yardName}: ${unreachable} unreachable advertised vehicles / ${advertised.count} (${percent(unreachable, advertised.count)}%); year deficits: ${listed(deficits)}`;
     const lagDetail = `${yardName}: ${lagging} advertised vehicles / ${advertised.count} (${percent(lagging, advertised.count)}%) are absent from complete live searches (${listed(lag)})`;
+    const lagLimit = extra
+      ? {
+          percent: 50,
+          evidence: `The same searches found ${extra} vehicles the distribution does not count yet, so it is stale`,
+          over: lagging * 2 > advertised.count,
+        }
+      : {
+          percent: 1,
+          evidence:
+            "No searchable vehicle exceeds the distribution, so nothing shows it is stale and the searches may have silently returned fewer rows",
+          over: lagging * 100 > advertised.count,
+        };
+    // Unreachable rows reject deterministically on their own; lag in the
+    // same yard must not turn that into a same-day retry.
     if (unreachable * 100 > advertised.count)
       throw new Error(
-        `${detail}; exceeds the 1% limit. Prior inventory is preserved; inspect the saved enumeration controls`,
+        `${detail}; exceeds the 1% limit, so ${VINPLUS_NOT_PUBLISHED}. Inspect the saved enumeration controls for those years${lagLimit.over ? `. Lag also exceeds its ${lagLimit.percent}% limit: ${lagDetail}` : ""}`,
       );
-    if (lagging * 10 > advertised.count)
+    if (lagLimit.over)
       throw transientRejection(
         new Error(
-          `${lagDetail}; exceeds the 10% lag limit, so the year distribution is too stale to vouch for this yard. The source retries later in the day, but a distribution frozen for days fails every retry that day; if this repeats, compare the distribution with live year searches before raising the limit`,
+          `${lagDetail}. ${lagLimit.evidence}. This exceeds the ${lagLimit.percent}% lag limit, so ${VINPLUS_NOT_PUBLISHED}. The source retries later today; if this repeats, compare the distribution with live single-year searches for those years before changing the limit`,
         ),
       );
     return {
@@ -79,12 +103,12 @@ export const VinplusCoverage = {
           : []),
         ...(lagging
           ? [
-              `${lagDetail}; within the 10% lag limit. The lagging year distribution still counts them, so they are treated as gone and not published.`,
+              `${lagDetail}. ${lagLimit.evidence}; within the ${lagLimit.percent}% lag limit, so the absent vehicles are treated as gone and not published.`,
             ]
           : []),
         ...(surplus.length
           ? [
-              `${yardName}: ${surplus.reduce((sum, row) => sum + row.extra, 0)} searchable vehicles exceed the lagging year distribution (${surplus.map((row) => `${row.year}: ${row.count} of ${row.expected} advertised`).join(", ")}); they are kept and do not offset deficits.`,
+              `${yardName}: ${extra} searchable vehicles exceed the lagging year distribution (${surplus.map((row) => `${row.year}: ${row.count} of ${row.expected} advertised`).join(", ")}); they are kept and do not offset deficits.`,
             ]
           : []),
       ],

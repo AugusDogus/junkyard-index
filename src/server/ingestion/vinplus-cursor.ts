@@ -1,11 +1,14 @@
 import { z } from "zod";
 import { VINPLUS_TENANTS } from "./vinplus-configuration";
-import { inspectVinplusEvidence, vinplusHash } from "./vinplus-parser";
+import {
+  inspectVinplusEvidence,
+  vinplusHash,
+  VINPLUS_MAX_YARD_REQUESTS,
+} from "./vinplus-parser";
 import { vinplusSnapshot } from "./vinplus-snapshot";
 
 export const VINPLUS_MAX_CURSOR_BYTES = 16 * 1024 * 1024;
 export const VINPLUS_MAX_REQUESTS = 2048;
-export const VINPLUS_MAX_YARD_REQUESTS = 1024;
 export const VINPLUS_MAX_RESPONSE_BYTES = 32 * 1024 * 1024;
 const schema = z
   .object({

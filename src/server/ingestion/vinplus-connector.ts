@@ -5,14 +5,14 @@ import {
 } from "./ingestion-validation";
 import { Effect, Option } from "effect";
 import { VINPLUS_TENANTS } from "./vinplus-configuration";
+import { VinplusCursor, VINPLUS_MAX_REQUESTS } from "./vinplus-cursor";
 import {
-  VinplusCursor,
-  VINPLUS_MAX_REQUESTS,
+  inspectVinplusEvidence,
   VINPLUS_MAX_YARD_REQUESTS,
-} from "./vinplus-cursor";
-import { inspectVinplusEvidence, type VinplusControl } from "./vinplus-parser";
+  type VinplusControl,
+} from "./vinplus-parser";
 import { readVinplusControl } from "./vinplus-client";
-import { VinplusError } from "./vinplus-error";
+import { VinplusError, VINPLUS_NOT_PUBLISHED } from "./vinplus-error";
 import { vinplusSnapshot } from "./vinplus-snapshot";
 import type { CanonicalVehicle } from "./types";
 import type { Yard } from "~/lib/yard";
@@ -108,7 +108,7 @@ export function streamVinplusInventory<E, R>(options: VinplusOptions<E, R>) {
         return yield* Effect.fail(
           VinplusError.create(
             "request budget " + tenant.yardId,
-            `${tenant.label} reached its ${VINPLUS_MAX_YARD_REQUESTS}-request limit before terminal controls, most likely because several capped years each read the whole make directory`,
+            `${tenant.label} reached its ${VINPLUS_MAX_YARD_REQUESTS}-request limit before terminal controls, most likely because its large years read most of the make directory, so ${VINPLUS_NOT_PUBLISHED}. Inspect which year controls used the requests in the saved evidence before raising the limit`,
           ),
         );
       const control = yield* validated(

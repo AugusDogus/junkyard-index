@@ -3,6 +3,8 @@ import { VinplusCoverage } from "./vinplus-coverage";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { VINPLUS_API, type VinplusTenant } from "./vinplus-configuration";
+import { transientRejection } from "./ingestion-validation";
+import { VINPLUS_NOT_PUBLISHED } from "./vinplus-error";
 import {
   parseVinplusAnalytics,
   parseVinplusYearSearch,
@@ -13,6 +15,8 @@ import {
   type VinplusScope,
 } from "./vinplus-protocol";
 
+/** Saved responses per physical yard, enforced by the cursor schema. */
+export const VINPLUS_MAX_YARD_REQUESTS = 1024;
 export const vinplusHash = (value: unknown): string =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
 export const vinplusScope = (tenant: VinplusTenant): VinplusScope => ({
@@ -79,24 +83,37 @@ function* readRange(
     );
   return records;
 }
+/** A partitioned year to supplement. A large year stops once it reconciles
+ * with its advertised count. A capped year cannot: its count comes from a
+ * stale distribution, so it reads every candidate make. */
+type Supplement =
+  | { kind: "large"; year: number; count: number }
+  | { kind: "capped"; year: number };
+const untried = (
+  ranges: readonly VinplusRange[],
+  year: number,
+  candidates: readonly string[],
+) => {
+  const tried = new Set(
+    ranges
+      .filter((range) => range.min === year && range.max === year)
+      .map((range) => range.make),
+  );
+  return candidates.filter((make) => !tried.has(make));
+};
 /** Append only literal, not-yet-read make partitions until each year reconciles. */
 function* supplementRanges(
   tenant: VinplusTenant,
-  years: Counts["years"],
+  years: readonly Supplement[],
   candidates: readonly string[],
   ranges: VinplusRange[],
   pages: VinplusRecord[][],
   union: VinplusRecordUnion,
 ): Generator<VinplusControl, void, string> {
   for (const row of years) {
-    const tried = new Set(
-      ranges
-        .filter((range) => range.min === row.year && range.max === row.year)
-        .map((range) => range.make),
-    );
-    for (const make of candidates) {
-      if (union.yearCount(row.year) === row.count) break;
-      if (tried.has(make)) continue;
+    for (const make of untried(ranges, row.year, candidates)) {
+      if (row.kind === "large" && union.yearCount(row.year) === row.count)
+        break;
       const range = { min: row.year, max: row.year, make };
       const records = yield* readRange(tenant, range);
       pages.push(records);
@@ -117,7 +134,7 @@ function discoveredMakes(
   ];
   if (literals.some((make) => make === null))
     throw new Error(
-      `${tenant.yardId} ${year}: capped year discovery returned a record without a literal make, so this year cannot be partitioned by make; inspect that record's make before retrying`,
+      `${tenant.yardId} ${year}: discovery at the 100-record cap returned a record without a literal make, so this year cannot be partitioned by make and ${VINPLUS_NOT_PUBLISHED}. Inspect that record's make in the saved discovery response before retrying`,
     );
   return z.array(z.string().min(1).max(100)).min(1).parse(literals).sort();
 }
@@ -155,6 +172,7 @@ function config(raw: string, tenant: VinplusTenant) {
  * and reported explicitly after all applicable controls have been exhausted. */
 function* traversal(
   tenant: VinplusTenant,
+  delivered: { readonly bodies: number },
 ): Generator<
   VinplusControl,
   { records: VinplusRecord[]; warnings: string[] },
@@ -186,7 +204,7 @@ function* traversal(
     );
     if (records.length !== 100)
       throw new Error(
-        "Large-year discovery changed the verified 100-record cap",
+        `${tenant.yardId} ${row.year}: discovery for a year advertised at ${row.count} returned ${records.length} rows instead of the verified 100-record cap, so large years can no longer be partitioned and ${VINPLUS_NOT_PUBLISHED}. Requalify the year controls`,
       );
     makes.set(row.year, discoveredMakes(tenant, row.year, records));
   }
@@ -194,9 +212,8 @@ function* traversal(
   const union = VinplusRecordUnion.create();
   const ranges: VinplusRange[] = [];
   // Years an uncapped null-make search answered whole, and years whose
-  // single-year null-make search reached the cap. A capped year usually has
-  // more live rows than it advertises, so its supplement rarely reconciles
-  // and reads every observed and directory make (about 128, replayed at close).
+  // single-year null-make search reached the cap whatever the distribution
+  // advertised. A capped year reads every observed and directory make.
   const complete = new Set<number>();
   const split: number[] = [];
   const admit = (range: VinplusRange, records: VinplusRecord[]) => {
@@ -221,7 +238,7 @@ function* traversal(
     }
     if (records.length !== 100)
       throw new Error(
-        `${tenant.yardId} ${range.min}-${range.max}: null-make search returned ${records.length} rows, so the verified 100-record cap changed and capped ranges can no longer be detected; requalify the year controls`,
+        `${tenant.yardId} ${range.min}-${range.max}: null-make search returned ${records.length} rows, so the verified 100-record cap changed, capped ranges can no longer be detected and ${VINPLUS_NOT_PUBLISHED}. Requalify the year controls`,
       );
     if (range.min < range.max) {
       const middle = Math.floor((range.min + range.max) / 2);
@@ -237,7 +254,7 @@ function* traversal(
       );
   }
   for (const range of vinplusRanges(counts, makes)) yield* readPlanned(range);
-  // A capped year can omit a make entirely. Supplement its discovered makes
+  // A large year can omit a make entirely. Supplement its discovered makes
   // with literal makes observed in the rest of this tenant's opening census.
   const allMakes = [
     ...new Set(
@@ -247,20 +264,16 @@ function* traversal(
         .filter((make) => make !== null),
     ),
   ].sort();
-  const partitioned = [
-    ...counts.years.filter((row) => row.count > 100),
-    ...split.map((year) => ({
-      year,
-      count: counts.years.find((row) => row.year === year)?.count ?? 0,
-    })),
-  ].sort((a, b) => a.year - b.year);
-  yield* supplementRanges(tenant, partitioned, allMakes, ranges, pages, union);
+  const large = counts.years
+    .filter((row) => row.count > 100)
+    .map((row) => ({ kind: "large" as const, ...row }));
+  yield* supplementRanges(tenant, large, allMakes, ranges, pages, union);
   let menuHash: string | null = null;
   const menuControl = get(VINPLUS_API + "/api/vehicle-groups");
-  const unresolved = partitioned.filter(
+  const unresolved = large.filter(
     (row) => union.yearCount(row.year) !== row.count,
   );
-  if (unresolved.length) {
+  if (unresolved.length || split.length) {
     const raw = yield menuControl;
     const menu = z
       .object({
@@ -277,10 +290,34 @@ function* traversal(
     )
       throw new Error("Public vehicle directory has invalid make controls");
     menuHash = vinplusHash(JSON.parse(raw));
+    // A capped year skips the observed-make pass: it reads the whole
+    // directory anyway, so check that the yard can afford it first.
+    const cappedMakes = [...new Set([...allMakes, ...publishedMakes])].sort();
+    const cappedReads = split.reduce(
+      (sum, year) => sum + untried(ranges, year, cappedMakes).length,
+      0,
+    );
+    // Opening reads, then each range's closing replay and the closing
+    // distribution, configuration, directory and app.
+    const required = delivered.bodies + 2 * cappedReads + ranges.length + 4;
+    if (required > VINPLUS_MAX_YARD_REQUESTS)
+      throw transientRejection(
+        new Error(
+          `${tenant.yardId} years ${split.join(", ")}: each search reached the 100-record cap, so each must be read by every one of its ${cappedReads} remaining makes, and with the closing replay this yard needs at least ${required} requests, above its ${VINPLUS_MAX_YARD_REQUESTS}-request limit. No make search was made for these years and ${VINPLUS_NOT_PUBLISHED}. The source retries later today, when a refreshed distribution may advertise these years above 100; if this repeats, requalify these years with model controls`,
+        ),
+      );
     yield* supplementRanges(
       tenant,
       unresolved,
       publishedMakes,
+      ranges,
+      pages,
+      union,
+    );
+    yield* supplementRanges(
+      tenant,
+      split.map((year) => ({ kind: "capped" as const, year })),
+      cappedMakes,
       ranges,
       pages,
       union,
@@ -375,13 +412,15 @@ export function inspectVinplusEvidence(
   tenant: VinplusTenant,
   bodies: readonly string[],
 ): VinplusProgress {
-  const run = traversal(tenant);
+  const delivered = { bodies: 0 };
+  const run = traversal(tenant, delivered);
   let step = run.next();
   for (const body of bodies) {
     if (step.done)
       throw new Error(
         "Checkpoint contains responses beyond terminal public controls",
       );
+    delivered.bodies++;
     step = run.next(body);
   }
   return step.done
