@@ -539,12 +539,17 @@ test.each([0, 1])(
     const retryAt = paused.cursor.retryAt;
     expect(retryAt).toBeGreaterThanOrEqual(before + 300_000);
     expect(requests).toHaveLength(pagesFirst + 1);
-    // An early wake sends nothing and keeps the cooldown.
-    expect(await run(paused.cursor)).toMatchObject({
-      status: "paused",
-      pagesProcessed: 0,
-      cursor: paused.cursor,
-    });
+    // A wake too early to wait out within the chunk sends nothing and fails
+    // as transient: returning the unchanged cursor would fail the Workflow
+    // run as making no progress.
+    const early = await run(paused.cursor).then(
+      () => null,
+      (cause: unknown) => cause,
+    );
+    expect(String(early)).toMatch(
+      /rate-limit cooldown: woke 300 s before its retryAt .*so the refused GET was not sent.*prior inventory is preserved/,
+    );
+    expect(validationRejectionKind(early)).toBe("transient");
     expect(requests).toHaveLength(pagesFirst + 1);
     const clock = spyOn(Date, "now").mockImplementation(() => retryAt);
     try {
@@ -597,6 +602,66 @@ test("City Motors waits out the rest of a cooldown when the Workflow wakes withi
     clock.mockRestore();
   }
   expect(requests).toEqual([CITYMOTORS_CATALOG, CITYMOTORS_CATALOG]);
+});
+
+test("City Motors waits out an early wake that fits the chunk and counts the wait against the chunk deadline", async () => {
+  const requests = mockInventory({
+    transientFailures: { at: [1], kind: "rateLimited", retryAfterSeconds: 300 },
+  });
+  const paused = await run();
+  if (paused.cursor.phase === "complete" || !paused.cursor.retryAt)
+    throw new Error("Expected a rate-limit cooldown checkpoint");
+  const cursor = paused.cursor;
+  const early = 40_000;
+  const wake = paused.cursor.retryAt - early;
+  let now = wake;
+  const starts: number[] = [];
+  const fitting = Math.floor(
+    (CITYMOTORS_CHUNK_DEADLINE_MS - CITYMOTORS_COMPLETION_RESERVE_MS - early) /
+      CITYMOTORS_WORST_CASE_REQUEST_MS,
+  );
+  const clock = spyOn(Date, "now").mockImplementation(() => now);
+  try {
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const fiber = yield* Effect.fork(
+          streamCitymotorsInventoryWithRequestGate(
+            { startCursor: cursor, maxPages: 32, onBatch: () => Effect.void },
+            (request) =>
+              Effect.sync(() => {
+                starts.push(now - wake);
+              }).pipe(
+                Effect.zipRight(request),
+                Effect.ensuring(
+                  Effect.sync(() => {
+                    now += CITYMOTORS_WORST_CASE_REQUEST_MS;
+                  }),
+                ),
+              ),
+          ),
+        );
+        yield* sleepingUntil(early);
+        const waited = requests.length;
+        now += early;
+        yield* TestClock.adjust(early);
+        return { waited, result: yield* Fiber.join(fiber) };
+      }).pipe(Effect.provide(TestContext.TestContext)),
+    );
+    expect(result.waited).toBe(1);
+    expect(result.result).toMatchObject({
+      status: "paused",
+      pagesProcessed: fitting,
+    });
+    for (const start of starts)
+      expect(
+        start +
+          CITYMOTORS_WORST_CASE_REQUEST_MS +
+          CITYMOTORS_COMPLETION_RESERVE_MS,
+      ).toBeLessThanOrEqual(CITYMOTORS_CHUNK_DEADLINE_MS);
+  } finally {
+    clock.mockRestore();
+  }
+  expect(requests).toHaveLength(1 + fitting);
 });
 
 test("City Motors fails as transient when the host still rate-limits right after a cooldown", async () => {

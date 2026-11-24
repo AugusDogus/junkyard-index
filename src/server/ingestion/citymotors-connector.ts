@@ -76,7 +76,6 @@ export const CITYMOTORS_RATE_LIMIT_BACKOFF_MS = 15_000;
  * Retry-After (or a refusal right after a cooldown) ends the attempt instead.
  */
 export const CITYMOTORS_MAX_RATE_LIMIT_WAIT_MS = 10 * 60_000;
-const CITYMOTORS_RETRY_AT_CLOCK_SKEW_MS = 10_000;
 const resendDelayMs = (failure: CitymotorsTransientFailure) =>
   failure.rateLimited === null
     ? 0
@@ -209,18 +208,6 @@ export function streamCitymotorsInventoryWithRequestGate<E, R>(
     };
     if (cursor.phase === "complete")
       return { ...summary, status: "complete" as const };
-    // The durable Workflow sleeps until retryAt; never send the refused GET
-    // before it. A wake within clock skew of retryAt waits out the rest.
-    const cooledDown = cursor.retryAt !== undefined;
-    if (cursor.retryAt !== undefined) {
-      const remainingMs = cursor.retryAt - Date.now();
-      if (remainingMs > CITYMOTORS_RETRY_AT_CLOCK_SKEW_MS) return summary;
-      if (remainingMs > 0) yield* Effect.sleep(remainingMs);
-      const waited = cursor;
-      cursor = yield* attempt("rate-limit resume", () =>
-        CitymotorsCursor.resume(waited),
-      );
-    }
     const started = Date.now();
     const requestFits = (waitMs = 0) =>
       Date.now() -
@@ -229,6 +216,29 @@ export function streamCitymotorsInventoryWithRequestGate<E, R>(
         CITYMOTORS_WORST_CASE_REQUEST_MS +
         CITYMOTORS_COMPLETION_RESERVE_MS <=
       CITYMOTORS_CHUNK_DEADLINE_MS;
+    // The durable Workflow sleeps until retryAt; never send the refused GET
+    // before it. A wake that clock skew left early waits out the rest within
+    // the chunk deadline. Returning the unchanged cursor instead would fail
+    // the Workflow run as making no progress.
+    const cooledDown = cursor.retryAt !== undefined;
+    if (cursor.retryAt !== undefined) {
+      const retryAt = cursor.retryAt;
+      const remainingMs = retryAt - Date.now();
+      if (remainingMs > 0 && !requestFits(remainingMs))
+        return yield* Effect.fail(
+          transientRejection(
+            new CitymotorsProviderError({
+              operation: "rate-limit cooldown",
+              cause: `woke ${Math.ceil(remainingMs / 1000)} s before its retryAt ${new Date(retryAt).toISOString()}, longer than this chunk can wait and still send a GET, so the refused GET was not sent; the source retries after its usual delay. If this repeats, check clock skew between Workflow and step hosts`,
+            }),
+          ),
+        );
+      if (remainingMs > 0) yield* Effect.sleep(remainingMs);
+      const waited = cursor;
+      cursor = yield* attempt("rate-limit resume", () =>
+        CitymotorsCursor.resume(waited),
+      );
+    }
     while (summary.pagesProcessed < maxPages && cursor.phase !== "complete") {
       if (!requestFits()) break;
       const current: CitymotorsProgress = cursor;
