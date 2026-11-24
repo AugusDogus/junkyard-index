@@ -1,6 +1,6 @@
 import { YARD_TYPE_OPTIONS, type YardType } from "~/lib/yard-service";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import {
@@ -191,6 +191,9 @@ export function InventorySourcesFilter({
   );
 }
 
+/** How long arrow-key steps on the Year slider pause before they apply. */
+const YEAR_KEYBOARD_APPLY_DELAY_MS = 500;
+
 interface YearRangeFilterProps {
   yearRange: [number, number];
   onYearRangeChange: (range: [number, number]) => void;
@@ -223,6 +226,24 @@ export function YearRangeFilter({
       ? [min, max]
       : null;
   };
+  // The slider also commits each arrow-key step, and each applied range is
+  // a search. Apply keyboard steps once they pause, or when focus leaves.
+  // Pointer releases still apply at once.
+  const keyboardStep = useRef(false);
+  const pendingKeyboardRange = useRef<{
+    range: [number, number];
+    timer: ReturnType<typeof setTimeout>;
+  } | null>(null);
+  const applyRange = useRef(onYearRangeChange);
+  applyRange.current = onYearRangeChange;
+  const flushKeyboardRange = () => {
+    const pending = pendingKeyboardRange.current;
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    pendingKeyboardRange.current = null;
+    applyRange.current(pending.range);
+  };
+  useEffect(() => flushKeyboardRange, []);
   return (
     <div className="flex flex-col gap-5 px-2">
       <div className="grid grid-cols-2 gap-4 text-sm tabular-nums">
@@ -243,15 +264,34 @@ export function YearRangeFilter({
         }}
         onValueCommit={(value) => {
           const range = toRange(value);
-          if (range) onYearRangeChange(range);
+          if (!range) return;
+          if (!keyboardStep.current) {
+            flushKeyboardRange();
+            onYearRangeChange(range);
+            return;
+          }
+          const pending = pendingKeyboardRange.current;
+          if (pending) clearTimeout(pending.timer);
+          pendingKeyboardRange.current = {
+            range,
+            timer: setTimeout(flushKeyboardRange, YEAR_KEYBOARD_APPLY_DELAY_MS),
+          };
         }}
+        // Runs before the slider's own key handler commits the step.
+        onKeyDown={() => {
+          keyboardStep.current = true;
+        }}
+        onBlur={flushKeyboardRange}
         // A cancelled drag never commits, so drop the range it showed.
         onPointerCancel={() => setDrag(null)}
         min={minimumYear}
         max={maximumYear}
         step={1}
         aria-label="Vehicle year range"
-        onPointerDown={(event) => event.stopPropagation()}
+        onPointerDown={(event) => {
+          keyboardStep.current = false;
+          event.stopPropagation();
+        }}
         onTouchStart={(event) => event.stopPropagation()}
       />
     </div>

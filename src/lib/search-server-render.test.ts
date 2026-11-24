@@ -42,10 +42,55 @@ describe("SearchServerRender.decide", () => {
     ).toBe("skip");
   });
 
-  test("skips the server search without a user agent", () => {
+  // Seen in production logs or common monitors; each one that searched on
+  // the server spent a request no person saw.
+  test.each([
+    "Pingdom.com_bot_version_1.4_(http://www.pingdom.com/)",
+    "Mozilla/5.0 (compatible; Google-InspectionTool/1.0;)",
+    "Mozilla/5.0 (Linux; Android 11; moto g power (2022)) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36 Chrome-Lighthouse",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.0.0 Safari/537.36",
+    "python-httpx/0.27.0",
+    "Python-urllib/3.12",
+    "Scrapy/2.11.2 (+https://scrapy.org)",
+    "okhttp/4.12.0",
+    "Java/17.0.10",
+  ])("skips the server search for %s", (userAgent) => {
     expect(
-      SearchServerRender.decide({ userAgent: null, params: { q: "Toyota" } }),
+      SearchServerRender.decide({ userAgent, params: { q: "Toyota" } }),
     ).toBe("skip");
+  });
+
+  test.each([null, "", "   "])(
+    "skips the server search without a user agent (%p)",
+    (userAgent) => {
+      expect(
+        SearchServerRender.decide({ userAgent, params: { q: "Toyota" } }),
+      ).toBe("skip");
+    },
+  );
+
+  // The browser's stored or account location decides these results, and the
+  // server cannot see it, so a server search would be thrown away.
+  test.each([
+    { sort: "distance" },
+    { q: "Civic", radius: "50" },
+    { sort: "distance", lat: "33.448", lng: "-112.074" },
+  ])(
+    "skips the server search for a nearby search without a URL origin %p",
+    (params) => {
+      expect(SearchServerRender.decide({ userAgent: PERSON, params })).toBe(
+        "skip",
+      );
+    },
+  );
+
+  test("searches on the server for a nearby search with its origin in the URL", () => {
+    expect(
+      SearchServerRender.decide({
+        userAgent: PERSON,
+        params: { q: "Civic", lat: "33.448", lng: "-112.074", radius: "50" },
+      }),
+    ).toBe("search");
   });
 
   test.each([

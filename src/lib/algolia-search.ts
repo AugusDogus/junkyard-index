@@ -23,6 +23,7 @@ import { env } from "~/env";
 import { withDistanceSort } from "~/lib/algolia-distance-sort";
 import { HiddenSources } from "~/lib/hidden-source";
 import { SearchQueryMeter, searchQueryMeter } from "~/lib/search-query-meter";
+import { SearchRequestMemo } from "~/lib/search-request-memo";
 import { browserSearchKey } from "~/lib/browser-search-key";
 import { SearchKeyGrant } from "~/lib/search-key-grant";
 import {
@@ -52,12 +53,19 @@ async function liteSearchClient(): Promise<{
   if (serverSearchClient) return { client: serverSearchClient, apiKey: null };
   const apiKey = await browserSearchKey.current();
   if (!browserSearchClient) {
-    // Meter browser calls for analytics. Server renders keep the default
-    // requester; their searches are not a page view's.
+    // Meter browser calls for analytics, below the memo so searches it
+    // answers are not counted. Server renders keep the default requester;
+    // their searches are not a page view's.
+    const metered = SearchQueryMeter.clientOptions(
+      searchQueryMeter,
+      createXhrRequester(),
+    );
     browserSearchClient = algoliasearch(
       env.NEXT_PUBLIC_ALGOLIA_APP_ID,
       apiKey,
-      SearchQueryMeter.clientOptions(searchQueryMeter, createXhrRequester()),
+      {
+        requester: SearchRequestMemo.create(metered.requester),
+      },
     );
     for (const [segment, version] of algoliaAgents)
       browserSearchClient.addAlgoliaAgent(segment, version);
