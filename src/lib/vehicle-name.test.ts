@@ -245,6 +245,11 @@ test("display softens short plain words, not model codes or trims", () => {
     ["CIVIC CRX", "Civic CRX"],
     ["CAMRY LE", "Camry LE"],
     ["LE", "LE"],
+    ["LE MANS", "Le Mans"],
+    // A trim that opens with LE keeps it: "Camry LE V6", not "Camry Le V6".
+    ["LE V6", "LE V6"],
+    ["LE PREMIUM", "LE Premium"],
+    ["LE 4DR", "LE 4DR"],
     ["AM GENERAL", "AM General"],
     ["RX 300", "RX 300"],
     ["CR-V", "CR-V"],
