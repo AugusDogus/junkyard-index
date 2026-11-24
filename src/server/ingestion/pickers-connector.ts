@@ -1,3 +1,4 @@
+import { transientRejection } from "./ingestion-validation";
 import { Effect, Option } from "effect";
 import {
   fetchPickersApp,
@@ -87,6 +88,17 @@ const requireCapacity = (requests: number) =>
         "Run reached 512 HTTP requests, including guards. Inspect chunk sizing before restarting",
       );
   });
+/** The yard added, sold or edited a vehicle while it was read. A fresh crawl
+ * can pass once it settles, so the source retries after the usual delay
+ * within its daily attempts instead of ending its day. */
+function pickersDrift(message: string): Error {
+  return transientRejection(
+    new Error(
+      message +
+        "; the yard changed while it was read, so the source retries after the usual delay within its daily attempts",
+    ),
+  );
+}
 function addCost(state: PickersState, response: { bytes: number }): void {
   state.requests++;
   state.bytes += response.bytes;
@@ -240,7 +252,7 @@ export function streamPickersInventoryWithRequestGate<E, R>(
       const inventory = yield* fetchPickersInventory(gate, undefined, site);
       yield* pickersValidated("resumed native form", () => {
         if (pickersHash(inventory.value.makes) !== pickersHash(state.makes))
-          throw new Error("Native make directory changed during crawl");
+          throw pickersDrift("Native make directory changed during crawl");
         addGuard(
           state,
           "inventory",
@@ -275,7 +287,7 @@ export function streamPickersInventoryWithRequestGate<E, R>(
       prefetched = resumed.search;
       yield* pickersValidated("resumed public location", () => {
         if (config.value !== state.configHash)
-          throw new Error(
+          throw pickersDrift(
             "Public resolved location configuration changed during crawl",
           );
         addGuard(state, "config", config, config.value);
@@ -326,7 +338,9 @@ export function streamPickersInventoryWithRequestGate<E, R>(
         const response = yield* fetchPickersInventory(gate, make, site);
         yield* pickersValidated("whole native stock control", () => {
           if (pickersHash(response.value.makes) !== pickersHash(state.makes))
-            throw new Error("Native make directory changed during traversal");
+            throw pickersDrift(
+              "Native make directory changed during traversal",
+            );
           const rows = response.value.rows.map((row, ordinal) =>
             PickersNativeRowSchema.parse({ ...row, makeIndex: next, ordinal }),
           );
@@ -342,7 +356,7 @@ export function streamPickersInventoryWithRequestGate<E, R>(
             pickersHash(rows) !==
             pickersHash(state.native.filter((row) => row.makeIndex === next))
           )
-            throw new Error(
+            throw pickersDrift(
               "Closing native inventory changed a whole row or stock set",
             );
           addReceipt(state, {
@@ -422,13 +436,25 @@ export function streamPickersInventoryWithRequestGate<E, R>(
                 prior &&
                 pickersHash(comparable(prior)) !==
                   pickersHash(comparable(entry))
-              )
-                throw new Error(
-                  "Repeated stock changed a whole record: " + record.stock,
-                );
+              ) {
+                const message =
+                  "Repeated stock changed a whole record: " + record.stock;
+                // A bookend repeats an exact earlier query, so a changed
+                // record there was edited during the crawl.
+                throw kind === "bookend"
+                  ? pickersDrift(message)
+                  : new Error(message);
+              }
               if (!prior) {
                 if (kind === "bookend")
-                  throw new Error("Exact query bookend introduced a new stock");
+                  throw pickersDrift(
+                    "Exact query bookend introduced a new stock " +
+                      record.stock +
+                      " for " +
+                      pair.make +
+                      " / " +
+                      pair.model,
+                  );
                 seen.set(record.stock, entry);
                 state.entries.push(entry);
                 newStocks++;
@@ -453,7 +479,7 @@ export function streamPickersInventoryWithRequestGate<E, R>(
                   (response.comparisonHash ?? response.bodyHash) ||
                 pickersHash(opening.members) !== pickersHash(members)
               )
-                throw new Error(
+                throw pickersDrift(
                   "Exact public query bookend changed its whole response",
                 );
             } else {

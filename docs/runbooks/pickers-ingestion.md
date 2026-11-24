@@ -18,7 +18,7 @@ The coordinates (33.42952, -93.97398) are an exact-address ASYD business marker,
 
 Native current inventory defines active stocks and the entire year/make/model tuple. Public VinPlus provides fallible VIN enrichment by exact stock association. Native photo filenames establish stock association, never VIN identity. API descriptions and native descriptions stay separate, including the 76 saved model disagreements and three native SCION/API TOYOTA disagreements. API-only stocks are quarantined for unproven active scope and retain genuine valid identities as rejected presence.
 
-Use `inventoryVin`, including eligible pre-1981 serials. Do not infer descriptions from a VIN, impose checksum validation or repair identities. A native stock absent from every successful complete allowed API response is one required missing-enrichment rejection after all queries finish. Wrong site, contradictory stock/year, conflicting repeated whole records, truncated responses and closing drift fail the source.
+Use `inventoryVin`, including eligible pre-1981 serials. Do not infer descriptions from a VIN, impose checksum validation or repair identities. A native stock absent from every successful complete allowed API response is one required missing-enrichment rejection after all queries finish. Wrong site, contradictory stock/year, conflicting repeated whole records, truncated responses and closing drift fail the source. Drift during the crawl (a changed native make directory or location configuration, a changed closing native table, or a bookend that adds a stock or changes a record) is a transient rejection, so the source retries after the usual delay within its daily attempts.
 
 ## Finite traversal and transport
 

@@ -1,4 +1,7 @@
-import { ingestionValidation } from "./ingestion-validation";
+import {
+  ingestionValidation,
+  transientRejection,
+} from "./ingestion-validation";
 import { sharedProviderHostSlot } from "./shared-provider-host";
 import { Data, Effect } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
@@ -36,6 +39,17 @@ export class LittletonProviderError extends Data.TaggedError(
       ". No advanced checkpoint accepted; prior inventory is preserved. Inspect the native source and retry from the last validated checkpoint."
     );
   }
+}
+/** The yard changed while it was read. A fresh crawl after the publish
+ * settles can pass, so the source retries after the usual delay within its
+ * daily attempts instead of ending its day. */
+export function littletonDrift(message: string): Error {
+  return transientRejection(
+    new Error(
+      message +
+        "; the yard most likely published a change while it was read, so the source retries after the usual delay within its daily attempts",
+    ),
+  );
 }
 function read(
   url: string,
@@ -114,13 +128,42 @@ export function fetchLittletonContext(gate: ProviderRequestGate) {
         const tableYears = [...years]
           .map(([year, count]) => ({ year, count }))
           .sort((a, b) => a.year - b.year);
+        // The website table and the VinPlus counts publish separately, so a
+        // read between the two sees one side updated. That passes once the
+        // publish settles.
         if (
           counts.count !== table.rows.length ||
           JSON.stringify(counts.years) !== JSON.stringify(tableYears)
-        )
-          throw new Error(
-            "Official stock/year table does not reconcile with native active inventory counts",
+        ) {
+          // Both sides are sorted unique positive counts, so a mismatch
+          // always differs in at least one year.
+          const counted = new Map(counts.years.map((r) => [r.year, r.count]));
+          const differing = [...new Set([...years.keys(), ...counted.keys()])]
+            .sort((a, b) => a - b)
+            .filter((year) => years.get(year) !== counted.get(year))
+            .map(
+              (year) =>
+                "year " +
+                year +
+                ": table " +
+                (years.get(year) ?? 0) +
+                ", counts " +
+                (counted.get(year) ?? 0),
+            );
+          throw littletonDrift(
+            "Official stock/year table (" +
+              table.rows.length +
+              (table.rows.length === 1 ? " stock" : " stocks") +
+              ") does not reconcile with native active inventory counts (" +
+              counts.count +
+              (counts.count === 1 ? " stock" : " stocks") +
+              "); " +
+              differing.slice(0, 5).join("; ") +
+              (differing.length > 5
+                ? "; and " + (differing.length - 5) + " more years"
+                : ""),
           );
+        }
         return {
           ...table,
           counts,

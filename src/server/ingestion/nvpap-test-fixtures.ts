@@ -44,9 +44,14 @@ export const nvpapTestContext =
   }) +
   "</script></html>";
 
-// `modelCell` overrides the rendered model cell to simulate source mismatches.
+/** `modelCell` and `vinButton` override the rendered model cell and VIN
+ * button to simulate source mismatches. */
+export type NvpapTestRow = NvpapRecord & {
+  modelCell?: string;
+  vinButton?: string;
+};
 export function nvpapTestResponse(
-  records: readonly (NvpapRecord & { modelCell?: string })[],
+  records: readonly NvpapTestRow[],
   code: NvpapYardCode,
   omittedFields: readonly ("color" | "row" | "date")[] = [],
 ) {
@@ -87,7 +92,7 @@ export function nvpapTestResponse(
                 )
                 .join("") +
               '<button data-pt1-vin="' +
-              r.vin +
+              (r.vinButton ?? r.vin) +
               '">' +
               r.vin +
               "</button></div>",

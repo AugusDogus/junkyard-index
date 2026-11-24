@@ -131,7 +131,11 @@ HTTP 200 responses from the exact endpoint with the correct MIME are accepted.
 Redirects, partial ranges, length mismatches, invalid UTF-8 and bodies over
 4 MiB fail closed. On failure, retain prior accepted inventory, inspect the
 native source and resume only from the last validated checkpoint. A changed
-context requires a new complete crawl rather than combining snapshots.
+context requires a new complete crawl rather than combining snapshots. The
+website table and the VinPlus counts publish separately, so a table that does
+not reconcile with the counts, or a context that changes between chunks or at
+the closing read, is a transient rejection: the source retries after the usual
+delay within its daily attempts instead of ending its day.
 
 `scripts/soak-littleton.ts` is the count-and-discard driver. Its caller supplies
 the connector and callbacks; it does not write inventory. Its total query

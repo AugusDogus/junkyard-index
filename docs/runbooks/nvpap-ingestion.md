@@ -57,11 +57,16 @@ controls and year-partition parity. Nullable display stock does not permit a
 missing, duplicated or contradictory traversal identity. Optional engine, trim,
 transmission, section, space and parts/pricing links remain null.
 
-A contradictory identity rejects the whole page and fails the source run. The
-error names the row index, the first failed check (JSON store id, requested
-year, VIN button count or value, year, model or store cell, stock format or
-yard prefix), the JSON tuple and the raw HTML cells. No evidence is saved for
-this source, so re-POST the same store and year to see whether the row persists.
+A row whose JSON store id, requested year, store cell, stock format or yard
+prefix fails rejects the whole page and fails the source run, because those
+prove which yard and year partition the page is. A row whose VIN button count
+or value, year cell or model cell contradicts its JSON is withheld as one
+rejected donor and the rest of the page is kept; its VIN is presence evidence
+only when the VIN button agreed, and it still clears its broad control. The
+10% rejection limit fails the yard if such rows spread. Both messages name the
+row index, the failed check, the JSON tuple and the raw HTML cells; a withheld
+row is logged as a chunk warning. No evidence is saved for this source, so
+re-POST the same store and year to see whether the row persists.
 A model-cell mismatch that only differs in spelling or spacing points to model
 cell normalization; that relaxation needs owner sign-off before it ships.
 

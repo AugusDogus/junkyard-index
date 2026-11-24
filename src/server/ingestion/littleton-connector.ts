@@ -3,6 +3,7 @@ import { Effect, Option, RateLimiter } from "effect";
 import {
   fetchLittletonContext,
   fetchLittletonSearch,
+  littletonDrift,
   LittletonProviderError,
   type LittletonContext,
 } from "./littleton-client";
@@ -48,6 +49,8 @@ export type LittletonStreamResult = ConnectorChunkResult<
   LittletonCursor
 >;
 type QueryCursor = Extract<LittletonCursor, { phase: "queries" }>;
+const CONTEXT_CHANGED =
+  "Official table, public config or native counts changed during the crawl";
 const validated = <A>(operation: string, run: () => A) =>
   ingestionValidation({
     try: run,
@@ -59,9 +62,7 @@ function validateResume(cursor: QueryCursor, context: LittletonContext): void {
     cursor.contextHash !== context.hash ||
     cursor.pairCount !== context.pairs.length
   )
-    throw new Error(
-      "Official table, public config or native counts changed during the crawl",
-    );
+    throw littletonDrift(CONTEXT_CHANGED);
   const rows = new Map(context.rows.map((r) => [r.stock, r]));
   const seen = new Map(cursor.seen.map((r) => [r.stock, r]));
   for (const entry of cursor.seen) {
@@ -351,10 +352,8 @@ export function streamLittletonInventoryWithRequestGate<E, R>(
           cause: "The last native query was read without its closing context",
         });
       if (closing.hash !== context.hash)
-        return yield* new LittletonProviderError({
-          operation: "terminal scope",
-          cause:
-            "Official table, public config or native counts changed during the crawl",
+        return yield* validated("terminal scope", () => {
+          throw littletonDrift(CONTEXT_CHANGED);
         });
     }
     const cursor = yield* validated("next checkpoint", () =>

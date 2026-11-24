@@ -2,12 +2,12 @@ import { afterEach, expect, test } from "bun:test";
 import { Effect } from "effect";
 import { streamNvpapInventoryWithRequestGate } from "./nvpap-connector";
 import { NvpapCursorSchema, type NvpapCursor } from "./nvpap-cursor";
-import type { NvpapRecord } from "./nvpap-parser";
 import type { NvpapCanonicalVehicle } from "./nvpap-transform";
 import {
   nvpapTestContext,
   nvpapTestRecord,
   nvpapTestResponse,
+  type NvpapTestRow,
 } from "./nvpap-test-fixtures";
 import {
   parseDurableSourceCursor,
@@ -25,8 +25,8 @@ function mockInventory(
     records?: (
       code: "1074" | "1075",
       year: number,
-      records: NvpapRecord[],
-    ) => NvpapRecord[];
+      records: NvpapTestRow[],
+    ) => NvpapTestRow[];
     response?: (response: Response, url: URL) => Response;
   } = {},
 ) {
@@ -166,6 +166,105 @@ test("Nevada preserves per-yard rejection counts across resumes", async () => {
       processed: 9,
       emitted: 8,
       rejected: 1,
+    }),
+  ).rejects.toThrow("failed completion");
+});
+
+test("Nevada withholds one contradictory row as a counted rejection and keeps crawling the yard", async () => {
+  const contradicted = {
+    ...nvpapTestRecord,
+    stock: "L133426",
+    vin: "1GCEG25H8B4121375",
+    images: [],
+    modelCell: "CHEVROLET CHEVROLET 20 VAN",
+  };
+  const unbound = {
+    ...nvpapTestRecord,
+    stock: "L133427",
+    vin: "1GNEK13Z82J100001",
+    year: 2002,
+    images: [],
+    // The row's VIN button names a different vehicle.
+    vinButton: "1GNEK13Z82J100002",
+  };
+  mockInventory({
+    records: (code, year, rows) =>
+      code === "1074" && year === 1981 ? [...rows, contradicted] : rows,
+  });
+  const vehicles: NvpapCanonicalVehicle[] = [];
+  const chunk = await run(
+    {
+      source: "nvpap",
+      phase: "year",
+      yardCode: "1074",
+      year: 1981,
+      pending: ["L133425:2GCEG25H8B4121375", "L133426:1GCEG25H8B4121375"],
+      processed: 0,
+      emitted: 0,
+      rejected: 0,
+    },
+    1,
+    (batch) =>
+      Effect.sync(() => {
+        vehicles.push(...batch);
+      }),
+  );
+  expect(vehicles.map((vehicle) => vehicle.stockNumber)).toEqual(["L133425"]);
+  // The VIN button agreed, so the withheld donor still proves presence.
+  expect(chunk.observedVins).toEqual([contradicted.vin]);
+  expect(chunk.accounting).toMatchObject({
+    recordsProcessed: 2,
+    recordsRejected: 1,
+  });
+  expect(chunk.cursor).toMatchObject({
+    processed: 2,
+    rejected: 1,
+    emitted: 1,
+    pending: [],
+  });
+  expect(chunk.warnings?.join(" ")).toContain(
+    "row 1 failed the model cell check",
+  );
+
+  mockInventory({
+    records: (code, year, rows) =>
+      code === "1074" && year === 2002 ? [unbound] : rows,
+  });
+  const withheld = await run(
+    {
+      source: "nvpap",
+      phase: "year",
+      yardCode: "1074",
+      year: 2002,
+      pending: [],
+      processed: 20,
+      emitted: 20,
+      rejected: 0,
+    },
+    1,
+  );
+  // A VIN that its own button contradicts proves nothing.
+  expect(withheld.observedVins).toEqual([]);
+  expect(withheld.cursor).toMatchObject({ processed: 21, rejected: 1 });
+});
+
+test("Nevada still fails the source when contradictory rows pass the 10% rejection limit", async () => {
+  mockInventory({
+    records: (code, year, rows) =>
+      code === "1074" && year === 2100
+        ? [{ ...nvpapTestRecord, year: 2100, modelCell: "FORD F150" }]
+        : rows,
+  });
+  await expect(
+    run({
+      source: "nvpap",
+      phase: "year",
+      yardCode: "1074",
+      year: 2100,
+      pending: [],
+      processed: 1,
+      emitted: 1,
+      rejected: 0,
     }),
   ).rejects.toThrow("failed completion");
 });

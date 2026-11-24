@@ -10,7 +10,8 @@ import {
   NVPAP_RESULT_CAP,
   type NvpapYardCode,
 } from "./nvpap-cursor";
-import { nvpapRecordKey, type NvpapRecord } from "./nvpap-parser";
+import { inventoryVin } from "./inventory-vin";
+import { nvpapRecordKey, type NvpapPage } from "./nvpap-parser";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { SourceValidationPolicy } from "./source-validation";
 import {
@@ -60,6 +61,7 @@ export function streamNvpapInventoryWithRequestGate<E, R>(
     let count = 0;
     const observedVins = new Set<string>();
     const seenVins = new Set<string>();
+    const withheld: string[] = [];
     if (cursor.phase === "complete")
       return {
         source: "nvpap",
@@ -81,11 +83,12 @@ export function streamNvpapInventoryWithRequestGate<E, R>(
           message: "Verified Nevada yard " + yardCode + " is missing",
         });
       if (cursor.phase === "start") {
-        const controls: NvpapRecord[] = yield* fetchNvpapPage(
-          yardCode,
-          0,
-          gate,
-        );
+        const page: NvpapPage = yield* fetchNvpapPage(yardCode, 0, gate);
+        // A contradictory broad row is still a donor its year page must list.
+        const controls: string[] = [
+          ...page.records.map(nvpapRecordKey),
+          ...page.contradictions.map((contradiction) => contradiction.key),
+        ];
         if (controls.length === 0)
           return yield* new NvpapStreamError({
             message:
@@ -98,7 +101,7 @@ export function streamNvpapInventoryWithRequestGate<E, R>(
           phase: "year",
           yardCode,
           year: NVPAP_FIRST_YEAR,
-          pending: controls.map(nvpapRecordKey),
+          pending: controls,
           processed: 0,
           rejected: 0,
           emitted: 0,
@@ -106,8 +109,13 @@ export function streamNvpapInventoryWithRequestGate<E, R>(
         pagesProcessed++;
         continue;
       }
-      const records = yield* fetchNvpapPage(yardCode, cursor.year, gate);
-      if (records.length >= NVPAP_RESULT_CAP)
+      const { records, contradictions } = yield* fetchNvpapPage(
+        yardCode,
+        cursor.year,
+        gate,
+      );
+      const rows = records.length + contradictions.length;
+      if (rows >= NVPAP_RESULT_CAP)
         return yield* new NvpapStreamError({
           message:
             "Nevada yard " +
@@ -116,13 +124,27 @@ export function streamNvpapInventoryWithRequestGate<E, R>(
             cursor.year +
             " reached the 200-result cap; enumeration is incomplete, inspect native partitions before retrying",
         });
-      const recovered = new Set(records.map(nvpapRecordKey));
+      const recovered = new Set([
+        ...records.map(nvpapRecordKey),
+        ...contradictions.map((contradiction) => contradiction.key),
+      ]);
       const pending: string[] = cursor.pending.filter(
         (key) => !recovered.has(key),
       );
       let rejected: number = cursor.rejected;
       let emitted: number = cursor.emitted;
       const batch: NvpapCanonicalVehicle[] = [];
+      for (const contradiction of contradictions) {
+        accounting.recordsProcessed++;
+        accounting.recordsRejected++;
+        rejected++;
+        const vin =
+          contradiction.vin === null
+            ? null
+            : inventoryVin(contradiction.vin, String(contradiction.year));
+        if (vin) observedVins.add(vin);
+        withheld.push(contradiction.message);
+      }
       for (const record of records) {
         accounting.recordsProcessed++;
         const result = transformNvpapRecord(record, yard);
@@ -139,7 +161,7 @@ export function streamNvpapInventoryWithRequestGate<E, R>(
           }
         }
       }
-      const processed: number = cursor.processed + records.length;
+      const processed: number = cursor.processed + rows;
       const terminal: boolean = cursor.year === NVPAP_LAST_YEAR;
       if (
         terminal &&
@@ -191,13 +213,16 @@ export function streamNvpapInventoryWithRequestGate<E, R>(
       pagesProcessed,
       accounting,
       observedVins: [...observedVins],
-      warnings: accounting.recordsRejected
-        ? [
-            "Nevada rejected " +
-              accounting.recordsRejected +
-              " incomplete donors; independently valid VINs supply presence evidence only.",
-          ]
-        : [],
+      warnings: [
+        ...withheld,
+        ...(accounting.recordsRejected
+          ? [
+              "Nevada rejected " +
+                accounting.recordsRejected +
+                " incomplete donors; independently valid VINs supply presence evidence only.",
+            ]
+          : []),
+      ],
       errors: [],
     } satisfies NvpapStreamResult;
   }).pipe(
