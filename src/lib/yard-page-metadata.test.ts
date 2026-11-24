@@ -38,6 +38,9 @@ test("yard make pages index from five vehicles; yard model pages never index", (
     follow: true,
   });
   expect(yardMakeMetadata(yard, make, 5, null).robots).toBeUndefined();
+  // Next clears the layout's robots and googlebot tags for a page whose
+  // metadata has a robots key, even an undefined one.
+  expect("robots" in yardMakeMetadata(yard, make, 5, null)).toBe(false);
   // The yard's make page and the national model page cover these queries.
   for (const total of [4, 5, 500]) {
     expect(yardMakeMetadata(yard, model, total, null).robots).toEqual({
