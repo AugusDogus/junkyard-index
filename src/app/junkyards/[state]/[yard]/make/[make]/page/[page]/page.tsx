@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import { notFound, permanentRedirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { YardPath } from "~/lib/yard-path";
 import {
+  redirectToFirstPage,
   YardMakePage,
   yardMakePageMetadata,
   type YardMakeParams,
@@ -36,9 +37,6 @@ export default async function YardMakeInventoryPage({
   const number = YardPath.pageNumber(page);
   if (number === null) notFound();
   // The first page lives at the make's own URL.
-  if (number === 1) {
-    const { state, yard } = make;
-    permanentRedirect(`/junkyards/${state}/${yard}/make/${make.make}`);
-  }
+  if (number === 1) await redirectToFirstPage(make);
   return <YardMakePage params={make} page={number} />;
 }
