@@ -1,4 +1,7 @@
-import { loadIngestionSourceDays } from "./ingestion-source-days";
+import {
+  loadIngestionSourceDays,
+  loadSourceCrawlDays,
+} from "./ingestion-source-days";
 import { createDurableWorkflowCursorStore } from "./durable-workflow-cursor-store";
 import { IngestionDay } from "./ingestion-day";
 import type { Client, InStatement } from "@libsql/client";
@@ -296,6 +299,13 @@ export function createDurableIngestionRepository(
       }
 
       const sourceDays = await loadIngestionSourceDays(database, scheduleKey);
+      // A source crawled less often than daily rests between its crawls, so
+      // today's pass neither starts it nor waits for it.
+      const scheduled = IngestionSchedule.scheduledSources({
+        enabledSources: sources,
+        crawlDays: await loadSourceCrawlDays(database, now),
+        now,
+      });
       // A failed run can cross the day boundary. Its cooldown follows release,
       // even when today's attempt count is still zero.
       const recentFailures = await database
@@ -332,7 +342,7 @@ export function createDurableIngestionRepository(
       }
       const due = IngestionSchedule.dueSources({
         days: sourceDays,
-        enabledSources: sources,
+        enabledSources: scheduled,
         now,
       }).filter((source) => !activeSources.has(source));
 
@@ -349,13 +359,13 @@ export function createDurableIngestionRepository(
         retryAt:
           IngestionSchedule.nextRetryAt({
             days: sourceDays,
-            enabledSources: sources,
+            enabledSources: scheduled,
           }) ?? now.getTime() + CONCURRENT_WAKEUP_RECHECK_MS,
       } as const;
       if (
         !IngestionSchedule.passComplete({
           days: sourceDays,
-          enabledSources: sources,
+          enabledSources: scheduled,
         })
       )
         return waiting;
@@ -1043,7 +1053,8 @@ export function createDurableIngestionRepository(
       return toChunkResult(params.source, latest);
     },
 
-    /** Each source's latest attempt and accepted publication in the last 3 days. */
+    /** Each source's latest attempt and accepted publication within the
+     * longest source look-back (5 days), as `loadSourceFreshness` reads. */
     getSourceFreshness(now: Date): Promise<IngestionSourceFreshness[]> {
       return loadSourceFreshness(database, now);
     },

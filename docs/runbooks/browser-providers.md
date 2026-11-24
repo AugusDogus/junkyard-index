@@ -22,16 +22,19 @@ so a value that is not a whole number from 1 to 999 fails the build.
 
 ## Who uses which
 
-All sources are chosen in `BROWSER_PROVIDERS` in `browser-providers.ts`.
+All sources but U Pull R Parts are chosen in `BROWSER_PROVIDERS` in
+`browser-providers.ts`; U Pull R Parts always mints its Turnstile tokens in
+Kernel browsers.
 
-| Source               | Page driven by                                   | Provider     |
-| -------------------- | ------------------------------------------------ | ------------ |
-| Big D                | `DocumentTransport` (navigation)                 | Kernel       |
-| Northwest            | `DocumentTransport` (fetch)                      | Kernel       |
-| Vander Haags         | `vanderhaags-browser-session.ts`                 | Kernel       |
-| U Pull It Davie      | `upullit-davie-browser-session.ts`               | Kernel       |
-| 603 Auto Salvage     | `DocumentTransport` (retired: paused and hidden) | Hyperbrowser |
-| Michigan Truck Parts | `DocumentTransport` (retired: paused and hidden) | Hyperbrowser |
+| Source               | Page driven by                                    | Provider                       |
+| -------------------- | ------------------------------------------------- | ------------------------------ |
+| Big D                | `DocumentTransport` (navigation)                  | Kernel                         |
+| Northwest            | `DocumentTransport` (fetch)                       | Kernel                         |
+| Vander Haags         | `vanderhaags-browser-session.ts`                  | Kernel                         |
+| U Pull It Davie      | `upullit-davie-browser-session.ts`                | Kernel                         |
+| 603 Auto Salvage     | `DocumentTransport` (retired: paused and hidden)  | Hyperbrowser                   |
+| Michigan Truck Parts | `DocumentTransport` (retired: paused and hidden)  | Hyperbrowser                   |
+| U Pull R Parts       | its Turnstile minter (`upullrparts-turnstile.ts`) | Kernel, headful, stealth proxy |
 
 The choice is typed (`BrowserProvider = "hyperbrowser" | "kernel"`) and is not
 part of any cursor scope, so moving a source keeps in-flight checkpoints and
@@ -75,7 +78,8 @@ retired sources; no live source is configured to use them.
 ## Kernel sessions
 
 - Each chunk creates one browser with `POST https://api.onkernel.com/browsers`
-  `{"stealth": true, "headless": true, "timeout_seconds": 60, "proxy": {"mode": "direct"}}`,
+  `{"stealth": true, "headless": true, "timeout_seconds": 60, "proxy": {"mode": "direct"}}`
+  (the default profile in `kernel-sessions.ts`),
   connects over CDP with `playwright-core` and deletes it with
   `DELETE /browsers/{id}` when the chunk ends, on success, failure or
   interruption. A failed connect deletes its browser before the next attempt
@@ -88,8 +92,15 @@ retired sources; no live source is configured to use them.
   HTTP 502 and an in-page "network error" on Northwest in two of two soaks,
   while direct egress read the whole catalog. `stealth` still enables the
   CAPTCHA solver.
+- A source can have its own typed profile (`KERNEL_BROWSER_PROFILES`: mode
+  `headless | headful`, egress `direct | stealthProxy`). Only U Pull R Parts
+  has one: headful, because its Turnstile widget crashes headless, and on the
+  stealth proxy (no `proxy` field), because tokens minted there in about half
+  the browser-seconds of direct egress
+  ([U Pull R Parts](upullrparts-ingestion.md#turnstile-tokens)).
 - Billing is per second of browser uptime ($0.0000166667 per headless
-  second, about $0.06 an hour), with no minimum. The Developer plan is free
+  second, about $0.06 an hour; $0.0001333 per headful second, about $0.48 an
+  hour), with no minimum. The Developer plan is free
   with $5 of usage credit a month and 5 concurrent browsers.
 - Refusals on create defer the chunk instead of failing it:
 
@@ -99,6 +110,7 @@ retired sources; no live source is configured to use them.
   | HTTP 429 other (create rate limit)                          | `ProviderCapacityDeferred`                               |
   | HTTP 529 (Kernel out of capacity)                           | `ProviderCapacityDeferred`                               |
   | HTTP 403 (spending cap, monthly credit used up, plan limit) | `ProviderCapacityDeferred`                               |
+  | none sent: U Pull R Parts' $3.50 monthly budget is spent    | `ProviderCapacityDeferred`, until the next month         |
   | HTTP 401, other 4xx, 5xx, missing `KERNEL_API_KEY`          | the read fails with the provider's message               |
 
   A deferred chunk retries its cursor every five minutes. After three hours
@@ -115,9 +127,11 @@ All with `Authorization: Bearer $KERNEL_API_KEY`:
 - `GET /org/limits`: `max_concurrent_sessions`, `concurrent_sessions_used`,
   `concurrent_sessions_available`.
 - `GET /browsers?status=all&limit=100&offset=N`: each browser's `created_at`,
-  `deleted_at` and `usage.uptime_ms`. Sum `uptime_ms` over a window and
-  multiply the seconds by 0.0000166667 for the gross headless cost before
-  credits.
+  `deleted_at`, `headless` and `usage.uptime_ms`. Sum `uptime_ms` over a
+  window separately for headless and headful browsers; the gross cost before
+  credits is headless seconds × 0.0000166667 plus headful seconds × 0.0001333.
+  Only U Pull R Parts runs headful, and its own spend is also in
+  `kernel_browser_usage` ([U Pull R Parts](upullrparts-ingestion.md#kernel-spend)).
 - `GET /browsers` (active only) should be empty outside a run; delete any
   leftover with `DELETE /browsers/{id}`.
 
@@ -143,3 +157,6 @@ one browser per eight-request chunk; its incremental days read about 100
 pages. A day of all four (Northwest cold, Vander Haags warm, the others in
 full) is about 1,875 browser-seconds, about $0.94 a month, inside the
 Developer plan's $5 credit.
+
+U Pull R Parts bills headful seconds and is crawled in full every day; its
+spend and caps are in [Kernel spend](upullrparts-ingestion.md#kernel-spend).

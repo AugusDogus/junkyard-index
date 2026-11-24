@@ -50,14 +50,19 @@ export const UpullRPartsModelsSchema = Schema.Array(providerLabel).pipe(
 );
 
 function fetchUpullRPartsJson<A, I>(
-  apiAction: "getMakes" | "getModels" | "getYears",
+  apiAction: "getMakes" | "getModels" | "getYears" | "getVehicles",
   params: Record<string, string>,
   schema: Schema.Schema<A, I>,
   requestGate?: ProviderRequestGate,
+  retryLimit = 2,
 ) {
   return fetchProviderJson({
     url: UPULLRPARTS_API_URL,
-    context: `U Pull R Parts ${apiAction} ${JSON.stringify(params)}`,
+    context: `U Pull R Parts ${apiAction} ${JSON.stringify(
+      Object.fromEntries(
+        Object.entries(params).filter(([name]) => name !== "turnstileToken"),
+      ),
+    )}`,
     method: "POST",
     // The shared legacy browser UA receives HTTP 403 here. Identify the
     // actual client instead; this public endpoint accepts this agent.
@@ -83,8 +88,26 @@ function fetchUpullRPartsJson<A, I>(
       }
     },
     requestGate,
-    retry: { retryLimit: 2, retryNetworkErrors: false, jitter: false },
+    retry: { retryLimit, retryNetworkErrors: false, jitter: false },
   }).pipe(Effect.mapError((cause) => new UpullRPartsProviderError({ cause })));
+}
+
+/**
+ * One getVehicles search with a Turnstile token from a browser. Any IP may
+ * spend a token, but each verifies once: a repeated token returns an empty
+ * list, so the request is never retried with it.
+ */
+export function fetchUpullRPartsVehicles(
+  params: Readonly<Record<"site" | "makes" | "models" | "years", string>>,
+  turnstileToken: string,
+) {
+  return fetchUpullRPartsJson(
+    "getVehicles",
+    { ...params, beginDate: "", endDate: "", turnstileToken },
+    Schema.Array(Schema.Unknown),
+    undefined,
+    0,
+  );
 }
 
 export function fetchUpullRPartsMakes(requestGate: ProviderRequestGate) {

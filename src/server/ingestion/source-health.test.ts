@@ -87,16 +87,42 @@ describe("SourceHealth.evaluate", () => {
         source: "row52",
         name: "Row52",
         lastPublishedAt: null,
+        staleAfterHours: 36,
       },
       {
         source: "pyp",
         name: "LKQ Pick Your Part",
         lastPublishedAt: new Date(hoursAgo(37)),
+        staleAfterHours: 36,
       },
       {
         source: "aero",
         name: "Aero Auto Parts",
         lastPublishedAt: null,
+        staleAfterHours: 36,
+      },
+    ]);
+  });
+
+  test("allows a source crawled every third day its cadence plus 12 hours", () => {
+    const withUpullRParts = (hours: number) =>
+      SourceHealth.evaluate(
+        allFresh.map((row) =>
+          row.source === "upullrparts"
+            ? published("upullrparts", hoursAgo(hours))
+            : row,
+        ),
+        ACTIVE_INGESTION_SOURCES,
+        now,
+      );
+
+    expect(withUpullRParts(84).status).toBe("healthy");
+    expect(withUpullRParts(85).stale).toEqual([
+      {
+        source: "upullrparts",
+        name: "U Pull R Parts",
+        lastPublishedAt: new Date(hoursAgo(85)),
+        staleAfterHours: 84,
       },
     ]);
   });

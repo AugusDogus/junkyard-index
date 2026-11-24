@@ -32,7 +32,7 @@ export function providerFreshness(
       name: INGESTION_SOURCE_DISPLAY_NAMES[source],
       fresh:
         !isRetiredIngestionSource(source) &&
-        isFreshPublication(lastPublishedAt, now),
+        isFreshPublication(source, lastPublishedAt, now),
       lastPublishedAt:
         lastPublishedAt === null ? null : new Date(lastPublishedAt),
     };

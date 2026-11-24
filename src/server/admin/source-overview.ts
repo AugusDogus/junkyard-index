@@ -6,6 +6,7 @@ import {
 } from "~/lib/ingestion-source";
 import { isFreshPublication } from "~/server/ingestion/durable-health";
 import { IngestionDay } from "~/server/ingestion/ingestion-day";
+import { IngestionSchedule } from "~/server/ingestion/ingestion-schedule";
 import {
   SourceControl,
   type PauseCause,
@@ -48,9 +49,10 @@ export type IngestionFlag = "on" | "off" | "unknown";
 /**
  * One state per source, the first that applies in this order: retired,
  * paused (here or by its flag), running, failing (its latest finished run did not
- * publish), stale (no accepted publication within SOURCE_STALE_AFTER_HOURS,
- * the rule /api/status uses), accepted today, else waiting for today's
- * update.
+ * publish), stale (no accepted publication within its `sourceStaleAfterHours`,
+ * the rule /api/status uses), accepted today, resting (fresh, and not due
+ * today by its cadence: `IngestionSchedule.restingUntil`), else waiting for
+ * today's update.
  */
 export type SourceState =
   | "retired"
@@ -59,6 +61,7 @@ export type SourceState =
   | "failing"
   | "stale"
   | "accepted_today"
+  | "resting"
   | "waiting";
 
 export const SOURCE_STATES: readonly SourceState[] = [
@@ -67,6 +70,7 @@ export const SOURCE_STATES: readonly SourceState[] = [
   "running",
   "paused",
   "waiting",
+  "resting",
   "accepted_today",
   "retired",
 ];
@@ -88,9 +92,12 @@ export type SourceSummary = {
   lastAcceptedAt: Date | null;
   /**
    * Expected to publish (not retired or paused) but not accepted within
-   * SOURCE_STALE_AFTER_HOURS. A running or failing source can be stale too.
+   * its `sourceStaleAfterHours`. A running or failing source can be stale too.
    */
   stale: boolean;
+  /** The ingestion day (`YYYY-MM-DD`) a resting source is next crawled on;
+   * null unless `state` is resting. */
+  nextCrawlDay: string | null;
   /** Vehicles on the site now, from yard_inventory; null without any. */
   publishedVehicles: number | null;
   /** Unique vehicles of the last accepted run minus the one before it. */
@@ -153,7 +160,23 @@ function summarize(
   const stale =
     !retired &&
     pausedBy === null &&
-    !isFreshPublication(lastAcceptedAt?.getTime() ?? null, input.now);
+    !isFreshPublication(source, lastAcceptedAt?.getTime() ?? null, input.now);
+  // Runs date from the ingestion day they started on, as the schedule's
+  // `schedule_key` does.
+  const nextCrawlDay =
+    latestRun === null
+      ? null
+      : IngestionSchedule.restingUntil(
+          source,
+          {
+            lastAttemptDay: IngestionDay.key(latestRun.run.startedAt),
+            lastAcceptedDay:
+              newest === undefined
+                ? null
+                : IngestionDay.key(newest.run.startedAt),
+          },
+          input.now,
+        );
   const state: SourceState = retired
     ? "retired"
     : pausedBy !== null
@@ -167,7 +190,9 @@ function summarize(
             : lastAcceptedAt !== null &&
                 lastAcceptedAt >= IngestionDay.start(input.now)
               ? "accepted_today"
-              : "waiting";
+              : nextCrawlDay !== null
+                ? "resting"
+                : "waiting";
   return {
     source,
     name: INGESTION_SOURCE_DISPLAY_NAMES[source],
@@ -180,6 +205,7 @@ function summarize(
     consecutiveFailures,
     lastAcceptedAt,
     stale,
+    nextCrawlDay: state === "resting" ? nextCrawlDay : null,
     publishedVehicles: input.publishedCounts.get(source) ?? null,
     vehicleChange:
       newest === undefined || previous === undefined
@@ -224,6 +250,7 @@ export const SourceOverview = {
       running: 0,
       paused: 0,
       waiting: 0,
+      resting: 0,
       accepted_today: 0,
       retired: 0,
     };

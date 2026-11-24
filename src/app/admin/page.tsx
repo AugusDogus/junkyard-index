@@ -144,6 +144,8 @@ export default async function AdminOverviewPage() {
                   .{" "}
                   {counts.byState.waiting > 0 &&
                     `${counts.byState.waiting} more have not updated yet today. `}
+                  {counts.byState.resting > 0 &&
+                    `${counts.byState.resting} resting until their next scheduled crawl. `}
                   <Link
                     href="/admin/sources"
                     className="inline-flex items-center gap-1.5 underline underline-offset-4"

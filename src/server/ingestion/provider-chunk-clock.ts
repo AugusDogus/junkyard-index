@@ -226,6 +226,19 @@ export const ProviderChunkClock = {
       }),
     ),
 
+  /** The current chunk's remaining work allowance in ms, excluding time
+   * queued for shared host turns and leases, or none outside a chunk
+   * deadline. */
+  workLeft: Effect.flatMap(FiberRef.get(CurrentChunkClock), (clock) =>
+    clock === null
+      ? Effect.succeed(Option.none<number>())
+      : Effect.map(Clock.currentTimeMillis, (now) =>
+          Option.some(
+            clock.workLimitMs - (now - clock.startedAt - queuedMs(clock, now)),
+          ),
+        ),
+  ),
+
   /** Whether work taking up to `ms` from now ends within the chunk's work
    * deadline, which excludes time queued for shared host turns. A request
    * that would otherwise fail the chunk at that deadline checks this first and

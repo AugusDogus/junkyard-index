@@ -13,9 +13,8 @@ export type UpullRPartsLocation = (typeof UPULLRPARTS_LOCATIONS)[number];
 export const UPULLRPARTS_SEARCH_LIMIT = 100;
 
 /**
- * Searches with a date range are limited to two per IP, after which every
- * search returns an empty list. Searches by make, model, and year are not
- * limited, so the crawl never sends dates.
+ * One getVehicles search. The crawl never sends dates: a date-range search
+ * needs no make and is not needed to reach any vehicle.
  */
 export interface UpullRPartsSearchParams {
   site: UpullRPartsLocation;
@@ -24,39 +23,38 @@ export interface UpullRPartsSearchParams {
   years: string;
 }
 
-export type UpullRPartsSearch = (
+export type UpullRPartsSearch<E = UpullRPartsProviderError> = (
   params: UpullRPartsSearchParams,
-) => Effect.Effect<readonly unknown[], UpullRPartsProviderError>;
+) => Effect.Effect<readonly unknown[], E>;
 
 export class UpullRPartsCrawlError extends Data.TaggedError(
   "UpullRPartsCrawlError",
 )<{ message: string }> {}
 
-/**
- * The search IP is blocked: getVehicles accepts the Turnstile token but
- * returns an empty list for every search. A new sandbox session gets a new IP.
- */
-export class UpullRPartsSearchBlockedError extends Data.TaggedError(
-  "UpullRPartsSearchBlockedError",
-)<{ message: string }> {}
-
-/** Every location stocks Fords, so an empty Ford search means a blocked IP. */
+/** Every location stocks Fords, so an empty Ford search means a blocked IP:
+ * getVehicles then returns an empty list for every search. */
 const CANARY_MAKE = "Ford";
 
-export function checkUpullRPartsSearch(
+/** A canary search came back empty, so this chunk's empty results cannot be
+ * trusted and nothing from it may be emitted. */
+export class UpullRPartsSearchBlocked extends Data.TaggedError(
+  "UpullRPartsSearchBlocked",
+)<{ site: UpullRPartsLocation; when: "before" | "after" }> {
+  override get message() {
+    return `U Pull R Parts getVehicles returned no ${CANARY_MAKE} vehicles at location ${this.site} ${this.when} the crawl, so it is most likely blocking this IP, which it does for over an hour after more than about 13 searches in a minute. The chunk's empty results cannot be trusted, so it emitted no batches and prior inventory is preserved.`;
+  }
+}
+
+export function checkUpullRPartsSearch<S>(
   site: UpullRPartsLocation,
-  search: UpullRPartsSearch,
+  search: UpullRPartsSearch<S>,
   when: "before" | "after",
 ) {
   return search({ site, makes: CANARY_MAKE, models: ANY, years: ANY }).pipe(
     Effect.flatMap((rows) =>
       rows.length > 0
         ? Effect.void
-        : Effect.fail(
-            new UpullRPartsSearchBlockedError({
-              message: `U Pull R Parts returned no ${CANARY_MAKE} vehicles at location ${site} ${when} the crawl, so the search IP is blocked and empty results cannot be trusted. Retry with a new sandbox session; this chunk emitted no batches.`,
-            }),
-          ),
+        : Effect.fail(new UpullRPartsSearchBlocked({ site, when })),
     ),
   );
 }
@@ -72,16 +70,36 @@ export interface UpullRPartsCrawledVehicle {
   make: string;
 }
 
+/**
+ * How far a split make got. Every vehicle of models up to `model`, in label
+ * order, has been emitted, and of `model` itself only the years up to `year`
+ * when it is not null.
+ */
+export interface UpullRPartsSplitPoint {
+  model: string;
+  year: string | null;
+}
+
+/** A make's crawl finished, or stopped after `at` (null when it stopped
+ * before emitting any vehicle of the make). */
+export type UpullRPartsMakeProgress =
+  | { status: "complete" }
+  | { status: "paused"; at: UpullRPartsSplitPoint | null };
+
 export interface UpullRPartsMakeResult {
   vehicles: UpullRPartsCrawledVehicle[];
   rejectedRows: number;
   searches: number;
+  progress: UpullRPartsMakeProgress;
 }
 
 const ANY = "0";
-// A rejected Turnstile token also returns an empty list, so an empty make is
-// confirmed once and a split that drops a known vehicle is searched again.
+// A rejected Turnstile token or a blocked IP also returns an empty list, so
+// an empty make is confirmed once and a split that drops a known vehicle is
+// searched again.
 const SPLIT_ATTEMPTS = 3;
+/** The most searches one crawl step sends: a split search and its repeats. */
+export const UPULLRPARTS_MAX_STEP_SEARCHES = SPLIT_ATTEMPTS;
 
 function key(record: UpullRPartsVehicle): string {
   return (
@@ -94,6 +112,48 @@ function key(record: UpullRPartsVehicle): string {
 function label(value: string | null | undefined): string {
   return value?.trim().toUpperCase() ?? "";
 }
+
+function yearLabel(record: UpullRPartsVehicle): string {
+  return record.Year === null || record.Year === undefined
+    ? ""
+    : String(record.Year);
+}
+
+/** Whether a vehicle of `model` and `year` was emitted by `point`. */
+function doneBy(
+  point: UpullRPartsSplitPoint | null,
+  model: string,
+  year: string,
+): boolean {
+  if (point === null) return false;
+  if (model !== point.model) return model < point.model;
+  return point.year === null || year <= point.year;
+}
+
+/** Whether every vehicle of `model` was emitted by `point`. */
+function modelDoneBy(point: UpullRPartsSplitPoint | null, model: string) {
+  return (
+    point !== null &&
+    (model < point.model || (model === point.model && point.year === null))
+  );
+}
+
+/** Labels in order, each with its first raw spelling for requests. "0"
+ * means any model or year, so it is never a split. */
+function ordered(
+  values: readonly string[],
+  accept: (name: string) => boolean,
+): [string, string][] {
+  const byLabel = new Map<string, string>();
+  for (const value of values) {
+    const name = label(value);
+    if (name !== ANY && accept(name) && !byLabel.has(name))
+      byLabel.set(name, value);
+  }
+  return [...byLabel].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+}
+const anyModel = (name: string) => name !== "";
+const fourDigitYear = (name: string) => /^\d{4}$/.test(name);
 
 function decode(rows: readonly unknown[]) {
   const records: UpullRPartsVehicle[] = [];
@@ -113,36 +173,57 @@ function describe(params: UpullRPartsSearchParams) {
   return parts.join(" ");
 }
 
-/**
- * Crawls one make at one location. A full page is split by model, and a full
- * model by year. Every vehicle in a full page must reappear in the split
- * search for its model or year; a split that drops one is searched again,
- * because a silently rejected token returns an empty list.
- */
-export function crawlUpullRPartsMake<E>(
+/** Decides whether the crawl starts another step. */
+interface StepGate {
+  mayStart(): boolean;
+  /** A step emitted vehicles up to a new point. */
+  advanced(): void;
+}
+
+/** The first step always runs, so every chunk makes progress; later steps
+ * run while `shouldContinue` allows. */
+function stepGate(shouldContinue: () => boolean): StepGate {
+  let advanced = false;
+  return {
+    mayStart: () => !advanced || shouldContinue(),
+    advanced: () => {
+      advanced = true;
+    },
+  };
+}
+
+function crawlMake<E, S>(
   site: UpullRPartsLocation,
   make: string,
-  search: UpullRPartsSearch,
+  search: UpullRPartsSearch<S>,
   directory: UpullRPartsCrawlDirectory<E>,
-): Effect.Effect<
-  UpullRPartsMakeResult,
-  UpullRPartsProviderError | UpullRPartsCrawlError | E
-> {
+  after: UpullRPartsSplitPoint | null,
+  gate: StepGate,
+): Effect.Effect<UpullRPartsMakeResult, S | UpullRPartsCrawlError | E> {
   return Effect.gen(function* () {
     const found = new Map<string, UpullRPartsVehicle>();
+    // Vehicles returned by this call's leaf searches, which are not split.
+    const leafFound = new Set<string>();
     let rejectedRows = 0;
     let searches = 0;
+    let until: UpullRPartsSplitPoint | null = after;
 
     const run = (params: UpullRPartsSearchParams) =>
       search(params).pipe(
         Effect.map((rows) => {
           searches += 1;
           const decoded = decode(rows);
-          rejectedRows += decoded.rejected;
           for (const record of decoded.records) found.set(key(record), record);
-          return { rows, records: decoded.records };
+          return { rows, ...decoded };
         }),
       );
+    type Searched = Effect.Effect.Success<ReturnType<typeof run>>;
+
+    /** Counts a leaf search's rows once, from its accepted attempt. */
+    const leaf = (result: Searched) => {
+      rejectedRows += result.rejected;
+      for (const record of result.records) leafFound.add(key(record));
+    };
 
     /** Searches until every expected vehicle is present. */
     const runCovering = (
@@ -162,10 +243,34 @@ export function crawlUpullRPartsMake<E>(
                 .map(key)
                 .join(
                   ", ",
-                )}) that its parent search returned, after ${SPLIT_ATTEMPTS} attempts. The search sandbox is likely receiving rejected Turnstile tokens; no batches were emitted for this make.`,
+                )}) that its parent search returned, after ${SPLIT_ATTEMPTS} attempts. getVehicles is most likely blocking this IP after too many searches in a minute; no batches were emitted for this chunk, and its retry pauses for the block when its opening canary comes back empty.`,
             });
         }
       });
+
+    // An earlier chunk emitted every vehicle up to `after`, even when a
+    // resumed make or model is now short enough to be a leaf.
+    const emitted = (complete: boolean) =>
+      [...found]
+        .filter(([id, record]) => {
+          const model = label(record.Model);
+          const year = yearLabel(record);
+          return (
+            !doneBy(after, model, year) &&
+            (leafFound.has(id) || complete || doneBy(until, model, year))
+          );
+        })
+        .map(([, record]) => ({ record, make }));
+    const result = (
+      progress: UpullRPartsMakeProgress,
+    ): UpullRPartsMakeResult => ({
+      vehicles: emitted(progress.status === "complete"),
+      rejectedRows,
+      searches,
+      progress,
+    });
+    const complete = () => result({ status: "complete" });
+    const paused = () => result({ status: "paused", at: until });
 
     const base: UpullRPartsSearchParams = {
       site,
@@ -175,123 +280,166 @@ export function crawlUpullRPartsMake<E>(
     };
     let top = yield* run(base);
     if (top.rows.length === 0) top = yield* run(base);
-    if (top.rows.length >= UPULLRPARTS_SEARCH_LIMIT) {
-      const listed = yield* directory.models(make);
-      const known = new Set(listed.map(label));
-      // Rows can carry models the directory omits, such as UNKNOWN. Search
-      // them by name too; the coverage check fails the make if that misses.
-      const unlisted = [
-        ...new Set(
-          top.records
-            .map((record) => record.Model?.trim() ?? "")
-            .filter((model) => model !== "" && !known.has(label(model))),
-        ),
-      ];
-      const models = [...listed, ...unlisted];
-      yield* Effect.forEach(
-        models,
-        (model) =>
-          Effect.gen(function* () {
-            const params = { ...base, models: model };
-            const expected = top.records.filter(
-              (record) => label(record.Model) === label(model),
-            );
-            const byModel = yield* runCovering(params, expected);
-            if (byModel.rows.length < UPULLRPARTS_SEARCH_LIMIT) return;
-            const years = yield* directory.years(make, model);
-            if (years.length === 0)
-              return yield* new UpullRPartsCrawlError({
-                message: `U Pull R Parts ${describe(params)} returned ${UPULLRPARTS_SEARCH_LIMIT} vehicles, the search limit, but getYears lists no years to split it by. Add another split before retrying.`,
-              });
-            yield* Effect.forEach(
-              years,
-              (year) =>
-                Effect.gen(function* () {
-                  const yearParams = { ...params, years: year };
-                  const byYear = yield* runCovering(
-                    yearParams,
-                    byModel.records.filter(
-                      (record) => String(record.Year) === year,
-                    ),
-                  );
-                  if (byYear.rows.length >= UPULLRPARTS_SEARCH_LIMIT)
-                    return yield* new UpullRPartsCrawlError({
-                      message: `U Pull R Parts ${describe(yearParams)} still returned ${UPULLRPARTS_SEARCH_LIMIT} vehicles, the search limit, so some are unreachable. Add a narrower split before retrying.`,
-                    });
-                }),
-              { concurrency: "unbounded", discard: true },
-            );
-          }),
-        { concurrency: "unbounded", discard: true },
-      );
+    if (top.rows.length < UPULLRPARTS_SEARCH_LIMIT) {
+      leaf(top);
+      gate.advanced();
+      return complete();
     }
-    return {
-      vehicles: [...found.values()].map((record) => ({ record, make })),
-      rejectedRows,
-      searches,
-    };
+
+    const listed = yield* directory.models(make);
+    // Rows can carry models the directory omits, such as UNKNOWN. Search
+    // them by name too; the coverage check fails the make if that misses.
+    const models = ordered(
+      [...listed, ...top.records.map((record) => record.Model ?? "")],
+      anyModel,
+    );
+    for (const [model, name] of models) {
+      if (modelDoneBy(after, model)) continue;
+      if (!gate.mayStart()) return paused();
+      const params = { ...base, models: name };
+      const byModel = yield* runCovering(
+        params,
+        top.records.filter((record) => label(record.Model) === model),
+      );
+      if (byModel.rows.length < UPULLRPARTS_SEARCH_LIMIT) {
+        leaf(byModel);
+        until = { model, year: null };
+        gate.advanced();
+        continue;
+      }
+      const listedYears = yield* directory.years(make, name);
+      if (listedYears.length === 0)
+        return yield* new UpullRPartsCrawlError({
+          message: `U Pull R Parts ${describe(params)} returned ${UPULLRPARTS_SEARCH_LIMIT} vehicles, the search limit, but getYears lists no years to split it by. Add another split before retrying.`,
+        });
+      // A year in the rows but not in getYears is searched by name too.
+      const years = ordered(
+        [...listedYears, ...byModel.records.map(yearLabel)],
+        fourDigitYear,
+      );
+      for (const [year] of years) {
+        if (doneBy(after, model, year)) continue;
+        if (!gate.mayStart()) return paused();
+        const yearParams = { ...params, years: year };
+        const byYear = yield* runCovering(
+          yearParams,
+          byModel.records.filter((record) => yearLabel(record) === year),
+        );
+        if (byYear.rows.length >= UPULLRPARTS_SEARCH_LIMIT)
+          return yield* new UpullRPartsCrawlError({
+            message: `U Pull R Parts ${describe(yearParams)} still returned ${UPULLRPARTS_SEARCH_LIMIT} vehicles, the search limit, so some are unreachable. Add a narrower split before retrying.`,
+          });
+        leaf(byYear);
+        until = { model, year };
+        gate.advanced();
+      }
+      until = { model, year: null };
+    }
+    return complete();
   });
 }
 
+/**
+ * Crawls one make at one location. A full page is split by model, and a full
+ * model by year, in label order. Every vehicle in a full page must reappear
+ * in the split search for its model or year; a split that drops one is
+ * searched again, because a rejected token or blocked IP returns an empty
+ * list. With `after`, the crawl resumes a split make past that point and
+ * emits only vehicles it had not emitted; it pauses before a step that
+ * `shouldContinue` refuses, once a step has emitted vehicles.
+ */
+export function crawlUpullRPartsMake<E, S>(
+  site: UpullRPartsLocation,
+  make: string,
+  search: UpullRPartsSearch<S>,
+  directory: UpullRPartsCrawlDirectory<E>,
+  options: {
+    after: UpullRPartsSplitPoint | null;
+    shouldContinue: () => boolean;
+  } = { after: null, shouldContinue: () => true },
+): Effect.Effect<UpullRPartsMakeResult, S | UpullRPartsCrawlError | E> {
+  return crawlMake(
+    site,
+    make,
+    search,
+    directory,
+    options.after,
+    stepGate(options.shouldContinue),
+  );
+}
+
+/** Where a location's crawl resumes: after a finished make (null before the
+ * first), or inside a split make. */
+export type UpullRPartsResumePoint =
+  | { phase: "crawl"; afterMake: string | null }
+  | ({ phase: "split"; make: string } & UpullRPartsSplitPoint);
+
 export type UpullRPartsCrawlProgress =
   | { status: "complete" }
-  | { status: "paused"; afterMake: string | null };
+  | { status: "paused"; resume: UpullRPartsResumePoint };
 
 /**
- * Crawls makes in order, starting after `afterMake`, until the deadline.
- * Makes start in order and every started make finishes, so the crawl always
- * ends on a completed prefix that the cursor can resume after.
+ * Crawls makes in order from `resume` while `shouldContinue` allows another
+ * step, one search at a time. The first step always runs, so every chunk makes
+ * progress, and the crawl stops between steps on a point the cursor can
+ * resume from.
  */
-export function crawlUpullRPartsMakes<E>(options: {
+export function crawlUpullRPartsMakes<E, S>(options: {
   site: UpullRPartsLocation;
   makes: readonly string[];
-  afterMake: string | null;
-  search: UpullRPartsSearch;
+  resume: UpullRPartsResumePoint;
+  search: UpullRPartsSearch<S>;
   directory: UpullRPartsCrawlDirectory<E>;
-  makeConcurrency: number;
-  shouldStartMake: () => boolean;
+  shouldContinue: () => boolean;
 }): Effect.Effect<
   { results: UpullRPartsMakeResult[]; progress: UpullRPartsCrawlProgress },
-  UpullRPartsProviderError | UpullRPartsCrawlError | E
+  S | UpullRPartsCrawlError | E
 > {
-  const pending = [...options.makes]
-    .sort()
-    .filter((make) => options.afterMake === null || make > options.afterMake);
-  const started: string[] = [];
-  let stopped = false;
-  return Effect.forEach(
-    pending,
-    (make) =>
-      Effect.suspend(() => {
-        // Always start one make so every chunk makes progress.
-        if (stopped || (started.length > 0 && !options.shouldStartMake())) {
-          stopped = true;
-          return Effect.succeed(null);
-        }
-        started.push(make);
-        return crawlUpullRPartsMake(
-          options.site,
-          make,
-          options.search,
-          options.directory,
-        );
-      }),
-    { concurrency: options.makeConcurrency },
-  ).pipe(
-    Effect.map((results) => {
-      const finished = results.filter(
-        (result): result is UpullRPartsMakeResult => result !== null,
+  return Effect.gen(function* () {
+    const { resume } = options;
+    const boundary = resume.phase === "split" ? resume.make : resume.afterMake;
+    const pending = [...options.makes]
+      .sort()
+      .filter((make) => boundary === null || make > boundary);
+    // A split make resumes first, even if the directory no longer lists it.
+    if (resume.phase === "split") pending.unshift(resume.make);
+    const gate = stepGate(options.shouldContinue);
+    const results: UpullRPartsMakeResult[] = [];
+    let afterMake = resume.phase === "split" ? null : resume.afterMake;
+    for (const make of pending) {
+      const after =
+        resume.phase === "split" && make === resume.make
+          ? { model: resume.model, year: resume.year }
+          : null;
+      if (after === null && !gate.mayStart())
+        return {
+          results,
+          progress: { status: "paused", resume: { phase: "crawl", afterMake } },
+        };
+      const result = yield* crawlMake(
+        options.site,
+        make,
+        options.search,
+        options.directory,
+        after,
+        gate,
       );
-      return {
-        results: finished,
-        progress:
-          started.length === pending.length
-            ? { status: "complete" }
-            : {
-                status: "paused",
-                afterMake: started.at(-1) ?? options.afterMake,
-              },
-      };
-    }),
-  );
+      results.push(result);
+      if (result.progress.status === "paused") {
+        const at = result.progress.at;
+        return {
+          results,
+          progress: {
+            status: "paused",
+            resume:
+              at === null
+                ? { phase: "crawl", afterMake }
+                : { phase: "split", make, ...at },
+          },
+        };
+      }
+      afterMake = make;
+    }
+    return { results, progress: { status: "complete" } };
+  });
 }

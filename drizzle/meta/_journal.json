@@ -218,6 +218,13 @@
       "when": 1795881600000,
       "tag": "0030_source_control",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1795968000000,
+      "tag": "0031_kernel_browser_usage",
+      "breakpoints": true
     }
   ]
 }

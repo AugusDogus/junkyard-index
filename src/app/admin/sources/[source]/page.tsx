@@ -152,7 +152,7 @@ export default async function AdminSourcePage({ params }: Params) {
                 rows={[
                   {
                     label: "State",
-                    value: <SourceStateBadge state={summary.state} />,
+                    value: <SourceStateBadge summary={summary} />,
                   },
                   {
                     label: "Vehicles on site",

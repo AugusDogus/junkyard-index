@@ -41,6 +41,7 @@ function summary(overrides: Partial<SourceSummary>): SourceSummary {
     consecutiveFailures: 2,
     lastAcceptedAt: null,
     stale: false,
+    nextCrawlDay: null,
     publishedVehicles: null,
     vehicleChange: null,
     stuck: null,

@@ -17,6 +17,10 @@ import {
   type IngestionSource,
 } from "~/lib/ingestion-source";
 import { YardInventory, type YardVehicle } from "~/lib/yard-inventory";
+import {
+  DAILY_PUBLICATION_LOOKBACK_MS,
+  sourcePublicationLookbackMs,
+} from "~/server/ingestion/durable-health";
 import { getSourceFreshness } from "~/server/ingestion/source-freshness";
 import { getHiddenSources } from "~/server/source-control/hidden-sources-loader";
 import { vehicle, yardInventory } from "~/schema";
@@ -75,13 +79,15 @@ export const getYardVehicles = cacheInventory(loadYardVehicles, [
 async function loadSourcePublishedAt(): Promise<
   Partial<Record<IngestionSource, string>>
 > {
-  const freshness = await getSourceFreshness(new Date());
+  const now = new Date();
+  const freshness = await getSourceFreshness(now);
   const published: Partial<Record<IngestionSource, string>> = {};
   for (const { source, lastPublishedAt } of freshness) {
     if (
       isIngestionSource(source) &&
       !isRetiredIngestionSource(source) &&
-      lastPublishedAt !== null
+      lastPublishedAt !== null &&
+      now.getTime() - lastPublishedAt <= sourcePublicationLookbackMs(source)
     ) {
       published[source] = new Date(lastPublishedAt).toISOString();
     }
@@ -90,8 +96,9 @@ async function loadSourcePublishedAt(): Promise<
 }
 
 /**
- * When each source last published accepted inventory, within the last three
- * days. A missing source has not published in that window.
+ * When each source last published accepted inventory, within its look-back
+ * (its cadence plus 2 days, so 3 days for a daily source). A missing source
+ * has not published in that window.
  */
 export const getSourcePublishedAt = cacheInventory(loadSourcePublishedAt, [
   "active-source-published-at-v2",
@@ -286,6 +293,12 @@ export const getYardPageData = cache(
       vehicles,
       makes: YardInventory.makeCounts(vehicles),
       publishedAt: publishedAt[`${yard.source}:${yard.code}`] ?? null,
+      /** How long the yard's publication stays current: its source's
+       * cadence plus 2 days, so 3 days for a daily source (and for a source
+       * this build no longer knows). */
+      staleAfterMs: isIngestionSource(yard.source)
+        ? sourcePublicationLookbackMs(yard.source)
+        : DAILY_PUBLICATION_LOOKBACK_MS,
       nearby,
       chain: chain
         ? { name: chain.name, href: chain.href, yards: chain.yards.length }

@@ -40,7 +40,8 @@ export const KERNEL_CONCURRENT_SESSIONS = KernelConcurrency.parse(
 
 /** Every ingestion source that can open Kernel browsers. A source must be
  * listed to take the session lease; `browser-providers.ts` chooses which of
- * them do. */
+ * them do. U Pull R Parts mints Turnstile tokens in its
+ * Kernel browsers. */
 export const KERNEL_SOURCES = [
   "bigd",
   "northwest",
@@ -48,8 +49,43 @@ export const KERNEL_SOURCES = [
   "upullitdavie",
   "six03",
   "michigantruck",
+  "upullrparts",
 ] as const;
 export type KernelSource = (typeof KERNEL_SOURCES)[number];
+
+/** Whether a Kernel browser runs with a display. Headful browsers bill about
+ * eight times as much ($0.48 against $0.06 an hour, November 2026). */
+export type KernelBrowserMode = "headless" | "headful";
+
+/** How a Kernel browser reaches sites: directly from Kernel's network, as
+ * Hyperbrowser ran, or through Kernel's default stealth proxy. */
+export type KernelEgress = "direct" | "stealthProxy";
+
+/** How a source's Kernel browsers are created. */
+export interface KernelBrowserProfile {
+  readonly mode: KernelBrowserMode;
+  readonly egress: KernelEgress;
+}
+
+/** Every source not in `KERNEL_BROWSER_PROFILES`. The stealth proxy returned
+ * 502s and in-page network errors on Northwest (November 23, 2026). */
+const DEFAULT_BROWSER_PROFILE: KernelBrowserProfile = {
+  mode: "headless",
+  egress: "direct",
+};
+
+/**
+ * Sources whose browsers differ from the headless, direct default.
+ *
+ * upullrparts: headful, because in a headless stealth browser the Turnstile
+ * widget crashes (Cloudflare error 300031) in most tabs and issues no token.
+ * Stealth proxy, because one live chunk's 32 tokens took 72 browser-seconds
+ * through it and 124 with direct egress, with the same 195 vehicles either
+ * way: about $0.26 a crawl against $0.45 (November 23, 2026).
+ */
+const KERNEL_BROWSER_PROFILES: Partial<
+  Record<KernelSource, KernelBrowserProfile>
+> = { upullrparts: { mode: "headful", egress: "stealthProxy" } };
 
 /** Kernel deletes a browser this long after its last CDP connection closes,
  * even when the delete call fails or the process that opened it dies. A chunk
@@ -126,6 +162,11 @@ const SESSION_GROUP: ProviderHostGroup = {
   activeLanes: KERNEL_CONCURRENT_SESSIONS,
 };
 
+/** How `source`'s browsers are created: its `KERNEL_BROWSER_PROFILES` entry,
+ * else headless with direct egress. */
+const browserProfile = (source: KernelSource): KernelBrowserProfile =>
+  KERNEL_BROWSER_PROFILES[source] ?? DEFAULT_BROWSER_PROFILE;
+
 /** One lane per source, since a source runs one chunk at a time, under one
  * group whose places are the plan's concurrent browsers. */
 const policy = (source: KernelSource): ProviderLeasePolicy => ({
@@ -154,6 +195,7 @@ const authorization = (apiKey: string) => ({
  */
 export const KernelSessions = {
   policy,
+  browserProfile,
 
   /** Holds `source`'s place among the plan's concurrent browsers for the
    * enclosing scope, as `HyperbrowserSessions.lease` does. */
@@ -172,12 +214,13 @@ export const KernelSessions = {
       ),
     ),
 
-  /** Creates a stealth headless browser (CAPTCHA solver, 1 GiB, Kernel's
-   * default region) that Kernel deletes after the inactivity timeout. Egress
-   * is direct, as Hyperbrowser ran: Kernel's default stealth proxy returned
-   * 502s and in-page network errors on Northwest (November 23, 2026). */
+  /** Creates a stealth browser (CAPTCHA solver, 1 GiB, Kernel's default
+   * region) with `profile`'s mode and egress, which Kernel deletes after the
+   * inactivity timeout. Without a `proxy`, `stealth` routes through Kernel's
+   * default stealth proxy. */
   create: async (
     apiKey: string,
+    profile: KernelBrowserProfile,
     request: typeof fetch = fetch,
   ): Promise<SessionHandle> => {
     const response = await request(KERNEL_API + "/browsers", {
@@ -188,9 +231,9 @@ export const KernelSessions = {
       },
       body: JSON.stringify({
         stealth: true,
-        headless: true,
+        headless: profile.mode === "headless",
         timeout_seconds: KERNEL_SESSION_TIMEOUT_SECONDS,
-        proxy: { mode: "direct" },
+        ...(profile.egress === "direct" ? { proxy: { mode: "direct" } } : {}),
       }),
       signal: AbortSignal.timeout(KERNEL_REQUEST_TIMEOUT_MS),
     });
