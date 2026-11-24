@@ -158,7 +158,8 @@ export const PickapartvaCursorSchema = z
       .object({
         source: z.literal("pickapartva"),
         phase: z.literal("searches"),
-        // Censuses in a row that planned a date's searches again.
+        // Censuses since the searches began that planned a date's searches
+        // again. It never resets, so it bounds the attempt's re-plans.
         replans: z.number().int().min(0).max(PICKAPARTVA_MAX_REPLANS),
         recoveries: recoveries.refine(
           (entries) => entries.length > 0,

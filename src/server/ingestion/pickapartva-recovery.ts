@@ -97,8 +97,8 @@ function splitMakes(
     .map(({ make }) => make);
 }
 
-/** At most this many censuses in a row may plan searches again because the
- * catalog no longer showed a tie date as its recovery saw it. */
+/** At most this many censuses in one attempt may plan searches again because
+ * the catalog no longer showed a tie date as its recovery saw it. */
 export const PICKAPARTVA_MAX_REPLANS = 2;
 
 /** Why a census planned a tie date's searches again instead of reusing its
@@ -229,8 +229,15 @@ export const PickapartvaRecovery = {
       ...recovery.hidden.map((donor) => pickapartvaCardKey(donor.record)),
     ]);
     const found: PickapartvaHiddenDonor[] = [];
+    const onPage = new Set<string>();
     for (const record of page.records) {
       const key = pickapartvaCardKey(record);
+      // One search is one native query, so it can list a donor only once.
+      if (onPage.has(key))
+        throw new Error(
+          `Pick-A-Part VA search ${url} lists one donor card twice (stock ${record.stock}, Set Date ${record.setDate}), so the donors it hid cannot be counted. Nothing from this attempt was published; check whether the search page format changed`,
+        );
+      onPage.add(key);
       if (known.has(key)) continue;
       known.add(key);
       found.push({ id: step.id, make: step.make, record });

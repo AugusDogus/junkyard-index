@@ -113,25 +113,27 @@ function pickapartvaRepeatSlots(
     throw new Error(
       "Pick-A-Part VA global native page chain is incomplete or repeated",
     );
-  const firstPage = new Map<string, number>();
+  const seen = new Set<string>();
   const repeats: RepeatSlot[] = [];
   let previous: string | null = null;
   let ordered = true;
-  for (const entry of pages)
+  for (const entry of pages) {
+    const onPage = new Set<string>();
     entry.page.records.forEach((record, index) => {
       if (previous !== null && record.setDate > previous) ordered = false;
       previous = record.setDate;
       const key = cardKey(record);
-      const first = firstPage.get(key);
-      if (first === undefined) firstPage.set(key, entry.page.page);
-      else if (first < entry.page.page)
-        repeats.push({ page: entry.page.page, index, date: record.setDate });
       // One page is one native query, so it can list a donor only once.
-      else
+      if (onPage.has(key))
         throw new Error(
           `Pick-A-Part VA catalog lists one donor card twice on page ${entry.page.page} (stock ${record.stock}, Set Date ${record.setDate}), so its repeated slots cannot be counted`,
         );
+      onPage.add(key);
+      if (seen.has(key))
+        repeats.push({ page: entry.page.page, index, date: record.setDate });
+      else seen.add(key);
     });
+  }
   if (repeats.length && !ordered)
     throw new Error(
       "Pick-A-Part VA catalog repeats donors across pages but is no longer ordered by Set Date, so the hidden donors cannot be located",
