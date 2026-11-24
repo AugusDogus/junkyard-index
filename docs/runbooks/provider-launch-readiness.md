@@ -34,13 +34,17 @@ same VIN, reconciliation transfers ownership and preserves `firstSeenAt`.
 - A run with no accepted source (every source failed or was rejected) never
   joins the queue. Validation ends it and frees its source's slot, so the
   source retries on schedule while another run holds the commit.
-- Every claim attempt and every hourly pass releases waiters staged more than
+- Every claim attempt and every pass plan releases waiters staged more than
   24 hours ago. Their accepted sources become `expired`, nothing is reconciled,
   the prior inventory stays live, and each source re-crawls within its daily
-  attempts.
-- The pass also releases waiters from an earlier ingestion day the same way,
-  so the new day's crawl of that source starts on time. A released snapshot
-  was a complete crawl, not a failure, so it starts no retry cooldown.
+  attempts. A pass plans when it starts (the hourly cron starts one when none
+  is running), after its runs report, when a retry falls due, and at least
+  every 30 minutes.
+- A pass plan also releases waiters that were already queued when the current
+  ingestion day began, marking their sources `superseded`, so the new day's
+  crawl of that source starts on time. A crawl that validates after 07:00 UTC
+  keeps its place. A released snapshot was a complete crawl, not a failure, so
+  it starts no retry cooldown.
 - `GET /api/admin/ingestion/lease` (cron secret) reports the holder and the
   oldest waiter. The oldest waiter's `waitingMs` is the starvation signal.
 

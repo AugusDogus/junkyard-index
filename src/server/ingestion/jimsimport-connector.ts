@@ -329,10 +329,14 @@ export function streamJimsimportInventory<E, R>(
               closingModel.make,
               closingModel.model,
             );
-            if (!opened || requiredDonors(opened) !== requiredDonors(closing))
+            if (!opened)
+              throw new Error(
+                `Checkpoint has no opening read for closing model ${closingModel.model.path}, so it is inconsistent; restart the crawl from its opening`,
+              );
+            if (requiredDonors(opened) !== requiredDonors(closing))
               throw transientRejection(
                 new Error(
-                  `Native required donors on ${closingModel.model.path} changed during closing (opening ${opened?.records.length ?? "missing"} cards, closing ${closing.records.length}, badge ${closingModel.model.count}); its short opening page was not confirmed`,
+                  `Native required donors on ${closingModel.model.path} changed during closing (opening ${opened.records.length} cards, closing ${closing.records.length}, badge ${closingModel.model.count}); its short opening page was not confirmed`,
                 ),
               );
             const { closed, ...state } = stateOf(current);

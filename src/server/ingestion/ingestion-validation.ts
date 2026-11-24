@@ -38,7 +38,10 @@ export function transientRejection<E>(error: E): E {
 }
 
 /** Synchronous provider parsing, closing controls and quality guards cannot be
- * repaired by retrying the same frozen crawl. HTTP/body effects stay transient. */
+ * repaired by retrying the same step on the same frozen crawl, so they reject
+ * the crawl instead of retrying (HTTP/body effects stay step retries). The
+ * rejection is deterministic unless `run` threw an error marked with
+ * `transientRejection`, such as closing drift a fresh crawl can pass. */
 export function ingestionValidation<A, E>(options: {
   try: () => A;
   catch: (cause: unknown) => E;

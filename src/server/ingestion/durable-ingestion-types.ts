@@ -40,7 +40,13 @@ export interface DurableIngestionWakeupRun {
  * attempts today.
  */
 export type DurableIngestionWakeupResult =
-  | { status: "active"; runs: DurableIngestionWakeupRun[] }
+  | {
+      status: "active";
+      runs: DurableIngestionWakeupRun[];
+      /** When the next source without an active run is due a retry, if any
+       * is due later than now. */
+      retryAt: number | null;
+    }
   | { status: "waiting"; retryAt: number }
   | { status: "complete" };
 

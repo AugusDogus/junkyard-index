@@ -277,7 +277,7 @@ export function createDurableIngestionRepository(
       await batchClient.batch(
         [
           ...CommitLease.expireStatements(now),
-          ...CommitLease.supersedeStatements(scheduleKey, now),
+          ...CommitLease.supersedeStatements(now),
         ],
         "write",
       );
@@ -301,14 +301,15 @@ export function createDurableIngestionRepository(
       // A run across every source (a local `runIngestion`) owns the inventory
       // until it finishes; scheduled runs each cover one source.
       if (activeRuns.some((run) => run.source === "all")) {
-        return { status: "active", runs };
+        return { status: "active", runs, retryAt: null };
       }
 
       const sourceDays = await loadIngestionSourceDays(database, scheduleKey);
       // A failed run can cross the day boundary. Its cooldown follows release,
       // even when today's attempt count is still zero. A snapshot released
-      // unpublished from the queue (expired or superseded) was a complete
-      // crawl, not a failure, so its source re-crawls without a cooldown.
+      // unpublished from the queue (expired or superseded, see CommitLease)
+      // was a complete crawl, not a failure, so its source re-crawls without
+      // a cooldown.
       const recentFailures = await database
         .select({
           source: ingestionSourceRun.source,
@@ -320,7 +321,7 @@ export function createDurableIngestionRepository(
           and(
             sql`${ingestionRun.completedAt} > ${now.getTime() - IngestionSchedule.retryDelayMs}`,
             sql`not ${SourcePublication.acceptedSql}`,
-            sql`${ingestionSourceRun.acceptanceStatus} is not 'expired'`,
+            sql`${ingestionSourceRun.acceptanceStatus} not in ('expired', 'superseded')`,
           ),
         )
         .groupBy(ingestionSourceRun.source);
@@ -353,7 +354,20 @@ export function createDurableIngestionRepository(
         // A concurrent wakeup that won the race resumes that source's run.
         if (runId !== null) runs.push({ action: "start", runId });
       }
-      if (runs.length > 0) return { status: "active", runs };
+      if (runs.length > 0) {
+        // Active runs can report nothing for hours while they wait for the
+        // commit, so the pass re-plans when the next idle source is due.
+        const running = new Set([...activeSources, ...due]);
+        const retryAt = IngestionSchedule.nextRetryAt({
+          days: sourceDays,
+          enabledSources: sources.filter((source) => !running.has(source)),
+        });
+        return {
+          status: "active",
+          runs,
+          retryAt: retryAt !== null && retryAt > now.getTime() ? retryAt : null,
+        };
+      }
       // A source started meanwhile by a concurrent wakeup is due for a check
       // shortly; a waiting retry is due when its delay ends.
       const waiting = {

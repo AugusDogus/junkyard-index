@@ -398,6 +398,7 @@ describe("durable ingestion repository", () => {
       ).toEqual({
         status: "active",
         runs: [{ action: "resume", runId: first.runId }],
+        retryAt: null,
       });
 
       await client.execute({
@@ -498,6 +499,7 @@ describe("durable ingestion repository", () => {
       expect(await repository.prepareWakeup(now, ["row52", "pyp"])).toEqual({
         status: "active",
         runs: wakeup.runs.map((run) => ({ ...run, action: "resume" })),
+        retryAt: null,
       });
     } finally {
       testDatabase.cleanup();
@@ -523,6 +525,7 @@ describe("durable ingestion repository", () => {
       ).toEqual({
         status: "active",
         runs: [{ action: "resume", runId: "local-run" }],
+        retryAt: null,
       });
     } finally {
       testDatabase.cleanup();

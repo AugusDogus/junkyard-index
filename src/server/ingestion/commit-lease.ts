@@ -1,4 +1,5 @@
 import type { InStatement, InValue } from "@libsql/client";
+import { IngestionDay } from "./ingestion-day";
 
 /**
  * The shared reconciliation commit, held through `ingestion_run`:
@@ -24,10 +25,11 @@ import type { InStatement, InValue } from "@libsql/client";
  *   and each source re-crawls within its daily attempts. Wakeups enforce it
  *   too, so it holds when no waiter runs this code (every waiter's workflow
  *   died, or was pinned to a deployment from before this lease).
- * - Supersession: each pass wakeup releases waiters from an earlier
- *   ingestion day the same way, so a snapshot stuck behind a long commit
- *   never holds its source's slot into the next day; that day's crawl
- *   replaces it.
+ * - Supersession: each pass wakeup releases waiters that were already
+ *   queued when the current ingestion day began, so a snapshot stuck behind
+ *   a long commit never holds its source's slot through the new day; that
+ *   day's crawl replaces it. A crawl that validates after the boundary keeps
+ *   its place, so a source whose crawl regularly crosses it still publishes.
  * - A released waiter never held the commit, so any search rebuild it
  *   carries was inherited at start and still sits on the finished run it came
  *   from. Release clears it, or a release during a rebuild would order
@@ -64,23 +66,27 @@ const WAITERS_SQL = `
     and commit_started_at is null and stage <> 'sources'
 `;
 const EXPIRED_WAITERS_SQL = `${WAITERS_SQL} and ${readySql("ingestion_run")} < ?`;
-const SUPERSEDED_WAITERS_SQL = `${WAITERS_SQL} and schedule_key < ?`;
+const SUPERSEDED_WAITERS_SQL = `${WAITERS_SQL} and ${readySql("ingestion_run")} < ?`;
 
-/** Releases the waiters `waitersSql` selects with `arg`, recording `error`. */
+/**
+ * Releases the waiters `waitersSql` selects with `arg`, recording `error` and
+ * marking their accepted sources `acceptance`.
+ */
 function releaseWaiterStatements(
   waitersSql: string,
   arg: InValue,
+  acceptance: "expired" | "superseded",
   error: string,
   now: Date,
 ): InStatement[] {
   return [
     {
       sql: `
-        update ingestion_source_run set acceptance_status = 'expired'
+        update ingestion_source_run set acceptance_status = ?
         where acceptance_status = 'accepted'
           and run_id in (${waitersSql})
       `,
-      args: [arg],
+      args: [acceptance, arg],
     },
     {
       sql: `
@@ -101,16 +107,18 @@ function expireStatements(now: Date): InStatement[] {
   return releaseWaiterStatements(
     EXPIRED_WAITERS_SQL,
     now.getTime() - SNAPSHOT_TTL_MS,
+    "expired",
     EXPIRED_SNAPSHOT_ERROR,
     now,
   );
 }
 
-/** Releases waiters staged on an ingestion day before `scheduleKey`. */
-function supersedeStatements(scheduleKey: string, now: Date): InStatement[] {
+/** Releases waiters queued before the ingestion day of `now` began. */
+function supersedeStatements(now: Date): InStatement[] {
   return releaseWaiterStatements(
     SUPERSEDED_WAITERS_SQL,
-    scheduleKey,
+    IngestionDay.start(now).getTime(),
+    "superseded",
     SUPERSEDED_SNAPSHOT_ERROR,
     now,
   );

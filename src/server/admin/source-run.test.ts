@@ -53,6 +53,11 @@ describe("SourceRun.outcome", () => {
       { kind: "rejected", reason: "expired" },
     ],
     [
+      "an accepted source whose snapshot was superseded by the next day's crawl is rejected",
+      run("success", "superseded", "error", null),
+      { kind: "rejected", reason: "superseded" },
+    ],
+    [
       "an accepted source whose run has not published yet is running",
       run("success", "accepted", "running", null),
       { kind: "running" },
@@ -103,6 +108,23 @@ describe("SourceRun.rejectionSummary", () => {
       ),
     ).toBe(
       "It waited over 24 hours for its turn to publish, so nothing was published.",
+    );
+  });
+
+  test("says plainly that a superseded run was replaced by the next day's crawl", () => {
+    expect(
+      SourceRun.rejectionSummary(
+        { kind: "rejected", reason: "superseded" },
+        {
+          errors: null,
+          validationErrors: null,
+          runErrors: JSON.stringify([
+            "The staged snapshot was superseded: its ingestion day ended while it waited for the commit turn.",
+          ]),
+        },
+      ),
+    ).toBe(
+      "Its day ended while it waited for its turn to publish, so the next day's crawl replaced it and nothing was published.",
     );
   });
 });

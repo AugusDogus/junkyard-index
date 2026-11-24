@@ -133,6 +133,11 @@ describe("a run with no accepted source", () => {
     const runId = await failedRunBehindHolder();
     expect((await validate(runId, at(0))).status).toBe("released");
 
+    // The pass waits for reports only until the retry is due.
+    expect(await repository.prepareWakeup(at(HOUR), ["pyp"])).toMatchObject({
+      status: "active",
+      retryAt: at(IngestionSchedule.retryDelayMs).getTime(),
+    });
     expect(await startedSources(at(HOUR), ["pyp"])).toEqual([]);
     expect(
       await startedSources(at(MINUTE + IngestionSchedule.retryDelayMs), [
@@ -239,7 +244,7 @@ describe("a queued snapshot", () => {
       id: "today",
       source: "upullitwa",
       scheduleKey: "2026-11-19",
-      readyAt: at(-MINUTE).getTime(),
+      readyAt: at(0).getTime(),
     });
 
     expect(await startedSources(at(MINUTE), ["pyp", "upullitwa"])).toEqual([
@@ -259,12 +264,31 @@ describe("a queued snapshot", () => {
       (await repository.getSourceRuns("yesterday")).map(
         (row) => row.acceptanceStatus,
       ),
-    ).toEqual(["expired"]);
+    ).toEqual(["superseded"]);
     expect(await repository.getRun("today")).toMatchObject({
       status: "running",
       activeSlot: 1,
     });
     expect(await repository.getRun("holder")).toMatchObject({
+      status: "running",
+      activeSlot: 1,
+    });
+  });
+
+  test("from an earlier day that validated after the new day began keeps its place", async () => {
+    // Nov 18's crawl ran past 07:00 on Nov 19 and validated at 08:00 behind
+    // the holder. Superseding it would restart a crawl that can cross the
+    // boundary again every day; it publishes when its turn comes.
+    await commitHolder(at(0));
+    await queuedRun({
+      id: "late",
+      source: "pyp",
+      scheduleKey: "2026-11-18",
+      readyAt: at(HOUR).getTime(),
+    });
+
+    expect(await startedSources(at(2 * HOUR), ["pyp"])).toEqual([]);
+    expect(await repository.getRun("late")).toMatchObject({
       status: "running",
       activeSlot: 1,
     });
