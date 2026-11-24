@@ -11,7 +11,17 @@ type ActionablePricingUpgrade = Extract<
   { kind: "checkout" | "portal" }
 >;
 
-export type PricingViewerState = { kind: "guest" } | { kind: "registered" };
+/** `pending` while the session of a visitor who may be signed in loads. */
+export type PricingViewerState =
+  | { kind: "guest" }
+  | { kind: "registered" }
+  | { kind: "pending" };
+
+/**
+ * Who a page knows the visitor is before the client session loads: a
+ * `guest` where only signed-out visitors land, else `unknown`.
+ */
+export type PricingInitialViewer = "guest" | "unknown";
 
 export type PricingPlanCta =
   | { kind: "disabled"; label: string }
@@ -19,14 +29,15 @@ export type PricingPlanCta =
   | ActionablePricingUpgrade;
 
 export function resolvePricingViewerState(input: {
-  initialIsRegistered: boolean;
+  initialViewer: PricingInitialViewer;
   isPending: boolean;
   isRegistered: boolean;
 }): PricingViewerState {
-  const isRegistered = input.isPending
-    ? input.initialIsRegistered
-    : input.isRegistered;
-  return isRegistered ? { kind: "registered" } : { kind: "guest" };
+  if (input.isPending)
+    return input.initialViewer === "guest"
+      ? { kind: "guest" }
+      : { kind: "pending" };
+  return input.isRegistered ? { kind: "registered" } : { kind: "guest" };
 }
 
 function registeredFreeLabel(account: BillingAccountState): string {
@@ -64,6 +75,8 @@ export function resolvePricingPlanCta(input: {
   account: BillingAccountState;
 }): PricingPlanCta {
   switch (input.viewer.kind) {
+    case "pending":
+      return { kind: "disabled", label: "Checking account..." };
     case "guest":
       return input.tier === "free"
         ? {

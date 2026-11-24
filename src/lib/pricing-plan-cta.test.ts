@@ -23,9 +23,9 @@ describe("pricing plan CTA", () => {
       });
     }
   }
-  test("uses the signed-out server state while authentication is pending", () => {
+  test("starts a page known to be signed out as a guest while authentication is pending", () => {
     const viewer = resolvePricingViewerState({
-      initialIsRegistered: false,
+      initialViewer: "guest",
       isPending: true,
       isRegistered: false,
     });
@@ -43,14 +43,42 @@ describe("pricing plan CTA", () => {
     });
   });
 
-  test("uses the signed-in server state while authentication is pending", () => {
-    expect(
-      resolvePricingViewerState({
-        initialIsRegistered: true,
-        isPending: true,
-        isRegistered: false,
-      }),
-    ).toEqual({ kind: "registered" });
+  test("offers no guest sign-up while an unknown visitor's session loads", () => {
+    const viewer = resolvePricingViewerState({
+      initialViewer: "unknown",
+      isPending: true,
+      isRegistered: false,
+    });
+    expect(viewer).toEqual({ kind: "pending" });
+    for (const tier of ["free", "lite", "full"] as const) {
+      expect(
+        resolvePricingPlanCta({
+          viewer,
+          tier,
+          interval: "monthly",
+          account: { kind: "loading" },
+        }),
+      ).toEqual({ kind: "disabled", label: "Checking account..." });
+    }
+  });
+
+  test("follows the session once it loads", () => {
+    for (const initialViewer of ["guest", "unknown"] as const) {
+      expect(
+        resolvePricingViewerState({
+          initialViewer,
+          isPending: false,
+          isRegistered: true,
+        }),
+      ).toEqual({ kind: "registered" });
+      expect(
+        resolvePricingViewerState({
+          initialViewer,
+          isPending: false,
+          isRegistered: false,
+        }),
+      ).toEqual({ kind: "guest" });
+    }
   });
 
   test("shows a registered free account as the current plan", () => {

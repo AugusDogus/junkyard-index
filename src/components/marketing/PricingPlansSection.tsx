@@ -10,6 +10,7 @@ import { PLAN_TIERS, PLANS, type BillingInterval } from "~/lib/plans";
 import {
   resolvePricingPlanCta,
   resolvePricingViewerState,
+  type PricingInitialViewer,
   type PricingPlanCta,
 } from "~/lib/pricing-plan-cta";
 import type { SubscriptionAction } from "~/lib/subscription-action";
@@ -23,7 +24,7 @@ const BILLING_INTERVALS: readonly { value: BillingInterval; label: string }[] =
   ];
 
 type PricingPlansSectionProps = {
-  initialIsRegistered: boolean;
+  initialViewer: PricingInitialViewer;
   sourcePage?: "home" | "pricing";
 };
 
@@ -37,14 +38,14 @@ export function PricingPlansSection(props: PricingPlansSectionProps) {
 }
 
 function PricingPlans({
-  initialIsRegistered,
+  initialViewer,
   sourcePage = "pricing",
 }: PricingPlansSectionProps) {
   const [interval, setInterval] = useState<BillingInterval>("annual");
   const { data: session, isPending } = useSession();
   const isLoggedIn = Boolean(session?.user);
   const viewer = resolvePricingViewerState({
-    initialIsRegistered,
+    initialViewer,
     isPending,
     isRegistered: isLoggedIn,
   });

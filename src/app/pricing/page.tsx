@@ -33,9 +33,9 @@ export default function PricingPage() {
 
           <div className="mt-10 sm:mt-12">
             <Suspense>
-              {/* Served from the CDN, so it starts as a guest until the
-              client session loads. */}
-              <PricingPlansSection initialIsRegistered={false} />
+              {/* Served from the CDN, so the plan buttons wait for the
+              client session: a signed-in visitor never sees guest sign-up. */}
+              <PricingPlansSection initialViewer="unknown" />
             </Suspense>
           </div>
 
