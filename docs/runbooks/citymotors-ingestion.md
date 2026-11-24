@@ -80,9 +80,14 @@ Paused chunks emit no vehicles, yards, presence or accounting. The completed
 snapshot emits only after all closing pages and full-population quality guards
 pass. A failed parser, guard or callback returns no advanced checkpoint. A GET
 that times out or answers HTTP 5xx is sent once more if a full request budget
-still fits. A GET answered with HTTP 429 is sent once more after its
-Retry-After, or at least 15 seconds, if that wait and a full request budget
-still fit. If it fails again, a chunk that already validated pages returns that
+still fits. A GET answered with HTTP 429 is sent once more after the longer of
+its Retry-After and 15 seconds, if that wait and a full request budget still
+fit. If that wait does not fit, or the resend is rate-limited again, the chunk
+returns its last validated checkpoint with `retryAt` set to the end of that
+wait, and the durable Workflow sleeps until then before the next chunk sends
+the GET. A wait over 10 minutes, or a rate limit on the first GET right after
+a cooldown, fails the attempt as a transient rejection that retries after the
+usual delay. When a timed-out or 5xx GET fails again, a chunk that already validated pages returns that
 checkpoint as paused and logs a warning naming the URL and cause, and one that
 has not fails without advancing. Prior accepted inventory remains preserved. A
 complete cursor performs no HTTP or callbacks when replayed.

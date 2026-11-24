@@ -1,4 +1,7 @@
-import { ingestionValidation } from "./ingestion-validation";
+import {
+  ingestionValidation,
+  transientRejection,
+} from "./ingestion-validation";
 import { Effect, Either } from "effect";
 import type {
   ConnectorChunkAccounting,
@@ -68,6 +71,12 @@ export const CITYMOTORS_COMPLETION_RESERVE_MS = 10_000;
  * would only be refused again. A longer Retry-After is honored as sent.
  */
 export const CITYMOTORS_RATE_LIMIT_BACKOFF_MS = 15_000;
+/**
+ * Longest rate-limit wait a run holds as a durable cooldown. A longer
+ * Retry-After (or a refusal right after a cooldown) ends the attempt instead.
+ */
+export const CITYMOTORS_MAX_RATE_LIMIT_WAIT_MS = 10 * 60_000;
+const CITYMOTORS_RETRY_AT_CLOCK_SKEW_MS = 10_000;
 const resendDelayMs = (failure: CitymotorsTransientFailure) =>
   failure.rateLimited === null
     ? 0
@@ -200,6 +209,18 @@ export function streamCitymotorsInventoryWithRequestGate<E, R>(
     };
     if (cursor.phase === "complete")
       return { ...summary, status: "complete" as const };
+    // The durable Workflow sleeps until retryAt; never send the refused GET
+    // before it. A wake within clock skew of retryAt waits out the rest.
+    const cooledDown = cursor.retryAt !== undefined;
+    if (cursor.retryAt !== undefined) {
+      const remainingMs = cursor.retryAt - Date.now();
+      if (remainingMs > CITYMOTORS_RETRY_AT_CLOCK_SKEW_MS) return summary;
+      if (remainingMs > 0) yield* Effect.sleep(remainingMs);
+      const waited = cursor;
+      cursor = yield* attempt("rate-limit resume", () =>
+        CitymotorsCursor.resume(waited),
+      );
+    }
     const started = Date.now();
     const requestFits = (waitMs = 0) =>
       Date.now() -
@@ -235,11 +256,42 @@ export function streamCitymotorsInventoryWithRequestGate<E, R>(
         if (failure instanceof CitymotorsProviderError)
           return yield* Effect.fail(failure);
         const attempts = resent ? "after one resend" : "with no time to resend";
+        const detail =
+          failure.cause instanceof Error
+            ? failure.cause.message
+            : String(failure.cause);
+        if (failure.rateLimited !== null) {
+          const cooldownMs = resendDelayMs(failure);
+          // A host still refusing right after a cooldown, or one asking for
+          // longer than a durable wait may hold the run, fails this attempt
+          // as transient: the source retries after its usual delay.
+          if (
+            (cooledDown && summary.pagesProcessed === 0) ||
+            cooldownMs > CITYMOTORS_MAX_RATE_LIMIT_WAIT_MS
+          )
+            return yield* Effect.fail(
+              transientRejection(
+                new CitymotorsProviderError({
+                  operation: `${url} rate limit ${attempts}`,
+                  cause:
+                    detail +
+                    (cooledDown && summary.pagesProcessed === 0
+                      ? " again right after its cooldown"
+                      : `, longer than the ${CITYMOTORS_MAX_RATE_LIMIT_WAIT_MS / 60_000}-minute wait a run may hold`) +
+                    ", so this attempt stops; the source retries after its usual delay",
+                }),
+              ),
+            );
+          const retryAt = Date.now() + cooldownMs;
+          cursor = yield* attempt("rate-limit cooldown", () =>
+            CitymotorsCursor.checkpoint({ ...current, retryAt }),
+          );
+          yield* Effect.logWarning(
+            `City Motors ${url} was rate-limited ${attempts} (${detail}); returning the last validated checkpoint so the next chunk sends this GET at ${new Date(retryAt).toISOString()}.`,
+          );
+          break;
+        }
         if (summary.pagesProcessed > 0) {
-          const detail =
-            failure.cause instanceof Error
-              ? failure.cause.message
-              : String(failure.cause);
           yield* Effect.logWarning(
             `City Motors ${url} failed ${attempts} (${detail}); returning the last validated checkpoint so the next chunk resumes at this GET.`,
           );

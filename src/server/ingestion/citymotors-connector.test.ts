@@ -1,5 +1,14 @@
 import { afterEach, expect, spyOn, test } from "bun:test";
-import { Effect, Either, Fiber, Logger, TestClock, TestContext } from "effect";
+import {
+  Chunk,
+  Effect,
+  Either,
+  Fiber,
+  Logger,
+  TestClock,
+  TestContext,
+} from "effect";
+import { validationRejectionKind } from "./ingestion-validation";
 import {
   CITYMOTORS_REQUEST_BUDGET_MS,
   CitymotorsTransientFailure,
@@ -403,6 +412,19 @@ test("City Motors resends a failed GET only when it still fits the chunk deadlin
   }
 });
 
+/** Waits (in real time) until the test clock holds a sleep ending at `time`. */
+const sleepingUntil = (time: number) =>
+  Effect.gen(function* () {
+    for (let polls = 0; polls < 2_000; polls++) {
+      if (Chunk.toReadonlyArray(yield* TestClock.sleeps()).includes(time))
+        return;
+      yield* Effect.promise(() => new Promise((done) => setTimeout(done, 5)));
+    }
+    return yield* Effect.dieMessage(
+      `No test-clock sleep ending at ${time} ms was registered`,
+    );
+  });
+
 test("City Motors waits out a rate limit's Retry-After before sending the GET once more", async () => {
   const requests = mockInventory({
     transientFailures: { at: [2], kind: "rateLimited", retryAfterSeconds: 40 },
@@ -415,12 +437,9 @@ test("City Motors waits out a rate limit's Retry-After before sending the GET on
           gate,
         ),
       );
-      // Let the refused GET finish, then prove the resend waits.
-      yield* Effect.promise(() => new Promise((done) => setTimeout(done, 50)));
-      yield* TestClock.adjust(39_000);
-      yield* Effect.promise(() => new Promise((done) => setTimeout(done, 50)));
+      yield* sleepingUntil(40_000);
       const waited = requests.length;
-      yield* TestClock.adjust(1_000);
+      yield* TestClock.adjust(40_000);
       return { waited, result: yield* Fiber.join(fiber) };
     }).pipe(Effect.provide(TestContext.TestContext)),
   );
@@ -445,7 +464,7 @@ test("City Motors backs off a rate limit without Retry-After before sending the 
           gate,
         ),
       );
-      yield* Effect.promise(() => new Promise((done) => setTimeout(done, 50)));
+      yield* sleepingUntil(CITYMOTORS_RATE_LIMIT_BACKOFF_MS);
       const waited = requests.length;
       yield* TestClock.adjust(CITYMOTORS_RATE_LIMIT_BACKOFF_MS);
       return { waited, result: yield* Fiber.join(fiber) };
@@ -456,25 +475,92 @@ test("City Motors backs off a rate limit without Retry-After before sending the 
   expect(requests).toEqual([CITYMOTORS_CATALOG, CITYMOTORS_CATALOG]);
 });
 
-test("City Motors returns the last validated checkpoint when a rate limit's Retry-After does not fit the chunk", async () => {
+test.each([0, 1])(
+  "City Motors defers a rate-limited GET whose Retry-After does not fit the chunk to a durable cooldown (%i pages first)",
+  async (pagesFirst) => {
+    const requests = mockInventory({
+      transientFailures: {
+        at: [pagesFirst + 1],
+        kind: "rateLimited",
+        retryAfterSeconds: 300,
+      },
+    });
+    const before = Date.now();
+    const paused = await run(undefined, 3);
+    expect(paused).toMatchObject({
+      status: "paused",
+      pagesProcessed: pagesFirst,
+    });
+    if (paused.cursor.phase === "complete" || !paused.cursor.retryAt)
+      throw new Error("Expected a rate-limit cooldown checkpoint");
+    const retryAt = paused.cursor.retryAt;
+    expect(retryAt).toBeGreaterThanOrEqual(before + 300_000);
+    expect(requests).toHaveLength(pagesFirst + 1);
+    // An early wake sends nothing and keeps the cooldown.
+    expect(await run(paused.cursor)).toMatchObject({
+      status: "paused",
+      pagesProcessed: 0,
+      cursor: paused.cursor,
+    });
+    expect(requests).toHaveLength(pagesFirst + 1);
+    const clock = spyOn(Date, "now").mockImplementation(() => retryAt);
+    try {
+      const resumed = await run(paused.cursor);
+      expect(resumed).toMatchObject({
+        status: "complete",
+        pagesProcessed: 12 - pagesFirst,
+      });
+    } finally {
+      clock.mockRestore();
+    }
+    expect(requests[pagesFirst + 1]).toBe(requests[pagesFirst]);
+  },
+);
+
+test("City Motors fails as transient when the host still rate-limits right after a cooldown", async () => {
   const requests = mockInventory({
-    transientFailures: { at: [2], kind: "rateLimited", retryAfterSeconds: 600 },
+    transientFailures: {
+      at: [1, 2],
+      kind: "rateLimited",
+      retryAfterSeconds: 300,
+    },
   });
-  const paused = await run(undefined, 3);
-  expect(paused).toMatchObject({ status: "paused", pagesProcessed: 1 });
+  const paused = await run();
+  if (paused.cursor.phase === "complete" || !paused.cursor.retryAt)
+    throw new Error("Expected a rate-limit cooldown checkpoint");
+  const retryAt = paused.cursor.retryAt;
+  const clock = spyOn(Date, "now").mockImplementation(() => retryAt);
+  try {
+    const error = await run(paused.cursor).then(
+      () => null,
+      (cause: unknown) => cause,
+    );
+    expect(String(error)).toMatch(
+      /HTTP 429 with Retry-After 300 again right after its cooldown.*prior inventory is preserved/,
+    );
+    expect(validationRejectionKind(error)).toBe("transient");
+  } finally {
+    clock.mockRestore();
+  }
   expect(requests).toHaveLength(2);
-  const resumed = await run(paused.cursor);
-  expect(resumed).toMatchObject({ status: "complete", pagesProcessed: 11 });
-  expect(requests[2]).toBe(requests[1]);
 });
 
-test("City Motors fails an unadvanced chunk whose first GET is rate-limited past the chunk", async () => {
+test("City Motors fails as transient when a Retry-After exceeds the longest durable cooldown", async () => {
   const requests = mockInventory({
-    transientFailures: { at: [1], kind: "rateLimited", retryAfterSeconds: 600 },
+    transientFailures: {
+      at: [1],
+      kind: "rateLimited",
+      retryAfterSeconds: 3_600,
+    },
   });
-  await expect(run()).rejects.toThrow(
-    /with no time to resend: .*HTTP 429.*Retry-After 600 s.*prior inventory is preserved/,
+  const error = await run().then(
+    () => null,
+    (cause: unknown) => cause,
   );
+  expect(String(error)).toMatch(
+    /with no time to resend: .*HTTP 429 with Retry-After 3600, longer than the 10-minute wait.*prior inventory is preserved/,
+  );
+  expect(validationRejectionKind(error)).toBe("transient");
   expect(requests).toHaveLength(1);
 });
 
