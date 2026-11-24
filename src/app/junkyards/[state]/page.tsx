@@ -14,6 +14,7 @@ import { YardPath } from "~/lib/yard-path";
 import { FreshnessBadge } from "~/components/inventory/FreshnessBadge";
 import {
   findRegionYards,
+  getInventoryCheckDates,
   getRegionNewCount,
   getRoutedYards,
   inventoryFreshness,
@@ -74,9 +75,10 @@ export default async function RegionPage({
   ];
   // Biggest first: the yards most likely to have what a visitor needs.
   const ranked = [...yards].sort((a, b) => b.vehicleCount - a.vehicleCount);
-  const [freshness, newCount] = await Promise.all([
+  const [freshness, newCount, checkDates] = await Promise.all([
     inventoryFreshness(yards),
     getRegionNewCount(region.abbr),
+    getInventoryCheckDates(),
   ]);
 
   return (
@@ -142,7 +144,7 @@ export default async function RegionPage({
           </p>
         </div>
         <div className="mt-(--space-xl)">
-          <YardList yards={ranked} />
+          <YardList yards={ranked} checkDates={checkDates} />
         </div>
       </section>
     </PublicPageShell>

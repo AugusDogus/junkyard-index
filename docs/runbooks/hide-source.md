@@ -23,6 +23,31 @@ The `source_control` table holds the list (`visibility = 'hidden'` with a
 above, so Meeks stayed hidden across the deploy that replaced the old code
 constant.
 
+## Automatic hide for stale sources
+
+A source with no accepted publication for 36 hours
+(`INVENTORY_STALE_AFTER_HOURS`) stays listed, but every listing of its
+vehicles (search hits, yard, region, chain, make and model pages) says
+"Last checked N days ago", using the yard's own `last_published_at` when the
+yard has one (so a preserved yard shows its own age) and the source's
+otherwise. After 7 days (`INVENTORY_HIDDEN_AFTER_DAYS`) the source is hidden
+like an owner hide, through the same list, search keys and Algolia filter.
+
+Nothing is stored for the automatic hide: `loadHiddenSources`
+(`src/server/source-control/hidden-sources.ts`) adds every active source
+without an accepted publication in that window to the owner's list each time
+it is read. The source's next accepted publication shows it again, once the
+cached list is read again: the cached list carries the `daily-inventory` tag,
+which the inventory-downstream consumer expires after each publication. On
+`/admin/sources` it shows as **Hidden (stale)**, and its page names the last
+accepted publication. The owner's Show button cannot override it; fix the
+source's crawl instead. A database with no recent runs (such as a fresh
+development database) hides every active source.
+
+The automatic hide is per source. A preserved yard (one a run kept from an
+earlier publication) shows its age but is not hidden on its own: Algolia
+records have no filterable yard key that is unique across sources.
+
 ## How long a change takes
 
 | Surface                                                                                                              | When a hide or show applies                                                                                                                          |

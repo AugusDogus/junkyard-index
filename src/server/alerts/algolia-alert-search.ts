@@ -12,7 +12,7 @@ import {
 import { db } from "~/lib/db";
 import { HiddenSources } from "~/lib/hidden-source";
 import { algoliaSearchClient } from "~/server/algolia-search-client";
-import { SourceControlRepository } from "~/server/source-control/source-control-repository";
+import { loadHiddenSources } from "~/server/source-control/hidden-sources";
 
 /**
  * Saved-search alerts never match vehicles of hidden sources. Each batch
@@ -35,7 +35,7 @@ export async function getAlertMatchStatsBatch(
 ) {
   const [{ makeAliasesReady }, hidden] = await Promise.all([
     getSearchIndexCapabilities(),
-    SourceControlRepository.hiddenSources(db),
+    loadHiddenSources(db, new Date()),
   ]);
   return getAlertMatchStatsBatchWithClient(
     alertSearchClient(hidden),

@@ -16,11 +16,13 @@ import {
  * ingesting and keeps its rows, but no page, search, alert, sitemap or link
  * shows its vehicles, yards or website.
  *
- * The owner hides and shows sources from /admin. The table `source_control`
- * holds the list: the server reads it through `loadHiddenSources`
- * (src/server/source-control/hidden-sources-loader.ts), and browsers get it
- * with their search key. Every function here takes the list it applies, so
- * nothing can fall back to a stale copy. See docs/runbooks/hide-source.md.
+ * The owner hides and shows sources from /admin (the table `source_control`),
+ * and a source with no accepted publication for INVENTORY_HIDDEN_AFTER_DAYS
+ * hides itself until its next one. The server reads both through
+ * `loadHiddenSources` (src/server/source-control/hidden-sources.ts), and
+ * browsers get the list with their search key. Every function here takes the
+ * list it applies, so nothing can fall back to a stale copy. See
+ * docs/runbooks/hide-source.md.
  */
 export type HiddenSources = {
   /** Hidden sources in registry order, so cache keys built from it are stable. */

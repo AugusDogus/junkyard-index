@@ -22,7 +22,12 @@ import { VehicleName } from "~/lib/vehicle-name";
 import { getMakePageData } from "~/server/vehicle-models";
 import { YardName } from "~/lib/yard-name";
 import { YardPath } from "~/lib/yard-path";
-import { inventoryFreshness, type RoutedYard } from "~/server/yard-inventory";
+import { InventoryStaleness } from "~/lib/inventory-staleness";
+import {
+  getInventoryCheckDates,
+  inventoryFreshness,
+  type RoutedYard,
+} from "~/server/yard-inventory";
 
 // Rebuilt after each daily ingestion pass; this is the fallback lifetime.
 export const revalidate = 86400;
@@ -58,11 +63,15 @@ async function load(params: Promise<Params>) {
       return yard ? [{ yard, count }] : [];
     })
     .sort((a, b) => b.count - a.count);
-  const freshness = await inventoryFreshness(yards.map(({ yard }) => yard));
+  const [freshness, checkDates] = await Promise.all([
+    inventoryFreshness(yards.map(({ yard }) => yard)),
+    getInventoryCheckDates(),
+  ]);
   return {
     ...data,
     yards,
     freshness,
+    checkDates,
     canonical: requested === data.make.slug,
   };
 }
@@ -106,7 +115,8 @@ export default async function MakePage({
   const data = await load(params);
   if (!data) notFound();
   if (!data.canonical) permanentRedirect(data.make.href);
-  const { make, models, yards, freshness } = data;
+  const { make, models, yards, freshness, checkDates } = data;
+  const now = Date.now();
   const crumbs = [
     { name: "Home", href: "/" },
     { name: "Cars", href: "/cars" },
@@ -219,6 +229,14 @@ export default async function MakePage({
               name: YardName.headline(yard.name, yard.operator),
               place: `${yard.city}, ${yard.state}`,
               figure: InventoryFormat.count(count),
+              lastChecked: InventoryStaleness.label(
+                InventoryStaleness.checkedAt(
+                  checkDates,
+                  yard.source,
+                  yard.code,
+                ),
+                now,
+              ),
             }))}
           />
         </div>

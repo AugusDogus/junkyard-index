@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup as renderMarkup } from "react-dom/server";
 import { HiddenSourcesProvider } from "~/components/HiddenSourcesContext";
+import { InventoryCheckProvider } from "~/components/InventoryCheckContext";
 import { HiddenSources } from "~/lib/hidden-source";
 import {
   algoliaHitToSearchVehicle,
@@ -223,5 +224,38 @@ describe("card miles", () => {
   test("does not invent miles without an origin or ranking distance", () => {
     expect(card({ _geoloc: origin })).not.toContain("from your location");
     expect(card({ _geoloc: origin }, origin)).toContain("0 mi");
+  });
+});
+
+describe("search card staleness", () => {
+  const now = Date.parse("2026-11-24T12:00:00Z");
+  const check = {
+    now,
+    dates: {
+      sources: { upullrparts: "2026-11-11T08:00:00Z" },
+      yards: { "pyp:9999": "2026-11-22T12:00:00Z" },
+    },
+  };
+  const render = (overrides: AlgoliaVehicleHit) => {
+    const vehicle = algoliaHitToSearchVehicle({ ...hit, ...overrides });
+    if (!vehicle) throw new Error("Expected supported vehicle source");
+    return renderToStaticMarkup(
+      <InventoryCheckProvider check={check}>
+        <VehicleCard vehicle={vehicle} />
+      </InventoryCheckProvider>,
+    );
+  };
+
+  test("says when a stale source's vehicle was last checked", () => {
+    expect(
+      render({ source: "upullrparts", locationCode: "UPRRP-1" }),
+    ).toContain("Last checked 13 days ago");
+  });
+
+  test("labels a stale yard of a current source, and nothing for a current yard", () => {
+    expect(render({ locationCode: "9999" })).toContain(
+      "Last checked 2 days ago",
+    );
+    expect(render({})).not.toContain("Last checked");
   });
 });

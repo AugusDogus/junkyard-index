@@ -9,6 +9,8 @@ export type YardRow = {
   figure: string;
   /** Under the figure, such as a year range. */
   detail?: string;
+  /** "Last checked N days ago" when the yard's inventory is stale. */
+  lastChecked?: string | null;
 };
 
 /** The surface the rows sit on: the paper, or the ink board where figures turn amber. */
@@ -91,6 +93,11 @@ export function YardRows({
               <span className={cn("block truncate text-sm", colours.meta)}>
                 {row.place}
               </span>
+              {row.lastChecked && (
+                <span className="bg-figure text-board mt-1 inline-block px-1.5 py-0.5 text-xs font-extrabold">
+                  {row.lastChecked}
+                </span>
+              )}
             </span>
             <span
               className={cn(

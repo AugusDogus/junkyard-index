@@ -80,6 +80,7 @@ export default async function YardInventoryPage({
         )}
         filter={null}
         publishedAt={data.publishedAt}
+        checkedAt={data.checkedAt}
         nearby={data.nearby}
         chain={data.chain}
       />

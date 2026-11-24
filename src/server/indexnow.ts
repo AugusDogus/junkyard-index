@@ -15,7 +15,7 @@ import {
 } from "~/server/inventory-announcement";
 import { getHomepageYards } from "~/server/homepage-yards";
 import { InventorySnapshot } from "~/server/inventory-snapshot";
-import { SourceControlRepository } from "~/server/source-control/source-control-repository";
+import { loadHiddenSources } from "~/server/source-control/hidden-sources";
 import { routedYards } from "~/server/yard-inventory";
 import { vehicle, vehicleDeparture } from "~/schema";
 
@@ -36,7 +36,7 @@ export async function changedInventoryPaths(
   // yards are announced only when they have other changes, and the sitemaps'
   // lastmod covers the rest. Hidden sources are read without a cache, as
   // this runs in a workflow outside a request.
-  const hidden = await SourceControlRepository.hiddenSources(db);
+  const hidden = await loadHiddenSources(db, new Date());
   const [arrivals, removals, departures, yards, makes] = await Promise.all([
     db
       .select({

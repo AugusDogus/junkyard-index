@@ -1,4 +1,8 @@
 import type { HiddenSources } from "~/lib/hidden-source";
+import {
+  InventoryStaleness,
+  type InventoryCheckDates,
+} from "~/lib/inventory-staleness";
 import { Minus, Plus, Search } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -105,7 +109,7 @@ export function ModelInventoryView({
   yards,
   arrivals,
   freshness,
-  sourcePublishedAt,
+  checkDates,
   hiddenSources,
 }: {
   make: MakeEntry;
@@ -116,8 +120,8 @@ export function ModelInventoryView({
   yards: readonly ModelYard[];
   arrivals: readonly ModelArrival[];
   freshness: InventoryFreshness;
-  /** Each source's latest update, for the "New" labels. */
-  sourcePublishedAt: Readonly<Partial<Record<string, string>>>;
+  /** Each source's and yard's latest update, for "New" and "Last checked". */
+  checkDates: InventoryCheckDates;
   /** Sources hidden from the site; their rows link nowhere. */
   hiddenSources: HiddenSources;
 }) {
@@ -132,6 +136,12 @@ export function ModelInventoryView({
     YardPath.modelHref(yard.path, make.slug, model.slug);
   const searchHref = `/search?q=${encodeURIComponent(name)}`;
   const shown = siblings.slice(0, SIBLINGS);
+  const now = Date.now();
+  const lastChecked = (source: string, code: string) =>
+    InventoryStaleness.label(
+      InventoryStaleness.checkedAt(checkDates, source, code),
+      now,
+    );
 
   return (
     <>
@@ -193,6 +203,7 @@ export function ModelInventoryView({
               place: `${yard.city}, ${yard.state}`,
               figure: InventoryFormat.count(count),
               detail: years,
+              lastChecked: lastChecked(yard.source, yard.code),
             }))}
           />
         </div>
@@ -235,7 +246,8 @@ export function ModelInventoryView({
                   key={vehicle.vin}
                   vehicle={vehicle}
                   source={vehicle.source}
-                  publishedAt={sourcePublishedAt[vehicle.source] ?? null}
+                  publishedAt={checkDates.sources[vehicle.source] ?? null}
+                  lastChecked={lastChecked(vehicle.source, vehicle.code)}
                   layout="stacked"
                   hiddenSources={hiddenSources}
                   yard={
@@ -308,6 +320,7 @@ export function ModelInventoryView({
                             place: yard.city,
                             figure: InventoryFormat.count(entry?.count ?? 0),
                             detail: entry?.years,
+                            lastChecked: lastChecked(yard.source, yard.code),
                           };
                         })}
                       />

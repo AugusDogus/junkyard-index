@@ -4,10 +4,12 @@ import { useRouter } from "next/navigation";
 import { useId, useState, useTransition, type ReactNode } from "react";
 import { applySourceControl } from "~/app/admin/sources/[source]/actions";
 import { RawText } from "~/components/admin/AdminParts";
+import { AdminTime } from "~/components/admin/AdminTime";
 import { Alert, AlertDescription } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Textarea } from "~/components/ui/textarea";
 import type { IngestionSource } from "~/lib/ingestion-source";
+import { INVENTORY_HIDDEN_AFTER_DAYS } from "~/lib/inventory-staleness";
 import {
   HIDE_REASON_MAX_LENGTH,
   type SourceControlInput,
@@ -88,6 +90,7 @@ export function SourceControls({
   ingestion,
   pausedBy,
   visibility,
+  staleHide,
 }: {
   source: IngestionSource;
   name: string;
@@ -95,6 +98,8 @@ export function SourceControls({
   ingestion: SourceIngestion;
   pausedBy: PauseCause | null;
   visibility: SourceVisibility;
+  /** Hidden for staleness, apart from the owner's choice; null when not. */
+  staleHide: { lastAcceptedAt: Date | null } | null;
 }) {
   const router = useRouter();
   const reasonId = useId();
@@ -184,11 +189,29 @@ export function SourceControls({
                 Hidden
                 <span className="block text-xs">{visibility.reason}</span>
               </>
+            ) : staleHide !== null ? (
+              "Hidden (stale)"
             ) : (
               "Shown"
             )
           }
         >
+          {staleHide !== null && (
+            <p className="text-muted-foreground w-full text-xs">
+              Hidden automatically: no accepted publication{" "}
+              {staleHide.lastAcceptedAt === null ? (
+                "in the runs this page reads"
+              ) : (
+                <>
+                  since <AdminTime date={staleHide.lastAcceptedAt} />
+                </>
+              )}
+              , over the {INVENTORY_HIDDEN_AFTER_DAYS}-day limit. Its vehicles
+              and yards stay off the site until its next accepted publication,
+              which shows them again without any action here. Showing it here
+              does not override this; fix its crawl.
+            </p>
+          )}
           {visibility.status === "hidden" ? (
             <>
               {confirming !== "show" && (

@@ -17,6 +17,7 @@ import { VehicleCardDetails } from "~/lib/vehicle-card-details";
 import { VehicleDestination } from "~/lib/vehicle-destination";
 import { VehicleName } from "~/lib/vehicle-name";
 import { useHiddenSources } from "~/components/HiddenSourcesContext";
+import { useInventoryCheckLabel } from "~/components/InventoryCheckContext";
 
 // About one line of small text on the narrowest card. Shorter manual search
 // instructions ("Match the VIN, stock number and physical yard.") stay
@@ -29,6 +30,10 @@ function VehicleCardComponent({
 }: VehicleCardProps & { priority?: boolean }) {
   const destination = VehicleDestination.forSite(vehicle, useHiddenSources());
   const service = YardService.resolve(vehicle.source, vehicle.locationCode);
+  const lastChecked = useInventoryCheckLabel(
+    vehicle.source,
+    vehicle.locationCode,
+  );
   const [copyError, setCopyError] = useState<string | null>(null);
   const vin = vehicle.vin.trim();
   const primaryImage = vehicle.imageUrl;
@@ -125,6 +130,11 @@ function VehicleCardComponent({
             <Badge variant="destructive" className="mt-2">
               {missingLabel}
             </Badge>
+          )}
+          {lastChecked && (
+            <p className="bg-figure text-board mt-2 inline-block px-1.5 py-0.5 text-xs font-extrabold">
+              {lastChecked}
+            </p>
           )}
         </div>
 

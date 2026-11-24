@@ -133,6 +133,7 @@ export default async function AdminOverviewPage() {
                   <Stat label="Running" value={counts.byState.running} />
                   <Stat label="Paused" value={counts.byState.paused} />
                   <Stat label="Hidden" value={counts.hidden} />
+                  <Stat label="Hidden (stale)" value={counts.staleHidden} />
                   <Stat label="Retired" value={counts.byState.retired} />
                 </dl>
                 <p className="text-sm">

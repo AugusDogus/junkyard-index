@@ -16,6 +16,11 @@ import {
   RETIRED_INGESTION_SOURCES,
   type IngestionSource,
 } from "~/lib/ingestion-source";
+import {
+  InventoryStaleness,
+  type InventoryCheckDates,
+  type InventoryFreshness,
+} from "~/lib/inventory-staleness";
 import { VehicleName } from "~/lib/vehicle-name";
 import {
   YardInventory,
@@ -211,11 +216,12 @@ async function loadSourcePublishedAt(): Promise<
 }
 
 /**
- * When each source last published accepted inventory, within the last three
- * days. A missing source has not published in that window.
+ * When each source last published accepted inventory, within the last
+ * SOURCE_FRESHNESS_LOOKBACK_DAYS. A missing source has not published in that
+ * window, so it is hidden from the site.
  */
 export const getSourcePublishedAt = cacheInventory(loadSourcePublishedAt, [
-  "active-source-published-at-v2",
+  "active-source-published-at-v3",
   ...RETIRED_INGESTION_SOURCES,
 ]);
 
@@ -317,14 +323,7 @@ export async function latestPublishedAt(
   }, null);
 }
 
-/** How current a set of yards' inventory is. */
-export type InventoryFreshness = {
-  /** The most recent update among them, or null when none is current. */
-  latest: string | null;
-  /** How many of them updated in the freshness window. */
-  current: number;
-  total: number;
-};
+export type { InventoryFreshness };
 
 /**
  * How current these yards' inventory is. A page that lists several sources
@@ -333,18 +332,24 @@ export type InventoryFreshness = {
 export async function inventoryFreshness(
   yards: readonly { source: string }[],
 ): Promise<InventoryFreshness> {
-  const publishedAt = await getSourcePublishedAt();
-  let latest: string | null = null;
-  let current = 0;
-  for (const yard of yards) {
-    const date = isIngestionSource(yard.source)
-      ? publishedAt[yard.source]
-      : undefined;
-    if (!date) continue;
-    current += 1;
-    if (!latest || date > latest) latest = date;
-  }
-  return { latest, current, total: yards.length };
+  return InventoryStaleness.coverage(
+    yards,
+    await getSourcePublishedAt(),
+    Date.now(),
+  );
+}
+
+/**
+ * When every source and yard last had an accepted publication, for the
+ * "Last checked" labels on listings. Both reads are cached with the daily
+ * inventory.
+ */
+export async function getInventoryCheckDates(): Promise<InventoryCheckDates> {
+  const [sources, yards] = await Promise.all([
+    getSourcePublishedAt(),
+    getYardPublishedAt(),
+  ]);
+  return { sources, yards };
 }
 
 /** The region for a URL segment and its yards, or null if it has none. */
@@ -367,9 +372,9 @@ export const getYardPageData = cache(
   async (regionSlug: string, yardSlug: string) => {
     const yard = await findYard(regionSlug, yardSlug);
     if (!yard) return null;
-    const [summary, publishedAt, routed, chains] = await Promise.all([
+    const [summary, checkDates, routed, chains] = await Promise.all([
       getYardSummary(yard.source, yard.code),
-      getYardPublishedAt(),
+      getInventoryCheckDates(),
       getRoutedYards(),
       getChains(),
     ]);
@@ -387,7 +392,12 @@ export const getYardPageData = cache(
     return {
       yard,
       summary,
-      publishedAt: publishedAt[`${yard.source}:${yard.code}`] ?? null,
+      publishedAt: checkDates.yards[`${yard.source}:${yard.code}`] ?? null,
+      checkedAt: InventoryStaleness.checkedAt(
+        checkDates,
+        yard.source,
+        yard.code,
+      ),
       nearby,
       chain: chain
         ? { name: chain.name, href: chain.href, yards: chain.yards.length }

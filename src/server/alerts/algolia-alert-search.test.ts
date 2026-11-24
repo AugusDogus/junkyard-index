@@ -35,8 +35,9 @@ mock.module("./src/server/ingestion/search-index-readiness", () => ({
 }));
 const hidden = HiddenSources.of(["meeks", "pratt"]);
 mock.module("./src/lib/db", () => ({ db: {} }));
-mock.module("./src/server/source-control/source-control-repository", () => ({
-  SourceControlRepository: { hiddenSources: async () => hidden },
+// The owner's hides and stale sources, as loadHiddenSources reads them.
+mock.module("./src/server/source-control/hidden-sources", () => ({
+  loadHiddenSources: async () => hidden,
 }));
 const { getAlertMatchStatsBatch } = await import(
   "./src/server/alerts/algolia-alert-search"
