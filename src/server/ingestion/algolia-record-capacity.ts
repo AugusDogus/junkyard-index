@@ -93,4 +93,35 @@ export const RecordCapacity = {
   describe(capacity: RecordCapacity): string {
     return `A full copy needs ${capacity.needed} Algolia records (${capacity.entries} in existing indices plus ${capacity.vehicles} vehicles), and the cap is ${capacity.limit} (${capacity.usable} after the ${MARGIN_RATIO * 100}% safety margin).`;
   },
+
+  /**
+   * Whether a QuotaExceeded answer is the record cap, not an operations or
+   * search quota, which room for records would not fix.
+   */
+  isRecordQuota(detail: string): boolean {
+    return /record quota/i.test(detail);
+  },
+
+  /**
+   * States why an in-place rebuild has no room: the live index, the vehicles
+   * it is converging to, and every other index holding records.
+   */
+  describeInPlace(params: {
+    listing: readonly RecordCapacityListing[];
+    indexName: string;
+    vehicles: number;
+    limit: number;
+  }): string {
+    const stored = params.listing.filter((index) => !index.virtual);
+    const live =
+      stored.find((index) => index.name === params.indexName)?.entries ?? 0;
+    const others = stored.filter(
+      (index) => index.name !== params.indexName && index.entries > 0,
+    );
+    const othersText =
+      others.length === 0
+        ? "no other index holds records"
+        : `other indices hold ${others.reduce((total, index) => total + index.entries, 0)} (${others.map((index) => `${index.name}: ${index.entries}`).join(", ")})`;
+    return `The live index ${params.indexName} holds ${live} records, Turso has ${params.vehicles} vehicles, ${othersText}, and the cap is ${params.limit}.`;
+  },
 } as const;

@@ -54,6 +54,8 @@ const SCRIPT = `
   });
   const result = await runDurableAlgoliaProjectionBatch("rebuilding");
   console.log(JSON.stringify({ status: result.status, calls }));
+  // The ingestion runtime keeps the event loop alive.
+  process.exit(0);
 `;
 
 test("a full rebuild deletes leftover rebuild copies before it copies the live index", () => {

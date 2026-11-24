@@ -9,6 +9,7 @@ const crawling: StoppableRun = {
   source: "hollanderstores",
   stage: "sources",
   deployment: { kind: "current" },
+  otherCode: { other: 0, deploymentIds: [], unknown: 0 },
 };
 
 function render(run: StoppableRun, rebuildConfirmed = false): string {
@@ -75,6 +76,33 @@ describe("StopRunDetails", () => {
         />,
       ),
     ).toContain('aria-checked="true"');
+  });
+
+  test("a forced stop warns that runs on older code would perform the rebuild", () => {
+    const text = render({
+      ...crawling,
+      stage: "full_reindex_load",
+      otherCode: { other: 21, deploymentIds: ["dpl_old"], unknown: 1 },
+    });
+    expect(text).toContain(
+      "22 other active runs are not on current code: 21 on another deployment (dpl_old) and 1 on an unknown deployment. The first of them to claim the publish slot performs that rebuild with its own code, which may predate fixes. Cancel their workflows in Vercel before stopping this run (docs/runbooks/full-reindex.md).",
+    );
+    expect(
+      render({
+        ...crawling,
+        otherCode: { other: 21, deploymentIds: ["dpl_old"], unknown: 0 },
+      }),
+    ).not.toContain("not on current code");
+  });
+
+  test("stopping an in-place rebuild says its progress is discarded", () => {
+    const sentence = "Stopping discards this in-place rebuild's progress.";
+    expect(
+      render({ ...crawling, stage: "full_reindex_inplace_sweep" }),
+    ).toContain(sentence);
+    expect(render({ ...crawling, stage: "full_reindex_load" })).not.toContain(
+      sentence,
+    );
   });
 
   test("an unconfirmed Algolia move shows why it cannot be stopped", () => {

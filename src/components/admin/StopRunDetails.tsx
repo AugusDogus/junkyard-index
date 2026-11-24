@@ -1,5 +1,6 @@
 import { Checkbox } from "~/components/ui/checkbox";
 import type { StoppableRun } from "~/server/admin/run-hold";
+import type { InPlaceStage } from "~/server/ingestion/algolia-inplace-rebuild";
 import { IngestionSchedule } from "~/server/ingestion/ingestion-schedule";
 import { RunAbandonment } from "~/server/ingestion/run-abandonment";
 
@@ -25,6 +26,12 @@ export function stopRunPlan(run: StoppableRun): StopRunPlan {
 
 const RETRY_HOURS = IngestionSchedule.retryDelayMs / (60 * 60 * 1000);
 
+/** InPlaceRebuild.stages, listed here to keep its server imports out. */
+const IN_PLACE_STAGES: readonly InPlaceStage[] = [
+  "full_reindex_inplace_load",
+  "full_reindex_inplace_sweep",
+];
+
 /** The confirm dialog's plain account of what stopping the run does. */
 export function stopRunConsequences(
   run: StoppableRun,
@@ -45,8 +52,37 @@ export function stopRunConsequences(
     ...(fullRebuild
       ? [
           `It is at the ${run.stage} stage, past its crawl, so it may have written part of its data. A full search rebuild runs next, rewriting every vehicle in search.`,
+          ...(IN_PLACE_STAGES.some((stage) => stage === run.stage)
+            ? [
+                "Stopping discards this in-place rebuild's progress. The next run restarts it from the first vehicle, repeating hours of work and the sweep's Algolia browse requests, which count toward the plan's search requests. Check the search request budget first (docs/runbooks/full-reindex.md).",
+              ]
+            : []),
+          ...otherCodeRebuild(run.otherCode),
         ]
       : []),
+  ];
+}
+
+/**
+ * The full rebuild runs in whichever active run claims the commit next, on
+ * that run's code. Runs on a deployment from before a rebuild fix repeat the
+ * old failure (on Nov 23, a copy over the record cap looped).
+ */
+function otherCodeRebuild(otherCode: StoppableRun["otherCode"]): string[] {
+  const parts = [
+    ...(otherCode.other > 0
+      ? [
+          `${otherCode.other} on another deployment (${otherCode.deploymentIds.join(", ")})`,
+        ]
+      : []),
+    ...(otherCode.unknown > 0
+      ? [`${otherCode.unknown} on an unknown deployment`]
+      : []),
+  ];
+  if (parts.length === 0) return [];
+  const runs = otherCode.other + otherCode.unknown;
+  return [
+    `${runs === 1 ? "1 other active run is" : `${runs} other active runs are`} not on current code: ${parts.join(" and ")}. The first of them to claim the publish slot performs that rebuild with its own code, which may predate fixes. Cancel their workflows in Vercel before stopping this run (docs/runbooks/full-reindex.md).`,
   ];
 }
 
