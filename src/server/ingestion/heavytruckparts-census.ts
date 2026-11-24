@@ -5,6 +5,15 @@ import {
   type HtpSupplier,
 } from "./heavytruckparts-yard-metadata";
 
+/**
+ * The native catalog changed while the census read it: a count, page or
+ * repeated item disagrees with another read of the same catalog. A fresh
+ * census can pass, so the connector rejects it as transient. Plain errors
+ * (ownership, structure, quality) stay deterministic.
+ */
+export class HtpCensusDrift extends Error {
+  readonly tag = "HtpCensusDrift";
+}
 function htpRecords(s: HtpSupplier) {
   return z
     .array(
@@ -64,7 +73,9 @@ export function htpRowMake(s: HtpSupplier, row: Row) {
 function addRow(s: HtpSupplier, rows: Map<string, Row>, row: Row) {
   const prior = rows.get(row.id);
   if (prior && JSON.stringify(prior) !== JSON.stringify(row))
-    throw new Error(`HTP ${s.code} repeated item changed between year orders`);
+    throw new HtpCensusDrift(
+      `HTP ${s.code} repeated item changed between year orders`,
+    );
   rows.set(row.id, row);
 }
 /** Both complete native year orders, with equal per-year row counts. */
@@ -90,9 +101,13 @@ function htpOrders(s: HtpSupplier, pages: readonly HtpPage[], total: number) {
     }
     years.push(JSON.stringify([...counts].sort()));
   }
-  if (pages.length !== size * 2 || years[0] !== years[1])
+  if (pages.length !== size * 2)
     throw new Error(
       `HTP ${s.code} dual-sort census does not reconcile to store count`,
+    );
+  if (years[0] !== years[1])
+    throw new HtpCensusDrift(
+      `HTP ${s.code} dual-sort census does not reconcile to store count: per-year counts changed between the two year orders`,
     );
   return { rows, counts };
 }
