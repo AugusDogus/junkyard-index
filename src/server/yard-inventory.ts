@@ -85,34 +85,35 @@ const readYardVehicles = cache(loadYardVehicles);
 const getYardSummary = cacheInventory(
   async (source: string, code: string): Promise<YardSummary> =>
     YardInventory.summary(await readYardVehicles(source, code)),
-  ["yard-summary-v1"],
+  ["yard-summary-v2"],
 );
 
-/** A slice of a yard's vehicles and the yard's size in the read it came from. */
-type YardSlice = { total: number; vehicles: YardVehicle[] };
+/** A slice of a yard's vehicles and the fingerprint of the read it came from. */
+type YardSlice = { fingerprint: string; vehicles: YardVehicle[] };
 
 /**
  * Slice `index` of a yard's live vehicles, newest first. A yard's pages are
- * each one slice. Make pages filter all of them, since Next.js skips the
- * cache for an unstable_cache called inside another, so per-make entries
- * built from these would read the database on every miss.
+ * each one slice. Make pages filter all of them: per-make entries built from
+ * these would nest one unstable_cache in another, and Next.js skips the cache
+ * for the inner call, so every miss would read the whole yard again.
  */
 const getYardSlice = cacheInventory(
   async (source: string, code: string, index: number): Promise<YardSlice> => {
     const vehicles = await readYardVehicles(source, code);
     return {
-      total: vehicles.length,
+      fingerprint: YardInventory.fingerprint(vehicles),
       vehicles: YardInventory.slice(vehicles, index),
     };
   },
-  ["yard-vehicle-slice-v2"],
+  ["yard-vehicle-slice-v3"],
 );
 
 /**
  * The summary and a list read together, so counts and rows agree. Cached
  * entries are written at different times, and ingestion writes rows before
- * it invalidates the cache, so a slice can come from a newer read than the
- * summary. Then this render reads the yard afresh.
+ * it invalidates the cache, so a slice can come from another read than the
+ * summary, even one with as many vehicles. Then this render reads the yard
+ * afresh.
  */
 type YardRead<Data> = { summary: YardSummary; data: Data };
 
@@ -137,7 +138,7 @@ const getAllYardVehicles = cache(
         (_, index) => getYardSlice(source, code, index),
       ),
     );
-    return slices.every((slice) => slice.total === summary.total)
+    return slices.every((slice) => slice.fingerprint === summary.fingerprint)
       ? { summary, data: slices.flatMap((slice) => slice.vehicles) }
       : freshYard(source, code);
   },
@@ -167,7 +168,7 @@ export async function getYardVehiclePage(
   if (summary.total === 0) return { summary, data: { ...range, vehicles: [] } };
   const index = YardInventory.sliceIndex(range);
   const slice = await getYardSlice(yard.source, yard.code, index);
-  if (slice.total === summary.total) {
+  if (slice.fingerprint === summary.fingerprint) {
     return {
       summary,
       data: YardInventory.pageInSlice(slice.vehicles, index, range),
