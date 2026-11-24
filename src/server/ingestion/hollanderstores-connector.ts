@@ -16,6 +16,7 @@ import {
   HollanderstoresPageSchema,
 } from "./hollanderstores-parser";
 import {
+  hollanderstoresPreservedReason,
   hollanderstoresSnapshot,
   type HollanderstoresVehicle,
 } from "./hollanderstores-snapshot";
@@ -132,7 +133,7 @@ export function streamHollanderstoresInventory<E, R>(
         decoded: current.decoded,
         requests: current.requests + 1,
       };
-      let next: HollanderstoresState | { phase: "failed"; error: string };
+      let next: HollanderstoresState | { phase: "failed"; errors: string[] };
       if (current.phase === "decoding") {
         const missing = (missingVins ??= hollanderstoresMissing(current));
         const needed = missing.slice(
@@ -189,7 +190,7 @@ export function streamHollanderstoresInventory<E, R>(
           : fetchHollanderstoresPage(yard, undefined, pageNumber);
         next = yield* hollanderstoresAttempt(
           "complete native card view " + yard.code,
-          (): HollanderstoresState | { phase: "failed"; error: string } => {
+          (): HollanderstoresState | { phase: "failed"; errors: string[] } => {
             const slice = parseHollanderstoresRoster(raw, yard, pageNumber);
             if (current.pending && current.pending.total !== slice.total)
               throw new Error(
@@ -214,6 +215,7 @@ export function streamHollanderstoresInventory<E, R>(
                     ...common,
                     phase: "closing",
                     closed: current.closed,
+                    ...(current.preserved && { preserved: current.preserved }),
                     pending: combined,
                   };
             const page = HollanderstoresPageSchema.parse(combined);
@@ -228,19 +230,41 @@ export function streamHollanderstoresInventory<E, R>(
             }
             const opening = current.pages[index];
             if (!opening) throw new Error("Missing opening yard census");
+            // A yard whose census drifted is preserved: it publishes nothing
+            // this run and its previous inventory stays. The others publish.
             const error = hollanderstoresCensusError(opening, page);
-            if (error) return { phase: "failed", error };
+            const preserved = [
+              ...(current.phase === "closing" ? (current.preserved ?? []) : []),
+              ...(error
+                ? [
+                    {
+                      code: yard.code,
+                      reason: hollanderstoresPreservedReason(error),
+                    },
+                  ]
+                : []),
+            ];
             const closed = index + 1;
-            return closed === HOLLANDERSTORES_YARDS.length
-              ? { ...completed, phase: "ready", closed }
-              : { ...completed, phase: "closing", closed };
+            if (closed !== HOLLANDERSTORES_YARDS.length)
+              return preserved.length
+                ? { ...completed, phase: "closing", closed, preserved }
+                : { ...completed, phase: "closing", closed };
+            // With every yard drifted there is nothing to publish.
+            if (preserved.length === HOLLANDERSTORES_YARDS.length)
+              return {
+                phase: "failed",
+                errors: preserved.map((yard) => yard.reason),
+              };
+            return preserved.length
+              ? { ...completed, phase: "ready", closed, preserved }
+              : { ...completed, phase: "ready", closed };
           },
         );
       }
       // A frozen opening cannot be repaired by re-POSTing the closing roster.
       // A failed result ends the durable source without workflow step retries.
-      // The census drifted while it was read, so a fresh crawl later in the
-      // day can pass.
+      // Every yard's census drifted while it was read, so a fresh crawl later
+      // in the day can pass.
       if (next.phase === "failed")
         return {
           ...empty,
@@ -253,7 +277,7 @@ export function streamHollanderstoresInventory<E, R>(
                   HollanderstoresCursor.checkpoint(cursor),
                 ),
           pagesProcessed: pagesProcessed + 1,
-          errors: [next.error],
+          errors: next.errors,
         };
       yield* hollanderstoresAttempt("census bounds", () => {
         if (
@@ -299,6 +323,7 @@ export function streamHollanderstoresInventory<E, R>(
           ),
         )
       : {};
+    const drifted = ready.preserved ?? [];
     const snapshot = yield* hollanderstoresAttempt(
       "whole-source and per-yard quality",
       () => {
@@ -306,11 +331,21 @@ export function streamHollanderstoresInventory<E, R>(
           ready.pages,
           { ...hollanderstoresSeed, ...known, ...ready.decoded },
           ready.previousAcceptedCount,
+          new Set(drifted.map((yard) => yard.code)),
         );
         if (value.errors.length) throw new Error(value.errors.join("; "));
         return value;
       },
     );
+    // Drifted and quality-rejected yards, in yard order, so the checkpoint
+    // lists each preserved yard once.
+    const rejected = new Map(
+      [...drifted, ...snapshot.rejectedYards].map((yard) => [yard.code, yard]),
+    );
+    const preserved = HOLLANDERSTORES_YARDS.flatMap((yard) => {
+      const value = rejected.get(yard.code);
+      return value ? [value] : [];
+    });
     if (options.onYards) yield* options.onYards([...HOLLANDERSTORES_YARDS]);
     yield* options.onBatch(snapshot.vehicles);
     const complete = yield* hollanderstoresAttempt(
@@ -328,6 +363,7 @@ export function streamHollanderstoresInventory<E, R>(
           requests: ready.requests,
           phase: "complete",
           closed: ready.closed,
+          ...(preserved.length > 0 ? { preserved } : {}),
         });
       },
     );

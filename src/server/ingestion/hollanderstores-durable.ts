@@ -34,6 +34,13 @@ export function streamHollanderstoresDurableInventory<E, R>(
         }),
     });
     const result = yield* stream({ ...options, startCursor });
+    // Report each yard that kept its previous inventory in the run's logs;
+    // the durable reference lists their codes.
+    if (result.status === "complete" && result.cursor.phase === "complete")
+      for (const yard of result.cursor.preserved ?? [])
+        yield* Effect.logWarning(
+          `Hollander Stores preserved ${yard.code}'s previous inventory: ${yard.reason}`,
+        );
     return {
       ...result,
       cursor: HollanderstoresDurableCursor.checkpoint(result.cursor),

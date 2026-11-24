@@ -65,9 +65,11 @@ test("Crossroads reconciles both complete censuses and recovers only missing mak
       ([vin]) => !needed.includes(vin),
     ),
   );
-  expect(hollanderstoresSnapshot(pages(), withoutDecodes).errors).toContain(
-    "Crossroads Salvage rejection ratio exceeds 10%",
-  );
+  expect(
+    hollanderstoresSnapshot(pages(), withoutDecodes).rejectedYards.find(
+      (rejected) => rejected.code === yard.code,
+    )?.reason,
+  ).toContain("Crossroads Salvage rejection ratio exceeds 10%");
 }, 30000);
 
 test("Crossroads has new vehicle destinations since the complete November 15 census", () => {

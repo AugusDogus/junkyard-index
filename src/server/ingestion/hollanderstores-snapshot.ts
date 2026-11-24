@@ -4,6 +4,7 @@ import { normalizeCanonicalMake, normalizeRegion } from "./normalization";
 import { SourceValidationPolicy } from "./source-validation";
 import type { CanonicalVehicle } from "./types";
 import type { HollanderstoresPage } from "./hollanderstores-parser";
+import type { HollanderstoresPreservedYard } from "./hollanderstores-cursor";
 import { HOLLANDERSTORES_YARDS } from "./hollanderstores-yard-metadata";
 import { hollanderstoresVin } from "./hollanderstores-vin";
 
@@ -38,10 +39,22 @@ function decodedMake(value: string | null | undefined, vin: string) {
   }
   return value ?? null;
 }
+/** Keeps a yard's reason within the checkpoint's bound. */
+export const hollanderstoresPreservedReason = (reason: string) =>
+  reason.length <= 4_000 ? reason : reason.slice(0, 3_999) + "…";
+
+/**
+ * Builds the publishable inventory yard by yard. A yard in `preserved` (its
+ * closing census drifted) or one failing its own floor, rejection or
+ * duplicate guard contributes nothing and is listed in `rejectedYards`, so
+ * its previously published inventory stays. `errors` holds only failures of
+ * the whole source.
+ */
 export function hollanderstoresSnapshot(
   pages: readonly HollanderstoresPage[],
   decoded: Readonly<Record<string, string | null>>,
   previousAcceptedCount: number | null = null,
+  preserved: ReadonlySet<string> = new Set(),
 ) {
   const vehicles = new Map<string, HollanderstoresVehicle>();
   const claims = new Map<string, Set<string>>();
@@ -63,6 +76,7 @@ export function hollanderstoresSnapshot(
   const observedVins = new Set<string>();
   const warnings: string[] = [],
     errors: string[] = [];
+  const rejectedYards: HollanderstoresPreservedYard[] = [];
   const perYard: {
     code: string;
     accepted: number;
@@ -82,6 +96,15 @@ export function hollanderstoresSnapshot(
       errors.push("Missing complete yard " + yard.code);
       continue;
     }
+    // Rows of a yard that publishes nothing are read but excluded.
+    const exclude = () => {
+      accounting.recordsProcessed += page.rows.length;
+      accounting.recordsExcluded += page.rows.length;
+    };
+    if (preserved.has(yard.code)) {
+      exclude();
+      continue;
+    }
     const tally = {
       code: yard.code,
       accepted: 0,
@@ -89,8 +112,12 @@ export function hollanderstoresSnapshot(
       duplicates: 0,
       total: page.total,
     };
+    // A yard commits its rows, observations and warnings only once it
+    // passes its own guards.
+    const yardVehicles = new Map<string, HollanderstoresVehicle>();
+    const yardObserved: string[] = [];
+    const yardWarnings: string[] = [];
     for (const row of page.rows) {
-      accounting.recordsProcessed++;
       const identity = inventoryVin(row.vin, "");
       const vin = hollanderstoresVin(row.vin),
         year = hollanderstoresYear(row.displayYear);
@@ -102,7 +129,7 @@ export function hollanderstoresSnapshot(
         lookup &&
         hollanderstoresMake(native) !== hollanderstoresMake(lookup)
       )
-        warnings.push(
+        yardWarnings.push(
           `${yard.name} VIN ${row.vin}: published make ${native} conflicts with NHTSA ${lookup}; published make retained.`,
         );
       if (
@@ -112,18 +139,16 @@ export function hollanderstoresSnapshot(
         !required(row.model) ||
         conflicts.has(vin)
       ) {
-        accounting.recordsRejected++;
         tally.rejected++;
-        if (identity) observedVins.add(identity);
+        if (identity) yardObserved.push(identity);
         continue;
       }
-      if (vehicles.has(vin)) {
-        accounting.duplicateVehicles++;
+      if (vehicles.has(vin) || yardVehicles.has(vin)) {
         tally.duplicates++;
         continue;
       }
       const region = normalizeRegion(yard.state);
-      vehicles.set(vin, {
+      yardVehicles.set(vin, {
         source: "hollanderstores",
         vin,
         year,
@@ -152,21 +177,38 @@ export function hollanderstoresSnapshot(
       });
       tally.accepted++;
     }
+    const yardErrors: string[] = [];
     if (tally.accepted < yard.minimum)
-      errors.push(
+      yardErrors.push(
         `${yard.name} accepted ${tally.accepted}; minimum ${yard.minimum}`,
       );
     if (
       tally.rejected / tally.total >
       SourceValidationPolicy.maximumRejectionRatio
     )
-      errors.push(`${yard.name} rejection ratio exceeds 10%`);
+      yardErrors.push(`${yard.name} rejection ratio exceeds 10%`);
     if (
       tally.duplicates / tally.total >
       SourceValidationPolicy.maximumDuplicateRatio
     )
-      errors.push(`${yard.name} duplicate ratio exceeds 25%`);
+      yardErrors.push(`${yard.name} duplicate ratio exceeds 25%`);
     perYard.push(tally);
+    if (yardErrors.length) {
+      rejectedYards.push({
+        code: yard.code,
+        reason: hollanderstoresPreservedReason(
+          `${yardErrors.join("; ")} (${yard.code}: ${tally.accepted} accepted, ${tally.rejected} rejected, ${tally.duplicates} duplicates of ${tally.total} listed). This yard publishes nothing this run and its previously published inventory is preserved; the next daily crawl checks it again.`,
+        ),
+      });
+      exclude();
+      continue;
+    }
+    for (const [vin, vehicle] of yardVehicles) vehicles.set(vin, vehicle);
+    for (const vin of yardObserved) observedVins.add(vin);
+    warnings.push(...yardWarnings);
+    accounting.recordsProcessed += page.rows.length;
+    accounting.recordsRejected += tally.rejected;
+    accounting.duplicateVehicles += tally.duplicates;
   }
   if (
     previousAcceptedCount !== null &&
@@ -187,6 +229,7 @@ export function hollanderstoresSnapshot(
     observedVins: [...observedVins].sort(),
     accounting,
     perYard,
+    rejectedYards,
     warnings,
     errors,
   };

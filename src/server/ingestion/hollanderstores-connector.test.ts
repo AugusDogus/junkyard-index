@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { Effect } from "effect";
-import { streamHollanderstoresInventory } from "./hollanderstores-connector";
+import {
+  streamHollanderstoresInventory,
+  type HollanderstoresStreamResult,
+} from "./hollanderstores-connector";
 import { streamHollanderstoresDurableInventory } from "./hollanderstores-durable";
 import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import {
@@ -60,9 +63,18 @@ describe("Hollander Stores saved complete census", () => {
   }, 30_000);
   test("rejects failed make lookups without inventing a make and guards each yard", () => {
     const value = hollanderstoresSnapshot(pages(), {});
-    expect(value.errors).toContain(
+    // A yard failing its own guard is preserved; the others still publish.
+    expect(value.errors).toEqual([]);
+    const leblanc = value.rejectedYards.find(
+      (yard) => yard.code === "leblancsauto",
+    );
+    expect(leblanc?.reason).toContain(
       "LeBlanc's Auto rejection ratio exceeds 10%",
     );
+    expect(leblanc?.reason).toContain("previously published inventory");
+    expect(
+      value.vehicles.some((vehicle) => vehicle.locationCode === "leblancsauto"),
+    ).toBe(false);
     const standard = pages();
     const row = standard[2]?.rows.find(
       (row) => row.make !== null && hollanderstoresVin(row.vin),
@@ -79,11 +91,25 @@ describe("Hollander Stores saved complete census", () => {
         .filter((row) => hollanderstoresVin(row.vin))
         .slice(0, 3) ?? [];
     for (const row of valid) row.vin = row.vin.slice(0, 16);
-    expect(
-      hollanderstoresSnapshot(failing, hollanderstoresSeed).errors,
-    ).toContain(
+    const standardRejected = hollanderstoresSnapshot(
+      failing,
+      hollanderstoresSeed,
+    );
+    expect(standardRejected.errors).toEqual([]);
+    expect(standardRejected.rejectedYards.map((yard) => yard.code)).toEqual([
+      "standardauto",
+    ]);
+    expect(standardRejected.rejectedYards[0]?.reason).toContain(
       "Standard Used Auto Parts & Wrecking rejection ratio exceeds 10%",
     );
+    // Its rows are read but excluded, so they cannot look like duplicates.
+    const standardRows = failing[2]?.rows.length ?? 0;
+    expect(standardRejected.accounting.recordsExcluded).toBe(standardRows);
+    expect(
+      standardRejected.vehicles.some(
+        (vehicle) => vehicle.locationCode === "standardauto",
+      ),
+    ).toBe(false);
     expect(
       hollanderstoresSnapshot(pages(), hollanderstoresSeed, expected.count * 3)
         .errors,
@@ -219,7 +245,7 @@ describe("Hollander Stores saved complete census", () => {
     expect(batches).toHaveLength(1);
     expect(IngestionSourceFlags.resolve({})).toContain("hollanderstores");
   }, 600_000);
-  test("closing drift and corrupt checkpoints cannot emit", async () => {
+  test("closing drift preserves only its yard and corrupt checkpoints cannot emit", async () => {
     let requests = 0,
       emitted = false;
     const response = (yard: HollanderstoresYard) => {
@@ -269,23 +295,43 @@ describe("Hollander Stores saved complete census", () => {
     expect(() =>
       HollanderstoresCursor.parse({ ...checked, requests: 99 }),
     ).toThrow();
-    const result = await Effect.runPromise(
-      streamHollanderstoresInventory({
-        startCursor: first.cursor,
-        maxPages: 8,
-        decodeBatch: decode,
-        onBatch: () =>
-          Effect.sync(() => {
-            emitted = true;
-          }),
-        readPage: (yard) =>
-          Effect.succeed(response(yard).replace("A18031", "OTHER")),
-      }),
-    );
-    expect(result.status).toBe("failed");
-    expect(result.errors.join(" ")).toContain("surviving vehicle fields");
-    expect(emitted).toBe(false);
+    // Standard's closing census drifts: it is preserved and emits nothing,
+    // while the closing census goes on through the remaining yards.
+    const emittedYards = new Set<string>();
+    let cursor: HollanderstoresCursor = first.cursor;
+    let closingReads = 0;
+    for (;;) {
+      const result: HollanderstoresStreamResult = await Effect.runPromise(
+        streamHollanderstoresInventory({
+          startCursor: cursor,
+          maxPages: 8,
+          decodeBatch: decode,
+          onBatch: (vehicles) =>
+            Effect.sync(() => {
+              emitted = true;
+              for (const vehicle of vehicles)
+                emittedYards.add(vehicle.locationCode);
+            }),
+          readPage: (yard) =>
+            Effect.sync(() => {
+              closingReads++;
+              return response(yard).replace("A18031", "OTHER");
+            }),
+        }),
+      );
+      expect(result.status).not.toBe("failed");
+      cursor = result.cursor;
+      if (result.status === "complete") break;
+      expect(emitted).toBe(false);
+    }
+    if (cursor.phase !== "complete") throw new Error("Closing did not finish");
+    expect(
+      cursor.preserved?.find((yard) => yard.code === "standardauto")?.reason,
+    ).toContain("surviving vehicle fields");
+    expect(emitted).toBe(true);
+    expect(emittedYards.has("standardauto")).toBe(false);
     expect(requests).toBe(HOLLANDERSTORES_YARDS.length);
+    expect(closingReads).toBe(HOLLANDERSTORES_YARDS.length);
   }, 600_000);
   test("provider failures never release partial inventory", async () => {
     let emitted = false;

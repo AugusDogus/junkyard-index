@@ -891,11 +891,7 @@ async function runMissingBatch(
   const transitions = planMissingVehicleTransitions({
     presentVins,
     existingRows: rows.filter(
-      (row) =>
-        (row.source !== "urgiis" ||
-          !inventory.preservedUrgiisYards.has(row.locationCode)) &&
-        (row.source !== "autorecycler" ||
-          !inventory.preservedAutorecyclerYards.has(row.locationCode)),
+      (row) => !inventory.preservedYards.get(row.source)?.has(row.locationCode),
     ),
     runTimestamp: params.runTimestamp,
     acceptedSources: reconciled,
@@ -989,10 +985,7 @@ async function runMissingBatch(
   if (finishing) {
     const publication = yardPublicationStatement(
       params.acceptedSources,
-      new Map([
-        ["autorecycler", inventory.preservedAutorecyclerYards],
-        ["urgiis", inventory.preservedUrgiisYards],
-      ]),
+      inventory.preservedYards,
       params.runTimestamp.getTime(),
     );
     if (publication) statements.push(publication);

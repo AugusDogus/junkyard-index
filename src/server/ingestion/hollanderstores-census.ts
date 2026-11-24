@@ -25,7 +25,7 @@ export function hollanderstoresCensusError(
   const added = closing.rows.filter((row) => !openingUrls.has(row.url));
   const limit = Math.max(3, Math.floor(opening.total * 0.01));
   if (removed.length + added.length > limit)
-    return `${opening.yard} closing census drift exceeds ${limit} vehicles: ${removed.length} removed, ${added.length} added (${opening.total} opening, ${closing.total} closing). Previous inventory and the last validated checkpoint are preserved. Inspect the captures and restart with a fresh opening census.`;
+    return `${opening.yard} closing census drift exceeds ${limit} vehicles: ${removed.length} removed, ${added.length} added (${opening.total} opening, ${closing.total} closing). This yard publishes nothing this run and keeps its previously published inventory; the other yards still publish. Inspect the captures if it repeats; the next crawl reads a fresh census.`;
   // Turnover may add or remove rows, but surviving records must retain their
   // fields, destinations and relative order. Reordered duplicate stocks remain
   // unqualified, as in the saved OK Auto Parts captures.
@@ -72,5 +72,5 @@ export function hollanderstoresCensusError(
     (row, index) =>
       JSON.stringify(row) !== JSON.stringify(closingSurvivors[index]),
   ).length;
-  return `${opening.yard} closing census changed surviving vehicle fields or order: ${fieldPart}; ${orderPart} (${differing} of ${openingSurvivors.length} surviving positions differ). Previous inventory and the last validated checkpoint are preserved. Compare these vehicles in the opening and closing captures, then restart with a fresh opening census.`;
+  return `${opening.yard} closing census changed surviving vehicle fields or order: ${fieldPart}; ${orderPart} (${differing} of ${openingSurvivors.length} surviving positions differ). This yard publishes nothing this run and keeps its previously published inventory; the other yards still publish. If it repeats, compare these vehicles in the opening and closing captures; the next crawl reads a fresh census.`;
 }

@@ -2,8 +2,10 @@ import { VANDERHAAGS_MINIMUM_BY_YARD } from "./vanderhaags-yards";
 import { HARRYS_MINIMUM_BY_YARD } from "./harrys-yard-metadata";
 import { validateAutorecyclerPublishedInventory } from "./autorecycler-published-inventory";
 import { urgiisPublication } from "./urgiis-publication";
+import { hollanderstoresPreservedYards } from "./hollanderstores-durable-cursor";
+import { HOLLANDERSTORES_YARDS } from "./hollanderstores-yard-metadata";
 import { validatePublishedYardInventory } from "./published-yard-inventory";
-import { and, count, eq, inArray, isNull } from "drizzle-orm";
+import { and, count, eq, inArray, isNull, notInArray } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import {
   isIngestionSource,
@@ -89,7 +91,8 @@ export async function validateDurableSourceRuns(params: {
     { uniqueVehicles: number; newestVehicleDate: Date | null }
   >();
   const yardErrorsBySource = new Map<string, string[]>();
-  const urgiisLimits = new Map<string, { minimum: number; previous: number }>();
+  // Floors and drift baselines over only the yards a source publishes.
+  const scopedLimits = new Map<string, { minimum: number; previous: number }>();
   const autorecyclerBaselines = new Map<string, number>();
   for (const row of sourceRows) {
     const snapshot = await loadSourceSnapshot(
@@ -164,6 +167,35 @@ export async function validateDurableSourceRuns(params: {
         ),
       );
     if (
+      row.source === "hollanderstores" &&
+      row.status === "success" &&
+      isDurableSourceCursorTerminal(row.source, row.nextCursor)
+    ) {
+      const preserved = hollanderstoresPreservedYards(
+        parseDurableSourceCursor("hollanderstores", row.nextCursor ?? ""),
+      );
+      // Preserved yards keep their previous inventory, so they count toward
+      // neither this run's floor nor its drift baseline.
+      if (preserved.size > 0) {
+        const [baseline] = await params.database
+          .select({ count: count() })
+          .from(vehicle)
+          .where(
+            and(
+              eq(vehicle.source, "hollanderstores"),
+              isNull(vehicle.missingSinceAt),
+              notInArray(vehicle.locationCode, [...preserved]),
+            ),
+          );
+        scopedLimits.set(row.source, {
+          minimum: HOLLANDERSTORES_YARDS.filter(
+            (yard) => !preserved.has(yard.code),
+          ).reduce((sum, yard) => sum + yard.minimum, 0),
+          previous: baseline?.count ?? 0,
+        });
+      }
+    }
+    if (
       row.source === "urgiis" &&
       row.status === "success" &&
       isDurableSourceCursorTerminal(row.source, row.nextCursor)
@@ -180,7 +212,7 @@ export async function validateDurableSourceRuns(params: {
             inArray(vehicle.locationCode, [...scope.minimumByYard.keys()]),
           ),
         );
-      urgiisLimits.set(row.source, {
+      scopedLimits.set(row.source, {
         minimum: scope.minimum,
         previous: baseline?.count ?? 0,
       });
@@ -235,9 +267,9 @@ export async function validateDurableSourceRuns(params: {
         ...parseIngestionErrors(row.errors),
         ...(yardErrorsBySource.get(row.source) ?? []),
       ],
-      minimumUniqueInventory: urgiisLimits.get(row.source)?.minimum,
+      minimumUniqueInventory: scopedLimits.get(row.source)?.minimum,
       previousAcceptedCount:
-        urgiisLimits.get(row.source)?.previous ??
+        scopedLimits.get(row.source)?.previous ??
         autorecyclerBaselines.get(row.source) ??
         previous?.uniqueVehicles ??
         null,
