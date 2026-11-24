@@ -2,6 +2,10 @@ import { YardService } from "~/lib/yard-service";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import Link from "next/link";
 import { InventoryFormat } from "~/lib/inventory-format";
+import {
+  InventoryStaleness,
+  type InventoryCheckDates,
+} from "~/lib/inventory-staleness";
 import { cn } from "~/lib/utils";
 import { YardName } from "~/lib/yard-name";
 import type { RoutedYard } from "~/server/yard-inventory";
@@ -37,12 +41,16 @@ const TONES = {
  */
 export function YardList({
   yards,
+  checkDates,
   tone = "paper",
 }: {
   yards: readonly RoutedYard[];
+  /** When each yard was last checked; a stale yard says so. */
+  checkDates: InventoryCheckDates;
   tone?: YardListTone;
 }) {
   const colours = TONES[tone];
+  const now = Date.now();
   return (
     <div>
       <div
@@ -59,37 +67,48 @@ export function YardList({
         <span className="text-right">Vehicles</span>
       </div>
       <ul className={cn("border-t-2 sm:border-t-0", colours.rule)}>
-        {yards.map((yard) => (
-          <li key={yard.path.href} className={cn("border-b", colours.row)}>
-            <Link
-              href={yard.path.href}
-              prefetch={false}
-              // The row classes are in globals.css: a list can hold every yard.
-              className={cn("group/row yard-list-link", colours.link)}
-            >
-              <span className={cn("yard-list-name", colours.name)}>
-                {YardName.headline(yard.name, yard.operator)}
-                {isIngestionSource(yard.source) && (
-                  <span className={cn("yard-list-service", colours.meta)}>
-                    {YardService.label(
-                      YardService.resolve(yard.source, yard.code),
-                    )}
-                  </span>
-                )}
-              </span>
-              <span className={cn("yard-list-place", colours.meta)}>
-                {yard.city}, {yard.state}
-              </span>
-              <span className={cn("yard-list-figure", colours.figure)}>
-                {InventoryFormat.count(yard.vehicleCount)}
-                <span className={cn("yard-list-unit", colours.meta)}>
-                  {" "}
-                  {yard.vehicleCount === 1 ? "vehicle" : "vehicles"}
+        {yards.map((yard) => {
+          const lastChecked = InventoryStaleness.label(
+            InventoryStaleness.checkedAt(checkDates, yard.source, yard.code),
+            now,
+          );
+          return (
+            <li key={yard.path.href} className={cn("border-b", colours.row)}>
+              <Link
+                href={yard.path.href}
+                prefetch={false}
+                // The row classes are in globals.css: a list can hold every yard.
+                className={cn("group/row yard-list-link", colours.link)}
+              >
+                <span className={cn("yard-list-name", colours.name)}>
+                  {YardName.headline(yard.name, yard.operator)}
+                  {isIngestionSource(yard.source) && (
+                    <span className={cn("yard-list-service", colours.meta)}>
+                      {YardService.label(
+                        YardService.resolve(yard.source, yard.code),
+                      )}
+                    </span>
+                  )}
+                  {lastChecked && (
+                    <span className="bg-figure text-board mt-1 inline-block px-1.5 py-0.5 text-xs font-extrabold">
+                      {lastChecked}
+                    </span>
+                  )}
                 </span>
-              </span>
-            </Link>
-          </li>
-        ))}
+                <span className={cn("yard-list-place", colours.meta)}>
+                  {yard.city}, {yard.state}
+                </span>
+                <span className={cn("yard-list-figure", colours.figure)}>
+                  {InventoryFormat.count(yard.vehicleCount)}
+                  <span className={cn("yard-list-unit", colours.meta)}>
+                    {" "}
+                    {yard.vehicleCount === 1 ? "vehicle" : "vehicles"}
+                  </span>
+                </span>
+              </Link>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

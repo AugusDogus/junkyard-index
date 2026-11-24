@@ -18,7 +18,7 @@ import {
 } from "./notification-intent-claim";
 import { parseNotificationIntentPayload } from "./notification-intent-payload";
 import { ConsumerFlags } from "~/server/ingestion/consumer-flags";
-import { SourceControlRepository } from "~/server/source-control/source-control-repository";
+import { loadHiddenSources } from "~/server/source-control/hidden-sources";
 import { notificationDeliveryAllowed } from "./notification-delivery-trigger";
 import { SearchAlertsFlag } from "./search-alerts-flag";
 
@@ -123,12 +123,12 @@ const operations: DurableAlertDeliveryOperations = {
   sendEmailDigest: async (recipient, digest, options) =>
     sendEmailDigest(recipient, digest, {
       ...options,
-      hiddenSources: await SourceControlRepository.hiddenSources(db),
+      hiddenSources: await loadHiddenSources(db, new Date()),
     }),
   sendDiscordAlerts: async (discordUserId, alerts, options) =>
     sendDiscordAlerts(discordUserId, alerts, {
       ...options,
-      hiddenSources: await SourceControlRepository.hiddenSources(db),
+      hiddenSources: await loadHiddenSources(db, new Date()),
     }),
   cancelIntents: async (intents, reason) => {
     const claim = claimedGroup(intents);

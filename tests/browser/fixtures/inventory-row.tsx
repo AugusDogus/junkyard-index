@@ -39,6 +39,7 @@ function Fixture() {
           vehicle={{ ...vehicle, imageUrl }}
           source="allied"
           publishedAt={null}
+          lastChecked={null}
           layout="columns"
           hiddenSources={HiddenSources.none}
         />
@@ -46,6 +47,7 @@ function Fixture() {
           vehicle={{ ...vehicle, imageUrl }}
           source="allied"
           publishedAt={null}
+          lastChecked={null}
           layout="stacked"
           hiddenSources={HiddenSources.none}
         />
@@ -57,6 +59,7 @@ function Fixture() {
           }}
           source="allied"
           publishedAt={null}
+          lastChecked={null}
           layout="columns"
           hiddenSources={HiddenSources.none}
         />

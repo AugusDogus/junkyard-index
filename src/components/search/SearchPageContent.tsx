@@ -61,6 +61,10 @@ import {
   SaveSearchDialog,
 } from "~/components/search/SaveSearchDialog";
 import { SavedSearchesDropdown } from "~/components/search/SavedSearchesDropdown";
+import {
+  InventoryCheckProvider,
+  type InventoryCheck,
+} from "~/components/InventoryCheckContext";
 import { SearchAccessShell } from "~/components/search/SearchAccessShell";
 import type { SearchKeyGrant } from "~/lib/search-key-grant";
 import type { SearchServerRender } from "~/lib/search-server-render";
@@ -137,6 +141,8 @@ interface SearchPageContentProps {
   /** The key this visitor's browser searches with, minted for their plan. */
   searchKey: SearchKeyGrant;
   serverSearch: SearchServerRender;
+  /** Stale sources' and yards' check dates, for the hits' labels. */
+  inventoryCheck: InventoryCheck;
   initialIsMobile?: boolean;
   userLocation?: { lat: number; lng: number };
 }
@@ -1851,32 +1857,35 @@ export function SearchPageContent({
   knownYardNames,
   serverSearch,
   searchKey,
+  inventoryCheck,
 }: SearchPageContentProps) {
   return (
-    <SearchAccessShell
-      isLoggedIn={isLoggedIn}
-      searchKey={searchKey}
-      knownYardNames={knownYardNames}
-      serverSearch={serverSearch}
-    >
-      {({
-        planAccess,
-        vinPatternIndexReady,
-        booleanOrSearchReady,
-        newestSortReady,
-      }) => (
-        <AlgoliaSearchInner
-          arrivalReferenceTime={arrivalReferenceTime}
-          isLoggedIn={isLoggedIn}
-          serverSearchKeyTier={searchKey.tier}
-          initialIsMobile={initialIsMobile}
-          planAccess={planAccess}
-          userLocation={userLocation}
-          vinPatternIndexReady={vinPatternIndexReady}
-          booleanOrSearchReady={booleanOrSearchReady}
-          newestSortReady={newestSortReady}
-        />
-      )}
-    </SearchAccessShell>
+    <InventoryCheckProvider check={inventoryCheck}>
+      <SearchAccessShell
+        isLoggedIn={isLoggedIn}
+        searchKey={searchKey}
+        knownYardNames={knownYardNames}
+        serverSearch={serverSearch}
+      >
+        {({
+          planAccess,
+          vinPatternIndexReady,
+          booleanOrSearchReady,
+          newestSortReady,
+        }) => (
+          <AlgoliaSearchInner
+            arrivalReferenceTime={arrivalReferenceTime}
+            isLoggedIn={isLoggedIn}
+            serverSearchKeyTier={searchKey.tier}
+            initialIsMobile={initialIsMobile}
+            planAccess={planAccess}
+            userLocation={userLocation}
+            vinPatternIndexReady={vinPatternIndexReady}
+            booleanOrSearchReady={booleanOrSearchReady}
+            newestSortReady={newestSortReady}
+          />
+        )}
+      </SearchAccessShell>
+    </InventoryCheckProvider>
   );
 }

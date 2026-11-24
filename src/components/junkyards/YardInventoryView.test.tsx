@@ -106,6 +106,7 @@ function props(vehicles: YardVehicle[]): Props {
     makes: YardInventory.makeCounts(vehicles),
     makeSlugs: new Map([["honda", "honda"]]),
     publishedAt,
+    checkedAt: publishedAt,
     nearby: [],
     chain: null,
     filter: null,
@@ -159,5 +160,46 @@ describe("YardInventoryView pages", () => {
     expect(html).toContain(`href="${yard.path.href}/make/honda/page/2"`);
     expect(html).toContain(`href="${yard.path.href}/make/honda/page/3"`);
     expect(html).not.toContain(`href="${yard.path.href}/page/2"`);
+  });
+});
+
+describe("YardInventoryView staleness", () => {
+  const vehicles = [vehicle("VIN00001", "2026-11-01T00:00:00.000Z")];
+  const daysAgo = (days: number) =>
+    new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+
+  test("says on the yard and on each vehicle when inventory older than 36 hours was last checked", async () => {
+    const html = text(
+      await render({
+        ...props(vehicles),
+        publishedAt: daysAgo(3),
+        checkedAt: daysAgo(3),
+      }),
+    );
+    expect(html.match(/Last checked 3 days ago/g)?.length).toBe(2);
+  });
+
+  test("uses the source's date for a yard without its own, so an untracked yard of a stale source still says it", async () => {
+    const html = text(
+      await render({
+        ...props(vehicles),
+        publishedAt: null,
+        checkedAt: daysAgo(13),
+      }),
+    );
+    expect(html).toContain("Last checked 13 days ago");
+    expect(html).not.toContain("Update time unknown");
+  });
+
+  test("labels nothing while current", async () => {
+    const html = text(
+      await render({
+        ...props(vehicles),
+        publishedAt: null,
+        checkedAt: daysAgo(1),
+      }),
+    );
+    expect(html).not.toContain("Last checked");
+    expect(html).toContain("Update time unknown");
   });
 });

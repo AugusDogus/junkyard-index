@@ -4,6 +4,7 @@ import {
   isRetiredIngestionSource,
   type IngestionSource,
 } from "~/lib/ingestion-source";
+import { InventoryStaleness } from "~/lib/inventory-staleness";
 import { isFreshPublication } from "~/server/ingestion/durable-health";
 import { IngestionDay } from "~/server/ingestion/ingestion-day";
 import {
@@ -91,6 +92,12 @@ export type SourceSummary = {
    * SOURCE_STALE_AFTER_HOURS. A running or failing source can be stale too.
    */
   stale: boolean;
+  /**
+   * Hidden from the public site because it has no accepted publication
+   * within INVENTORY_HIDDEN_AFTER_DAYS, apart from any hide by the owner;
+   * null while that rule shows it. Its next accepted publication clears it.
+   */
+  staleHide: { lastAcceptedAt: Date | null } | null;
   /** Vehicles on the site now, from yard_inventory; null without any. */
   publishedVehicles: number | null;
   /** Unique vehicles of the last accepted run minus the one before it. */
@@ -154,6 +161,15 @@ function summarize(
     !retired &&
     pausedBy === null &&
     !isFreshPublication(lastAcceptedAt?.getTime() ?? null, input.now);
+  // The rule loadHiddenSources applies; the admin window is its lookback.
+  const staleHide =
+    !retired &&
+    InventoryStaleness.of(
+      lastAcceptedAt?.getTime() ?? null,
+      input.now.getTime(),
+    ).kind === "hidden"
+      ? { lastAcceptedAt }
+      : null;
   const state: SourceState = retired
     ? "retired"
     : pausedBy !== null
@@ -180,6 +196,7 @@ function summarize(
     consecutiveFailures,
     lastAcceptedAt,
     stale,
+    staleHide,
     publishedVehicles: input.publishedCounts.get(source) ?? null,
     vehicleChange:
       newest === undefined || previous === undefined
@@ -216,7 +233,10 @@ export const SourceOverview = {
 
   counts(summaries: readonly SourceSummary[]): {
     byState: Record<SourceState, number>;
+    /** Hidden by the owner. */
     hidden: number;
+    /** Hidden for staleness, whether or not the owner hid them too. */
+    staleHidden: number;
   } {
     const byState: Record<SourceState, number> = {
       failing: 0,
@@ -233,6 +253,8 @@ export const SourceOverview = {
       hidden: summaries.filter(
         (summary) => summary.control.visibility.status === "hidden",
       ).length,
+      staleHidden: summaries.filter((summary) => summary.staleHide !== null)
+        .length,
     };
   },
 

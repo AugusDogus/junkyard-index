@@ -244,6 +244,10 @@ function Fixture() {
                       knownYardNames={knownYardNames}
                       serverSearch={serverSearch}
                       searchKey={searchKey}
+                      inventoryCheck={{
+                        dates: { sources: {}, yards: {} },
+                        now: arrivalReferenceTime,
+                      }}
                     />
                     <HydrationMarker />
                   </Suspense>

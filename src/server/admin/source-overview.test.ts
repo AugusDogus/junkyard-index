@@ -323,6 +323,55 @@ describe("SourceOverview.build", () => {
     expect(SourceOverview.counts(summaries).hidden).toBe(1);
   });
 
+  test("a source without an accepted publication for 7 days is hidden automatically, and shown again after its next one", () => {
+    const eightDaysAgo = new Date(now.getTime() - 8 * 24 * HOUR);
+    const stale = summaryFor(
+      SourceOverview.build(
+        input({
+          runs: [
+            run("pyp", eightDaysAgo, { kind: "accepted", vehicles: 1 }),
+            run("pyp", today, { kind: "rejected" }),
+          ],
+        }),
+      ),
+      "pyp",
+    );
+    expect(stale.staleHide).toEqual({
+      lastAcceptedAt: new Date(eightDaysAgo.getTime() + 2 * HOUR),
+    });
+    expect(stale.control.visibility).toEqual({ status: "shown" });
+
+    const recovered = summaryFor(
+      SourceOverview.build(
+        input({
+          runs: [
+            run("pyp", eightDaysAgo, { kind: "accepted", vehicles: 1 }),
+            run("pyp", today, { kind: "accepted", vehicles: 1 }),
+          ],
+        }),
+      ),
+      "pyp",
+    );
+    expect(recovered.staleHide).toBeNull();
+  });
+
+  test("a source stale for under 7 days stays shown, and a retired one is never hidden automatically", () => {
+    const summaries = SourceOverview.build(
+      input({
+        runs: [run("pyp", twoDaysAgo, { kind: "accepted", vehicles: 1 })],
+      }),
+    );
+    expect(summaryFor(summaries, "pyp")).toMatchObject({
+      stale: true,
+      staleHide: null,
+    });
+    expect(summaryFor(summaries, "brandywine").staleHide).toBeNull();
+    // Without any accepted run in the window, an active source is hidden.
+    expect(summaryFor(summaries, "row52").staleHide).toEqual({
+      lastAcceptedAt: null,
+    });
+  });
+
   test("orders problems first", () => {
     const summaries = SourceOverview.build(
       input({
@@ -381,6 +430,21 @@ describe("SourceOverview.counts", () => {
     expect(counts.byState.failing).toBe(1);
     expect(counts.byState.retired).toBe(2);
     expect(counts.hidden).toBe(1);
+  });
+
+  test("counts sources hidden for staleness apart from the owner's hides", () => {
+    const counts = SourceOverview.counts(
+      SourceOverview.build(
+        input({
+          runs: [run("pyp", today, { kind: "accepted", vehicles: 1 })],
+        }),
+      ),
+    );
+    // Every active source but pyp has no accepted run in the window.
+    expect(counts.staleHidden).toBe(
+      SourceOverview.build(input()).filter((entry) => !entry.retired).length -
+        1,
+    );
   });
 });
 

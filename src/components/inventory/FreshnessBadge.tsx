@@ -1,10 +1,11 @@
 import { InventoryFormat } from "~/lib/inventory-format";
+import { InventoryStaleness } from "~/lib/inventory-staleness";
 import { cn } from "~/lib/utils";
 
 /**
  * When the inventory on a page was last updated. A date when the source
- * refreshed in the last 3 days; a warning for a known older publication, and
- * a neutral label when untracked. With `coverage`, a page listing several
+ * refreshed within INVENTORY_STALE_AFTER_HOURS; when it was last checked for
+ * a known older publication, and a neutral label when untracked. With `coverage`, a page listing several
  * yards also says how many are current, rather than only the newest date.
  *
  * The square is the live state: filled cobalt when every yard is current,
@@ -21,10 +22,11 @@ export function FreshnessBadge({
   if (publishedAt === null) {
     return <p className="text-ink-2 text-sm">Update time unknown</p>;
   }
-  if (Date.now() - Date.parse(publishedAt) > 3 * 24 * 60 * 60 * 1000) {
+  const stale = InventoryStaleness.label(publishedAt, Date.now());
+  if (stale !== null) {
     return (
       <p className="bg-figure text-board inline-block px-2.5 py-1 text-sm font-extrabold text-pretty">
-        Not updated in the last 3 days, so some listings may be gone.
+        {stale}, so some listings may be gone.
       </p>
     );
   }

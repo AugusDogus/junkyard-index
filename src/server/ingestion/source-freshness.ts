@@ -5,8 +5,8 @@ import {
 } from "./durable-health";
 
 /**
- * Each source's latest attempt and accepted publication in the last 3 days,
- * from this deployment's database. Pages and status routes read it without
+ * Each source's latest attempt and accepted publication in the last
+ * SOURCE_FRESHNESS_LOOKBACK_DAYS, from this deployment's database. Pages and status routes read it without
  * loading the ingestion runtime (connectors, Blob, search clients).
  */
 export function getSourceFreshness(

@@ -16,6 +16,7 @@ import { YardPath } from "~/lib/yard-path";
 import { FreshnessBadge } from "~/components/inventory/FreshnessBadge";
 import {
   findChain,
+  getInventoryCheckDates,
   inventoryFreshness,
   latestPublishedAt,
 } from "~/server/yard-inventory";
@@ -89,7 +90,10 @@ export default async function ChainPage({
   const chain = await findChain((await params).chain);
   if (!chain) notFound();
   const { vehicles, regions } = summarize(chain.yards);
-  const freshness = await inventoryFreshness(chain.yards);
+  const [freshness, checkDates] = await Promise.all([
+    inventoryFreshness(chain.yards),
+    getInventoryCheckDates(),
+  ]);
   const largest = [...chain.yards]
     .sort((a, b) => b.vehicleCount - a.vehicleCount)
     .slice(0, TOP_YARDS);
@@ -154,7 +158,7 @@ export default async function ChainPage({
           </p>
         </div>
         <div className="mt-(--space-xl)">
-          <YardList yards={largest} tone="board" />
+          <YardList yards={largest} checkDates={checkDates} tone="board" />
         </div>
       </section>
       {chain.yards.length > TOP_YARDS && (
@@ -189,7 +193,7 @@ export default async function ChainPage({
                   </span>
                 </summary>
                 <div className="pt-2 pb-8">
-                  <YardList yards={yards} />
+                  <YardList yards={yards} checkDates={checkDates} />
                 </div>
               </details>
             ))}

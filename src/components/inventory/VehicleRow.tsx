@@ -23,6 +23,7 @@ export function VehicleRow({
   vehicle,
   source,
   publishedAt,
+  lastChecked,
   yard,
   layout,
   hiddenSources,
@@ -31,6 +32,8 @@ export function VehicleRow({
   source: string;
   /** The yard's latest inventory update, for the "New" label. */
   publishedAt: string | null;
+  /** "Last checked N days ago" when its yard's inventory is stale, else null. */
+  lastChecked: string | null;
   /** Which yard it's at, for lists that span yards. */
   yard?: { name: string; href: string; place: string };
   /** `columns` for a full-width list, `stacked` for one beside other content. */
@@ -102,6 +105,11 @@ export function VehicleRow({
                 {yard.name}
               </Link>
               <span className="block">{yard.place}</span>
+            </p>
+          )}
+          {lastChecked && (
+            <p className="bg-figure text-board mt-2 inline-block px-1.5 py-0.5 text-xs font-extrabold">
+              {lastChecked}
             </p>
           )}
           {location && (

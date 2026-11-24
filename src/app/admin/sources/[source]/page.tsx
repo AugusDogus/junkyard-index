@@ -205,6 +205,7 @@ export default async function AdminSourcePage({ params }: Params) {
                 ingestion={summary.control.ingestion}
                 pausedBy={summary.pausedBy}
                 visibility={summary.control.visibility}
+                staleHide={summary.staleHide}
               />
               <div className="mt-6">
                 <DetailList

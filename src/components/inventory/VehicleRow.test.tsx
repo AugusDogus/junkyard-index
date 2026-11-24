@@ -28,6 +28,7 @@ test("vehicles without photos use text-only rows and omit missing row notices", 
       vehicle={vehicle}
       source="allied"
       publishedAt={null}
+      lastChecked={null}
       layout="columns"
       hiddenSources={HiddenSources.none}
     />,
@@ -49,6 +50,7 @@ test("photos and actual yard positions remain visible", () => {
       }}
       source="allied"
       publishedAt={null}
+      lastChecked={null}
       layout="stacked"
       hiddenSources={HiddenSources.none}
     />,

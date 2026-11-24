@@ -10,6 +10,7 @@ import {
 } from "~/components/admin/AdminParts";
 import { AdminTime } from "~/components/admin/AdminTime";
 import { Badge } from "~/components/ui/badge";
+import { INVENTORY_HIDDEN_AFTER_DAYS } from "~/lib/inventory-staleness";
 import { ADMIN_WINDOW_DAYS, AdminData } from "~/server/admin/admin-data";
 import { adminMetadata, requireAdmin } from "~/server/admin/require-admin";
 import type { SourceSummary } from "~/server/admin/source-overview";
@@ -25,6 +26,14 @@ const PAUSE_TITLES: Record<PauseCause, string> = {
   flag: "Paused by its Vercel flag",
   admin_and_flag: "Paused from its admin page and by its Vercel flag",
 };
+
+function staleHideReason(hide: { lastAcceptedAt: Date | null }): string {
+  const since =
+    hide.lastAcceptedAt === null
+      ? `in the last ${ADMIN_WINDOW_DAYS} days`
+      : `since ${hide.lastAcceptedAt.toISOString()}`;
+  return `Hidden automatically: no accepted publication ${since}, over the ${INVENTORY_HIDDEN_AFTER_DAYS}-day limit. It shows again after its next accepted publication.`;
+}
 
 export function generateMetadata() {
   return adminMetadata({ title: "Sources" });
@@ -122,6 +131,14 @@ export default async function AdminSourcesPage() {
                             title={summary.control.visibility.reason}
                           >
                             Hidden
+                          </Badge>
+                        )}
+                        {summary.staleHide !== null && (
+                          <Badge
+                            variant="outline"
+                            title={staleHideReason(summary.staleHide)}
+                          >
+                            Hidden (stale)
                           </Badge>
                         )}
                         {summary.pausedBy !== null && (

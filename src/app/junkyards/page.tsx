@@ -13,6 +13,7 @@ import { StructuredData } from "~/lib/structured-data";
 import { YardPath } from "~/lib/yard-path";
 import {
   getChains,
+  getInventoryCheckDates,
   getRoutedYards,
   inventoryFreshness,
 } from "~/server/yard-inventory";
@@ -47,7 +48,10 @@ export default async function JunkyardsPage() {
   const [yards, chains] = await Promise.all([getRoutedYards(), getChains()]);
   const groups = YardPath.byRegion(yards);
   const vehicles = yards.reduce((sum, yard) => sum + yard.vehicleCount, 0);
-  const freshness = await inventoryFreshness(yards);
+  const [freshness, checkDates] = await Promise.all([
+    inventoryFreshness(yards),
+    getInventoryCheckDates(),
+  ]);
   const crumbs = [
     { name: "Home", href: "/" },
     { name: "Junkyards", href: "/junkyards" },
@@ -237,7 +241,7 @@ export default async function JunkyardsPage() {
                 </span>
               </summary>
               <div className="pt-2 pb-8">
-                <YardList yards={regionYards} />
+                <YardList yards={regionYards} checkDates={checkDates} />
               </div>
             </details>
           ))}

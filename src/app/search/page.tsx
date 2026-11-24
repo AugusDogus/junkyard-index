@@ -14,7 +14,9 @@ import { SearchPageContent } from "~/components/search/SearchPageContent";
 import { db } from "~/lib/db";
 import { SearchServerRender } from "~/lib/search-server-render";
 import { searchPageMetadata } from "./search-metadata";
+import { InventoryStaleness } from "~/lib/inventory-staleness";
 import { getHomepageYards } from "~/server/homepage-yards";
+import { getInventoryCheckDates } from "~/server/yard-inventory";
 import { searchKeyGrants } from "~/server/search-key-grant";
 import { getHiddenSources } from "~/server/source-control/hidden-sources-loader";
 import { auth } from "~/lib/auth";
@@ -65,12 +67,14 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     }),
   ]);
   const isLoggedIn = Boolean(session?.user);
-  const [searchKey] = await Promise.all([
+  const renderedAt = Date.now();
+  const [searchKey, checkDates] = await Promise.all([
     searchKeyGrants.forRender({
       userId: session?.user.id ?? null,
       headers: reqHeaders,
-      nowMs: Date.now(),
+      nowMs: renderedAt,
     }),
+    getInventoryCheckDates(),
     api.status.searchCapabilities.prefetch(),
     isLoggedIn
       ? api.subscription.getAccountOverview.prefetch()
@@ -86,7 +90,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
             <Suspense fallback={<SearchPageSkeleton />}>
               <HydrateClient>
                 <SearchPageContent
-                  arrivalReferenceTime={Date.now()}
+                  arrivalReferenceTime={renderedAt}
                   isLoggedIn={isLoggedIn}
                   initialIsMobile={/Mobile|Android|iPhone|iPod/i.test(
                     reqHeaders.get("user-agent") ?? "",
@@ -98,6 +102,10 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                   userLocation={geo}
                   knownYardNames={knownYardNames}
                   searchKey={searchKey}
+                  inventoryCheck={{
+                    dates: InventoryStaleness.staleOnly(checkDates, renderedAt),
+                    now: renderedAt,
+                  }}
                 />
               </HydrateClient>
             </Suspense>

@@ -10,7 +10,7 @@ import { InventoryFormat } from "~/lib/inventory-format";
 import { getHiddenSources } from "~/server/source-control/hidden-sources-loader";
 import { getModelPageData } from "~/server/vehicle-models";
 import {
-  getSourcePublishedAt,
+  getInventoryCheckDates,
   inventoryFreshness,
 } from "~/server/yard-inventory";
 
@@ -40,13 +40,13 @@ async function load(params: Promise<Params>) {
       ? [{ yard, count: entry.count, years: InventoryFormat.years(entry) }]
       : [];
   });
-  const [freshness, sourcePublishedAt] = await Promise.all([
+  const [freshness, checkDates] = await Promise.all([
     inventoryFreshness(yards.map(({ yard }) => yard)),
-    getSourcePublishedAt(),
+    getInventoryCheckDates(),
   ]);
   const canonical =
     requested.make === data.make.slug && requested.model === data.model.slug;
-  return { ...data, yards, freshness, sourcePublishedAt, canonical };
+  return { ...data, yards, freshness, checkDates, canonical };
 }
 
 export async function generateMetadata({
@@ -85,7 +85,7 @@ export default async function ModelPage({
         yards={data.yards}
         arrivals={data.arrivals}
         freshness={data.freshness}
-        sourcePublishedAt={data.sourcePublishedAt}
+        checkDates={data.checkDates}
         hiddenSources={await getHiddenSources()}
       />
     </PublicPageShell>

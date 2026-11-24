@@ -6,6 +6,7 @@ import { isIngestionSource } from "~/lib/ingestion-source";
 import { ArrowUpRight, MapPin, Phone } from "lucide-react";
 import Link from "next/link";
 import { FreshnessBadge } from "~/components/inventory/FreshnessBadge";
+import { InventoryStaleness } from "~/lib/inventory-staleness";
 import { VehicleRow } from "~/components/inventory/VehicleRow";
 import { AlertsCallout } from "~/components/junkyards/AlertsCallout";
 import { Breadcrumbs } from "~/components/junkyards/Breadcrumbs";
@@ -56,6 +57,7 @@ export function YardInventoryView({
   makes,
   makeSlugs,
   publishedAt,
+  checkedAt,
   nearby,
   chain,
   filter,
@@ -72,6 +74,12 @@ export function YardInventoryView({
   /** Each make's national URL slug, by make key. */
   makeSlugs: ReadonlyMap<string, string>;
   publishedAt: string | null;
+  /**
+   * When the yard was last checked: its own publication, else its source's
+   * (`InventoryStaleness.checkedAt`). Past 36 hours, the page and every row
+   * say so; a source past 7 days is hidden, so its yard has no page.
+   */
+  checkedAt: string | null;
   nearby: readonly NearbyYard[];
   /** The chain the yard belongs to, when it has other yards we track. */
   chain: { name: string; href: string; yards: number } | null;
@@ -100,6 +108,7 @@ export function YardInventoryView({
   const shownTo = inventory.firstIndex + inventory.vehicles.length;
   const showMakes = inventory.page === 1 && makes.length > 1;
   const { headerCount, badgesSince } = YardInventory.newDisplay(newArrivals);
+  const lastChecked = InventoryStaleness.label(checkedAt, Date.now());
 
   return (
     <>
@@ -178,7 +187,11 @@ export function YardInventoryView({
               : `Page ${inventory.page}, newest first`}
           </h2>
           <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-            <FreshnessBadge publishedAt={publishedAt} />
+            <FreshnessBadge
+              publishedAt={
+                publishedAt ?? (lastChecked === null ? null : checkedAt)
+              }
+            />
             {total > 0 && (
               <p className="text-ink text-sm font-medium tabular-nums">
                 {InventoryFormat.count(shownFrom)} to{" "}
@@ -212,6 +225,7 @@ export function YardInventoryView({
                 vehicle={vehicle}
                 source={yard.source}
                 publishedAt={badgesSince}
+                lastChecked={lastChecked}
                 layout="columns"
                 hiddenSources={hiddenSources}
               />

@@ -1069,7 +1069,7 @@ export function createDurableIngestionRepository(
       return toChunkResult(params.source, latest);
     },
 
-    /** Each source's latest attempt and accepted publication in the last 3 days. */
+    /** Each source's latest attempt and accepted publication in the freshness lookback. */
     getSourceFreshness(now: Date): Promise<IngestionSourceFreshness[]> {
       return loadSourceFreshness(database, now);
     },

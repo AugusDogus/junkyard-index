@@ -100,6 +100,7 @@ export default async function YardModelPage({
         makeSlugs={await getMakeSlugs()}
         hiddenSources={await getHiddenSources()}
         publishedAt={data.publishedAt}
+        checkedAt={data.checkedAt}
         nearby={data.nearby}
         chain={data.chain}
         filter={{
