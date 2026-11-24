@@ -163,10 +163,13 @@ function modelName(make: string, model: string): string {
 // "TOWN CAR", "GRAND AM", "RAM VAN"). Leading, they could be initials ("AM
 // General").
 const SHORT_WORDS_AFTER = new Set(["FE", "CAR", "AM", "VAN", "BUS", "CAB"]);
-// Short words that open a longer name ("EL CAMINO", "LE SABRE", "NEW
-// YORKER"). Alone or last, "LE" and "SE" are trims, so only an opening word
-// before another word softens.
-const SHORT_WORDS_OPENING = new Set(["NEW", "EL", "LE", "LA", "DE", "RAM"]);
+// Short words that open a longer name ("EL CAMINO", "NEW YORKER"). Alone or
+// last, "LE" and "SE" are trims, so only an opening word before another word
+// softens.
+const SHORT_WORDS_OPENING = new Set(["NEW", "EL", "LA", "DE", "RAM"]);
+// "LE" also opens trims ("LE V6", "LE PREMIUM"), so it softens only before the
+// model names it begins.
+const LE_MODELS = /^(sabre|mans|baron)\b/i;
 
 function titleCase(word: string): string {
   return word.charAt(0) + word.slice(1).toLowerCase();
@@ -191,6 +194,8 @@ function softenCaps(name: string): string {
         if (word === "AND" && before && after) return "and";
         if (before && SHORT_WORDS_AFTER.has(word)) return titleCase(word);
         if (!before && after && SHORT_WORDS_OPENING.has(word))
+          return titleCase(word);
+        if (!before && word === "LE" && LE_MODELS.test(after))
           return titleCase(word);
         return word;
       },
