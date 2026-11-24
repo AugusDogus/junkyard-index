@@ -9,7 +9,6 @@ import { YardBrand, type Chain } from "~/lib/yard-brand";
 import type { YardPath } from "~/lib/yard-path";
 import { getHomepageInventory } from "~/lib/homepage-inventory";
 import { cacheInventory } from "~/lib/inventory-cache";
-import { HiddenSources } from "~/lib/hidden-source";
 import {
   isIngestionSource,
   isRetiredIngestionSource,
@@ -30,7 +29,7 @@ import {
 } from "~/lib/yard-inventory";
 import { getSourceFreshness } from "~/server/ingestion/source-freshness";
 import { StateNewArrivals } from "~/server/state-new-arrivals";
-import { getHiddenSources } from "~/server/source-control/hidden-sources-loader";
+import { cacheShownInventory } from "~/server/source-control/hidden-sources-loader";
 import { vehicle, yardInventory } from "~/schema";
 
 async function loadYardVehicles(
@@ -252,19 +251,14 @@ export const getYardPublishedAt = cacheInventory(async (): Promise<
  * New arrivals per state, from the summary ingestion keeps with each publish:
  * one small cached query serves every state page, at build and on refresh.
  */
-const getCachedStateNewCounts = cacheInventory(
-  (hiddenList: readonly string[]) =>
-    StateNewArrivals.counts(
-      db,
-      HiddenSources.of(hiddenList),
-      new Date().toISOString(),
-    ),
-  ["state-new-counts-v1", ...RETIRED_INGESTION_SOURCES],
+const getCachedStateNewCounts = cacheShownInventory(
+  (hidden) => StateNewArrivals.counts(db, hidden, new Date().toISOString()),
+  ["state-new-counts-v2", ...RETIRED_INGESTION_SOURCES],
 );
 
-/** New arrivals in a state; the hidden list keys the cache entry. */
+/** New arrivals in a state, leaving out hidden sources. */
 export async function getRegionNewCount(stateAbbr: string): Promise<number> {
-  const counts = await getCachedStateNewCounts((await getHiddenSources()).list);
+  const counts = await getCachedStateNewCounts();
   return counts[stateAbbr] ?? 0;
 }
 
