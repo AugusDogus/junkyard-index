@@ -15,18 +15,26 @@ import { FreshnessBadge } from "~/components/inventory/FreshnessBadge";
 import {
   findRegionYards,
   getRegionNewCount,
+  getRoutedYards,
   inventoryFreshness,
 } from "~/server/yard-inventory";
 import { InventoryFormat } from "~/lib/inventory-format";
 
-// Rebuilt after each daily ingestion pass; this is the fallback lifetime.
+// Rebuilt after each daily ingestion pass, which invalidates the inventory
+// cache tag. This is the fallback lifetime.
 export const revalidate = 86400;
 export const dynamicParams = true;
 
 type Params = { state: string };
 
-export function generateStaticParams(): Params[] {
-  return [];
+/**
+ * Every region with yards renders at build. Each reads only cached
+ * summaries: the yard directory, source freshness, and new arrivals per state.
+ */
+export async function generateStaticParams(): Promise<Params[]> {
+  return YardPath.byRegion(await getRoutedYards()).map(({ region }) => ({
+    state: region.slug,
+  }));
 }
 
 export async function generateMetadata({
