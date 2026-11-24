@@ -69,6 +69,29 @@ function assertUncached(response: Response, url: string): void {
         ") despite its unique cb cache-busting nonce, so the page may belong to an older snapshot. Nothing from this crawl was accepted and previous inventory is preserved. Re-verify that a unique cb parameter still bypasses the site cache before retrying",
     );
 }
+/**
+ * Each way `response` is not the complete, unredirected HTTP 200 text/html
+ * page at `requestUrl`, worded to follow "but". Empty when it is that page.
+ * A mocked Response has no URL, so an empty URL is not a redirect.
+ */
+function endpointFailures(response: Response, requestUrl: string): string[] {
+  const failures: string[] = [];
+  if (response.status !== 200)
+    failures.push("its status was HTTP " + response.status);
+  if (response.redirected || (response.url && response.url !== requestUrl))
+    failures.push("it was redirected to " + (response.url || "(unknown URL)"));
+  const mediaType = response.headers
+    .get("content-type")
+    ?.split(";")[0]
+    ?.trim()
+    .toLowerCase();
+  if (mediaType !== "text/html")
+    failures.push("its content type was " + (mediaType || "absent"));
+  const range = response.headers.get("content-range");
+  if (range !== null)
+    failures.push("it was partial (Content-Range " + range + ")");
+  return failures;
+}
 /** A fresh cache-busting nonce for one inventory read. */
 const freshNonce = () => randomBytes(8).toString("hex");
 /**
@@ -90,20 +113,11 @@ function read(url: string, gate: ProviderRequestGate, nonce: string | null) {
         retryNetworkErrors: false,
       },
       onResponse: (response) => {
-        if (
-          response.status !== 200 ||
-          response.redirected ||
-          response.headers.has("content-range") ||
-          (response.url && response.url !== requestUrl) ||
-          response.headers
-            .get("content-type")
-            ?.split(";")[0]
-            ?.trim()
-            .toLowerCase() !== "text/html"
-        )
+        const failures = endpointFailures(response, requestUrl);
+        if (failures.length > 0)
           throw new Error(
-            "Expected complete unredirected HTTP 200 text/html from the verified endpoint, received " +
-              response.status,
+            "Expected complete unredirected HTTP 200 text/html from the verified endpoint, but " +
+              failures.join(", and "),
           );
         if (nonce !== null) assertUncached(response, requestUrl);
       },

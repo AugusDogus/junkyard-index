@@ -1,3 +1,4 @@
+import { EntityConflictError } from "workflow/internal/errors";
 import { VIN_CANONICAL_SEARCH_SCHEMA_VERSION } from "~/lib/search-index-schema";
 import { SearchIndexSchemaMarker } from "./search-index-schema-marker";
 import {
@@ -363,7 +364,16 @@ export async function cleanupStaleDurableAlgoliaRebuilds(): Promise<void> {
   });
 }
 
-export type WorkflowCancellation = "cancelled" | "not_attached" | "failed";
+/**
+ * How cancelling the run's Workflow went. Already finished: the Workflow had
+ * already completed, failed or been cancelled, so Workflow answered the
+ * cancel with a conflict and there was nothing left to stop.
+ */
+export type WorkflowCancellation =
+  | "cancelled"
+  | "already_finished"
+  | "not_attached"
+  | "failed";
 
 /**
  * What an abandon did. Already ended: the run finished or was abandoned
@@ -404,11 +414,15 @@ export async function abandonDurableIngestion(params: {
       await params.cancelWorkflow(workflowRunId);
       workflowCancellation = "cancelled";
     } catch (error) {
-      workflowCancellation = "failed";
-      console.error(
-        `Abandoned ingestion run ${params.runId}, but cancelling its Workflow ${workflowRunId} failed. The run stays abandoned in Turso; cancel the Workflow by hand if it is still running.`,
-        error,
-      );
+      if (EntityConflictError.is(error)) {
+        workflowCancellation = "already_finished";
+      } else {
+        workflowCancellation = "failed";
+        console.error(
+          `Abandoned ingestion run ${params.runId}, but cancelling its Workflow ${workflowRunId} failed. The run stays abandoned in Turso; cancel the Workflow by hand if it is still running.`,
+          error,
+        );
+      }
     }
   }
   return {

@@ -69,9 +69,12 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
     // product events (free users hitting gates), not errors worth tracking.
     // Neither are calls to paths with no procedure (old clients and scanners
     // asking for removed procedures); tRPC answers those with its own 404.
+    // Nor are UNAUTHORIZED rejections: signed-out or expired sessions calling
+    // protected procedures are expected traffic.
     if (
       !(error instanceof PlanGateError) &&
       !isUnknownProcedure(error, path) &&
+      error.code !== "UNAUTHORIZED" &&
       (error.code === "INTERNAL_SERVER_ERROR" ||
         error.code === "BAD_REQUEST" ||
         !(error.cause instanceof ZodError))

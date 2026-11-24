@@ -3,6 +3,7 @@ import { unstable_cache } from "next/cache";
 import { db } from "~/lib/db";
 import { HiddenSources } from "~/lib/hidden-source";
 import { INVENTORY_CACHE_SECONDS } from "~/lib/inventory-cache";
+import { retryTursoRead } from "~/lib/turso-read-retry";
 import { SourceControlRepository } from "./source-control-repository";
 
 /**
@@ -13,7 +14,10 @@ import { SourceControlRepository } from "./source-control-repository";
 export const SOURCE_CONTROL_CACHE_TAG = "source-control";
 
 async function loadHiddenList(): Promise<string[]> {
-  return [...(await SourceControlRepository.hiddenSources(db)).list];
+  const hidden = await retryTursoRead(() =>
+    SourceControlRepository.hiddenSources(db),
+  );
+  return [...hidden.list];
 }
 
 // Bound, so every route bundle shares one entry (see cacheInventory). The

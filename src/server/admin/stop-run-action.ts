@@ -73,6 +73,8 @@ function cancellationSentence(abandonment: Abandoned): string {
   switch (abandonment.workflowCancellation) {
     case "cancelled":
       return "Its workflow was cancelled, and runs queued behind it can go ahead.";
+    case "already_finished":
+      return "Its workflow had already finished, and runs queued behind it can go ahead.";
     case "not_attached":
       return "It had no workflow to cancel. Runs queued behind it can go ahead.";
     case "failed":

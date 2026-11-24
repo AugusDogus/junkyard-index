@@ -307,6 +307,76 @@ test("All-N-1 rejects redirected responses and network failures without retries"
   expect(calls).toBe(1);
 });
 
+test.each([
+  [
+    "a redirect",
+    (body: string) => {
+      const response = new Response(body, {
+        headers: { "content-type": "text/html" },
+      });
+      Object.defineProperty(response, "redirected", { value: true });
+      Object.defineProperty(response, "url", {
+        value: "https://allnone.example/challenge",
+      });
+      return response;
+    },
+    "but it was redirected to https://allnone.example/challenge",
+  ],
+  [
+    "another content type",
+    (body: string) =>
+      new Response(body, {
+        headers: { "content-type": "application/json; charset=UTF-8" },
+      }),
+    "but its content type was application/json",
+  ],
+  [
+    "a missing content type",
+    (body: string) => {
+      const response = new Response(body);
+      response.headers.delete("content-type");
+      return response;
+    },
+    "but its content type was absent",
+  ],
+  [
+    "a partial body",
+    (body: string) =>
+      new Response(body, {
+        headers: {
+          "content-type": "text/html",
+          "content-range": "bytes 0-99/5000",
+        },
+      }),
+    "but it was partial (Content-Range bytes 0-99/5000)",
+  ],
+  [
+    "another status",
+    (body: string) =>
+      new Response(body, {
+        status: 203,
+        headers: { "content-type": "text/html" },
+      }),
+    "but its status was HTTP 203",
+  ],
+] as const)(
+  "All-N-1 names the failed endpoint check for %s",
+  async (_case, response, failure) => {
+    mock(undefined, response);
+    const error = await run().then(
+      () => null,
+      (cause: unknown) => cause,
+    );
+    expect(error).toBeInstanceOf(Error);
+    const message = error instanceof Error ? error.message : "";
+    expect(message).toContain(
+      "Expected complete unredirected HTTP 200 text/html from the verified endpoint, " +
+        failure,
+    );
+    expect(message).not.toContain("received 200");
+  },
+);
+
 test.each([1, 2, 3, 32])(
   "All-N-1 canonical bytes match the pre-generalization fixture at budget %i",
   async (budget) => {
