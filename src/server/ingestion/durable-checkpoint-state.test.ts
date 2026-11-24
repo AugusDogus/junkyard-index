@@ -407,3 +407,55 @@ test("a replayed step holding the cursor of deleted state gets the newer checkpo
     database.cleanup();
   }
 });
+
+test("a checkpoint whose commit landed but whose response was lost keeps its blobs", async () => {
+  const { database, store, registered } = await setup();
+  try {
+    const repository = createDurableIngestionRepository(
+      drizzle(database.client),
+      database.client,
+      store,
+    );
+    const first = await repository.checkpointChunk({
+      runId: RUN_ID,
+      requestedCursor: HollanderstoresDurableCursor.initial(),
+      fetched: hollanderChunk(1, []),
+    });
+    const lostResponse = createDurableIngestionRepository(
+      drizzle(database.client),
+      {
+        batch: async (statements, mode) => {
+          await database.client.batch(statements, mode);
+          throw new Error("response lost");
+        },
+      },
+      store,
+    );
+
+    await expect(
+      lostResponse.checkpointChunk({
+        runId: RUN_ID,
+        requestedCursor: first.cursor,
+        fetched: hollanderChunk(2, ["1FAHP2J89EG117592"]),
+      }),
+    ).rejects.toThrow("response lost");
+
+    // The retry resumes from the committed checkpoint, whose blobs exist,
+    // and the state it replaced is gone.
+    const saved = await repository.getCheckpoint({
+      runId: RUN_ID,
+      requestedCursor: first.cursor,
+    });
+    if (!saved) throw new Error("The committed checkpoint was not found");
+    expect(
+      (await store.load(statePathOf(saved.cursor))).checkpointState,
+    ).toEqual({ census: "census after request 2" });
+    expect(store.pathnames()).not.toContain(statePathOf(first.cursor));
+    expect(store.pathnames().sort()).toEqual((await registered()).sort());
+    expect(
+      (await stagedSnapshots(database.client, store, RUN_ID)).vins,
+    ).toEqual(["1FAHP2J89EG117592"]);
+  } finally {
+    database.cleanup();
+  }
+});
