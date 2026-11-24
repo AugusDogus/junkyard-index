@@ -5,6 +5,7 @@ import { vinplusSnapshot } from "./vinplus-snapshot";
 
 export const VINPLUS_MAX_CURSOR_BYTES = 16 * 1024 * 1024;
 export const VINPLUS_MAX_REQUESTS = 2048;
+export const VINPLUS_MAX_YARD_REQUESTS = 1024;
 export const VINPLUS_MAX_RESPONSE_BYTES = 32 * 1024 * 1024;
 const schema = z
   .object({
@@ -14,7 +15,9 @@ const schema = z
     scope: z.string(),
     checksum: z.string().regex(/^[a-f0-9]{64}$/),
     yards: z
-      .array(z.array(z.string().max(4 * 1024 * 1024)).max(1024))
+      .array(
+        z.array(z.string().max(4 * 1024 * 1024)).max(VINPLUS_MAX_YARD_REQUESTS),
+      )
       .min(1)
       .max(VINPLUS_TENANTS.length),
   })

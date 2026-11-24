@@ -5,7 +5,11 @@ import {
 } from "./ingestion-validation";
 import { Effect, Option } from "effect";
 import { VINPLUS_TENANTS } from "./vinplus-configuration";
-import { VinplusCursor, VINPLUS_MAX_REQUESTS } from "./vinplus-cursor";
+import {
+  VinplusCursor,
+  VINPLUS_MAX_REQUESTS,
+  VINPLUS_MAX_YARD_REQUESTS,
+} from "./vinplus-cursor";
 import { inspectVinplusEvidence, type VinplusControl } from "./vinplus-parser";
 import { readVinplusControl } from "./vinplus-client";
 import { VinplusError } from "./vinplus-error";
@@ -98,6 +102,13 @@ export function streamVinplusInventory<E, R>(options: VinplusOptions<E, R>) {
           VinplusError.create(
             "request budget",
             "Cumulative 2048-request limit reached before terminal controls",
+          ),
+        );
+      if (evidence.length >= VINPLUS_MAX_YARD_REQUESTS)
+        return yield* Effect.fail(
+          VinplusError.create(
+            "request budget " + tenant.yardId,
+            `${tenant.label} reached its ${VINPLUS_MAX_YARD_REQUESTS}-request limit before terminal controls, most likely because several capped years each read the whole make directory`,
           ),
         );
       const control = yield* validated(
