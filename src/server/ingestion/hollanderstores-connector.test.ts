@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { Effect } from "effect";
+import { Cause, Effect, Exit, Option } from "effect";
+import { validationRejectionKind } from "./ingestion-validation";
 import {
   streamHollanderstoresInventory,
   type HollanderstoresStreamResult,
@@ -245,7 +246,7 @@ describe("Hollander Stores saved complete census", () => {
     expect(batches).toHaveLength(1);
     expect(IngestionSourceFlags.resolve({})).toContain("hollanderstores");
   }, 600_000);
-  test("closing drift preserves only its yard and corrupt checkpoints cannot emit", async () => {
+  test("closing drift preserves only its yard, a census with no publishing yard fails, and corrupt checkpoints cannot emit", async () => {
     let requests = 0,
       emitted = false;
     const response = (yard: HollanderstoresYard) => {
@@ -295,22 +296,23 @@ describe("Hollander Stores saved complete census", () => {
     expect(() =>
       HollanderstoresCursor.parse({ ...checked, requests: 99 }),
     ).toThrow();
-    // Standard's closing census drifts: it is preserved and emits nothing,
-    // while the closing census goes on through the remaining yards.
-    const emittedYards = new Set<string>();
+    // Standard's closing census drifts, so it is preserved, and the closing
+    // census goes on through the remaining yards. The one-card yards miss
+    // their floors, so no yard publishes and the source fails unemitted.
     let cursor: HollanderstoresCursor = first.cursor;
     let closingReads = 0;
     for (;;) {
-      const result: HollanderstoresStreamResult = await Effect.runPromise(
+      const exit: Exit.Exit<
+        HollanderstoresStreamResult,
+        HollanderstoresProviderError
+      > = await Effect.runPromiseExit(
         streamHollanderstoresInventory({
           startCursor: cursor,
           maxPages: 8,
           decodeBatch: decode,
-          onBatch: (vehicles) =>
+          onBatch: () =>
             Effect.sync(() => {
               emitted = true;
-              for (const vehicle of vehicles)
-                emittedYards.add(vehicle.locationCode);
             }),
           readPage: (yard) =>
             Effect.sync(() => {
@@ -319,17 +321,21 @@ describe("Hollander Stores saved complete census", () => {
             }),
         }),
       );
-      expect(result.status).not.toBe("failed");
-      cursor = result.cursor;
-      if (result.status === "complete") break;
-      expect(emitted).toBe(false);
+      if (Exit.isSuccess(exit)) {
+        expect(exit.value.status).toBe("paused");
+        cursor = exit.value.cursor;
+        continue;
+      }
+      const error = Cause.failureOption(exit.cause);
+      if (Option.isNone(error)) throw new Error("Expected a rejection");
+      expect(validationRejectionKind(error.value)).toBe("deterministic");
+      expect(String(error.value)).toContain("every yard");
+      expect(String(error.value)).toContain(
+        "standardauto closing census changed surviving vehicle fields",
+      );
+      break;
     }
-    if (cursor.phase !== "complete") throw new Error("Closing did not finish");
-    expect(
-      cursor.preserved?.find((yard) => yard.code === "standardauto")?.reason,
-    ).toContain("surviving vehicle fields");
-    expect(emitted).toBe(true);
-    expect(emittedYards.has("standardauto")).toBe(false);
+    expect(emitted).toBe(false);
     expect(requests).toBe(HOLLANDERSTORES_YARDS.length);
     expect(closingReads).toBe(HOLLANDERSTORES_YARDS.length);
   }, 600_000);

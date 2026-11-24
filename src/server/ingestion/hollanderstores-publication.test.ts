@@ -145,6 +145,32 @@ test("without preserved yards Hollander keeps its whole-source floor", async () 
       validation.status === "released" &&
         validation.rejectedSources[0]?.errors.join(" "),
     ).toContain("minimum is 25359");
+    // The drift baseline is the live inventory of every publishing yard.
+    expect(
+      validation.status === "released" &&
+        validation.rejectedSources[0]?.errors.join(" "),
+    ).toContain(`inventory fell from ${2 * (healthy?.minimum ?? 0) + 2} to`);
+  } finally {
+    client.close();
+  }
+});
+
+test("a Hollander run that preserves every yard is rejected, not accepted empty", async () => {
+  const { client, database, snapshotStore, runId } = await setup(
+    HOLLANDERSTORES_YARDS.map((yard) => yard.code),
+  );
+  try {
+    const validation = await validateDurableSourceRuns({
+      runId,
+      database,
+      batchClient: client,
+      snapshotStore,
+    });
+    expect(validation.status).toBe("released");
+    expect(
+      validation.status === "released" &&
+        validation.rejectedSources[0]?.errors.join(" "),
+    ).toContain("preserved every yard");
   } finally {
     client.close();
   }

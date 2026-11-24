@@ -253,7 +253,10 @@ export function streamHollanderstoresInventory<E, R>(
             if (preserved.length === HOLLANDERSTORES_YARDS.length)
               return {
                 phase: "failed",
-                errors: preserved.map((yard) => yard.reason),
+                errors: [
+                  `Hollander Stores closing census drifted in all ${preserved.length} yards, so nothing publishes and all previously published inventory is preserved; a fresh crawl later today retries. First reasons follow.`,
+                  ...preserved.slice(0, 3).map((yard) => yard.reason),
+                ],
               };
             return preserved.length
               ? { ...completed, phase: "ready", closed, preserved }
@@ -345,6 +348,17 @@ export function streamHollanderstoresInventory<E, R>(
     const preserved = HOLLANDERSTORES_YARDS.flatMap((yard) => {
       const value = rejected.get(yard.code);
       return value ? [value] : [];
+    });
+    // A census in which no yard publishes is a source failure, never an
+    // accepted empty run.
+    yield* hollanderstoresAttempt("publishing yards", () => {
+      if (preserved.length === HOLLANDERSTORES_YARDS.length)
+        throw new Error(
+          `every yard failed its census or quality guard, so nothing publishes and all previously published inventory is preserved. Inspect the parser and the first reasons before the next crawl: ${preserved
+            .slice(0, 3)
+            .map((yard) => yard.reason)
+            .join(" | ")}`,
+        );
     });
     if (options.onYards) yield* options.onYards([...HOLLANDERSTORES_YARDS]);
     yield* options.onBatch(snapshot.vehicles);

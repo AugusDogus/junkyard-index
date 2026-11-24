@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
-import { Effect } from "effect";
+import { Cause, Effect, Exit, Option } from "effect";
+import { validationRejectionKind } from "./ingestion-validation";
 import { streamHollanderstoresInventory } from "./hollanderstores-connector";
 import { hollanderstoresSeed } from "./hollanderstores-client";
 import {
@@ -186,7 +187,10 @@ test("a census that drifts in every yard fails once without publishing", async (
     expect(result.status).toBe("failed");
     // The census drifted while it was read, so a crawl later today can pass.
     expect(result).toMatchObject({ failureKind: "transient" });
-    expect(result.errors).toHaveLength(HOLLANDERSTORES_YARDS.length);
+    expect(result.errors[0]).toContain(
+      `drifted in all ${HOLLANDERSTORES_YARDS.length} yards`,
+    );
+    expect(result.errors).toHaveLength(4);
     expect(result.errors.join(" ")).toContain(
       "closing census changed surviving vehicle fields",
     );
@@ -194,6 +198,42 @@ test("a census that drifts in every yard fails once without publishing", async (
     break;
   }
   expect(reads).toBe(HOLLANDERSTORES_YARDS.length);
+});
+
+test("a census whose every yard fails its own guard is rejected instead of accepted empty", async () => {
+  // Every yard lists the same VIN, so each card is a conflicting claim and
+  // every yard misses its floor without any census drift.
+  const response = (yard: HollanderstoresYard) =>
+    `<html><body><a class="hpdcLogo">${yard.logo.replaceAll("&", "&amp;")}</a>
+      <p>Showing 1 Vehicles in Inventory</p><div class="individualPartHolder">
+      <span>&#39;13 ACURA RDX</span><li>VIN 5J8TB4H35DL015046</li><li>Stock# same</li>
+      <a href="/VehicleDealerShowParts/${yard.tenant}/1">View Parts</a></div></body></html>`;
+  const opening = HOLLANDERSTORES_YARDS.map((yard, index) =>
+    parseHollanderstoresPage(response(yard), index),
+  );
+  let cursor = closingCursor(opening);
+  for (;;) {
+    const exit = await Effect.runPromiseExit(
+      streamHollanderstoresInventory({
+        startCursor: cursor,
+        maxPages: 8,
+        decodeBatch: () => Effect.die("No decode during closing"),
+        readPage: (yard) => Effect.sync(() => response(yard)),
+        onBatch: () =>
+          Effect.die("A census with no accepted yard cannot publish"),
+      }),
+    );
+    if (Exit.isSuccess(exit)) {
+      expect(exit.value.status).toBe("paused");
+      cursor = exit.value.cursor;
+      continue;
+    }
+    const error = Cause.failureOption(exit.cause);
+    if (Option.isNone(error)) throw new Error("Expected a provider rejection");
+    expect(validationRejectionKind(error.value)).toBe("deterministic");
+    expect(String(error.value)).toContain("every yard");
+    break;
+  }
 });
 
 test("census turnover accepts the exact per-yard limit and rejects one more removal", () => {
