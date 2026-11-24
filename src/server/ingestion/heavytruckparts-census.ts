@@ -205,11 +205,15 @@ export function htpRoster(
     throw new Error(`HTP ${s.code} year fills do not match the tied years`);
   for (const row of fills.flatMap((f) => f.records)) addRow(s, rows, row);
   const ids = yearIds(rows);
-  for (const [year, count] of counts)
-    if (ids.get(year) !== count)
-      throw new Error(
-        `HTP ${s.code} year ${year} lists ${ids.get(year) ?? 0} of ${count} items after year fills`,
-      );
+  for (const [year, count] of counts) {
+    const listed = ids.get(year) ?? 0;
+    if (listed === count) continue;
+    const message = `HTP ${s.code} year ${year} lists ${listed} of ${count} items after year fills`;
+    // Fills only add items to a year, and a year fill holds at most its
+    // count, so more items than counted means the catalog changed between
+    // reads. Fewer may be an unseen make or a tie the fills cannot reach.
+    throw listed > count ? new HtpCensusDrift(message) : new Error(message);
+  }
   if (rows.size !== total)
     throw new Error(
       `HTP ${s.code} dual-sort census does not reconcile to store count`,

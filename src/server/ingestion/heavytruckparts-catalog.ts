@@ -46,6 +46,24 @@ export function parseHtpStore(raw: string, s: HtpSupplier): number {
   return total;
 }
 /**
+ * Whether `href` is this query's own URL for another native page. The URL
+ * builders reject page numbers their query cannot have, so those never match.
+ */
+function otherPage(href: string, page: number, url: (page: number) => string) {
+  const own = url(page);
+  for (let n = 1; n <= 80; n++) {
+    if (n === page) continue;
+    let candidate: string;
+    try {
+      candidate = url(n);
+    } catch {
+      continue;
+    }
+    if (candidate === href && candidate !== own) return true;
+  }
+  return false;
+}
+/**
  * `extent` is the known item count, or "single-page" when the page must hold
  * its whole query with no Next or Last link.
  */
@@ -64,6 +82,16 @@ function nativeRecords(
   const records = htpRecordParser(s).cards(region),
     total = extent === "single-page" ? records.length : extent,
     last = Math.ceil(total / 25);
+  // A first page or make page with no cards fits changed card markup or a
+  // broken query as well as turnover, so it stays deterministic. Every census
+  // reads a page 1 first, so changed markup fails there. A later page that
+  // turnover emptied falls through to the page size check.
+  if (records.length === 0 && (extent === "single-page" || page === 1))
+    throw new Error(
+      extent === "single-page"
+        ? `HTP ${s.code} make page ${url(page)} lists no items, though the year orders showed that make in that year`
+        : `HTP ${s.code} page 1 lists no items, though its ${total} items need ${Math.min(25, total)}`,
+    );
   if (page > last)
     throw new HtpCensusDrift(
       `HTP ${s.code} page ${page} is past the last page its ${total} items fill`,
@@ -79,12 +107,17 @@ function nativeRecords(
     );
     if (
       expected === null
-        ? links.size !== 0
-        : links.size !== 1 || !links.has(expected)
+        ? links.size === 0
+        : links.size === 1 && links.has(expected)
     )
-      throw new HtpCensusDrift(
-        `HTP ${s.code} ${label} pagination disagrees with store count`,
-      );
+      continue;
+    const message = `HTP ${s.code} ${label} pagination disagrees with store count`;
+    // Turnover moves the last page but keeps the link format: exactly one
+    // link to another page of this same query. Anything else is structural.
+    const [href] = links;
+    throw links.size === 1 && href !== undefined && otherPage(href, page, url)
+      ? new HtpCensusDrift(message)
+      : new Error(message);
   }
   if (records.length !== Math.min(25, total - (page - 1) * 25))
     throw new HtpCensusDrift(
