@@ -1,12 +1,11 @@
 "use client";
 
 import { AlertCircle, CheckCircle, Mail, Send } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Textarea } from "~/components/ui/textarea";
-import { useSession } from "~/lib/auth-client";
 
 type FormState = "idle" | "submitting" | "success" | "error";
 
@@ -17,14 +16,30 @@ const EMPTY_FORM: ContactFormData = { name: "", email: null, message: "" };
 
 /**
  * Served from the CDN, so a signed-in visitor's email comes from the client
- * session once it loads, until they type their own.
+ * session once it loads, until they type their own. The auth client loads
+ * after hydration, as in the header, so it stays out of the page's bundle.
  */
 export function ContactForm() {
   const [formState, setFormState] = useState<FormState>("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [formData, setFormData] = useState<ContactFormData>(EMPTY_FORM);
-  const { data: session } = useSession();
-  const email = formData.email ?? session?.user.email ?? "";
+  const [accountEmail, setAccountEmail] = useState("");
+  const email = formData.email ?? accountEmail;
+
+  useEffect(() => {
+    let active = true;
+    import("~/lib/auth-client")
+      .then(({ authClient }) => authClient.getSession())
+      .then(({ data }) => {
+        if (active) setAccountEmail(data?.user.email ?? "");
+      })
+      .catch(() => {
+        // Signed out or offline: the visitor types their email.
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
