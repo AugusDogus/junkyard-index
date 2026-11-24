@@ -1,7 +1,8 @@
 import { ImageResponse } from "next/og";
 import { SITE_IMAGE } from "~/lib/site-metadata";
 
-// Rendered once at build time and served as a static file.
+// Rendered once at build time and served as a static file, in next/og's
+// bundled Noto Sans: loading Chivo Mono would mean vendoring its font files.
 export const alt = SITE_IMAGE.alt;
 export const size = { width: SITE_IMAGE.width, height: SITE_IMAGE.height };
 export const contentType = "image/png";
@@ -25,7 +26,6 @@ export default function OpengraphImage() {
         padding: 80,
         background: BOARD,
         color: BOARD_INK,
-        fontFamily: "monospace",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
@@ -46,12 +46,10 @@ export default function OpengraphImage() {
           <path d="M5 18v2" />
           <path d="M19 18v2" />
         </svg>
-        <div style={{ fontSize: 56, fontWeight: 700, letterSpacing: -1 }}>
-          Junkyard Index
-        </div>
+        <div style={{ fontSize: 56 }}>Junkyard Index</div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-        <div style={{ fontSize: 68, fontWeight: 700, lineHeight: 1.05 }}>
+        <div style={{ fontSize: 68, lineHeight: 1.05 }}>
           Search salvage yard inventory in one place.
         </div>
         <div style={{ fontSize: 32, color: BOARD_MUTED }}>

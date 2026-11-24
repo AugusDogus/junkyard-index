@@ -7,7 +7,7 @@ import { ErrorBoundary } from "~/components/ErrorBoundary";
 import { Footer } from "~/components/Footer";
 import { Header } from "~/components/Header";
 import { ScrollToTop } from "~/components/ScrollToTop";
-import { SearchHeading } from "~/components/search/SearchHeading";
+import { SearchPageBody } from "~/components/search/SearchPageBody";
 import { SearchPageSkeleton } from "~/components/search/SearchPageSkeleton";
 import { SearchErrorFallback } from "~/components/search/SearchErrorFallback";
 import { SearchPageContent } from "~/components/search/SearchPageContent";
@@ -81,27 +81,28 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     <div className="bg-background flex min-h-svh flex-col">
       <Header />
       <div className="min-h-screen flex-1">
-        <SearchHeading />
-        <ErrorBoundary fallback={SearchErrorFallback}>
-          <Suspense fallback={<SearchPageSkeleton />}>
-            <HydrateClient>
-              <SearchPageContent
-                arrivalReferenceTime={Date.now()}
-                isLoggedIn={isLoggedIn}
-                initialIsMobile={/Mobile|Android|iPhone|iPod/i.test(
-                  reqHeaders.get("user-agent") ?? "",
-                )}
-                serverSearch={SearchServerRender.decide({
-                  userAgent: reqHeaders.get("user-agent"),
-                  params,
-                })}
-                userLocation={geo}
-                knownYardNames={knownYardNames}
-                searchKey={searchKey}
-              />
-            </HydrateClient>
-          </Suspense>
-        </ErrorBoundary>
+        <SearchPageBody>
+          <ErrorBoundary fallback={SearchErrorFallback}>
+            <Suspense fallback={<SearchPageSkeleton />}>
+              <HydrateClient>
+                <SearchPageContent
+                  arrivalReferenceTime={Date.now()}
+                  isLoggedIn={isLoggedIn}
+                  initialIsMobile={/Mobile|Android|iPhone|iPod/i.test(
+                    reqHeaders.get("user-agent") ?? "",
+                  )}
+                  serverSearch={SearchServerRender.decide({
+                    userAgent: reqHeaders.get("user-agent"),
+                    params,
+                  })}
+                  userLocation={geo}
+                  knownYardNames={knownYardNames}
+                  searchKey={searchKey}
+                />
+              </HydrateClient>
+            </Suspense>
+          </ErrorBoundary>
+        </SearchPageBody>
       </div>
       <Footer />
       <ScrollToTop />

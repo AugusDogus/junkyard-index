@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { SearchErrorFallback } from "~/components/search/SearchErrorFallback";
+import { SearchPageBody } from "~/components/search/SearchPageBody";
 import { ErrorReporting } from "~/lib/error-reporting";
 
 export default function SearchError({
@@ -14,5 +15,9 @@ export default function SearchError({
   useEffect(() => {
     ErrorReporting.capture(error);
   }, [error]);
-  return <SearchErrorFallback error={error} retry={reset} />;
+  return (
+    <SearchPageBody>
+      <SearchErrorFallback error={error} retry={reset} />
+    </SearchPageBody>
+  );
 }
