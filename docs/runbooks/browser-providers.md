@@ -39,8 +39,9 @@ accepted history. Vander Haags and U Pull It Davie drive their own page (a
 rendered WAF navigation and in-page fetch, or an in-page JSON API), so they
 take only the session lifecycle: `DocumentTransport.sourceBrowsers(source,
 config)` gives the chosen provider's lease, create and stop, and
-`DocumentTransport.acquireSession` starts the session with the same refusal
-classification and stop-on-close as the transport. Their pages are not
+`DocumentTransport.acquireSession` takes the lease, then starts the session
+with the same refusal classification and stop-on-close as the transport,
+logging its id at info level. Their pages are not
 routed, so they load every subresource as before. URG IIS reads natively: the
 Cloudflare-blocked tenants were cut instead ([URG IIS](urgiis-ingestion.md)).
 
