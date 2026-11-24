@@ -12,6 +12,7 @@ import {
 } from "./pickapartva-connector";
 import type { PickapartvaCursor } from "./pickapartva-cursor";
 import {
+  parsePickapartvaPage,
   parsePickapartvaSearch,
   pickapartvaCardKey,
   type PickapartvaRecord,
@@ -20,6 +21,7 @@ import {
   PICKAPARTVA_RECOVERY_LIFETIME_MS,
   PickapartvaRecovery,
 } from "./pickapartva-recovery";
+import { pickapartvaTies } from "./pickapartva-snapshot";
 import {
   pickapartvaTestPage,
   pickapartvaTestRecord,
@@ -80,6 +82,54 @@ test("Pick-A-Part VA plans every yard at once unless the catalog already shows a
     { id: "TT87", make: "ANY" },
     { id: "UU81", make: "ANY" },
   ]);
+  // 499 shown donors and one hidden one fill a search page too.
+  expect(
+    PickapartvaRecovery.plan(
+      {
+        date,
+        slots: 1,
+        shown: bulk.slice(1).map(pickapartvaCardKey).sort(),
+      },
+      1,
+    ).pending,
+  ).toEqual([
+    { id: "TT87", make: "ANY" },
+    { id: "UU81", make: "ANY" },
+  ]);
+});
+
+test("Pick-A-Part VA keeps a saved recovery only for a tie the catalog shows the same way within its lifetime", () => {
+  const saved = PickapartvaRecovery.plan(tie, 1_000);
+  const other = { date: "2026-11-20", slots: 1, shown: [] };
+  const kept = PickapartvaRecovery.reconcile([saved], [tie], 2_000);
+  expect(kept).toEqual({ recoveries: [saved], replans: [] });
+  expect(
+    PickapartvaRecovery.reconcile([saved], [{ ...tie, slots: 3 }, other], 2_000)
+      .replans,
+  ).toEqual([
+    { date, reason: "changed" },
+    { date: "2026-11-20", reason: "new" },
+  ]);
+  const stale = PickapartvaRecovery.reconcile(
+    [saved],
+    [tie],
+    1_001 + PICKAPARTVA_RECOVERY_LIFETIME_MS,
+  );
+  expect(stale.replans).toEqual([{ date, reason: "stale" }]);
+  expect(stale.recoveries[0]?.startedAt).toBe(
+    1_001 + PICKAPARTVA_RECOVERY_LIFETIME_MS,
+  );
+});
+
+test("Pick-A-Part VA fails a catalog page that lists one donor card twice", () => {
+  const legacy = donor(0, { cardId: null, stock: "LEGACY1" });
+  const page = parsePickapartvaPage(
+    pickapartvaTestPage([legacy, donor(1), legacy], 1, 1),
+    1,
+  );
+  expect(() => pickapartvaTies([{ url: catalogUrl(1), page }])).toThrow(
+    "lists one donor card twice on page 1",
+  );
 });
 
 test("Pick-A-Part VA recovers a date once its searches list every hidden donor", () => {
@@ -191,6 +241,39 @@ test("Pick-A-Part VA splits a capped yard search by make, most listed makes firs
   expect(found.hidden).toEqual([
     { id: "TT87", make: "LAND ROVER", record: rover },
   ]);
+});
+
+test("Pick-A-Part VA names a make missing from the native selector when a make split runs out short", () => {
+  const listing = cappedListing([]);
+  const planned = PickapartvaRecovery.plan(
+    { date, slots: 1, shown: listing.map(pickapartvaCardKey).sort() },
+    1,
+  );
+  const capped = PickapartvaRecovery.record(
+    planned,
+    href("TT87"),
+    search(listing, "TT87", "ANY", ["FORD"]),
+  );
+  const stafford = PickapartvaRecovery.record(
+    capped,
+    href("UU81"),
+    search([], "UU81"),
+  );
+  let caught: unknown;
+  try {
+    PickapartvaRecovery.record(
+      stafford,
+      href("TT87", "FORD"),
+      search(listing.slice(0, 100), "TT87", "FORD"),
+    );
+  } catch (error) {
+    caught = error;
+  }
+  expect(String(caught)).toContain("add 0 donors, but the catalog repeated 1");
+  expect(String(caught)).toContain(
+    "a hidden donor's make is missing from the native make selector (TT87: FORD)",
+  );
+  expect(validationRejectionKind(caught)).toBe("transient");
 });
 
 test.each<[string, () => unknown, string, "transient" | "deterministic"]>([
@@ -380,7 +463,7 @@ const durable = (result: PickapartvaStreamResult) =>
     serializeDurableSourceCursor(result.cursor),
   );
 
-test("Pick-A-Part VA recovers a date set past the search cap from the capped yard search, an empty yard and make searches, across chunks", async () => {
+test("Pick-A-Part VA plans, searches and publishes a date set past the search cap in separate chunks, from the capped yard search, an empty yard and make searches", async () => {
   // The census plans the searches and stops before its closing reads.
   const planCalls = serve();
   const planned = await chunk();
@@ -447,10 +530,92 @@ test("Pick-A-Part VA plans a recovery again from a fresh catalog read once it ou
   expect(replanned.status).toBe("paused");
   if (replanned.cursor.phase !== "searches")
     throw new Error("Expected a search checkpoint");
+  expect(replanned.cursor).toMatchObject({ replans: 1 });
   expect(replanned.cursor.recoveries[0]).toMatchObject({
     searches: [],
     hidden: [],
   });
+  expect(emitted).toHaveLength(0);
+}, 60_000);
+
+test("Pick-A-Part VA reads the catalog again instead of searching for a recovery that outlived its lifetime", async () => {
+  serve();
+  const planned = await chunk();
+  if (planned.cursor.phase !== "searches")
+    throw new Error("Expected a search checkpoint");
+  const stale: PickapartvaCursor = {
+    ...planned.cursor,
+    recoveries: planned.cursor.recoveries.map((recovery) => ({
+      ...recovery,
+      startedAt: Date.now() - PICKAPARTVA_RECOVERY_LIFETIME_MS - 60_000,
+    })),
+  };
+  const calls = serve();
+  const replanned = await chunk(stale);
+  expect(calls).toEqual([1, 2, 3].map(catalogUrl));
+  expect(replanned.cursor).toMatchObject({ phase: "searches", replans: 1 });
+}, 60_000);
+
+test("Pick-A-Part VA stops planning set-date searches again when every catalog read orders a tie date differently", async () => {
+  // Every second read shows the hidden LAND ROVER in page 1's last slot and
+  // hides the donor that held it.
+  const swapped = [
+    pickapartvaTestPage([...sameDay.slice(0, 499), rover], 1, 3),
+    pickapartvaTestPage(
+      [rover, ...sameDay.slice(500), ...older.slice(0, 399)],
+      2,
+      3,
+    ),
+  ];
+  let reads = 0;
+  serve((url, body) => {
+    const page = Number(new URL(url).searchParams.get("pagenum"));
+    if (page === 1) reads++;
+    return reads % 2 === 0 ? (swapped[page - 1] ?? body) : body;
+  });
+  let cursor: PickapartvaCursor | undefined;
+  let refused: unknown = null;
+  let chunks = 0;
+  while (refused === null && chunks < 20) {
+    chunks++;
+    const result = await chunk(cursor).then(
+      (value) => value,
+      (error: unknown) => {
+        refused = error;
+        return null;
+      },
+    );
+    if (result) cursor = durable(result);
+  }
+  // Four censuses, each but the last followed by one search chunk.
+  expect(chunks).toBe(7);
+  expect(reads).toBe(4);
+  expect(String(refused)).toContain(
+    `planned its set-date searches again 3 times and the catalog still does not match them: ${date} (shown donors or repeated slots changed)`,
+  );
+  expect(validationRejectionKind(refused)).toBe("transient");
+  expect(emitted).toHaveLength(0);
+}, 60_000);
+
+test("Pick-A-Part VA fails a recovered donor whose VIN the catalog already showed for that date under another stock", async () => {
+  const [first, ...rest] = fords;
+  if (!first) throw new Error("Expected a FORD donor");
+  const restocked = { ...first, cardId: "PAP999999", stock: "PAP999999" };
+  serve((url, body) =>
+    url === href("TT87", "FORD")
+      ? pickapartvaTestSearch([restocked, ...rest], date, "TT87", "FORD")
+      : body,
+  );
+  const planned = await chunk();
+  const searched = await chunk(durable(planned));
+  const refused = await chunk(durable(searched)).then(
+    () => null,
+    (error: unknown) => error,
+  );
+  expect(String(refused)).toContain(
+    `recovered donor PAP999999 for ${date} has the VIN or stock of a donor the catalog showed for that date`,
+  );
+  expect(validationRejectionKind(refused)).toBe("deterministic");
   expect(emitted).toHaveLength(0);
 }, 60_000);
 
@@ -472,7 +637,16 @@ test("Pick-A-Part VA refuses to resume an emission whose recoveries outlived the
   };
   const before = emitted.length;
   serve();
-  await expect(chunk(stale)).rejects.toThrow("resume snapshot");
+  const refused = await chunk(stale).then(
+    () => null,
+    (error: unknown) => error,
+  );
+  expect(String(refused)).toContain(
+    `resume snapshot: The checkpointed census's set-date searches no longer answer for the catalog: ${date} (searches older than 60 minutes)`,
+  );
+  // A fresh crawl from the start cursor can pass, so the day's attempts
+  // continue.
+  expect(validationRejectionKind(refused)).toBe("transient");
   expect(emitted).toHaveLength(before);
   serve();
   const resumed = await chunk(durable(partial));

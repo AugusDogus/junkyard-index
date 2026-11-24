@@ -78,14 +78,22 @@ const shown = { ...pickapartvaTestRecord, setDate: date };
 const ford = { ...shown, cardId: "PAP100001", stock: "PAP100001" };
 const href = (id: string, make = "ANY") =>
   `https://pickapartva.com/inventory/${make.replaceAll(" ", "_")}/ANY/?k=1&id=${id}&search=${date}`;
-/** A Fredericksburg yard search capped, Stafford empty, and the FORD search
- * that found the one donor the catalog hid. */
+/** The search across every yard and the Fredericksburg yard search capped,
+ * Stafford empty, and the FORD search that found the one donor the catalog
+ * hid. */
 const recovery = {
   date,
   slots: 1,
   shown: [pickapartvaCardKey(shown)],
   startedAt: 1_795_000_000_000,
   searches: [
+    {
+      id: "ANY",
+      make: "ANY",
+      url: href("ANY"),
+      hash: "9".repeat(64),
+      capped: true,
+    },
     {
       id: "TT87",
       make: "ANY",
@@ -114,10 +122,11 @@ const recovery = {
 const searching = {
   source: "pickapartva",
   phase: "searches",
+  replans: 0,
   recoveries: [
     {
       ...recovery,
-      searches: recovery.searches.slice(0, 2),
+      searches: recovery.searches.slice(0, 3),
       hidden: [],
       pending: [
         { id: "TT87", make: "FORD" },
@@ -247,6 +256,43 @@ test.each([
     ],
   },
   { recoveries: [{ ...recovery, shown: ["b", "a"] }] },
+  // Re-planned more often than the bound, or not a count.
+  { replans: 3 },
+  { replans: -1 },
+  // Searches out of the escalation order: no search across every yard
+  // although one page holds the date, a yard search after an uncapped search
+  // across every yard, a make split of a yard search that was not capped, and
+  // a capped make search on a date still searching.
+  { recoveries: [{ ...recovery, searches: recovery.searches.slice(1) }] },
+  {
+    recoveries: [
+      {
+        ...searching.recoveries[0],
+        searches: [{ ...recovery.searches[0], capped: false }],
+        pending: [{ id: "TT87", make: "ANY" }],
+      },
+    ],
+  },
+  {
+    recoveries: [
+      {
+        ...searching.recoveries[0],
+        pending: [{ id: "UU81", make: "FORD" }],
+      },
+    ],
+  },
+  {
+    recoveries: [
+      {
+        ...searching.recoveries[0],
+        searches: [
+          ...recovery.searches.slice(0, 3),
+          { ...recovery.searches[3], capped: true },
+        ],
+        pending: [{ id: "TT87", make: "LAND ROVER" }],
+      },
+    ],
+  },
 ])(
   "Pick-A-Part VA rejects inconsistent set-date recovery checkpoints (%#)",
   (change) => {

@@ -1,4 +1,7 @@
-import { ingestionValidation } from "./ingestion-validation";
+import {
+  ingestionValidation,
+  transientRejection,
+} from "./ingestion-validation";
 import { Clock, Effect, Option, RateLimiter } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import {
@@ -15,7 +18,7 @@ import {
   type PickapartvaPage,
 } from "./pickapartva-parser";
 import {
-  PICKAPARTVA_RECOVERY_LIFETIME_MS,
+  PICKAPARTVA_MAX_REPLANS,
   PickapartvaRecovery,
 } from "./pickapartva-recovery";
 import {
@@ -86,6 +89,7 @@ export const PICKAPARTVA_SEARCH_CHUNK_SOFT_MS = 180_000;
  */
 function searchPickapartvaRecoveries(
   recoveries: readonly PickapartvaRecovery[],
+  replans: number,
   gate: ProviderRequestGate,
 ) {
   return Effect.gen(function* () {
@@ -134,6 +138,7 @@ function searchPickapartvaRecoveries(
       PickapartvaCursorSchema.parse({
         source: "pickapartva",
         phase: "searches",
+        replans,
         recoveries: next,
       }),
     );
@@ -180,14 +185,22 @@ export function streamPickapartvaInventoryWithRequestGate<E, R>(
       parsed.data.phase === "searches" || parsed.data.phase === "pages"
         ? parsed.data.recoveries
         : [];
+    // Searches for a recovery past its lifetime cannot be published, so a
+    // stale recovery sends the chunk to the census, which plans it again.
+    const opened = yield* Clock.currentTimeMillis;
     if (
       parsed.data.phase === "searches" &&
-      !stored.every(PickapartvaRecovery.resolved)
+      !stored.every(PickapartvaRecovery.resolved) &&
+      stored.every((recovery) => PickapartvaRecovery.fresh(recovery, opened))
     )
       return {
         ...summary,
         status: "paused",
-        cursor: yield* searchPickapartvaRecoveries(stored, gate),
+        cursor: yield* searchPickapartvaRecoveries(
+          stored,
+          parsed.data.replans,
+          gate,
+        ),
       } satisfies PickapartvaStreamResult;
     // The census is atomic: emitting any page depends on every later page, the
     // recovered tie donors and the closing reads, so the whole crawl is one
@@ -230,20 +243,15 @@ export function streamPickapartvaInventoryWithRequestGate<E, R>(
       const ties = yield* attempt("set-date ties", () =>
         pickapartvaTies(pages),
       );
-      const now = yield* Clock.currentTimeMillis;
-      const recoveries = ties.map(
-        (tie) =>
-          stored.find(
-            (recovery) =>
-              PickapartvaRecovery.matches(recovery, tie) &&
-              PickapartvaRecovery.resolved(recovery) &&
-              PickapartvaRecovery.fresh(recovery, now),
-          ) ?? PickapartvaRecovery.plan(tie, now),
+      const { recoveries, replans } = PickapartvaRecovery.reconcile(
+        stored,
+        ties,
+        yield* Clock.currentTimeMillis,
       );
       // The searches run in later chunks, so this census stops here without
       // its closing reads, and the next one reads the catalog again.
       if (!recoveries.every(PickapartvaRecovery.resolved))
-        return { status: "searches", recoveries } as const;
+        return { status: "searches", recoveries, replans } as const;
       const snapshot = yield* attempt("complete global census", () =>
         buildPickapartvaSnapshot(pages, recoveries),
       );
@@ -270,18 +278,37 @@ export function streamPickapartvaInventoryWithRequestGate<E, R>(
       sharedProviderHostTurn(PICKAPARTVA_CATALOG, PICKAPARTVA_TURN_REQUESTS),
     );
     if (census.status === "searches") {
+      const dates = PickapartvaRecovery.describeReplans(census.replans);
       // A resumed emission was checkpointed against recoveries that answered
       // for the census, so needing new searches means the census changed or
-      // its searches outlived their lifetime.
+      // its searches outlived their lifetime. A crawl from the start cursor
+      // can pass, so the rejection is transient.
       if (parsed.data.phase === "pages")
-        return yield* failure(
-          "resume snapshot",
-          `The checkpointed census's set-date searches no longer answer for the catalog's repeated Set Dates or are older than ${PICKAPARTVA_RECOVERY_LIFETIME_MS / 60_000} minutes. Restart the source from the start cursor`,
+        return yield* transientRejection(
+          failure(
+            "resume snapshot",
+            `The checkpointed census's set-date searches no longer answer for the catalog: ${dates}. No further batch was emitted from this checkpoint; the source retries from the start cursor within its daily attempts`,
+          ),
+        );
+      // Each census that plans a date again starts its searches over, so a
+      // catalog that shows its ties differently on every read would never
+      // publish. Bound the re-plans and leave the rest to the day's attempts.
+      const replans =
+        parsed.data.phase === "searches"
+          ? parsed.data.replans + (census.replans.length ? 1 : 0)
+          : 0;
+      if (replans > PICKAPARTVA_MAX_REPLANS)
+        return yield* transientRejection(
+          failure(
+            "set-date replans",
+            `The census planned its set-date searches again ${replans} times and the catalog still does not match them: ${dates}. The source retries from the start cursor within its daily attempts; if this repeats, check whether the catalog orders a tied Set Date's donors differently on every read`,
+          ),
         );
       const cursor = yield* attempt("set-date recovery checkpoint", () =>
         PickapartvaCursorSchema.parse({
           source: "pickapartva",
           phase: "searches",
+          replans,
           recoveries: census.recoveries,
         }),
       );
