@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { SITE_OPEN_GRAPH } from "~/lib/site-metadata";
+import { SITE_OPEN_GRAPH, SITE_TWITTER } from "~/lib/site-metadata";
 
 export function homeMetadata(yardCount: number): Metadata {
   const count = yardCount.toLocaleString("en-US");
@@ -16,6 +16,6 @@ export function homeMetadata(yardCount: number): Metadata {
       title,
       description,
     },
-    twitter: { card: "summary", title, description },
+    twitter: { ...SITE_TWITTER, title, description },
   };
 }

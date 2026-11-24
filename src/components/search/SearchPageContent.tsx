@@ -1736,7 +1736,6 @@ function AlgoliaSearchInner({
         open: advancedSearchOpen,
         onOpenChange: setAdvancedSearchOpen,
       })}
-      <h1 className="sr-only">Search inventory</h1>
 
       <div className="bg-background sticky top-[6.375rem] z-40 -mx-(--gutter) px-(--gutter) py-3 sm:top-[4.625rem] [@media(max-height:500px)]:static">
         <div className="flex flex-col gap-3">

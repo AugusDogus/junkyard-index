@@ -19,6 +19,8 @@ export default function robots(): MetadataRoute.Robots {
       `${APP_URL}/junkyards/sitemap.xml`,
       `${APP_URL}/chains/sitemap.xml`,
       `${APP_URL}/cars/sitemap.xml`,
+      // Yard-make pages, kept out of the hub sitemaps above.
+      `${APP_URL}/junkyards/sitemap-makes.xml`,
     ],
   };
 }

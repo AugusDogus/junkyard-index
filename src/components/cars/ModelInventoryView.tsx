@@ -12,7 +12,7 @@ import { Button } from "~/components/ui/button";
 import { env } from "~/env";
 import { InventoryFormat } from "~/lib/inventory-format";
 import { MakeInventory, type ModelEntry } from "~/lib/make-inventory";
-import { SITE_OPEN_GRAPH } from "~/lib/site-metadata";
+import { SITE_OPEN_GRAPH, SITE_TWITTER } from "~/lib/site-metadata";
 import { StructuredData, type Crumb } from "~/lib/structured-data";
 import { VehicleName } from "~/lib/vehicle-name";
 import { YardName } from "~/lib/yard-name";
@@ -68,7 +68,7 @@ export function modelPageMetadata(
       title,
       description,
     },
-    twitter: { card: "summary", title, description },
+    twitter: { ...SITE_TWITTER, title, description },
     ...(!MakeInventory.indexable(model) && {
       robots: { index: false, follow: true },
     }),

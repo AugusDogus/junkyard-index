@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { sitePageUrl } from "~/lib/site-metadata";
 
 type SearchParams = Readonly<
   Record<string, string | readonly string[] | undefined>
@@ -14,9 +15,7 @@ export function searchPageMetadata(params: SearchParams): Metadata {
     title: "Search Salvage Yard Inventory",
     description:
       "Search donor vehicles across salvage yard networks, compare results by yard and distance, and create saved searches for ongoing inventory tracking.",
-    alternates: {
-      canonical: "/search",
-    },
+    ...sitePageUrl("/search"),
     ...(Object.keys(params).length > 0 && {
       robots: { index: false, follow: true },
     }),

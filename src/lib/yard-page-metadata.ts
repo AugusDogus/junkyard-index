@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { InventoryFormat } from "./inventory-format";
 import { MakeInventory } from "./make-inventory";
-import { SITE_OPEN_GRAPH } from "./site-metadata";
+import { SITE_OPEN_GRAPH, SITE_TWITTER } from "./site-metadata";
 import { VehicleName } from "./vehicle-name";
 import { YARD_MAKE_INDEXABLE_MINIMUM } from "./yard-make-inventory";
 import { YARD_PAGE_SIZE } from "./yard-inventory";
@@ -64,12 +64,9 @@ export function yardPageMetadata(
     description,
     alternates: { canonical: url },
     openGraph: { ...SITE_OPEN_GRAPH, type: "website", url, title, description },
-    twitter: { card: "summary", title, description },
+    twitter: { ...SITE_TWITTER, title, description },
   };
 }
-
-// Fewer vehicles than this and a yard's page for one make stays out of
-// search: too thin to be worth a result of its own.
 
 /**
  * Title, description, and canonical URL for one make or model at a yard.
@@ -100,19 +97,16 @@ export function yardMakeMetadata(
     title,
     description,
     alternates: { canonical: url },
-    robots: !MakeInventory.indexable(
-      {
-        count: total,
-        key:
-          "model" in make
-            ? (VehicleName.modelKey(make.name, make.model.name) ?? undefined)
-            : undefined,
-      },
-      YARD_MAKE_INDEXABLE_MINIMUM,
-    )
-      ? { index: false, follow: true }
-      : undefined,
+    // A make with fewer than five vehicles at a yard is too thin to be a
+    // search result. One model at one yard never is: about 21,000 would pass
+    // that threshold and dilute crawling of the yard, make and model hubs
+    // that already answer those searches. Their links are still followed.
+    robots:
+      "model" in make ||
+      !MakeInventory.indexable({ count: total }, YARD_MAKE_INDEXABLE_MINIMUM)
+        ? { index: false, follow: true }
+        : undefined,
     openGraph: { ...SITE_OPEN_GRAPH, type: "website", url, title, description },
-    twitter: { card: "summary", title, description },
+    twitter: { ...SITE_TWITTER, title, description },
   };
 }

@@ -3,14 +3,13 @@ import Link from "next/link";
 import { Footer } from "~/components/Footer";
 import { PublicHeader } from "~/components/PublicHeader";
 import { TERMS_METADATA } from "~/lib/legal";
+import { sitePageUrl } from "~/lib/site-metadata";
 
 export const metadata: Metadata = {
   title: "Terms of Service",
   description:
     "Terms governing your use of Junkyard Index search, saved searches, and alerts.",
-  alternates: {
-    canonical: "/terms",
-  },
+  ...sitePageUrl("/terms"),
 };
 
 export default function TermsPage() {

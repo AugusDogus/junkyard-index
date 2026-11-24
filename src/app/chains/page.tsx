@@ -5,7 +5,7 @@ import { PublicPageShell } from "~/components/junkyards/PublicPageShell";
 import { JsonLd } from "~/components/JsonLd";
 import { env } from "~/env";
 import { InventoryFormat } from "~/lib/inventory-format";
-import { SITE_OPEN_GRAPH } from "~/lib/site-metadata";
+import { SITE_OPEN_GRAPH, SITE_TWITTER } from "~/lib/site-metadata";
 import { StructuredData } from "~/lib/structured-data";
 import { getChains } from "~/server/yard-inventory";
 
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     title: TITLE,
     description: DESCRIPTION,
   },
-  twitter: { card: "summary", title: TITLE, description: DESCRIPTION },
+  twitter: { ...SITE_TWITTER, title: TITLE, description: DESCRIPTION },
 };
 
 export default async function ChainsPage() {

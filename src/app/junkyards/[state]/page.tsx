@@ -7,7 +7,7 @@ import { PublicPageShell } from "~/components/junkyards/PublicPageShell";
 import { YardList } from "~/components/junkyards/YardList";
 import { JsonLd } from "~/components/JsonLd";
 import { env } from "~/env";
-import { SITE_OPEN_GRAPH } from "~/lib/site-metadata";
+import { SITE_OPEN_GRAPH, SITE_TWITTER } from "~/lib/site-metadata";
 import { StructuredData } from "~/lib/structured-data";
 import { YardName } from "~/lib/yard-name";
 import { YardPath } from "~/lib/yard-path";
@@ -54,7 +54,7 @@ export async function generateMetadata({
     description,
     alternates: { canonical: url },
     openGraph: { ...SITE_OPEN_GRAPH, type: "website", url, title, description },
-    twitter: { card: "summary", title, description },
+    twitter: { ...SITE_TWITTER, title, description },
   };
 }
 

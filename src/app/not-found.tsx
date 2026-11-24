@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PublicPageShell } from "~/components/junkyards/PublicPageShell";
 import { Button } from "~/components/ui/button";
+import { notFoundMetadata } from "./root-metadata";
 
-// Next marks not-found responses noindex on its own.
-export const metadata: Metadata = { title: "Page not found" };
+export const metadata: Metadata = notFoundMetadata;
 
 export default function NotFound() {
   return (

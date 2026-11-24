@@ -8,7 +8,7 @@ import { YardList } from "~/components/junkyards/YardList";
 import { JsonLd } from "~/components/JsonLd";
 import { env } from "~/env";
 import { InventoryFormat } from "~/lib/inventory-format";
-import { SITE_OPEN_GRAPH } from "~/lib/site-metadata";
+import { SITE_OPEN_GRAPH, SITE_TWITTER } from "~/lib/site-metadata";
 import { StructuredData } from "~/lib/structured-data";
 import { YardName } from "~/lib/yard-name";
 import { YardPath } from "~/lib/yard-path";
@@ -76,7 +76,7 @@ export async function generateMetadata({
       title,
       description,
     },
-    twitter: { card: "summary", title, description },
+    twitter: { ...SITE_TWITTER, title, description },
   };
 }
 

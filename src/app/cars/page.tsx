@@ -6,7 +6,7 @@ import { JsonLd } from "~/components/JsonLd";
 import { env } from "~/env";
 import { InventoryFormat } from "~/lib/inventory-format";
 import { MakeInventory } from "~/lib/make-inventory";
-import { SITE_OPEN_GRAPH } from "~/lib/site-metadata";
+import { SITE_OPEN_GRAPH, SITE_TWITTER } from "~/lib/site-metadata";
 import { StructuredData } from "~/lib/structured-data";
 import { cn } from "~/lib/utils";
 import { getMakes } from "~/server/vehicle-models";
@@ -29,7 +29,7 @@ export const metadata: Metadata = {
     title: TITLE,
     description: DESCRIPTION,
   },
-  twitter: { card: "summary", title: TITLE, description: DESCRIPTION },
+  twitter: { ...SITE_TWITTER, title: TITLE, description: DESCRIPTION },
 };
 
 /** One column head per board column: one on phones, two, then three. */

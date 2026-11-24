@@ -7,7 +7,7 @@ import { PublicPageShell } from "~/components/junkyards/PublicPageShell";
 import { YardList } from "~/components/junkyards/YardList";
 import { JsonLd } from "~/components/JsonLd";
 import { env } from "~/env";
-import { SITE_OPEN_GRAPH } from "~/lib/site-metadata";
+import { SITE_OPEN_GRAPH, SITE_TWITTER } from "~/lib/site-metadata";
 import { StructuredData } from "~/lib/structured-data";
 import { YardPath } from "~/lib/yard-path";
 import {
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
     title: TITLE,
     description: DESCRIPTION,
   },
-  twitter: { card: "summary", title: TITLE, description: DESCRIPTION },
+  twitter: { ...SITE_TWITTER, title: TITLE, description: DESCRIPTION },
 };
 
 export default async function JunkyardsPage() {

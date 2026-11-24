@@ -12,6 +12,7 @@ import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { hydrateRoot } from "react-dom/client";
 import { renderToReadableStream, renderToStaticMarkup } from "react-dom/server";
 import superjson from "superjson";
+import { SearchHeading } from "~/components/search/SearchHeading";
 import { SearchPageContent } from "~/components/search/SearchPageContent";
 import type { SearchKeyGrant } from "~/lib/search-key-grant";
 import { SearchServerRender } from "~/lib/search-server-render";
@@ -233,6 +234,8 @@ function Fixture() {
                 >
                   Switch plan
                 </button>
+                {/* src/app/search/page.tsx renders it outside the boundary too. */}
+                <SearchHeading />
                 <Suspense>
                   <SearchPageContent
                     arrivalReferenceTime={arrivalReferenceTime}

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { SITE_OPEN_GRAPH } from "~/lib/site-metadata";
+import { SITE_OPEN_GRAPH, SITE_TWITTER } from "~/lib/site-metadata";
 
 const TITLE = "Salvage Yard Map";
 const DESCRIPTION =
@@ -16,5 +16,5 @@ export const mapMetadata: Metadata = {
     title: TITLE,
     description: DESCRIPTION,
   },
-  twitter: { card: "summary", title: TITLE, description: DESCRIPTION },
+  twitter: { ...SITE_TWITTER, title: TITLE, description: DESCRIPTION },
 };
