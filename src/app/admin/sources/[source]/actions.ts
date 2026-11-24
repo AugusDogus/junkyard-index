@@ -8,6 +8,8 @@ import {
   getHiddenSources,
   SOURCE_CONTROL_CACHE_TAG,
 } from "~/server/source-control/hidden-sources-loader";
+import { HiddenSources } from "~/lib/hidden-source";
+import { loadHiddenSources } from "~/server/source-control/hidden-sources";
 import { IngestionPause } from "~/server/source-control/ingestion-pause";
 import {
   SourceControlAction,
@@ -33,6 +35,10 @@ export async function applySourceControl(
       prewarmHiddenSources: async () => {
         await getHiddenSources();
       },
+      // Read after the show is saved, so only the stale rule can still
+      // hide the source.
+      staleHidden: async (source) =>
+        HiddenSources.has(await loadHiddenSources(db, new Date()), source),
     },
     userId,
     input,

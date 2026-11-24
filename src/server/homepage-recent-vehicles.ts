@@ -19,12 +19,12 @@ export async function getRecentHomepageVehicles(
       year: vehicle.year,
       make: vehicle.make,
       model: vehicle.model,
+      source: vehicle.source,
+      locationCode: vehicle.locationCode,
       city: vehicle.locationCity,
       state: vehicle.stateAbbr,
       imageUrl: vehicle.imageUrl,
       indexedAt: vehicle.firstSeenAt,
-      source: vehicle.source,
-      locationCode: vehicle.locationCode,
     })
     .from(vehicle)
     .innerJoin(

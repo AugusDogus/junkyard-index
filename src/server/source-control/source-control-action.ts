@@ -4,6 +4,7 @@ import {
   INGESTION_SOURCES,
   type IngestionSource,
 } from "~/lib/ingestion-source";
+import { INVENTORY_HIDDEN_AFTER_DAYS } from "~/lib/inventory-staleness";
 import {
   ManualIngestionRun,
   type ManualIngestionRunStart,
@@ -75,6 +76,11 @@ export type SourceControlActionDependencies = {
    * or show finds it cached instead of reading the database.
    */
   prewarmHiddenSources: () => Promise<void>;
+  /**
+   * Whether the source is hidden for staleness (no accepted publication in
+   * INVENTORY_HIDDEN_AFTER_DAYS), which showing it here does not undo.
+   */
+  staleHidden: (source: IngestionSource) => Promise<boolean>;
 };
 
 const VERB: Record<SourceControlInput["kind"], string> = {
@@ -93,6 +99,7 @@ function changeMessage(
   name: string,
   applied: SourceControlApplied,
   stillPausedBy: PauseCause | null,
+  stillStaleHidden: boolean | "unknown",
 ): SourceControlResult {
   if (applied.status === "unchanged") {
     const state = {
@@ -125,7 +132,12 @@ function changeMessage(
     case "show":
       return {
         status: "done",
-        message: `Shown again. ${name} returns to the public site. ${HIDE_DELAY}`,
+        message:
+          stillStaleHidden === "unknown"
+            ? `Your hide is removed. Checking whether ${name} is also hidden for having no accepted publication in ${INVENTORY_HIDDEN_AFTER_DAYS} days failed, so it may still be off the site; its row on /admin/sources says. ${HIDE_DELAY}`
+            : stillStaleHidden
+              ? `Your hide is removed, but ${name} stays off the public site: it has no accepted publication in the last ${INVENTORY_HIDDEN_AFTER_DAYS} days. It returns by itself after its next accepted publication; fix its crawl to bring it back.`
+              : `Shown again. ${name} returns to the public site. ${HIDE_DELAY}`,
       };
   }
 }
@@ -199,7 +211,24 @@ export const SourceControlAction = {
         input.kind === "resume" && applied.status === "changed"
           ? await deps.pauseCause(input.source)
           : null;
-      const result = changeMessage(input, name, applied, stillPausedBy);
+      const stillStaleHidden =
+        input.kind === "show" && applied.status === "changed"
+          ? await deps.staleHidden(input.source).catch((error: unknown) => {
+              // The show is saved, so this must not report that nothing changed.
+              console.error(
+                `Admin control "show" on ${input.source} was saved, but checking its stale hide failed`,
+                error,
+              );
+              return "unknown" as const;
+            })
+          : false;
+      const result = changeMessage(
+        input,
+        name,
+        applied,
+        stillPausedBy,
+        stillStaleHidden,
+      );
       if (input.kind !== "hide" && input.kind !== "show") return result;
       // Expired even when unchanged, so repeating a hide or show whose expiry
       // failed updates the pages.

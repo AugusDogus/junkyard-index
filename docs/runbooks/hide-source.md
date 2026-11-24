@@ -38,10 +38,13 @@ Nothing is stored for the automatic hide: `loadHiddenSources`
 without an accepted publication in that window to the owner's list each time
 it is read. The source's next accepted publication shows it again, once the
 cached list is read again: the cached list carries the `daily-inventory` tag,
-which the inventory-downstream consumer expires after each publication. On
-`/admin/sources` it shows as **Hidden (stale)**, and its page names the last
-accepted publication. The owner's Show button cannot override it; fix the
-source's crawl instead. A database with no recent runs (such as a fresh
+which the inventory-downstream consumer expires after each publication. A
+source going stale publishes nothing, so the hourly inventory-downstream cron
+also expires that tag when a source passed 36 hours or 7 days since its last
+tick (`sourcesPastStalenessBoundary`); labels and hides apply within the hour.
+On `/admin/sources` it shows as **Hidden (stale)**, and its page names the last
+accepted publication. The owner's Show button cannot override it (its result
+says so); fix the source's crawl instead. A database with no recent runs (such as a fresh
 development database) hides every active source.
 
 The automatic hide is per source. A preserved yard (one a run kept from an

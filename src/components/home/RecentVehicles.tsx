@@ -29,7 +29,12 @@ function usePrefersReducedMotion(): boolean | null {
   return reduced;
 }
 
-export function RecentVehicles({ vehicles }: { vehicles: RecentVehicle[] }) {
+export function RecentVehicles({
+  vehicles,
+}: {
+  /** With "Last checked N days ago" when the vehicle's yard is stale. */
+  vehicles: (RecentVehicle & { lastChecked: string | null })[];
+}) {
   const ref = useRef<HTMLElement>(null);
   const inView = useInView(ref);
   const [paused, setPaused] = useState(false);
@@ -165,6 +170,11 @@ export function RecentVehicles({ vehicles }: { vehicles: RecentVehicle[] }) {
                       <p className="text-board-muted truncate text-sm">
                         {vehicle.city}, {vehicle.state}
                       </p>
+                      {vehicle.lastChecked && (
+                        <p className="bg-figure text-board self-start px-1.5 py-0.5 text-xs font-extrabold">
+                          {vehicle.lastChecked}
+                        </p>
+                      )}
                       <p className="text-board-muted mt-auto pt-2 text-sm">
                         Indexed{" "}
                         <time

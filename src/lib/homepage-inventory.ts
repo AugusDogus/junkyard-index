@@ -20,12 +20,24 @@ async function getHomepageInventoryInternal(hiddenList: readonly string[]) {
 
   return {
     yards,
-    // The yard identity only varies the pick; the carousel does not need it.
+    // The yard identity varies the pick and dates each card's "Last checked".
     recentVehicles: RecentArrivals.pick(recentVehicles, 12).map(
-      ({ year, make, model, city, state, imageUrl, indexedAt }) => ({
+      ({
         year,
         make,
         model,
+        source,
+        locationCode,
+        city,
+        state,
+        imageUrl,
+        indexedAt,
+      }) => ({
+        year,
+        make,
+        model,
+        source,
+        locationCode,
         city,
         state,
         imageUrl,
@@ -48,7 +60,7 @@ const getCachedHomepageInventory = cacheInventory(
   getHomepageInventoryInternal,
   [
     "homepage-inventory",
-    "active-yards-v4",
+    "active-yards-v5",
     "recent-yard-mix-v1",
     ...RETIRED_INGESTION_SOURCES,
   ],

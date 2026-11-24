@@ -133,6 +133,23 @@ export const InventoryStaleness = {
     return { latest, current, total: yards.length };
   },
 
+  /**
+   * The active sources whose staleness changed between `since` and `now`
+   * without a new publication: they passed 36 hours (labels appear) or 7
+   * days (the source hides). Nothing else expires the cached pages then,
+   * so the hourly check expires them when this is not empty.
+   */
+  changedBetween(
+    published: ReadonlyMap<string, number | null>,
+    since: number,
+    now: number,
+  ): IngestionSource[] {
+    return ACTIVE_INGESTION_SOURCES.filter((source) => {
+      const at = published.get(source) ?? null;
+      return of(at, since).kind !== of(at, now).kind;
+    });
+  },
+
   /** When a yard was last checked: its own date, else its source's. */
   checkedAt,
 
