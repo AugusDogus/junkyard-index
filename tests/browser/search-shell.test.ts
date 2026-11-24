@@ -17,6 +17,8 @@ const requestLogSchema = z.array(
       hitsPerPage: z.number().optional(),
       page: z.number().optional(),
       aroundRadius: z.union([z.number(), z.literal("all")]).optional(),
+      aroundLatLng: z.string().optional(),
+      aroundLatLngViaIP: z.boolean().optional(),
     }),
   }),
 );
@@ -73,9 +75,22 @@ afterAll(async () => {
   await browser?.close();
 });
 
-async function open(query: string, width = 1440, height = 900) {
+async function open(
+  query: string,
+  width = 1440,
+  height = 900,
+  options: {
+    /** A location preference already saved in this browser. */
+    storedLocation?: { mode: "zip"; zipCode: string; lat: number; lng: number };
+  } = {},
+) {
   const page = await createPage(browser, { viewport: { width, height } });
   const html = await renderSharedSearchFixture(query);
+  const { storedLocation } = options;
+  if (storedLocation)
+    await page.addInitScript((value) => {
+      localStorage.setItem("junkyard-index:location-preference", value);
+    }, JSON.stringify(storedLocation));
   await page.route("http://shared-search.test/**", async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === "/api/search-key")
@@ -222,11 +237,13 @@ test("a server-rendered person search is not repeated by the browser after hydra
 }, 30_000);
 
 test("visitor pages include a free radius and stop after 24 results", async () => {
+  // A radius applies only around an origin, here the shared URL's.
   const { page, html } = await open(
-    "q=pagination&sort=distance&radius=100&fixtureGuest=1",
+    "q=pagination&sort=distance&radius=100&lat=33.448&lng=-112.074&fixtureGuest=1",
   );
   try {
     expect(html).toContain('"aroundRadius":160934');
+    expect(html).toContain('"aroundLatLng":"33.448, -112.074"');
     await page.getByRole("button", { name: /^Filters/ }).click();
     expect(
       await page
@@ -1027,3 +1044,125 @@ for (const width of [1440, 390]) {
     }
   }, 30_000);
 }
+
+// Algolia bills each HTTP call, so these count calls (not inner queries)
+// from the action until no call has started for `quietMs`.
+async function searchCallsDuring(
+  page: Page,
+  action: () => Promise<void>,
+  quietMs = 600,
+) {
+  const calls = async () =>
+    Number(
+      await page.evaluate(
+        () => document.documentElement.dataset.searchRequests ?? "0",
+      ),
+    );
+  const before = await calls();
+  await page.evaluate(() => {
+    document.documentElement.dataset.searchQueryLog = "[]";
+  });
+  await action();
+  let seen = await calls();
+  for (let quiet = 0; quiet < quietMs; quiet += 50) {
+    await page.waitForTimeout(50);
+    const now = await calls();
+    if (now !== seen) {
+      seen = now;
+      quiet = 0;
+    }
+  }
+  return { calls: seen - before, requests: await requestLog(page) };
+}
+
+const phoenixZip = {
+  mode: "zip",
+  zipCode: "85001",
+  lat: 33.448,
+  lng: -112.074,
+} as const;
+
+async function pickSort(page: Page, name: string) {
+  await page.getByRole("combobox", { name: /^Sort vehicles:/ }).click();
+  await page.getByRole("option", { name, exact: true }).click();
+}
+
+test("switching into and out of Distance with a saved location sends one search each", async () => {
+  const { page } = await open("q=pagination", 1440, 900, {
+    storedLocation: phoenixZip,
+  });
+  try {
+    const toDistance = await searchCallsDuring(page, () =>
+      pickSort(page, "Distance (Nearest)"),
+    );
+    expect(toDistance.calls).toBe(1);
+    expect(toDistance.requests[0]?.params).toMatchObject({
+      aroundLatLng: "33.448, -112.074",
+    });
+    const toOldest = await searchCallsDuring(page, () =>
+      pickSort(page, "Oldest First"),
+    );
+    expect(toOldest.calls).toBe(1);
+    expect(toOldest.requests[0]?.params.aroundLatLng).toBeUndefined();
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
+
+test("saving an approximate location for Distance sends one search", async () => {
+  const { page } = await open("q=pagination&fixtureGuest=1");
+  try {
+    await pickSort(page, "Distance (Nearest)");
+    const dialog = page.getByRole("dialog");
+    await dialog.waitFor();
+    const save = await searchCallsDuring(page, async () => {
+      await dialog.getByRole("button", { name: /Save location/ }).click();
+      await dialog.waitFor({ state: "detached" });
+    });
+    expect(save.calls).toBe(1);
+    expect(save.requests[0]?.params.aroundLatLngViaIP).toBe(true);
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
+
+test("keyboard steps on the Year slider search once, for the year they stop on", async () => {
+  const { page } = await open("q=volvo&yardTypes=all");
+  try {
+    await page.getByRole("button", { name: /^Filters/ }).click();
+    await page.getByRole("button", { name: "Year", exact: true }).click();
+    const latest = page.getByRole("slider").nth(1);
+    const startYear = Number(await latest.getAttribute("aria-valuenow"));
+    await latest.focus();
+    const steps = await searchCallsDuring(
+      page,
+      async () => {
+        for (let step = 0; step < 5; step++)
+          await page.keyboard.press("ArrowLeft");
+      },
+      1200,
+    );
+    expect(steps.calls).toBe(1);
+    expect(new URL(page.url()).searchParams.get("maxYear")).toBe(
+      String(startYear - 5),
+    );
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
+
+test("a radius chosen before any location is set does not search", async () => {
+  const { page } = await open("q=volvo&yardTypes=all");
+  try {
+    await page.getByRole("button", { name: /^Filters/ }).click();
+    const radius = page.getByRole("combobox", { name: "Distance radius" });
+    const change = await searchCallsDuring(page, async () => {
+      await radius.selectOption("50");
+      await radius.selectOption("100");
+    });
+    expect(change.calls).toBe(0);
+    expect(new URL(page.url()).searchParams.get("radius")).toBe("100");
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);

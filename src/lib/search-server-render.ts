@@ -1,8 +1,12 @@
+import { SearchArea } from "./search-area";
+import { SearchRadius } from "./search-radius";
+
 /**
  * Whether the /search server render runs an Algolia search. Every server
  * search spends the shared monthly quota, so only a person asking for
- * specific results gets one. Crawlers and link-preview fetchers, and the
- * default page, render a skeleton and search from the browser instead.
+ * specific results gets one. Crawlers and link-preview fetchers, the default
+ * page, and nearby searches whose origin only the browser knows render a
+ * skeleton and search from the browser instead.
  */
 export type SearchServerRender = "search" | "skip";
 
@@ -10,18 +14,40 @@ type SearchParams = Readonly<
   Record<string, string | readonly string[] | undefined>
 >;
 
-// Crawlers, link unfurlers and command-line fetchers. They rarely run the
-// browser search, so the server search was their only cost. The lookbehind
-// keeps Cubot phones, whose model names end in "bot", on the server search.
+// Crawlers, link unfurlers, monitors, headless browsers and command-line
+// fetchers. They rarely run the browser search, so the server search was
+// their only cost. The lookbehind keeps Cubot phones, whose model names end
+// in "bot", on the server search.
 const NON_PERSON_USER_AGENT =
-  /(?<!cu)bot\b|bot\/|crawl|spider|slurp|facebookexternalhit|embedly|whatsapp|preview|curl\/|wget\/|python-requests|go-http-client|axios\/|node-fetch|undici/i;
+  /(?<!cu)bot\b|bot[/_]|crawl|spider|slurp|facebookexternalhit|embedly|whatsapp|preview|inspectiontool|lighthouse|headless|curl\/|wget\/|python-|scrapy|okhttp|java\/|go-http-client|axios\/|node-fetch|undici/i;
 
 // Params that never change the search: campaign tags and checkout return.
 const NON_SEARCH_PARAM = /^(utm_[a-z_]+|gclid|fbclid|msclkid|subscription)$/;
 
+function urlParams(params: SearchParams): URLSearchParams {
+  const url = new URLSearchParams();
+  for (const [key, value] of Object.entries(params))
+    for (const item of [value].flat())
+      if (item !== undefined) url.append(key, item);
+  return url;
+}
+
 export const SearchServerRender = {
   isNonPersonUserAgent(userAgent: string | null): boolean {
-    return userAgent === null || NON_PERSON_USER_AGENT.test(userAgent);
+    return !userAgent?.trim() || NON_PERSON_USER_AGENT.test(userAgent);
+  },
+
+  /**
+   * A distance sort or radius whose origin is not in the URL. Its origin is
+   * the browser's saved location or the account's, which the server render
+   * does not see, so the browser would search again once it loads them.
+   */
+  isNearbyWithoutOrigin(params: SearchParams): boolean {
+    const url = urlParams(params);
+    const nearby =
+      url.get("sort") === "distance" ||
+      SearchRadius.parse(url.get("radius")) !== null;
+    return nearby && SearchArea.fromUrl(url) === undefined;
   },
 
   /** No param asks for anything but the default results. */
@@ -36,7 +62,8 @@ export const SearchServerRender = {
     params: SearchParams;
   }): SearchServerRender {
     return SearchServerRender.isNonPersonUserAgent(input.userAgent) ||
-      SearchServerRender.isDefaultSearch(input.params)
+      SearchServerRender.isDefaultSearch(input.params) ||
+      SearchServerRender.isNearbyWithoutOrigin(input.params)
       ? "skip"
       : "search";
   },

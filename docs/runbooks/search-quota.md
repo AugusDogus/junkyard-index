@@ -11,8 +11,10 @@ watch the budget. Neither spends search quota.
    sends one `search_queries_metered` event with `path`, `requests` and
    `queries` (`src/lib/search-query-meter.ts`, reported from
    `src/instrumentation-client.ts`). `requests` counts HTTP calls that reached
-   Algolia, including retries, below the client's response cache. `queries`
-   counts the searches inside those calls.
+   Algolia, including retries, below the client's response cache and below
+   `src/lib/search-request-memo.ts`, which answers searches the tab already
+   ran. `queries` counts the searches inside those calls. Algolia bills each
+   call, not each search inside it.
 2. **Algolia's own usage emails** at 80% and 100% of the plan, plus the weekly
    usage report. They go to the owner's inbox and count every request:
    browsers, server renders and alert matching.

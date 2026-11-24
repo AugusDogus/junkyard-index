@@ -535,10 +535,17 @@ function AlgoliaSearchInner({
   const { currentRefinement: currentSortIndex, refine: refineSortBy } =
     useSortBy({ items: sortItems }, { skipSuspense: true });
 
-  const sortBy = useMemo(
+  const searchedSort = useMemo(
     () => getSearchSortKey(currentSortIndex),
     [currentSortIndex],
   );
+  // A sort switch that changes the location parameters waits for Configure
+  // to search with both (see handleSortChange). Until those results arrive,
+  // the page already uses the new sort, so Configure gets its parameters.
+  const [switchingSort, setSwitchingSort] = useState<string | null>(null);
+  if (switchingSort !== null && switchingSort === searchedSort)
+    setSwitchingSort(null);
+  const sortBy = switchingSort ?? searchedSort;
 
   const locationPreferenceReady =
     hasLoadedLocalLocationPreference && !isAccountLocationPreferenceLoading;
@@ -702,6 +709,29 @@ function AlgoliaSearchInner({
     routedArea?.lat,
     routedArea?.lng,
   ]);
+
+  // The location parameters Configure searches with, for a nearby search
+  // (distance sort or radius) or not. aroundRadius filters virtual replicas
+  // without another index; Newest keeps its ranking while geo restricts the
+  // candidates. Algolia ignores a radius without an origin, so it is left
+  // out until one exists, and a radius change then costs no search.
+  const nearbyParams = (nearby: boolean) => {
+    const aroundLatLng =
+      nearby && resolvedUserLocation
+        ? `${resolvedUserLocation.lat}, ${resolvedUserLocation.lng}`
+        : undefined;
+    const aroundLatLngViaIP =
+      nearby &&
+      effectiveLocationPreference?.mode === "auto" &&
+      !resolvedUserLocation;
+    const hasOrigin = aroundLatLng !== undefined || aroundLatLngViaIP;
+    return {
+      aroundLatLng,
+      aroundLatLngViaIP,
+      getRankingInfo: hasOrigin,
+      aroundRadius: hasOrigin ? SearchRadius.meters(radiusMiles) : undefined,
+    };
+  };
   // ── Derived state ──────────────────────────────────────────────────────
 
   // Map Algolia hits to search-display vehicles.
@@ -1095,6 +1125,23 @@ function AlgoliaSearchInner({
     ],
   );
 
+  // Sorting searches at once, with the old sort's location parameters, and
+  // Configure then searches again with the new ones. When a switch changes
+  // them, set the index without searching and let Configure's update run
+  // the one search with both. Returns false if there is no helper yet.
+  const switchSortWithConfigure = useCallback(
+    (value: string) => {
+      const helper = instantSearch.mainIndex.getHelper();
+      if (!helper) return false;
+      helper
+        .setQueryParameter("sortBy", undefined)
+        .setIndex(getSearchSortIndex(value));
+      setSwitchingSort(value);
+      return true;
+    },
+    [instantSearch],
+  );
+
   const handleDistancePreferenceConfirm = useCallback(async () => {
     try {
       await applyDistancePreference(selectedDistanceMode);
@@ -1108,7 +1155,10 @@ function AlgoliaSearchInner({
       );
 
       if (pendingDistanceSort) {
-        refineSortBy("vehicles_distance");
+        // Without a radius, Distance is what turns the new location on, so
+        // Configure searches once with both. A radius already used it.
+        if (radiusMiles !== null || !switchSortWithConfigure("distance"))
+          refineSortBy(getSearchSortIndex("distance"));
         setPendingDistanceSort(false);
       }
     } catch (error) {
@@ -1123,8 +1173,10 @@ function AlgoliaSearchInner({
     setOriginParams,
     isLoggedIn,
     pendingDistanceSort,
+    radiusMiles,
     refineSortBy,
     selectedDistanceMode,
+    switchSortWithConfigure,
   ]);
 
   const handleSortChange = useCallback(
@@ -1144,12 +1196,23 @@ function AlgoliaSearchInner({
       }
 
       Analytics.capture(AnalyticsEvents.SORT_CHANGED, { sort_option: value });
+      const current = nearbyParams(isNearbySearch);
+      const next = nearbyParams(value === "distance" || radiusMiles !== null);
+      const changesLocation =
+        current.aroundLatLng !== next.aroundLatLng ||
+        current.aroundLatLngViaIP !== next.aroundLatLngViaIP ||
+        current.aroundRadius !== next.aroundRadius;
+      if (changesLocation && switchSortWithConfigure(value)) return;
       refineSortBy(getSearchSortIndex(value));
     },
     [
       hasUsableLocationPreference,
+      isNearbySearch,
       locationPreferenceReady,
+      nearbyParams,
+      radiusMiles,
       refineSortBy,
+      switchSortWithConfigure,
       setManualZipCode,
       setPendingDistanceSort,
       setShowDistancePreferenceDialog,
@@ -1396,16 +1459,8 @@ function AlgoliaSearchInner({
   // Infinite scroll is handled inside SearchResults via the virtualizer.
   // showMore and isLastPage are passed as props.
 
-  // aroundRadius filters virtual replicas without creating another index.
-  // Newest keeps its chronological ranking while geo restricts the candidate set.
-  const aroundLatLng =
-    isNearbySearch && resolvedUserLocation
-      ? `${resolvedUserLocation.lat}, ${resolvedUserLocation.lng}`
-      : undefined;
-  const useAlgoliaIpLocation =
-    isNearbySearch &&
-    effectiveLocationPreference?.mode === "auto" &&
-    !resolvedUserLocation;
+  const locationParams = nearbyParams(isNearbySearch);
+  const useAlgoliaIpLocation = locationParams.aroundLatLngViaIP;
 
   const renderAdvancedSearchDialog = (
     triggerClassName?: string,
@@ -1636,10 +1691,7 @@ function AlgoliaSearchInner({
     attributesToRetrieve: [...SEARCH_CARD_ATTRIBUTES],
     attributesToHighlight: [],
     attributesToSnippet: [],
-    aroundLatLng,
-    aroundLatLngViaIP: useAlgoliaIpLocation,
-    getRankingInfo: Boolean(aroundLatLng || useAlgoliaIpLocation),
-    aroundRadius: isNearbySearch ? SearchRadius.meters(radiusMiles) : undefined,
+    ...locationParams,
     filters: combineSearchFilters(effectiveVinPatternFilter, arrivalFilter),
   });
 
