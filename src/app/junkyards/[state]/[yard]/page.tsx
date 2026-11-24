@@ -22,15 +22,28 @@ export function generateStaticParams(): Params[] {
   return [];
 }
 
+async function load(params: Promise<Params>) {
+  const { state, yard } = await params;
+  const data = await getYardPageData(state, yard);
+  if (!data) return null;
+  const listing = await getYardVehiclePage(
+    data.yard,
+    data.summary,
+    { kind: "yard" },
+    1,
+  );
+  return { data, summary: listing.summary, inventory: listing.data };
+}
+
 export async function generateMetadata({
   params,
 }: {
   params: Promise<Params>;
 }): Promise<Metadata> {
-  const { state, yard } = await params;
-  const data = await getYardPageData(state, yard);
-  if (!data) return {};
-  return yardPageMetadata(data.yard, data.summary.total, data.publishedAt, 1);
+  const loaded = await load(params);
+  if (!loaded?.inventory) return {};
+  const { data, summary } = loaded;
+  return yardPageMetadata(data.yard, summary.total, data.publishedAt, 1);
 }
 
 export default async function YardPage({
@@ -38,13 +51,9 @@ export default async function YardPage({
 }: {
   params: Promise<Params>;
 }) {
-  const { state, yard } = await params;
-  const data = await getYardPageData(state, yard);
-  const listing =
-    data &&
-    (await getYardVehiclePage(data.yard, data.summary, { kind: "yard" }, 1));
-  if (!data || !listing?.data) notFound();
-  const { summary, data: inventory } = listing;
+  const loaded = await load(params);
+  if (!loaded?.inventory) notFound();
+  const { data, summary, inventory } = loaded;
   const arrivals = YardInventory.yardArrivals(summary);
 
   return (
