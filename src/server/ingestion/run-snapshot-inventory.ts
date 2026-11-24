@@ -8,7 +8,7 @@ import {
 } from "~/lib/ingestion-source";
 import { ingestionSourceRun } from "~/schema";
 import { parseSnapshotChunks } from "./durable-ingestion-repository";
-import type { IngestionSnapshotStore } from "./ingestion-snapshot-store";
+import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import { reconciliationSourcePriority } from "./reconciliation-policy";
 import type { CanonicalVehicle } from "./types";
 
@@ -43,6 +43,9 @@ export async function loadSourceSnapshot(
     observedVins: new Set(),
   };
   for (const pathname of parseSnapshotChunks(snapshotChunks)) {
+    // Checkpoint state carries no inventory. Chunks staged before it moved to
+    // its own blobs still embed it and load whole.
+    if (IngestionSnapshotStore.isCheckpointStatePath(pathname)) continue;
     const chunk = await store.load(pathname);
     if (chunk.restart) {
       snapshot.vehicles.clear();
@@ -59,8 +62,10 @@ export async function loadSourceSnapshot(
 /**
  * The last inventory built from each store. One run commits at a time, and
  * its next reconciliation step usually runs in the same process, so reusing
- * it skips reloading every chunk: a Hollander run stages about 550 chunks
- * that each carry its ~19 MiB census checkpoint, which takes minutes to load.
+ * it skips reloading every chunk: a URG run stages over 1,000 chunks, which
+ * takes minutes to load. (Hollander's ~19 MiB census checkpoint now lives in
+ * its own blob, which this load skips; a run staged before that embedded it
+ * in each of its ~550 chunks.)
  */
 const lastInventory = new WeakMap<
   IngestionSnapshotStore,
