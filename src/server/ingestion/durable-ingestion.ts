@@ -416,6 +416,9 @@ export async function abandonDurableIngestion(params: {
     } catch (error) {
       if (EntityConflictError.is(error)) {
         workflowCancellation = "already_finished";
+        console.info(
+          `Abandoned ingestion run ${params.runId}; its Workflow ${workflowRunId} had already finished, so there was nothing to cancel (${error.message}).`,
+        );
       } else {
         workflowCancellation = "failed";
         console.error(

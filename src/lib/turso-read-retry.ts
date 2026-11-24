@@ -8,14 +8,23 @@ const BASE_DELAY_MS = 200;
 
 /**
  * True for a LibsqlError raised because Turso's HTTP endpoint answered with a
- * gateway status (502, 503 or 504). The HTTP client reports those as
- * `SERVER_ERROR` with the status on its cause. SQL errors and other statuses
- * are not transient: retrying them would fail the same way.
+ * gateway status (502, 503 or 504), alone or as the cause of Drizzle's
+ * DrizzleQueryError, which wraps every failed query. The HTTP client reports
+ * those as `SERVER_ERROR` with the status on its cause. SQL errors and other
+ * statuses are not transient: retrying them would fail the same way.
  */
 export function isTransientTursoError(error: unknown): boolean {
-  if (!(error instanceof LibsqlError) || error.code !== "SERVER_ERROR") {
-    return false;
+  // Bounded, so a cyclic cause chain cannot loop.
+  let current: unknown = error;
+  for (let depth = 0; depth < 4 && current instanceof Error; depth += 1) {
+    if (current instanceof LibsqlError) return isGatewayError(current);
+    current = current.cause;
   }
+  return false;
+}
+
+function isGatewayError(error: LibsqlError): boolean {
+  if (error.code !== "SERVER_ERROR") return false;
   const cause: unknown = error.cause;
   return (
     typeof cause === "object" &&
@@ -53,11 +62,19 @@ export async function retryTursoRead<T>(
     } catch (error) {
       if (attempt >= ATTEMPTS || !isTransientTursoError(error)) throw error;
       const delayMs = BASE_DELAY_MS * 2 ** (attempt - 1);
-      const message = error instanceof Error ? error.message : String(error);
+      const message = describe(error);
       warn(
         `Turso read failed with a transient server error (${message}); retrying in ${delayMs} ms (attempt ${attempt + 1} of ${ATTEMPTS}).`,
       );
       await sleep(delayMs);
     }
   }
+}
+
+/** The libsql message under any Drizzle wrapper, for the retry warning. */
+function describe(error: unknown): string {
+  if (error instanceof Error && error.cause instanceof LibsqlError) {
+    return error.cause.message;
+  }
+  return error instanceof Error ? error.message : String(error);
 }
