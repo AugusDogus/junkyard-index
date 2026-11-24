@@ -1,4 +1,4 @@
-import { and, eq, like, max, notInArray, sql } from "drizzle-orm";
+import { and, eq, inArray, like, max, notInArray, or, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { z } from "zod";
 import { HiddenSources } from "~/lib/hidden-source";
@@ -30,15 +30,19 @@ export type InventorySnapshot = {
 type MakeSourceCount = { make: string; source: string; count: number };
 
 // Bump when a stored shape changes: deploys then find the new keys missing
-// and compute them. Each version reads and writes only its own keys, so a
-// deployment still serving the old version, or one rolled back to, keeps its
-// rows; delete a retired version's rows by hand.
+// and compute them. Each version reads and writes only its own keys, so the
+// build of a new version leaves the old one's rows to the deployment still
+// serving them. Once the new version is live, its ingestion-pass projection
+// retires older versions' rows and checkpoints; a deployment rolled back to
+// one of them finds its checkpoint gone and projects again on its next pass.
 // v3 regroups the source make aliases introduced with search schema 11.
 // v4 keeps hidden sources in the stored rows and adds per-source make counts,
 // so reads leave hidden sources out and a hide or show applies at once.
-const SNAPSHOT_VERSION = "v4";
+const SNAPSHOT_VERSION_NUMBER = 4;
+const SNAPSHOT_VERSION = `v${SNAPSHOT_VERSION_NUMBER}`;
+const CHECKPOINT_PREFIX = "inventory-snapshot:";
 // The publication this version's snapshot reflects, written with its rows.
-const CHECKPOINT_NAME = `inventory-snapshot:${SNAPSHOT_VERSION}`;
+const CHECKPOINT_NAME = `${CHECKPOINT_PREFIX}${SNAPSHOT_VERSION}`;
 // Totals with every source, the shape `modelUrls` reads across versions.
 const MAKE_COUNTS_KEY = `${SNAPSHOT_VERSION}:make-counts`;
 const MAKE_SOURCE_COUNTS_KEY = `${SNAPSHOT_VERSION}:make-source-counts`;
@@ -184,14 +188,28 @@ async function compute(database: LibSQLDatabase): Promise<InventorySnapshot> {
 }
 
 /**
+ * What a projection does with older versions' rows: a build keeps them for
+ * the deployment still serving them; the live deployment retires them.
+ */
+export type OlderSnapshotVersions = "keep" | "retire";
+
+// Every version before this one, which the live deployment retires.
+const OLDER_VERSIONS = Array.from(
+  { length: SNAPSHOT_VERSION_NUMBER },
+  (_, version) => `v${version}`,
+);
+
+/**
  * Replaces this version's stored snapshot and its checkpoint in one
- * transaction, writing only rows whose data changed.
+ * transaction, writing only rows whose data changed. Retiring deletes older
+ * versions' rows and checkpoints in the same transaction, after the writes.
  */
 async function write(
   database: LibSQLDatabase,
   snapshot: InventorySnapshot,
   publicationSequence: number,
   now: Date,
+  olderVersions: OlderSnapshotVersions,
 ): Promise<void> {
   const rows = [
     {
@@ -250,19 +268,49 @@ async function write(
         set: { lastProcessedChangeId: publicationSequence, updatedAt: now },
         setWhere: sql`${ingestionProjectorCheckpoint.lastProcessedChangeId} < ${publicationSequence}`,
       }),
+    ...(olderVersions === "retire"
+      ? [
+          database
+            .delete(inventorySnapshot)
+            .where(
+              or(
+                ...OLDER_VERSIONS.map((version) =>
+                  like(inventorySnapshot.key, `${version}:%`),
+                ),
+              ),
+            ),
+          database.delete(ingestionProjectorCheckpoint).where(
+            inArray(
+              ingestionProjectorCheckpoint.name,
+              OLDER_VERSIONS.map((version) => `${CHECKPOINT_PREFIX}${version}`),
+            ),
+          ),
+        ]
+      : []),
   ]);
 }
 
 /**
  * Computes the aggregates from live inventory and stores them, recording the
  * latest publication as of the start: the vehicles read include at least it.
+ * Older versions' rows are kept unless the caller is the live deployment.
  */
-async function project(database: LibSQLDatabase, now: Date): Promise<void> {
+async function project(
+  database: LibSQLDatabase,
+  now: Date,
+  options: { olderVersions: OlderSnapshotVersions } = { olderVersions: "keep" },
+): Promise<void> {
   const [latest] = await database
     .select({ sequence: max(ingestionRun.publicationSequence) })
     .from(ingestionRun);
   const snapshot = await compute(database);
-  await write(database, snapshot, latest?.sequence ?? 0, now);
+  await write(
+    database,
+    snapshot,
+    latest?.sequence ?? 0,
+    now,
+    options.olderVersions,
+  );
 }
 
 export const InventorySnapshot = {

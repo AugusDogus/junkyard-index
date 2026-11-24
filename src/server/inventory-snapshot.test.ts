@@ -190,6 +190,45 @@ test("leaves other versions' snapshots to the deployments that read them", async
   }
 });
 
+test("the live projection retires older versions' rows and checkpoints once its own commits", async () => {
+  const { client, db, add } = await database();
+  try {
+    await add("A", PYP, [2004, "Honda", "Civic"]);
+    await client.executeMultiple(`
+      insert into inventory_snapshot values ('v0:yards', '[]', 0);
+      insert into inventory_snapshot values ('v1:make-counts', '[]', 0);
+      insert into inventory_snapshot values ('v3:make-models:FORD', '[]', 0);
+      insert into inventory_snapshot values ('v5:make-counts', '[]', 0);
+      insert into inventory_snapshot values ('v10:make-counts', '[]', 0);
+      insert into ingestion_projector_checkpoint (name, last_processed_change_id, updated_at)
+        values ('inventory-snapshot:v3', 9, 0), ('inventory-snapshot:v5', 9, 0), ('search-projector', 9, 0);
+    `);
+    await InventorySnapshot.project(db, first, { olderVersions: "retire" });
+    const keys = await client.execute(
+      "select key from inventory_snapshot order by key",
+    );
+    const checkpoints = await client.execute(
+      "select name from ingestion_projector_checkpoint order by name",
+    );
+    // Newer versions belong to a deployment this one may roll forward to.
+    expect(keys.rows.map((row) => row.key)).toEqual([
+      "v10:make-counts",
+      "v4:make-counts",
+      "v4:make-models:HONDA",
+      "v4:make-source-counts",
+      "v5:make-counts",
+    ]);
+    // A rolled-back deployment finds its checkpoint gone and projects again.
+    expect(checkpoints.rows.map((row) => row.name)).toEqual([
+      "inventory-snapshot:v4",
+      "inventory-snapshot:v5",
+      "search-projector",
+    ]);
+  } finally {
+    client.close();
+  }
+});
+
 test("records the latest publication with the snapshot, never moving it back", async () => {
   const { client, db, add } = await database();
   try {

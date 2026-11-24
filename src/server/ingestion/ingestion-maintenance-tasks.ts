@@ -3,7 +3,10 @@ import { sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import type { MaintenanceTaskResult } from "./ingestion-maintenance";
 import { pruneIngestionRuns } from "./ingestion-run-retention";
-import { IngestionSnapshotCleanup } from "./ingestion-snapshot-cleanup";
+import {
+  IngestionSnapshotCleanup,
+  SnapshotCleanupError,
+} from "./ingestion-snapshot-cleanup";
 import type { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 
 /** Delivered and cancelled notification intents are kept this long. */
@@ -14,6 +17,10 @@ const MAX_BATCHES_PER_RUN = 20;
 const OUTBOX_BATCH_SIZE = 5_000;
 // About 300K changes a day: the cutover's leftovers clear in one run.
 const OUTBOX_MAX_BATCHES_PER_RUN = 60;
+// Blob deletes are paced to 1,000 a minute and may wait out rate limits, so
+// stale snapshot cleanup stops well inside the 800 s step limit, recording
+// what it deleted; the next run resumes from there.
+const STALE_SNAPSHOT_BUDGET_MS = 8 * 60 * 1_000;
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -36,17 +43,25 @@ export const IngestionMaintenanceTasks = {
         };
   },
 
-  /** Deletes Blob chunks registered on runs that are no longer active. */
+  /**
+   * Deletes Blob chunks registered on runs that are no longer active, within
+   * a time budget. Deletions are recorded as they happen, so a failed or
+   * stopped run keeps its progress and the next one resumes.
+   */
   async staleSnapshots(
     database: LibSQLDatabase,
     snapshotStore: IngestionSnapshotStore,
+    now: () => number = Date.now,
   ): Promise<MaintenanceTaskResult> {
     let deleted = 0;
+    const startedAt = now();
+    const outOfTime = () => now() - startedAt >= STALE_SNAPSHOT_BUDGET_MS;
     try {
       for (let batch = 1; batch <= MAX_BATCHES_PER_RUN; batch += 1) {
         const cleanup = await IngestionSnapshotCleanup.staleBatch(
           database,
           snapshotStore,
+          outOfTime,
         );
         deleted += cleanup.chunksDeleted;
         if (cleanup.complete) {
@@ -57,6 +72,7 @@ export const IngestionMaintenanceTasks = {
             complete: true,
           };
         }
+        if (outOfTime()) break;
       }
       return {
         task: "stale-snapshots",
@@ -68,7 +84,8 @@ export const IngestionMaintenanceTasks = {
       return {
         task: "stale-snapshots",
         status: "failed",
-        deleted,
+        deleted:
+          deleted + (error instanceof SnapshotCleanupError ? error.deleted : 0),
         message: message(error),
       };
     }
