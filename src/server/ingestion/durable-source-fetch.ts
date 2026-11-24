@@ -7,7 +7,10 @@ import { streamVinplusInventory } from "./vinplus-connector";
 import { streamUrgiisInventoryFromProvider } from "./urgiis-connector";
 import { streamCstruckInventory } from "./cstruck-connector";
 import { streamByotInventoryFromProvider } from "./byot-connector";
-import { loadByotPublishedCursor } from "./byot-history";
+import {
+  loadByotFailedAttemptCursor,
+  loadByotPublishedCursor,
+} from "./byot-history";
 import { loadPublishedSourceCursor } from "./published-source-cursor";
 import { loadUrgiisPublishedCursor } from "./urgiis-history";
 import { db } from "~/lib/db";
@@ -744,6 +747,10 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
           previousCursor:
             cursor.phase === "initial"
               ? await loadByotPublishedCursor(db)
+              : null,
+          failedAttemptCursor:
+            cursor.phase === "initial"
+              ? await loadByotFailedAttemptCursor(db)
               : null,
           maxPages: context.maxPages,
           onBatch: context.onBatch,
