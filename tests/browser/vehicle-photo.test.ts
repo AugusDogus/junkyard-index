@@ -47,26 +47,30 @@ afterAll(async () => {
 const PHOTO =
   '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="96"><rect width="128" height="96" fill="blue"/></svg>';
 
-test("photos fall back to the origin when the proxy fails or stalls, then to the placeholder", async () => {
+test("photos load from the proxy, fall back to the origin when it fails or stalls, then to the placeholder", async () => {
   const page = await createPage(browser, {
     viewport: { width: 1024, height: 900 },
   });
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
+  const proxyRequests: string[] = [];
+  const originRequests: string[] = [];
   try {
-    // The proxy fails "error" and "gone" and never answers for "slow".
+    // The proxy serves "ok", fails "error" and "gone" and never answers for "slow".
     await page.route("https://wsrv.nl/**", (route) => {
       const origin = new URL(route.request().url()).searchParams.get("url");
+      if (origin) proxyRequests.push(origin);
       if (origin?.endsWith("/slow.jpg")) return;
       if (origin?.endsWith("/ok.jpg"))
         return route.fulfill({ contentType: "image/svg+xml", body: PHOTO });
       return route.fulfill({ status: 502, body: "Proxy failed" });
     });
-    await page.route("https://photos.test/**", (route) =>
-      route.request().url().endsWith("/gone.jpg")
+    await page.route("https://photos.test/**", (route) => {
+      originRequests.push(route.request().url());
+      return route.request().url().endsWith("/gone.jpg")
         ? route.fulfill({ status: 404, body: "Not found" })
-        : route.fulfill({ contentType: "image/svg+xml", body: PHOTO }),
-    );
+        : route.fulfill({ contentType: "image/svg+xml", body: PHOTO });
+    });
     await page.route("http://vehicle-photo.test/**", (route) => {
       const path = new URL(route.request().url()).pathname;
       if (path === "/app.js")
@@ -136,6 +140,26 @@ test("photos fall back to the origin when the proxy fails or stalls, then to the
       { timeout: 8_000 },
     );
     expect(await page.locator("[data-photo-loading]").count()).toBe(0);
+
+    // A proxy that answers keeps its photos, loaded once each, with no
+    // origin request and no shimmer.
+    expect(
+      await page
+        .locator('[data-photo="ok"] img')
+        .evaluateAll((images) =>
+          images.map(
+            (image) =>
+              image instanceof HTMLImageElement &&
+              image.complete &&
+              image.naturalWidth > 0 &&
+              image.currentSrc.startsWith("https://wsrv.nl/"),
+          ),
+        ),
+    ).toEqual([true, true]);
+    expect(originRequests.filter((url) => url.endsWith("/ok.jpg"))).toEqual([]);
+    expect(
+      proxyRequests.filter((url) => url.endsWith("/ok.jpg")).length,
+    ).toBeLessThanOrEqual(2);
     expect(errors).toEqual([]);
   } finally {
     await closePage(page);
