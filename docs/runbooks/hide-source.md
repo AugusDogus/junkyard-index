@@ -108,9 +108,10 @@ stores every source (hidden ones too) with per-source counts. Pages leave the
 hidden list out when they read it, so a toggle needs no new snapshot and reads
 no vehicles.
 
-The search filter options are cached by hidden list. The first request after
-a toggle to a list not seen that day reads the states and colors of every
-live vehicle once, as the daily refresh does.
+Every hide or show (even one that changes nothing) expires the cached search
+filter options, so the next request reads the states and colors of every live
+vehicle once, as the daily refresh does. That is one full vehicle read per
+toggle, so avoid toggling a source back and forth.
 
 After expiring the cached list, the toggle reads it once, so the first public
 request finds the new list cached instead of reading the database. If that
@@ -134,8 +135,10 @@ lifetime, the same as the pages that read it.
 - No vehicle links to its website, including vehicles already queued in alert
   emails and Discord messages. Its yards link nowhere because no page lists
   them.
-- Cached inventory loaders include the hidden list in their cache keys, so a
-  hide or show reads a fresh entry rather than one built with the old list.
+- Cached listings that leave hidden sources out (`cacheShownInventory`) carry
+  the `source-control` tag, so a hide or show expires them and the next
+  request rebuilds them with the new list and current inventory. Keying by
+  the list alone would reuse an entry from before the last publish.
 
 ## What hiding keeps
 
