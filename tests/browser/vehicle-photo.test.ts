@@ -58,6 +58,8 @@ test("photos fall back to the origin when the proxy fails or stalls, then to the
     await page.route("https://wsrv.nl/**", (route) => {
       const origin = new URL(route.request().url()).searchParams.get("url");
       if (origin?.endsWith("/slow.jpg")) return;
+      if (origin?.endsWith("/ok.jpg"))
+        return route.fulfill({ contentType: "image/svg+xml", body: PHOTO });
       return route.fulfill({ status: 502, body: "Proxy failed" });
     });
     await page.route("https://photos.test/**", (route) =>

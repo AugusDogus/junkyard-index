@@ -15,8 +15,9 @@ export function VehicleRowPhoto({ src }: { src: string }) {
 
 function Photo({ src }: { src: string }) {
   const proxyUrl = wsrvLoader({ src, width: 256 });
+  const proxied = proxyUrl !== src;
   const { photo, ref, onLoad, onError } = useProxiedPhoto({
-    proxied: proxyUrl !== src,
+    proxied,
     eager: false,
   });
   if (photo.kind === "failed") {
@@ -46,7 +47,10 @@ function Photo({ src }: { src: string }) {
         height={96}
         loading="lazy"
         decoding="async"
-        referrerPolicy={photo.kind === "direct" ? "no-referrer" : undefined}
+        // Only a fallback from the proxy hides the referrer from the yard.
+        referrerPolicy={
+          proxied && photo.kind === "direct" ? "no-referrer" : undefined
+        }
         className="relative size-full object-cover"
         onLoad={onLoad}
         onError={onError}

@@ -2,8 +2,9 @@ import { createRoot } from "react-dom/client";
 import { VehicleRowPhoto } from "~/components/inventory/VehicleRowPhoto";
 import { VehicleImage } from "~/components/search/VehicleImage";
 
-// photos.test serves "error" and "slow" from the origin only; "gone" nowhere.
-const photos = ["error", "slow", "gone"];
+// The proxy serves "ok"; photos.test serves "error" and "slow" from the
+// origin only; "gone" loads nowhere.
+const photos = ["ok", "error", "slow", "gone"];
 
 function Fixture() {
   return (
