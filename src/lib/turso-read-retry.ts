@@ -14,13 +14,19 @@ const BASE_DELAY_MS = 200;
  * statuses are not transient: retrying them would fail the same way.
  */
 export function isTransientTursoError(error: unknown): boolean {
+  const libsql = libsqlError(error);
+  return libsql !== null && isGatewayError(libsql);
+}
+
+/** The first LibsqlError in `error`'s cause chain, if any. */
+function libsqlError(error: unknown): LibsqlError | null {
   // Bounded, so a cyclic cause chain cannot loop.
   let current: unknown = error;
   for (let depth = 0; depth < 4 && current instanceof Error; depth += 1) {
-    if (current instanceof LibsqlError) return isGatewayError(current);
+    if (current instanceof LibsqlError) return current;
     current = current.cause;
   }
-  return false;
+  return null;
 }
 
 function isGatewayError(error: LibsqlError): boolean {
@@ -71,10 +77,9 @@ export async function retryTursoRead<T>(
   }
 }
 
-/** The libsql message under any Drizzle wrapper, for the retry warning. */
+/** The libsql message under any wrappers, for the retry warning. */
 function describe(error: unknown): string {
-  if (error instanceof Error && error.cause instanceof LibsqlError) {
-    return error.cause.message;
-  }
+  const libsql = libsqlError(error);
+  if (libsql !== null) return libsql.message;
   return error instanceof Error ? error.message : String(error);
 }
