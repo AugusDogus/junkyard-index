@@ -44,12 +44,9 @@ over 500 donors that day, so its yard search is capped and is split by make:
   answer, "No Results Found", with no search form, `var setMake = "DE_SOTO"`
   and `var urgID = "TT87"` (23:25 UTC).
 
-The make split test serves the November 12 census with the 2026-10-16
-unfiltered and Fredericksburg searches capped. Its make searches are the
-captured Fredericksburg cards of each make, plus the ones the November 12
-catalog shows that were gone by November 19, in the native make page format,
-and the live empty answer for makes with no donors. Like the live search
-below, its DATSUN search answers with the NISSAN cards.
+`pickapartva-ties.test.ts` reads these live make searches to verify the make
+search contract. The make split itself is exercised on a synthetic catalog
+in `pickapartva-recovery.test.ts`.
 
 `make-alias-2026-11-21.json.br` holds 2 raw native Fredericksburg make
 searches for Set Date 2026-11-21 as `{ url, body }`, captured live on
@@ -64,3 +61,18 @@ November 23, 2026 (HTTP 200, about 06:30 UTC):
 
 The native DATSUN search answers for its NISSAN group, so it proves that no
 DATSUN donor was set that day while the NISSAN search lists the NISSAN donors.
+
+`searches-2026-11-21.json.br` holds 2 raw native searches for Set Date
+2026-11-21 as `{ url, body }`, captured live on November 24, 2026 (HTTP 200,
+about 18:35 UTC). Fredericksburg set 568 donors that day and Stafford none:
+
+- `/inventory/ANY/ANY/?k=1&id=ANY&search=2026-11-21`: capped at exactly 500
+  cards, all Fredericksburg and all set on 2026-11-21, model years 2024 down
+  to 2007 (SHA-256 of the body
+  `ab26370a7190baff7756437e34593913af89d5a59f755840da4376f9a5c86657`).
+- `/inventory/ANY/ANY/?k=1&id=UU81&search=2026-11-21`: the native empty
+  answer, "No Results Found", with no search form, Stafford selected,
+  `var setMake = "ANY"` and `var urgID = "UU81"` (SHA-256
+  `95cc7e8362aca870a45cbb8cbac3a9656d458f50e38754d1e42d465c2a649b7e`). The
+  November 24, 07:00 UTC production run rejected this answer as "unfiltered
+  search controls are missing".

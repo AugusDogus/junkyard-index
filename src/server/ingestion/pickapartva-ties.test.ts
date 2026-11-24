@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { brotliDecompressSync } from "node:zlib";
-import { Effect, Either, TestClock } from "effect";
+import { Effect } from "effect";
 import { z } from "zod";
 import { connectorChunkMetrics } from "./connector-chunk";
 import {
@@ -9,9 +9,8 @@ import {
   serializeDurableSourceCursor,
 } from "./durable-cursor";
 import {
-  PICKAPARTVA_MAKE_CHUNK_SOFT_MS,
-  PICKAPARTVA_MAKE_SPLIT_LIFETIME_MS,
   streamPickapartvaInventoryWithRequestGate,
+  type PickapartvaStreamResult,
 } from "./pickapartva-connector";
 import {
   PickapartvaCursorSchema,
@@ -23,15 +22,17 @@ import {
   parsePickapartvaSearch,
   type PickapartvaRecord,
 } from "./pickapartva-parser";
-import { buildPickapartvaSnapshot } from "./pickapartva-snapshot";
+import { PickapartvaRecovery } from "./pickapartva-recovery";
+import {
+  buildPickapartvaSnapshot,
+  pickapartvaTies,
+} from "./pickapartva-snapshot";
 import { validationRejectionKind } from "./ingestion-validation";
 import {
   pickapartvaTestCard,
   pickapartvaTestRecord,
 } from "./pickapartva-test-fixtures";
 import type { PickapartvaCanonicalVehicle } from "./pickapartva-transform";
-import { ProviderTurnDeferred } from "./provider-chunk-clock";
-import { runWithQueuedHost } from "./provider-host-test-support";
 import {
   pickapartvaSearchTarget,
   pickapartvaSearchUrl,
@@ -118,8 +119,8 @@ function searchPage(date: string, cards: string[]) {
   );
 }
 /** The captured 2026-10-16 search narrowed to one yard the way the live
- * 2026-11-18 yard searches are: only that yard's cards, `id` in the form and
- * that yard selected. */
+ * 2026-11-18 yard searches are: only that yard's cards, `id` in the form,
+ * that yard selected and named in the native scripts. */
 function yardPage(
   cards: string[],
   id: PickapartvaYardCode,
@@ -138,21 +139,9 @@ function yardPage(
     .replaceAll(
       `name="yardID" id="" value="${id}"`,
       `name="yardID" id="" value="${id}" selected`,
-    );
+    )
+    .replaceAll('var urgID = "ANY"', `var urgID = "${id}"`);
 }
-/** The captured 2026-10-16 search padded with synthetic donors to the cap. */
-const capped = (cards: string[], record = synthetic("2026-10-16", 0)) =>
-  searchPage("2026-10-16", [
-    ...cards,
-    ...Array.from({ length: 500 - cards.length }, (_, index) =>
-      hiddenCard({
-        ...record,
-        cardId: `PAP98${String(index).padStart(4, "0")}`,
-        stock: `PAP98${String(index).padStart(4, "0")}`,
-        vin: `1FAHP3FN0AW98${String(index).padStart(4, "0")}`,
-      }),
-    ),
-  ]);
 const hiddenCard = (record: PickapartvaRecord) =>
   `<div class="iis-uPull-col-sm-4 iis-uPull-col-xs-12 col-equal mb-1">${pickapartvaTestCard(record)}</div>`;
 const synthetic = (date: string, index: number): PickapartvaRecord => ({
@@ -243,12 +232,13 @@ function serve(
       calls.push(url);
       const read = (reads.get(url) ?? 0) + 1;
       reads.set(url, read);
+      // A census after the one that planned the searches reads the catalog
+      // pages again; the saved closing reads answer for pages 1, 2 and 15.
       const body =
-        read > 1
-          ? closings.get(url)
-          : (catalog.find((response) => response.url === url)?.body ??
-            extra.get(url) ??
-            searches.get(url));
+        (read > 1 ? closings.get(url) : undefined) ??
+        catalog.find((response) => response.url === url)?.body ??
+        extra.get(url) ??
+        searches.get(url);
       if (body === undefined)
         throw new Error("Unexpected unsaved request " + url);
       return new Response(rewrite(url, body), {
@@ -271,22 +261,55 @@ const run = (
       gate,
     ),
   );
+const durable = (cursor: PickapartvaCursor) =>
+  parseDurableSourceCursor("pickapartva", serializeDurableSourceCursor(cursor));
+/** Runs chunks through the durable codec until one emits pages or completes:
+ * the census that plans the tie searches, the searches, then the census that
+ * publishes. Returns each chunk's requests and the last result. */
+async function crawl(
+  onBatch: (batch: PickapartvaCanonicalVehicle[]) => Effect.Effect<void>,
+  calls: string[],
+  startCursor?: PickapartvaCursor,
+  maxPages = 15,
+) {
+  const chunks: string[][] = [];
+  let cursor = startCursor;
+  for (let index = 0; index < 10; index++) {
+    const before = calls.length;
+    const result: PickapartvaStreamResult = await run(
+      onBatch,
+      cursor,
+      maxPages,
+    );
+    chunks.push(calls.slice(before));
+    if (result.pagesProcessed > 0 || result.status === "complete")
+      return { result, chunks };
+    cursor = durable(result.cursor);
+  }
+  throw new Error("Expected the crawl to publish within ten chunks");
+}
+const pageUrls = (pages: number[]) =>
+  pages.map(
+    (page) =>
+      `https://pickapartva.com/inventory/ANY/ANY/?k=1&id=ANY&pagenum=${page}`,
+  );
 
 test("Pick-A-Part VA recovers donors hidden by catalog Set Date ties before accepting the census", async () => {
   const calls = serve();
   const emitted: PickapartvaCanonicalVehicle[] = [];
-  const result = await run((batch) =>
-    Effect.sync(() => {
-      emitted.push(...batch);
-    }),
+  const { result, chunks } = await crawl(
+    (batch) =>
+      Effect.sync(() => {
+        emitted.push(...batch);
+      }),
+    calls,
   );
-  expect(calls).toEqual([
-    ...catalog.map((response) => response.url),
-    ...tieDates.map((date) => searchUrl(date)),
-    ...[1, 2, 15].map(
-      (page) =>
-        `https://pickapartva.com/inventory/ANY/ANY/?k=1&id=ANY&pagenum=${page}`,
-    ),
+  // The census plans one search per repeated date, the searches run in
+  // their own chunk, and the next census reads the catalog again.
+  expect(chunks).toEqual([
+    catalog.map((response) => response.url),
+    tieDates.map((date) => searchUrl(date)),
+    [...catalog.map((response) => response.url), ...pageUrls([1, 2, 15])],
   ]);
   const vins = new Set(emitted.map((vehicle) => vehicle.vin));
   expect(vins.size).toBe(emitted.length);
@@ -322,24 +345,26 @@ test("Pick-A-Part VA recovers donors hidden by catalog Set Date ties before acce
   });
 }, 60_000);
 
-test("Pick-A-Part VA resumes a tie-recovered census only against the same searches", async () => {
-  serve();
+test("Pick-A-Part VA resumes a tie-recovered census only against the same recoveries", async () => {
+  const calls = serve();
   const emitted: string[] = [];
   const onBatch = (batch: PickapartvaCanonicalVehicle[]) =>
     Effect.sync(() => {
       emitted.push(...batch.map((vehicle) => vehicle.vin));
     });
-  const first = await run(onBatch, undefined, 8);
+  const { result: first } = await crawl(onBatch, calls, undefined, 8);
   expect(first.status).toBe("paused");
   if (first.cursor.phase !== "pages")
     throw new Error("Expected a paused checkpoint");
   expect(first.cursor.searches.map((search) => search.date)).toEqual(tieDates);
-  const cursor = parseDurableSourceCursor(
-    "pickapartva",
-    serializeDurableSourceCursor(first.cursor),
-  );
-  serve();
+  const cursor = durable(first.cursor);
+  // The resumed census reads the catalog again but reuses the searches.
+  const resumedCalls = serve();
   const second = await run(onBatch, cursor);
+  expect(resumedCalls).toEqual([
+    ...catalog.map((response) => response.url),
+    ...pageUrls([1, 2, 15]),
+  ]);
   expect(second.status).toBe("complete");
   expect(emitted).toHaveLength(7440);
   expect(new Set(emitted).size).toBe(7440);
@@ -350,11 +375,11 @@ test("Pick-A-Part VA resumes a tie-recovered census only against the same search
       searches: first.cursor.searches.slice(1),
     }).success,
   ).toBe(false);
-  // A resumed chunk whose rebuilt search lists different card details stops
-  // before any callback.
+  // A resumed chunk whose rebuilt catalog lists different card details
+  // stops before any callback.
   serve((url, body) =>
-    url === searchUrl("2026-10-16")
-      ? body.replace("<b>Row: </b> 418<br/>", "<b>Row: </b> 419<br/>")
+    url === catalog[0]?.url
+      ? body.replace(/<b>Row: <\/b> [^<]*<br\/>/, "<b>Row: </b> 999<br/>")
       : body,
   );
   let callbacks = 0;
@@ -398,7 +423,7 @@ test.each<[string, (body: string) => string, string]>([
         "2026-10-16",
         wrapped(body).filter((card) => !card.includes("1GNFK13007J143046")),
       ),
-    "adds 7 donors, but the catalog repeated 8",
+    "add 7 donors, but the catalog repeated 8",
   ],
   [
     "an extra unseen donor",
@@ -407,19 +432,21 @@ test.each<[string, (body: string) => string, string]>([
         ...wrapped(body),
         hiddenCard(synthetic("2026-10-16", 9)),
       ]),
-    "adds 9 donors, but the catalog repeated 8",
+    "add 9 donors, but the catalog repeated 8",
   ],
 ])(
   "Pick-A-Part VA fails closed when a set-date search has %s",
   async (kind, change, message) => {
-    serve((url, body) =>
+    const calls = serve((url, body) =>
       url === searchUrl("2026-10-16") ? change(body) : body,
     );
     let callbacks = 0;
-    const rejection: unknown = await run(() =>
-      Effect.sync(() => {
-        callbacks++;
-      }),
+    const rejection: unknown = await crawl(
+      () =>
+        Effect.sync(() => {
+          callbacks++;
+        }),
+      calls,
     ).catch((error: unknown) => error);
     expect(() => {
       throw rejection;
@@ -436,67 +463,7 @@ test.each<[string, (body: string) => string, string]>([
   60_000,
 );
 
-test("Pick-A-Part VA splits a capped set-date search by physical yard", async () => {
-  const calls = serve((url, body) =>
-    url === searchUrl("2026-10-16") ? capped(wrapped(body)) : body,
-  );
-  const emitted: PickapartvaCanonicalVehicle[] = [];
-  const onBatch = (batch: PickapartvaCanonicalVehicle[]) =>
-    Effect.sync(() => {
-      emitted.push(...batch);
-    });
-  const first = await run(onBatch, undefined, 8);
-  expect(calls).toEqual([
-    ...catalog.map((response) => response.url),
-    ...tieDates.map((date) => searchUrl(date)),
-    searchUrl("2026-10-16", "TT87"),
-    searchUrl("2026-10-16", "UU81"),
-    ...[1, 2, 15].map(
-      (page) =>
-        `https://pickapartva.com/inventory/ANY/ANY/?k=1&id=ANY&pagenum=${page}`,
-    ),
-  ]);
-  if (first.cursor.phase !== "pages")
-    throw new Error("Expected a paused checkpoint");
-  expect(first.cursor.searches.map((search) => search.url)).toEqual([
-    ...tieDates.slice(0, -1).map((date) => searchUrl(date)),
-    searchUrl("2026-10-16", "TT87"),
-    searchUrl("2026-10-16", "UU81"),
-  ]);
-  // A checkpoint that keeps only one yard of a split date is refused.
-  expect(
-    PickapartvaCursorSchema.safeParse({
-      ...first.cursor,
-      searches: first.cursor.searches.slice(0, -1),
-    }).success,
-  ).toBe(false);
-  serve((url, body) =>
-    url === searchUrl("2026-10-16") ? capped(wrapped(body)) : body,
-  );
-  const second = await run(
-    onBatch,
-    parseDurableSourceCursor(
-      "pickapartva",
-      serializeDurableSourceCursor(first.cursor),
-    ),
-  );
-  expect(second.status).toBe("complete");
-  const vins = new Set(emitted.map((vehicle) => vehicle.vin));
-  expect(emitted).toHaveLength(7440);
-  expect(vins.size).toBe(7440);
-  for (const vin of [...recoveredOnTie, liveTieDonor.vin])
-    expect(vins.has(vin)).toBe(true);
-  // A donor recovered by a yard search links to that yard's search.
-  expect(
-    emitted.find((vehicle) => vehicle.vin === "1GNFK13007J143046"),
-  ).toMatchObject({
-    locationCode: "UU81",
-    detailsUrl:
-      "https://pickapartva.com/inventory/ANY/ANY/?k=1&id=UU81&search=2026-10-16#STK126182",
-  });
-}, 60_000);
-
-test("Pick-A-Part VA searches by yard without the unfiltered search when the catalog already shows a full search page of a date", async () => {
+test("Pick-A-Part VA searches by yard without the unfiltered search when the catalog already shows a full search page of a date, and stops once the hidden donor is found", async () => {
   // Page 1 recast so every card is set on 2026-11-07, as the live catalog
   // showed 578 donors set on 2026-11-18 across pages 1 and 2. The 2026-11-09
   // donors move to Stafford so each yard stays under one search page.
@@ -531,28 +498,23 @@ test("Pick-A-Part VA searches by yard without the unfiltered search when the cat
   const calls = serve(
     bulk,
     new Map([
-      [searchUrl("2026-11-07"), searchPage("2026-11-07", cards.slice(0, 500))],
       [searchUrl("2026-11-07", "TT87"), yardPage(cards, "TT87", "2026-11-07")],
       [searchUrl("2026-11-07", "UU81"), yardPage(cards, "UU81", "2026-11-07")],
     ]),
   );
   const emitted: string[] = [];
-  const result = await run((batch) =>
-    Effect.sync(() => {
-      emitted.push(...batch.map((vehicle) => vehicle.vin));
-    }),
+  const { result, chunks } = await crawl(
+    (batch) =>
+      Effect.sync(() => {
+        emitted.push(...batch.map((vehicle) => vehicle.vin));
+      }),
+    calls,
   );
-  // The unfiltered search would be capped, so the census spends one extra
-  // search on this date instead of two.
-  expect(calls).toEqual([
-    ...catalog.map((response) => response.url),
+  // The unfiltered search would be capped, so it is skipped. Fredericksburg
+  // lists the date's one hidden donor, so Stafford is never searched.
+  expect(chunks[1]).toEqual([
     searchUrl("2026-11-07", "TT87"),
-    searchUrl("2026-11-07", "UU81"),
     ...tieDates.slice(1).map((date) => searchUrl(date)),
-    ...[1, 2, 15].map(
-      (page) =>
-        `https://pickapartva.com/inventory/ANY/ANY/?k=1&id=ANY&pagenum=${page}`,
-    ),
   ]);
   expect(result.status).toBe("complete");
   expect(new Set(emitted).size).toBe(7440);
@@ -576,497 +538,9 @@ const makeLive = z
       ).toString(),
     ),
   );
-const emptyMakeSearch = makeLive[3]?.body ?? "";
 const nativeMakes = parsePickapartvaPage(catalog[0]?.body ?? "", 1).makes;
-type Card = { html: string; record: PickapartvaRecord };
-const cardsOf = (html: string, date = "2026-10-16"): Card[] => {
-  const result = parsePickapartvaSearch(html, date);
-  if (result.status !== "complete")
-    throw new Error("Expected a complete native search");
-  return wrapped(html).map((card, index) => {
-    const record = result.page.records[index];
-    if (!record) throw new Error("Saved search card wrappers changed");
-    return { html: card, record };
-  });
-};
-/**
- * Fredericksburg's 2026-10-16 donors: the captured search's, plus the ones
- * the November 12 catalog shows that were gone by the November 19 capture,
- * so the make searches answer for the same inventory as the catalog.
- */
-const fredericksburg: Card[] = (() => {
-  const listed = cardsOf(captured).filter(
-    (card) => card.record.yardCode === "TT87",
-  );
-  const stocks = new Set(listed.map((card) => card.record.stock));
-  for (const card of censusCards)
-    if (
-      card.record.setDate === "2026-10-16" &&
-      card.record.yardCode === "TT87" &&
-      !stocks.has(card.record.stock)
-    ) {
-      stocks.add(card.record.stock);
-      listed.push(card);
-    }
-  return listed;
-})();
 const makeUrl = (make: string, date = "2026-10-16") =>
   `https://pickapartva.com/inventory/${make.replaceAll(" ", "_")}/ANY/?k=1&id=TT87&search=${date}`;
-/** The captured Fredericksburg search narrowed to one make the way the live
- * 2026-11-16 make searches are, or the live empty answer for that make. Like
- * the live 2026-11-21 DATSUN search, DATSUN answers with the NISSAN donors. */
-function makePage(make: string, cards = fredericksburg) {
-  const path = make.replaceAll(" ", "_");
-  const listed = cards
-    .filter(
-      (card) => card.record.make === (make === "DATSUN" ? "NISSAN" : make),
-    )
-    .map((card) => card.html);
-  return listed.length
-    ? yardPage(listed, "TT87")
-        .replaceAll(
-          'action="/inventory/ANY/ANY/"',
-          `action="/inventory/${path}/ANY/"`,
-        )
-        .replace('var setMake = "ANY"', `var setMake = "${path}"`)
-        .replaceAll('var urgID = "ANY"', 'var urgID = "TT87"')
-    : emptyMakeSearch.replace(
-        'var setMake = "DE_SOTO"',
-        `var setMake = "${path}"`,
-      );
-}
-const makePages = new Map(
-  nativeMakes.map((make) => [makeUrl(make), makePage(make)]),
-);
-/** Both the unfiltered and the Fredericksburg 2026-10-16 searches capped. */
-const cappedYard = (url: string, body: string) =>
-  url === searchUrl("2026-10-16")
-    ? capped(wrapped(body))
-    : url === searchUrl("2026-10-16", "TT87")
-      ? yardPage(
-          wrapped(capped(fredericksburg.map((card) => card.html))),
-          "TT87",
-        )
-      : body;
-/** Fredericksburg FORD FOCUS donors set on 2026-10-16 that no catalog page
- * shows. */
-const padding = (count: number): Card[] =>
-  Array.from({ length: count }, (_, index) => {
-    const id = `PAP97${String(index).padStart(4, "0")}`;
-    const record = {
-      ...synthetic("2026-10-16", 0),
-      cardId: id,
-      stock: id,
-      vin: `1FAHP3FN0AW97${String(index).padStart(4, "0")}`,
-    };
-    return { html: hiddenCard(record), record };
-  });
-
-test("Pick-A-Part VA splits a still-capped yard search by make across checkpointed chunks", async () => {
-  const emitted: PickapartvaCanonicalVehicle[] = [];
-  const onBatch = (batch: PickapartvaCanonicalVehicle[]) =>
-    Effect.sync(() => {
-      emitted.push(...batch);
-    });
-  // The census stops at the capped yard search and checkpoints the split.
-  const calls = serve(cappedYard, makePages);
-  const first = await run(onBatch);
-  expect(calls).toEqual([
-    ...catalog.map((response) => response.url),
-    ...tieDates.map((date) => searchUrl(date)),
-    searchUrl("2026-10-16", "TT87"),
-  ]);
-  expect(emitted).toHaveLength(0);
-  expect(first).toMatchObject({ status: "paused", count: 0 });
-  if (first.cursor.phase !== "makes") throw new Error("Expected a make split");
-  expect(first.cursor.partitions).toEqual([
-    {
-      date: "2026-10-16",
-      id: "TT87",
-      makes: nativeMakes,
-      searches: [],
-      startedAt: expect.any(Number),
-    },
-  ]);
-  expect(nativeMakes).toHaveLength(62);
-  // The make searches resume from a checkpoint taken between them.
-  const split = first.cursor.partitions[0];
-  if (!split) throw new Error("Expected a make split");
-  const makeCalls = serve(cappedYard, makePages);
-  const searched = await run(
-    onBatch,
-    parseDurableSourceCursor(
-      "pickapartva",
-      serializeDurableSourceCursor(first.cursor),
-    ),
-  );
-  expect(makeCalls).toEqual(nativeMakes.map((make) => makeUrl(make)));
-  if (searched.cursor.phase !== "makes")
-    throw new Error("Expected a make split");
-  const partial: PickapartvaCursor = {
-    ...searched.cursor,
-    partitions: searched.cursor.partitions.map((entry) => ({
-      ...entry,
-      searches: entry.searches.slice(0, 20),
-    })),
-  };
-  const resumedCalls = serve(cappedYard, makePages);
-  const resumed = await run(
-    onBatch,
-    parseDurableSourceCursor(
-      "pickapartva",
-      serializeDurableSourceCursor(partial),
-    ),
-  );
-  expect(resumedCalls).toEqual(
-    nativeMakes.slice(20).map((make) => makeUrl(make)),
-  );
-  expect(resumed.cursor).toEqual(searched.cursor);
-  expect(emitted).toHaveLength(0);
-  // A checkpoint whose saved make donors changed is refused.
-  expect(
-    PickapartvaCursorSchema.safeParse({
-      ...searched.cursor,
-      partitions: searched.cursor.partitions.map((entry) => ({
-        ...entry,
-        searches: entry.searches.map((search) => ({
-          ...search,
-          records: search.records.map((record) => ({ ...record, row: "1" })),
-        })),
-      })),
-    }).success,
-  ).toBe(false);
-  // The census reads again with the split instead of the capped searches.
-  const censusCalls = serve(cappedYard, makePages);
-  const census = await run(
-    onBatch,
-    parseDurableSourceCursor(
-      "pickapartva",
-      serializeDurableSourceCursor(searched.cursor),
-    ),
-    8,
-  );
-  expect(censusCalls).toEqual([
-    ...catalog.map((response) => response.url),
-    ...tieDates.slice(0, -1).map((date) => searchUrl(date)),
-    searchUrl("2026-10-16", "UU81"),
-    ...[1, 2, 15].map(
-      (page) =>
-        `https://pickapartva.com/inventory/ANY/ANY/?k=1&id=ANY&pagenum=${page}`,
-    ),
-  ]);
-  if (census.cursor.phase !== "pages")
-    throw new Error("Expected a paused checkpoint");
-  expect(census.cursor.searches.map((search) => search.url)).toEqual([
-    ...tieDates.slice(0, -1).map((date) => searchUrl(date)),
-    ...nativeMakes.map((make) => makeUrl(make)),
-    searchUrl("2026-10-16", "UU81"),
-  ]);
-  serve(cappedYard, makePages);
-  const last = await run(
-    onBatch,
-    parseDurableSourceCursor(
-      "pickapartva",
-      serializeDurableSourceCursor(census.cursor),
-    ),
-  );
-  expect(last.status).toBe("complete");
-  const vins = new Set(emitted.map((vehicle) => vehicle.vin));
-  expect(emitted).toHaveLength(7440);
-  expect(vins.size).toBe(7440);
-  for (const vin of [...recoveredOnTie, liveTieDonor.vin])
-    expect(vins.has(vin)).toBe(true);
-  // A Fredericksburg donor recovered by a make search links to that search.
-  const recovered = emitted.filter(
-    (vehicle) =>
-      recoveredOnTie.includes(vehicle.vin) && vehicle.locationCode === "TT87",
-  );
-  expect(recovered.length).toBeGreaterThan(0);
-  for (const vehicle of recovered)
-    expect(vehicle.detailsUrl).toMatch(
-      /^https:\/\/pickapartva\.com\/inventory\/(?!ANY\/)[A-Z0-9_-]+\/ANY\/\?k=1&id=TT87&search=2026-10-16#/,
-    );
-}, 60_000);
-
-test.each<[string, (url: string, body: string) => string, string]>([
-  [
-    "is itself capped",
-    (url, body) =>
-      url === makeUrl("FORD")
-        ? makePage(
-            "FORD",
-            [...fredericksburg, ...padding(500)]
-              .filter((card) => card.record.make === "FORD")
-              .slice(0, 500),
-          )
-        : body,
-    "FORD search for 2026-10-16 in TT87 returned 500 cards; completeness is only known for 0 to 499 matched donor cards per make",
-  ],
-  [
-    "lists another make",
-    (url, body) =>
-      url === makeUrl("FORD")
-        ? body.replace("Make/Model :</b> FORD ", "Make/Model :</b> CHEVROLET ")
-        : body,
-    "ignored its selected make FORD",
-  ],
-  [
-    "for DATSUN lists a make outside its NISSAN group",
-    (url, body) =>
-      url === makeUrl("DATSUN")
-        ? body.replace(
-            "Make/Model :</b> NISSAN ",
-            "Make/Model :</b> CHEVROLET ",
-          )
-        : body,
-    "ignored its selected make DATSUN",
-  ],
-  [
-    "answers for another make",
-    (url, body) =>
-      url === makeUrl("FORD")
-        ? body.replace('var setMake = "FORD"', 'var setMake = "ANY"')
-        : body,
-    "does not prove its selected make FORD and yard TT87",
-  ],
-  [
-    "answers for another yard",
-    (url, body) =>
-      url === makeUrl("DE SOTO")
-        ? body.replaceAll('var urgID = "TT87"', 'var urgID = "UU81"')
-        : body,
-    "does not prove its selected make DE SOTO and yard TT87",
-  ],
-])(
-  "Pick-A-Part VA fails closed when a make search %s",
-  async (_kind, change, message) => {
-    serve(cappedYard, makePages);
-    const first = await run(() => Effect.void);
-    serve((url, body) => change(url, cappedYard(url, body)), makePages);
-    let callbacks = 0;
-    await expect(
-      run(
-        () =>
-          Effect.sync(() => {
-            callbacks++;
-          }),
-        first.cursor,
-      ),
-    ).rejects.toThrow(message);
-    expect(callbacks).toBe(0);
-  },
-  60_000,
-);
-
-test("Pick-A-Part VA fails closed when the make searches omit a donor the catalog shows", async () => {
-  // A Fredericksburg 2026-10-16 donor the catalog shows, absent from its
-  // make search, so the make totals cannot reconcile.
-  const shown = censusCards.find(
-    (card) =>
-      card.record.setDate === "2026-10-16" &&
-      card.record.yardCode === "TT87" &&
-      nativeMakes.includes(card.record.make),
-  );
-  if (!shown) throw new Error("Expected a shown Fredericksburg donor");
-  const url = makeUrl(shown.record.make);
-  const omitted = new Map(makePages).set(
-    url,
-    makePage(
-      shown.record.make,
-      fredericksburg.filter((card) => card.record.stock !== shown.record.stock),
-    ),
-  );
-  serve(cappedYard, omitted);
-  const first = await run(() => Effect.void);
-  serve(cappedYard, omitted);
-  const searched = await run(() => Effect.void, first.cursor);
-  serve(cappedYard, omitted);
-  let callbacks = 0;
-  await expect(
-    run(
-      () =>
-        Effect.sync(() => {
-          callbacks++;
-        }),
-      searched.cursor,
-    ),
-  ).rejects.toThrow(
-    `make searches for 2026-10-16 in TT87 omit 1 donors the catalog shows (first ${shown.record.stock} ${shown.record.make})`,
-  );
-  expect(callbacks).toBe(0);
-}, 60_000);
-
-/** The capped census's checkpoint: the Fredericksburg 2026-10-16 split with
- * no make searched yet. */
-async function pendingSplit() {
-  serve(cappedYard, makePages);
-  const first = await run(() => Effect.void);
-  if (first.cursor.phase !== "makes") throw new Error("Expected a make split");
-  return first.cursor;
-}
-/** One chunk from `startCursor` on the test clock, set to when its split
- * started, with shared URG host turns that each wait `turnWaitMs(turn)`. */
-const queuedChunk = (
-  startCursor: PickapartvaCursor,
-  turnWaitMs: (turn: number) => number,
-) =>
-  runWithQueuedHost(
-    Effect.zipRight(
-      TestClock.setTime(
-        startCursor.phase === "makes"
-          ? (startCursor.partitions[0]?.startedAt ?? 0)
-          : 0,
-      ),
-      Effect.suspend(() =>
-        streamPickapartvaInventoryWithRequestGate(
-          { onBatch: () => Effect.void, startCursor },
-          gate,
-        ),
-      ),
-    ),
-    { turnWaitMs },
-  );
-const searchedMakes = (cursor: PickapartvaCursor) =>
-  cursor.phase === "makes"
-    ? cursor.partitions.flatMap((split) =>
-        split.searches.map((search) => search.make),
-      )
-    : [];
-
-test("Pick-A-Part VA starts no make search after the chunk's soft stop and resumes at the next make", async () => {
-  const pending = await pendingSplit();
-  // Each make search waits 10 s for its own shared URG turn.
-  const calls = serve(cappedYard, makePages);
-  const chunk = await queuedChunk(pending, () => 10_000);
-  if (Either.isLeft(chunk.result)) throw chunk.result.left;
-  expect(chunk.result.right).toMatchObject({ status: "paused", count: 0 });
-  const done = searchedMakes(chunk.result.right.cursor);
-  expect(done.length).toBeGreaterThan(1);
-  expect(done.length).toBeLessThan(nativeMakes.length);
-  expect(done).toEqual(nativeMakes.slice(0, done.length));
-  expect(calls).toEqual(done.map((make) => makeUrl(make)));
-  // The last make search was started before the soft stop and only waited
-  // for its turn and the host gap, and the chunk ended long before its
-  // 340-second turn horizon.
-  expect(chunk.requests.at(-1)?.startedAt).toBeLessThan(
-    PICKAPARTVA_MAKE_CHUNK_SOFT_MS + 15_000,
-  );
-  expect(chunk.elapsedMs).toBeLessThan(PICKAPARTVA_MAKE_CHUNK_SOFT_MS + 30_000);
-  const resumedCalls = serve(cappedYard, makePages);
-  const resumed = await queuedChunk(chunk.result.right.cursor, () => 10_000);
-  if (Either.isLeft(resumed.result)) throw resumed.result.left;
-  expect(resumedCalls[0]).toBe(makeUrl(nativeMakes[done.length] ?? ""));
-  expect(searchedMakes(resumed.result.right.cursor)).toEqual(
-    nativeMakes.slice(0, done.length + resumedCalls.length),
-  );
-}, 60_000);
-
-test("Pick-A-Part VA checkpoints the make searches done before a deferred shared host turn", async () => {
-  const pending = await pendingSplit();
-  // The fourth turn cannot arrive before the chunk's turn horizon.
-  const calls = serve(cappedYard, makePages);
-  const late = await queuedChunk(pending, (turn) =>
-    turn < 3 ? 1_000 : 400_000,
-  );
-  if (Either.isLeft(late.result)) throw late.result.left;
-  expect(late.result.right.status).toBe("paused");
-  expect(searchedMakes(late.result.right.cursor)).toEqual(
-    nativeMakes.slice(0, 3),
-  );
-  expect(calls).toEqual(nativeMakes.slice(0, 3).map((make) => makeUrl(make)));
-  // Before any make search the deferral defers the whole chunk.
-  const none = serve(cappedYard, makePages);
-  const deferred = await queuedChunk(pending, () => 400_000);
-  expect(Either.isLeft(deferred.result) && deferred.result.left).toBeInstanceOf(
-    ProviderTurnDeferred,
-  );
-  expect(none).toEqual([]);
-}, 60_000);
-
-test.each([
-  ["older than its lifetime", -PICKAPARTVA_MAKE_SPLIT_LIFETIME_MS - 60_000],
-  ["dated in the future", 60_000],
-])(
-  "Pick-A-Part VA refuses a make split checkpoint %s",
-  async (_kind, offset) => {
-    const pending = await pendingSplit();
-    const stale: PickapartvaCursor = {
-      ...pending,
-      partitions: pending.partitions.map((split) => ({
-        ...split,
-        startedAt: Date.now() + offset,
-      })),
-    };
-    const calls = serve(cappedYard, makePages);
-    await expect(run(() => Effect.void, stale)).rejects.toThrow(
-      "make split for 2026-10-16 in TT87 started",
-    );
-    expect(calls).toEqual([]);
-  },
-  60_000,
-);
-
-test("Pick-A-Part VA refuses a census whose make split no longer covers the native makes, went stale or needs another split", async () => {
-  const pending = await pendingSplit();
-  serve(cappedYard, makePages);
-  const searched = await run(() => Effect.void, pending);
-  if (searched.cursor.phase !== "makes")
-    throw new Error("Expected a make split");
-  let callbacks = 0;
-  const count = () =>
-    Effect.sync(() => {
-      callbacks++;
-    });
-  // A split without the catalog's last native make proves no donor of it.
-  const narrowed: PickapartvaCursor = {
-    ...searched.cursor,
-    partitions: searched.cursor.partitions.map((split) => ({
-      ...split,
-      makes: split.makes.slice(0, -1),
-      searches: split.searches.slice(0, -1),
-    })),
-  };
-  serve(cappedYard, makePages);
-  await expect(run(count, narrowed)).rejects.toThrow(
-    "make searches for 2026-10-16 in TT87 do not cover the native make selector's 62 makes",
-  );
-  serve(cappedYard, makePages);
-  const census = await run(() => Effect.void, searched.cursor, 8);
-  if (census.cursor.phase !== "pages")
-    throw new Error("Expected a paused checkpoint");
-  // The make split outlived its lifetime during emission.
-  const stale: PickapartvaCursor = {
-    ...census.cursor,
-    partitions: census.cursor.partitions.map((split) => ({
-      ...split,
-      startedAt: Date.now() - PICKAPARTVA_MAKE_SPLIT_LIFETIME_MS - 60_000,
-    })),
-  };
-  const staleCalls = serve(cappedYard, makePages);
-  await expect(run(count, stale)).rejects.toThrow(
-    "make split for 2026-10-16 in TT87 started",
-  );
-  expect(staleCalls).toEqual([]);
-  // Stafford's 2026-10-16 search, complete when the checkpoint was taken,
-  // now reaches the cap.
-  const stafford = wrapped(captured).filter((card) =>
-    card.includes("<b>Location: </b> Stafford<"),
-  );
-  serve(
-    (url, body) =>
-      url === searchUrl("2026-10-16", "UU81")
-        ? yardPage(
-            wrapped(capped(stafford, synthetic("2026-10-16", 1))),
-            "UU81",
-          )
-        : cappedYard(url, body),
-    makePages,
-  );
-  await expect(run(count, census.cursor)).rejects.toThrow(
-    "A set-date search the checkpointed census completed is now capped",
-  );
-  expect(callbacks).toBe(0);
-}, 60_000);
 
 test("Pick-A-Part VA reads the live 2026-11-16 Fredericksburg make searches", () => {
   const [yard, ford, landRover, deSoto] = makeLive.map(
@@ -1079,8 +553,8 @@ test("Pick-A-Part VA reads the live 2026-11-16 Fredericksburg make searches", ()
     makeUrl("DE SOTO", "2026-11-16"),
   ]);
   const cappedSearch = parsePickapartvaSearch(yard ?? "", "2026-11-16", "TT87");
-  expect(cappedSearch).toMatchObject({ status: "capped", cards: 500 });
   if (cappedSearch.status !== "capped") throw new Error("Expected capped");
+  expect(cappedSearch.page.records).toHaveLength(500);
   expect(cappedSearch.makes).toEqual(nativeMakes);
   const make = (raw: string, name: string) => {
     const result = parsePickapartvaSearch(raw, "2026-11-16", "TT87", name);
@@ -1107,10 +581,10 @@ test("Pick-A-Part VA reads the live 2026-11-16 Fredericksburg make searches", ()
   ).toThrow("narrowed physical scope");
   expect(() =>
     parsePickapartvaSearch(ford ?? "", "2026-11-16", "TT87"),
-  ).toThrow("inventory form is filtered");
+  ).toThrow("yard search does not prove its selected make ANY and yard TT87");
   expect(() =>
     parsePickapartvaSearch(deSoto ?? "", "2026-11-16", "TT87"),
-  ).toThrow("search controls are missing");
+  ).toThrow("yard search does not prove its selected make ANY and yard TT87");
 });
 
 test("Pick-A-Part VA reads the live 2026-11-21 DATSUN search, which answers with the NISSAN donors, as no DATSUN donors", () => {
@@ -1170,10 +644,9 @@ test("Pick-A-Part VA reads the live 2026-11-18 searches: the unfiltered search i
     searchUrl("2026-11-18", "TT87"),
     searchUrl("2026-11-18", "UU81"),
   ]);
-  expect(parsePickapartvaSearch(all ?? "", "2026-11-18")).toMatchObject({
-    status: "capped",
-    cards: 500,
-  });
+  const capped = parsePickapartvaSearch(all ?? "", "2026-11-18");
+  expect(capped.status).toBe("capped");
+  expect(capped.page.records).toHaveLength(500);
   const tt87 = liveSearch(fredericksburg ?? "", "TT87");
   const uu81 = liveSearch(stafford ?? "", "UU81");
   expect(tt87.records).toHaveLength(412);
@@ -1222,44 +695,44 @@ test("Pick-A-Part VA fails closed when donors repeat but the catalog is not orde
   expect(calls).toEqual(catalog.map((response) => response.url));
 }, 60_000);
 
-test("Pick-A-Part VA snapshots refuse searches that do not match the repeated Set Dates", () => {
+test("Pick-A-Part VA snapshots refuse recoveries that do not match the repeated Set Dates", () => {
   const pages = catalog.map((response, index) => ({
     url: response.url,
     page: parsePickapartvaPage(response.body, index + 1),
   }));
-  const parsed = (url: string, id?: PickapartvaYardCode) => {
-    const body = searches.get(url) ?? "";
-    const result = parsePickapartvaSearch(body, "2026-10-16", id);
-    if (result.status !== "complete")
-      throw new Error("Expected a complete native search");
-    return { url, page: result.page };
-  };
-  const search = parsed(searchUrl("2026-10-16"));
-  const tt87 = parsed(searchUrl("2026-10-16", "TT87"), "TT87");
-  const uu81 = parsed(searchUrl("2026-10-16", "UU81"), "UU81");
-  const others = tieDates.slice(0, -1).map((date) => {
-    const result = parsePickapartvaSearch(
-      searches.get(searchUrl(date)) ?? "",
-      date,
-    );
-    if (result.status !== "complete")
-      throw new Error("Expected a complete native search");
-    return { url: searchUrl(date), page: result.page };
-  });
+  const ties = pickapartvaTies(pages);
+  expect(ties.map((tie) => [tie.date, tie.slots])).toEqual([
+    ["2026-11-07", 1],
+    ["2026-11-04", 1],
+    ["2026-10-28", 5],
+    ["2026-10-24", 1],
+    ["2026-10-20", 2],
+    ["2026-10-16", 8],
+  ]);
+  const recoveries = ties.map((tie) =>
+    PickapartvaRecovery.record(
+      PickapartvaRecovery.plan(tie, 1),
+      searchUrl(tie.date),
+      parsePickapartvaSearch(searches.get(searchUrl(tie.date)) ?? "", tie.date),
+    ),
+  );
+  expect(buildPickapartvaSnapshot(pages, recoveries).hash).toMatch(
+    /^[a-f0-9]{64}$/,
+  );
+  const [first, ...rest] = recoveries;
+  if (!first) throw new Error("Expected a recovery");
   for (const changed of [
     [],
-    [search],
-    [search, search],
-    [...others, tt87],
-    [...others, uu81, tt87],
-    [...others, search, tt87, uu81],
+    rest,
+    [...rest, first],
+    [first, first, ...rest.slice(1)],
+    [{ ...first, slots: 2 }, ...rest],
+    [{ ...first, shown: first.shown.slice(1) }, ...rest],
+    [PickapartvaRecovery.plan(ties[0] ?? first, 1), ...rest],
   ])
     expect(() => buildPickapartvaSnapshot(pages, changed)).toThrow(
       "do not match the catalog's repeated Set Dates (2026-11-07, 2026-11-04, 2026-10-28, 2026-10-24, 2026-10-20, 2026-10-16)",
     );
-  expect(buildPickapartvaSnapshot(pages, [...others, tt87, uu81]).hash).toMatch(
-    /^[a-f0-9]{64}$/,
-  );
 });
 
 test("Pick-A-Part VA set-date search destinations are as narrow as catalog pages", () => {

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { pickapartvaHash } from "./pickapartva-parser";
+import { pickapartvaCardKey } from "./pickapartva-parser";
 import { pickapartvaSnapshotHash } from "./pickapartva-snapshot";
 import {
   PICKAPARTVA_MAKE,
@@ -10,19 +10,18 @@ import {
   PICKAPARTVA_YARD_CODES,
   pickapartvaPageUrl,
   pickapartvaSearchHref,
-  pickapartvaSearchPlan,
-  pickapartvaSearchTarget,
   pickapartvaSetDate,
 } from "./pickapartva-yard-metadata";
 
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
-const count = z
-  .number()
-  .int()
-  .nonnegative()
-  .max(PICKAPARTVA_MAX_PAGES * PICKAPARTVA_PAGE_SIZE);
+const MAX_CARDS = PICKAPARTVA_MAX_PAGES * PICKAPARTVA_PAGE_SIZE;
+const count = z.number().int().nonnegative().max(MAX_CARDS);
 const field = z.string().max(200);
-const make = z.string().max(40).regex(PICKAPARTVA_MAKE);
+const scope = z.enum(["ANY", ...PICKAPARTVA_YARD_CODES]);
+const make = z.union([
+  z.literal("ANY"),
+  z.string().max(40).regex(PICKAPARTVA_MAKE),
+]);
 // Fields in the parser's order, so a parsed record hashes as it was read.
 const record = z
   .object({
@@ -38,87 +37,96 @@ const record = z
     imageUrl: z.string().max(1000).nullable(),
   })
   .strict();
-/**
- * One yard's set-date search that reached the 500-card cap, split into one
- * search per native make. `makes` is the native make selector in order and
- * `searches` holds the completed make searches, in that order, with their
- * donors, so a later chunk can rebuild the census without repeating them.
- * `startedAt` is the epoch milliseconds at which the capped yard search was
- * read, which bounds how long the saved make searches are trusted.
- */
-const partition = z
+/** Every yard, both yards and one search per native make of each yard. */
+const MAX_SEARCHES =
+  1 + PICKAPARTVA_YARD_CODES.length * (1 + PICKAPARTVA_MAX_MAKES);
+const step = z.object({ id: scope, make }).strict();
+const stepKey = (entry: { id: string; make: string }) =>
+  `${entry.id}:${entry.make}`;
+
+/** See `PickapartvaRecovery`. */
+const recovery = z
   .object({
     date: z.string().max(10),
-    id: z.enum(PICKAPARTVA_YARD_CODES),
-    makes: z.array(make).min(1).max(PICKAPARTVA_MAX_MAKES),
+    slots: z.number().int().positive().max(MAX_CARDS),
+    shown: z.array(z.string().max(500)).max(MAX_CARDS),
     startedAt: z.number().int().positive(),
     searches: z
       .array(
-        z
-          .object({
-            make,
-            url: z.string().max(1000),
-            hash,
-            records: z.array(record).max(PICKAPARTVA_PAGE_SIZE - 1),
-          })
+        step
+          .extend({ url: z.string().max(1000), hash, capped: z.boolean() })
           .strict(),
       )
-      .max(PICKAPARTVA_MAX_MAKES),
+      .max(MAX_SEARCHES),
+    hidden: z.array(step.extend({ record }).strict()).max(MAX_CARDS),
+    pending: z.array(step).max(MAX_SEARCHES),
   })
   .strict()
-  .superRefine((split, context) => {
+  .superRefine((entry, context) => {
+    const shown = new Set(entry.shown);
+    const hidden = entry.hidden.map((donor) =>
+      pickapartvaCardKey(donor.record),
+    );
+    const searched = entry.searches.map(stepKey);
+    const pending = entry.pending.map(stepKey);
     if (
-      !pickapartvaSetDate(split.date) ||
-      new Set(split.makes).size !== split.makes.length ||
-      split.searches.length > split.makes.length ||
-      split.searches.some(
-        (search, index) =>
-          search.make !== split.makes[index] ||
+      !pickapartvaSetDate(entry.date) ||
+      shown.size !== entry.shown.length ||
+      JSON.stringify(entry.shown) !== JSON.stringify([...entry.shown].sort()) ||
+      new Set([...searched, ...pending]).size !==
+        searched.length + pending.length ||
+      [...entry.searches, ...entry.pending].some(
+        (search) =>
+          (search.make !== "ANY" && search.id === "ANY") ||
+          pickapartvaSearchHref(entry.date, search.id, search.make) === null,
+      ) ||
+      entry.searches.some(
+        (search) =>
           search.url !==
-            pickapartvaSearchHref(split.date, split.id, search.make) ||
-          search.hash !== pickapartvaHash([split.date, search.records]) ||
-          search.records.some(
-            (donor) =>
-              donor.setDate !== split.date ||
-              donor.yardCode !== split.id ||
-              donor.make !== search.make,
-          ),
-      )
+          pickapartvaSearchHref(entry.date, search.id, search.make),
+      ) ||
+      new Set(hidden).size !== hidden.length ||
+      hidden.some((key) => shown.has(key)) ||
+      entry.hidden.some(
+        (donor) =>
+          donor.record.setDate !== entry.date ||
+          !searched.includes(stepKey(donor)) ||
+          (donor.id !== "ANY" && donor.record.yardCode !== donor.id) ||
+          (donor.make !== "ANY" && donor.record.make !== donor.make),
+      ) ||
+      hidden.length > entry.slots ||
+      (entry.pending.length === 0) !== (hidden.length === entry.slots)
     )
       context.addIssue({
         code: z.ZodIssueCode.custom,
         message:
-          "Pick-A-Part VA make split checkpoint does not match its Set Date, yard, makes or donors",
+          "Pick-A-Part VA set-date recovery checkpoint does not match its Set Date, searches or hidden donors",
       });
   });
-export type PickapartvaMakeSplit = z.infer<typeof partition>;
-const partitions = z
-  .array(partition)
-  .max(PICKAPARTVA_MAX_TIE_SEARCHES * PICKAPARTVA_YARD_CODES.length)
+const recoveries = z
+  .array(recovery)
+  .max(PICKAPARTVA_MAX_TIE_SEARCHES)
   .refine(
-    (splits) =>
-      new Set(splits.map((split) => `${split.date}:${split.id}`)).size ===
-      splits.length,
-    "Pick-A-Part VA make split checkpoint repeats a Set Date and yard",
+    (entries) =>
+      new Set(entries.map((entry) => entry.date)).size === entries.length,
+    "Pick-A-Part VA set-date recovery checkpoint repeats a Set Date",
   );
-export const pickapartvaMakeSplitComplete = (split: PickapartvaMakeSplit) =>
-  split.searches.length === split.makes.length;
 
 export const PickapartvaCursorSchema = z
   .discriminatedUnion("phase", [
     z
       .object({ source: z.literal("pickapartva"), phase: z.literal("start") })
       .strict(),
-    // A yard's set-date search reached the cap, so its make searches run
-    // across chunks before the census is read again. Once every split is
-    // complete, the next chunk reads the census with them.
+    // A catalog read found Set Date ties whose hidden donors are not yet
+    // recovered. The searches run in their own chunks, then the next chunk
+    // reads the catalog again with the recoveries.
     z
       .object({
         source: z.literal("pickapartva"),
-        phase: z.literal("makes"),
-        partitions: partitions.refine(
-          (splits) => splits.length > 0,
-          "Pick-A-Part VA make split checkpoint has no split",
+        phase: z.literal("searches"),
+        recoveries: recoveries.refine(
+          (entries) => entries.length > 0,
+          "Pick-A-Part VA set-date recovery checkpoint has no Set Date",
         ),
       })
       .strict(),
@@ -141,9 +149,7 @@ export const PickapartvaCursorSchema = z
           )
           .min(2)
           .max(PICKAPARTVA_MAX_PAGES),
-        // Set-date searches that recovered donors hidden by catalog ties, up
-        // to one per yard, or one per make in a split yard, for each date.
-        // Checkpoints written before these searches carry none.
+        // Every search of the recoveries, in order, for the fingerprint.
         searches: z
           .array(
             z
@@ -154,15 +160,10 @@ export const PickapartvaCursorSchema = z
               })
               .strict(),
           )
-          .max(
-            PICKAPARTVA_MAX_TIE_SEARCHES *
-              PICKAPARTVA_YARD_CODES.length *
-              PICKAPARTVA_MAX_MAKES,
-          )
-          .default([]),
-        // The complete make splits those searches used, so a resumed chunk
+          .max(PICKAPARTVA_MAX_TIE_SEARCHES * MAX_SEARCHES),
+        // The resolved recoveries the census used, so a resumed chunk
         // rebuilds the same census.
-        partitions: partitions.default([]),
+        recoveries,
         processed: count,
         emitted: count,
         rejected: count,
@@ -181,27 +182,15 @@ export const PickapartvaCursorSchema = z
     if (
       cursor.snapshotHash !==
         pickapartvaSnapshotHash(cursor.receipts, cursor.searches) ||
-      // Each repeated date has one unfiltered search, or for each yard one
-      // search or one search per make.
-      !pickapartvaSearchPlan(cursor.searches.map((search) => search.url)) ||
-      cursor.searches.some(
-        (search) => pickapartvaSearchTarget(search.url)?.date !== search.date,
-      ) ||
-      !cursor.partitions.every(pickapartvaMakeSplitComplete) ||
-      JSON.stringify(
-        cursor.searches
-          .filter(
-            (search) => pickapartvaSearchTarget(search.url)?.make !== "ANY",
-          )
-          .map((search) => [search.date, search.url, search.hash]),
-      ) !==
+      cursor.recoveries.some((entry) => entry.pending.length > 0) ||
+      JSON.stringify(cursor.searches) !==
         JSON.stringify(
-          cursor.partitions.flatMap((split) =>
-            split.searches.map((search) => [
-              split.date,
-              search.url,
-              search.hash,
-            ]),
+          cursor.recoveries.flatMap((entry) =>
+            entry.searches.map((search) => ({
+              date: entry.date,
+              url: search.url,
+              hash: search.hash,
+            })),
           ),
         ) ||
       cursor.nextPage > cursor.lastPage ||

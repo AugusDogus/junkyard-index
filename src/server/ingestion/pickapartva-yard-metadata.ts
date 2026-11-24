@@ -4,8 +4,8 @@ export const PICKAPARTVA_ORIGIN = "https://pickapartva.com";
 export const PICKAPARTVA_CATALOG = `${PICKAPARTVA_ORIGIN}/inventory/ANY/ANY/?k=1&id=ANY&pagenum=1`;
 export const PICKAPARTVA_MAX_PAGES = 15;
 export const PICKAPARTVA_PAGE_SIZE = 500;
-/** Each page boundary can split at most one Set Date tie, so a census needs at
- * most one set-date search per boundary. */
+/** Each page boundary can split at most one Set Date tie, so a census has at
+ * most one tie date per boundary. */
 export const PICKAPARTVA_MAX_TIE_SEARCHES = PICKAPARTVA_MAX_PAGES - 1;
 export type PickapartvaYardCode = "TT87" | "UU81";
 
@@ -182,44 +182,4 @@ export function pickapartvaSearchTarget(
   return pickapartvaSearchUrl(raw, date, scope, make) === raw
     ? { date, id: scope, make }
     : null;
-}
-
-/**
- * Whether these search URLs, in order, are the native searches that cover
- * their repeated Set Dates. Each date's searches are contiguous and are the
- * unfiltered search, or for each yard in order either that yard's search or,
- * once it reached the 500-card cap, one search per distinct make in that
- * yard. Which makes a split must cover is checked against the native make
- * selector where the catalog is at hand.
- */
-export function pickapartvaSearchPlan(urls: readonly string[]): boolean {
-  const targets: PickapartvaSearchTarget[] = [];
-  const dates: string[] = [];
-  for (const url of urls) {
-    const target = pickapartvaSearchTarget(url);
-    if (target === null) return false;
-    targets.push(target);
-    if (dates.at(-1) !== target.date) dates.push(target.date);
-  }
-  if (new Set(dates).size !== dates.length) return false;
-  return dates.every((date) => {
-    const searches = targets.filter((target) => target.date === date);
-    if (searches.length === 1 && searches[0]?.id === "ANY") return true;
-    const yards = PICKAPARTVA_YARD_CODES.map((id) =>
-      searches.filter((target) => target.id === id),
-    );
-    return (
-      JSON.stringify(searches) === JSON.stringify(yards.flat()) &&
-      yards.every((yard) => {
-        const makes = yard.map((target) => target.make);
-        return (
-          (makes.length === 1 && makes[0] === "ANY") ||
-          (makes.length > 0 &&
-            makes.length <= PICKAPARTVA_MAX_MAKES &&
-            !makes.includes("ANY") &&
-            new Set(makes).size === makes.length)
-        );
-      })
-    );
-  });
 }

@@ -30,10 +30,11 @@ const NO_RESULTS = "No Results Found. Try Browsing Our Parts Or Search Again";
  * every yard, or the one yard a split set-date search selects. `make` is the
  * expected make: `ANY`, or the one make a split yard search selects.
  *
- * Returns whether the page is a make search's native empty answer. That page
- * has no search form, so it cannot reflect the Set Date; its make and yard
- * scripts still must match. The caller's reconciliation against the catalog
- * covers an empty answer that should have listed donors. */
+ * Returns whether the page is a yard or make search's native empty answer,
+ * as Stafford gives for a date it set no donors on. That page has no search
+ * form, so it cannot reflect the Set Date; its make and yard scripts still
+ * must match. An empty answer lists no donor, so it can never complete a
+ * date's hidden donors on its own. */
 export function verifyPickapartvaOwner(
   html: string,
   raw: string,
@@ -101,7 +102,8 @@ export function verifyPickapartvaOwner(
     throw new Error(
       "Pick-A-Part VA inventory selector has changed or narrowed physical scope",
     );
-  if (make !== "ANY") {
+  const narrowed = make !== "ANY" || id !== "ANY";
+  if (narrowed) {
     // The select's `selected` attribute never marks the make; the native
     // scripts name the make and yard the server applied.
     const scripts = [...raw.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)]
@@ -120,7 +122,7 @@ export function verifyPickapartvaOwner(
       yards.some((yard) => yard !== id)
     )
       throw new Error(
-        `Pick-A-Part VA make search does not prove its selected make ${make} and yard ${id}`,
+        `Pick-A-Part VA ${make === "ANY" ? "yard" : "make"} search does not prove its selected make ${make} and yard ${id}`,
       );
   }
   const forms = [
@@ -128,7 +130,7 @@ export function verifyPickapartvaOwner(
   ].filter((match) =>
     pickapartvaClass(match[1] ?? "", "iis-upull-search-form"),
   );
-  const empty = make !== "ANY" && plain.includes(NO_RESULTS);
+  const empty = narrowed && plain.includes(NO_RESULTS);
   if (!forms.length && !empty)
     throw new Error("Pick-A-Part VA unfiltered search controls are missing");
   for (const form of forms) {

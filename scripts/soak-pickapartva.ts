@@ -55,10 +55,11 @@ export async function soakPickapartvaInventory(
       summary.cursor,
       Math.min(chunkPages, maxPages - summary.pagesProcessed),
     );
+    // A census that plans tie searches, and each search chunk, emits no
+    // pages but advances the cursor.
     if (
       chunk.status === "paused" &&
-      (chunk.pagesProcessed === 0 ||
-        JSON.stringify(chunk.cursor) === JSON.stringify(summary.cursor))
+      JSON.stringify(chunk.cursor) === JSON.stringify(summary.cursor)
     )
       throw new Error(
         "Pick-A-Part VA soak made no progress; retain the validated checkpoint",
@@ -106,7 +107,9 @@ async function replaySaved(
 ) {
   const originalFetch = globalThis.fetch;
   const requests: string[] = [];
-  const occurrences = new Map<number, number>();
+  // Each census reads pages 1 to 15, then closes on pages 1, 2 and 15. A
+  // census starts each chunk that reads the catalog.
+  let terminalRead = false;
   const vehicles: PickapartvaCanonicalVehicle[] = [];
   const chunks: Array<{
     result: PickapartvaStreamResult;
@@ -152,9 +155,8 @@ async function replaySaved(
         );
       }
       const page = Number(url.searchParams.get("pagenum"));
-      const occurrence = (occurrences.get(page) ?? 0) + 1;
-      occurrences.set(page, occurrence);
-      const closing = [1, 2, 15].includes(page) && occurrence % 2 === 0;
+      const closing = terminalRead && [1, 2, 15].includes(page);
+      if (page === 15) terminalRead = true;
       const name = closing
         ? `page${String(page).padStart(2, "0")}-closing`
         : page === 1
@@ -190,6 +192,7 @@ async function replaySaved(
     const result = await soakPickapartvaInventory(
       async (cursor, maxPages) => {
         const before = requests.length;
+        terminalRead = false;
         const fromWire = parseDurableSourceCursor(
           "pickapartva",
           serializeDurableSourceCursor(cursor),

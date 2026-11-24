@@ -7,7 +7,7 @@ import {
   PickapartvaCursor,
   PickapartvaCursorSchema,
 } from "./pickapartva-cursor";
-import { pickapartvaHash } from "./pickapartva-parser";
+import { pickapartvaCardKey, pickapartvaHash } from "./pickapartva-parser";
 import { pickapartvaTestRecord } from "./pickapartva-test-fixtures";
 import { PICKAPARTVA_CATALOG } from "./pickapartva-yard-metadata";
 
@@ -24,6 +24,8 @@ const checkpoint = () =>
       receipts.map((receipt) => [receipt.page, receipt.url, receipt.hash]),
     ),
     receipts,
+    searches: [],
+    recoveries: [],
     lastPage: 2,
     nextPage: 2,
     processed: 500,
@@ -71,79 +73,185 @@ test.each([
   },
 );
 
-const fords = [{ ...pickapartvaTestRecord, setDate: "2026-11-16" }];
-const split = {
-  date: "2026-11-16",
-  id: "TT87",
-  makes: ["FORD", "LAND ROVER"],
+const date = "2026-11-16";
+const shown = { ...pickapartvaTestRecord, setDate: date };
+const ford = { ...shown, cardId: "PAP100001", stock: "PAP100001" };
+const href = (id: string, make = "ANY") =>
+  `https://pickapartva.com/inventory/${make.replaceAll(" ", "_")}/ANY/?k=1&id=${id}&search=${date}`;
+/** A Fredericksburg yard search capped, Stafford empty, and the FORD search
+ * that found the one donor the catalog hid. */
+const recovery = {
+  date,
+  slots: 1,
+  shown: [pickapartvaCardKey(shown)],
   startedAt: 1_795_000_000_000,
   searches: [
     {
+      id: "TT87",
+      make: "ANY",
+      url: href("TT87"),
+      hash: "a".repeat(64),
+      capped: true,
+    },
+    {
+      id: "UU81",
+      make: "ANY",
+      url: href("UU81"),
+      hash: "b".repeat(64),
+      capped: false,
+    },
+    {
+      id: "TT87",
       make: "FORD",
-      url: "https://pickapartva.com/inventory/FORD/ANY/?k=1&id=TT87&search=2026-11-16",
-      hash: pickapartvaHash(["2026-11-16", fords]),
-      records: fords,
+      url: href("TT87", "FORD"),
+      hash: "c".repeat(64),
+      capped: false,
+    },
+  ],
+  hidden: [{ id: "TT87", make: "FORD", record: ford }],
+  pending: [],
+};
+const searching = {
+  source: "pickapartva",
+  phase: "searches",
+  recoveries: [
+    {
+      ...recovery,
+      searches: recovery.searches.slice(0, 2),
+      hidden: [],
+      pending: [
+        { id: "TT87", make: "FORD" },
+        { id: "TT87", make: "LAND ROVER" },
+      ],
     },
   ],
 };
-const makes = { source: "pickapartva", phase: "makes", partitions: [split] };
 
-test("Pick-A-Part VA make split checkpoints round-trip the real durable codec", () => {
-  const cursor = PickapartvaCursorSchema.parse(makes);
-  expect(
-    parseDurableSourceCursor(
-      "pickapartva",
-      serializeDurableSourceCursor(cursor),
-    ),
-  ).toEqual(cursor);
+test("Pick-A-Part VA set-date recovery checkpoints round-trip the real durable codec", () => {
+  for (const value of [searching, { ...searching, recoveries: [recovery] }]) {
+    const cursor = PickapartvaCursorSchema.parse(value);
+    expect(
+      parseDurableSourceCursor(
+        "pickapartva",
+        serializeDurableSourceCursor(cursor),
+      ),
+    ).toEqual(cursor);
+  }
 });
 
 test.each([
-  { partitions: [] },
-  { partitions: [split, split] },
-  { partitions: [{ ...split, makes: ["LAND ROVER", "FORD"] }] },
-  { partitions: [{ ...split, makes: ["FORD", "FORD"] }] },
-  { partitions: [{ ...split, makes: ["FORD", "Land Rover"] }] },
-  { partitions: [{ ...split, date: "2026-11-31" }] },
-  { partitions: [{ ...split, startedAt: 0 }] },
-  { partitions: [{ ...split, startedAt: 1.5 }] },
+  { recoveries: [] },
+  { recoveries: [recovery, recovery] },
+  { recoveries: [{ ...recovery, date: "2026-11-31" }] },
+  { recoveries: [{ ...recovery, startedAt: 0 }] },
+  { recoveries: [{ ...recovery, startedAt: 1.5 }] },
+  // Resolved without its hidden donor, or holding more than it hid.
+  { recoveries: [{ ...recovery, hidden: [] }] },
+  { recoveries: [{ ...recovery, slots: 2 }] },
+  // Still searching after every hidden donor was found.
   {
-    partitions: [
+    recoveries: [
+      { ...recovery, pending: [{ id: "TT87", make: "LAND ROVER" }] },
+    ],
+  },
+  // A hidden donor the catalog showed, set on another date, from another
+  // yard or make than its search, or from no search at all.
+  {
+    recoveries: [
+      { ...recovery, hidden: [{ id: "TT87", make: "FORD", record: shown }] },
+    ],
+  },
+  {
+    recoveries: [
       {
-        date: split.date,
-        id: split.id,
-        makes: split.makes,
-        searches: split.searches,
+        ...recovery,
+        hidden: [
+          {
+            id: "TT87",
+            make: "FORD",
+            record: { ...ford, setDate: "2026-11-15" },
+          },
+        ],
       },
     ],
   },
   {
-    partitions: [
+    recoveries: [
       {
-        ...split,
-        searches: split.searches.map((search) => ({
+        ...recovery,
+        hidden: [
+          { id: "TT87", make: "FORD", record: { ...ford, yardCode: "UU81" } },
+        ],
+      },
+    ],
+  },
+  {
+    recoveries: [
+      {
+        ...recovery,
+        hidden: [
+          { id: "TT87", make: "FORD", record: { ...ford, make: "LAND ROVER" } },
+        ],
+      },
+    ],
+  },
+  {
+    recoveries: [
+      { ...recovery, hidden: [{ id: "UU81", make: "FORD", record: ford }] },
+    ],
+  },
+  // A search whose URL is not its date, yard and make, a make search across
+  // every yard, an unverified make, or a repeated search.
+  {
+    recoveries: [
+      {
+        ...recovery,
+        searches: recovery.searches.map((search) => ({
           ...search,
-          url: search.url.replace("id=TT87", "id=UU81"),
+          url: search.url.replace("id=", "id=X"),
         })),
       },
     ],
   },
   {
-    partitions: [
+    recoveries: [
       {
-        ...split,
-        searches: split.searches.map((search) => ({
-          ...search,
-          records: fords.map((record) => ({ ...record, make: "LAND ROVER" })),
-        })),
+        ...recovery,
+        searches: [
+          ...recovery.searches,
+          {
+            id: "ANY",
+            make: "FORD",
+            url: href("ANY", "FORD"),
+            hash: "d".repeat(64),
+            capped: false,
+          },
+        ],
       },
     ],
   },
+  {
+    recoveries: [
+      {
+        ...searching.recoveries[0],
+        pending: [{ id: "TT87", make: "Land Rover" }],
+      },
+    ],
+  },
+  {
+    recoveries: [
+      {
+        ...searching.recoveries[0],
+        pending: [{ id: "TT87", make: "ANY" }],
+      },
+    ],
+  },
+  { recoveries: [{ ...recovery, shown: ["b", "a"] }] },
 ])(
-  "Pick-A-Part VA rejects inconsistent make split checkpoints (%#)",
+  "Pick-A-Part VA rejects inconsistent set-date recovery checkpoints (%#)",
   (change) => {
     expect(
-      PickapartvaCursorSchema.safeParse({ ...makes, ...change }).success,
+      PickapartvaCursorSchema.safeParse({ ...searching, ...change }).success,
     ).toBe(false);
   },
 );
