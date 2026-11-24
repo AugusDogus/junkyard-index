@@ -613,6 +613,153 @@ test("a yard that adds or edits a vehicle mid-crawl is transient drift, so the s
   });
   expect(String(closing)).toContain("Closing native inventory changed");
   expect(validationRejectionKind(closing)).toBe("transient");
+
+  // The make directory changed in a native control read mid-traversal.
+  const traversal = await rejection({
+    ...data,
+    native: data.native.map((item) => ({
+      ...item,
+      closing: item.closing.replace(
+        '<option value="FORD">',
+        '<option value="BMW">BMW</option><option value="FORD">',
+      ),
+    })),
+  });
+  expect(String(traversal)).toContain(
+    "Native make directory changed during traversal",
+  );
+  expect(validationRejectionKind(traversal)).toBe("transient");
+  // A drift retry is automatic, so the wrapper does not also ask a reader
+  // to inspect the native source.
+  for (const error of [added, edited, closing, traversal])
+    expect(String(error)).not.toContain("Inspect the native source");
+});
+
+test("a resumed chunk that finds a changed make directory or location configuration is transient drift", async () => {
+  const data = smallFixture();
+  transport(undefined, data);
+  const paused = await run(16, (chunk) => chunk.cursor.phase === "queries");
+  const resumed = async (
+    fixture: ReturnType<typeof smallFixture>,
+  ): Promise<unknown> => {
+    spyOn(globalThis, "fetch").mockRestore();
+    transport(undefined, fixture);
+    return Effect.runPromise(
+      streamPickersInventoryWithRequestGate(
+        {
+          startCursor: paused.cursor,
+          maxPages: 16,
+          onBatch: () => Effect.void,
+        },
+        identityGate,
+      ),
+    ).then(
+      () => {
+        throw new Error("Expected a Pickers rejection");
+      },
+      (error: unknown) => error,
+    );
+  };
+  const makes = await resumed({
+    ...data,
+    inventory: pickersTestInventory([], ["BMW", "FORD"]),
+  });
+  expect(String(makes)).toContain("Native make directory changed during crawl");
+  expect(validationRejectionKind(makes)).toBe("transient");
+
+  const config = await resumed({
+    ...data,
+    // The yard's own location still validates (the city is compared
+    // trimmed) but its exact text, and so the bound hash, changed.
+    config: data.config.replace('"city":"Texarkana "', '"city":"Texarkana"'),
+  });
+  expect(String(config)).toContain(
+    "Public resolved location configuration changed during crawl",
+  );
+  expect(validationRejectionKind(config)).toBe("transient");
+});
+
+test("a stock that changes between two different queries stays a deterministic rejection", async () => {
+  const data = smallFixture();
+  const fiesta = {
+    ...pickersTestRecord,
+    model: "FIESTA",
+    stock: "STK300001",
+    vin: "1FADP3E23EL300001",
+  };
+  const focus = data.queries[0];
+  if (!focus) throw new Error("Missing Focus query fixture");
+  const repeated = {
+    ...pickersTestRecord,
+    stock: "STK100000",
+    vin: "1FADP3E23EL100000",
+    color: "BLUE",
+  };
+  const native = pickersTestInventory(
+    [
+      ...Array.from({ length: 40 }, (_, index) => ({
+        ...pickersTestRecord,
+        stock: "STK" + String(100000 + index),
+        vin: "1FADP3E23EL" + String(100000 + index),
+      })),
+      fiesta,
+    ],
+    ["FORD"],
+  );
+  const pair = { make: "FORD", model: "FIESTA" };
+  spyOn(globalThis, "fetch").mockRestore();
+  transport(undefined, {
+    ...data,
+    native: [{ make: "FORD", opening: native, closing: native }],
+    queries: [
+      { pair, body: pickersTestSearch([fiesta, repeated], pair) },
+      focus,
+    ],
+  });
+  const error = await run(16).then(
+    () => {
+      throw new Error("Expected a Pickers rejection");
+    },
+    (failure: unknown) => failure,
+  );
+  expect(String(error)).toContain(
+    "Repeated stock changed a whole record: STK100000",
+  );
+  expect(validationRejectionKind(error)).toBe("deterministic");
+});
+
+test("a checkpoint missing a bookend's opening query receipt is rejected as a deterministic checkpoint defect before any request", async () => {
+  const data = smallFixture();
+  transport(undefined, data);
+  const closing = await run(16, (chunk) => chunk.cursor.phase === "bookends");
+  if (closing.cursor.phase !== "bookends")
+    throw new Error("Expected a bookend checkpoint");
+  const { state } = closing.cursor;
+  const broken: PickersCursor = {
+    ...closing.cursor,
+    state: {
+      ...state,
+      receipts: state.receipts.map((receipt) =>
+        receipt.kind === "query" ? { ...receipt, index: 99 } : receipt,
+      ),
+    },
+  };
+  spyOn(globalThis, "fetch").mockRestore();
+  const { calls } = transport(undefined, data);
+  const error = await Effect.runPromise(
+    streamPickersInventoryWithRequestGate(
+      { startCursor: broken, maxPages: 16, onBatch: () => Effect.void },
+      identityGate,
+    ),
+  ).then(
+    () => {
+      throw new Error("Expected a Pickers rejection");
+    },
+    (failure: unknown) => failure,
+  );
+  expect(String(error)).toContain("Pickers checkpoint");
+  expect(validationRejectionKind(error)).toBe("deterministic");
+  expect(calls).toEqual([]);
 });
 
 test("wrong year and wrong site fail before canonical callbacks", async () => {

@@ -1,4 +1,7 @@
-import { ingestionValidation } from "./ingestion-validation";
+import {
+  ingestionValidation,
+  validationRejectionKind,
+} from "./ingestion-validation";
 import { sharedProviderHostSlot } from "./shared-provider-host";
 import { Data, Effect } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
@@ -36,7 +39,11 @@ export class PickersProviderError extends Data.TaggedError(
       this.operation +
       ": " +
       (this.cause instanceof Error ? this.cause.message : String(this.cause)) +
-      ". No advanced checkpoint accepted; prior inventory is preserved. Inspect the native source and retry from the last validated checkpoint."
+      ". No advanced checkpoint accepted; prior inventory is preserved." +
+      // Drift already says the source retries on its own.
+      (validationRejectionKind(this.cause) === "transient"
+        ? ""
+        : " Inspect the native source and retry from the last validated checkpoint.")
     );
   }
 }

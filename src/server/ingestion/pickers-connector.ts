@@ -473,8 +473,17 @@ export function streamPickersInventoryWithRequestGate<E, R>(
                 (receipt) =>
                   receipt.kind === "query" && receipt.index === queryIndex,
               );
+              // The checkpoint validator binds each bookend to its query
+              // receipt, so a missing one is a crawler defect, not yard drift.
+              if (!opening)
+                throw new Error(
+                  "Bookend " +
+                    next +
+                    " has no opening query receipt " +
+                    queryIndex +
+                    " in its checkpoint. Inspect the Pickers checkpoint validator and bookend indexing before restarting",
+                );
               if (
-                !opening ||
                 (opening.comparisonHash ?? opening.bodyHash) !==
                   (response.comparisonHash ?? response.bodyHash) ||
                 pickersHash(opening.members) !== pickersHash(members)

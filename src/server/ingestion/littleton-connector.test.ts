@@ -325,6 +325,10 @@ test("Littleton marks a yard publishing mid-crawl as transient drift so the sour
   const closing = await rejection();
   expect(String(closing)).toContain("changed during the crawl");
   expect(validationRejectionKind(closing)).toBe("transient");
+  // A drift retry is automatic, so the wrapper does not also ask a reader
+  // to inspect the native source.
+  for (const error of [unreconciled, resumed, closing])
+    expect(String(error)).not.toContain("Inspect the native source");
 });
 
 test("Littleton rejects corrupted prior VINs, native fingerprints and receipt hashes before requests", async () => {
