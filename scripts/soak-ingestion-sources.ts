@@ -67,6 +67,7 @@ import { streamPullNSaveInventory } from "../src/server/ingestion/pullnsave-conn
 import { streamWrenchApartInventory } from "../src/server/ingestion/wrenchapart-connector";
 import { streamUpullRPartsInventory } from "../src/server/ingestion/upullrparts-connector";
 import { KERNEL_USD_PER_SECOND } from "../src/server/ingestion/kernel-usage";
+import { streamUpullRPartsViaBrowser } from "./soak-upullrparts-browser-egress";
 import {
   soakUpullRPartsInventory,
   upullRPartsSoakHistory,
@@ -1364,16 +1365,21 @@ async function main(): Promise<void> {
               }),
             );
           case "upullrparts":
-            return soakUpullRPartsInventory((startCursor, loadState) =>
-              runProgram(
-                streamUpullRPartsInventory({
-                  startCursor,
-                  onBatch,
-                  loadState,
-                  loadHistory: upullRPartsSoakHistory,
-                }),
-              ),
-            ).then(async (result) => {
+            // UPULLRPARTS_SOAK_SEARCHES=browser sends searches from the token
+            // browser, for a soak machine whose own IP getVehicles blocks.
+            return soakUpullRPartsInventory((startCursor, loadState) => {
+              const options = {
+                startCursor,
+                onBatch,
+                loadState,
+                loadHistory: upullRPartsSoakHistory,
+              };
+              return runProgram(
+                process.env.UPULLRPARTS_SOAK_SEARCHES === "browser"
+                  ? streamUpullRPartsViaBrowser(options)
+                  : streamUpullRPartsInventory(options),
+              );
+            }).then(async (result) => {
               // Every browser this soak opened, metered in its local table.
               const usage = await localClient.execute(
                 "select count(*) browsers, coalesce(sum(ended_at - started_at), 0) ms, sum(ended_at is null) open from kernel_browser_usage where source = 'upullrparts'",
