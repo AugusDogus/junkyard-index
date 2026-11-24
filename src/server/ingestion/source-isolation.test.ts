@@ -139,11 +139,11 @@ test.each(
       });
       if (guard !== "none") {
         expect(validation).toMatchObject({
-          status: "ready",
+          status: "released",
           acceptedSources: [],
         });
         expect(
-          validation.status === "ready" &&
+          validation.status === "released" &&
             validation.rejectedSources[0]?.errors.join(" "),
         ).toContain(
           {

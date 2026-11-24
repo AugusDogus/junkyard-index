@@ -1,4 +1,4 @@
-import type { InStatement } from "@libsql/client";
+import type { InStatement, InValue } from "@libsql/client";
 
 /**
  * The shared reconciliation commit, held through `ingestion_run`:
@@ -18,10 +18,20 @@ import type { InStatement } from "@libsql/client";
  *   the stamp as `firstSeenAt`, which search compares in whole seconds, so
  *   commits stay disjoint, and a commit never lands inside an alert window
  *   that is already fixed. The claim never waits for spacing.
- * - Expiry: every claim attempt releases waiters whose staged snapshot is
- *   older than 24 hours. Their accepted sources become `expired` and nothing
- *   is reconciled, so the prior inventory stays live and each source
- *   re-crawls within its daily attempts.
+ * - Expiry: every claim attempt and every pass wakeup releases waiters whose
+ *   staged snapshot is older than 24 hours. Their accepted sources become
+ *   `expired` and nothing is reconciled, so the prior inventory stays live
+ *   and each source re-crawls within its daily attempts. Wakeups enforce it
+ *   too, so it holds when no waiter runs this code (every waiter's workflow
+ *   died, or was pinned to a deployment from before this lease).
+ * - Supersession: each pass wakeup releases waiters from an earlier
+ *   ingestion day the same way, so a snapshot stuck behind a long commit
+ *   never holds its source's slot into the next day; that day's crawl
+ *   replaces it.
+ * - A released waiter never held the commit, so any search rebuild it
+ *   carries was inherited at start and still sits on the finished run it came
+ *   from. Release clears it, or a release during a rebuild would order
+ *   another one.
  *
  * Workflows pinned to deployments from before this lease still run the
  * source-priority claim. Both claims are one guarded UPDATE that requires no
@@ -40,42 +50,70 @@ const LIVENESS_MS = 15 * 60 * 1000;
 const SNAPSHOT_TTL_MS = 24 * 60 * 60 * 1000;
 const EXPIRED_SNAPSHOT_ERROR =
   "The staged snapshot expired after waiting more than 24 hours for the commit turn. None of its vehicles were published; the prior inventory stays live, and the source re-crawls within its daily attempts.";
+const SUPERSEDED_SNAPSHOT_ERROR =
+  "The staged snapshot was superseded: its ingestion day ended while it waited for the commit turn, so the new day's crawl of the source replaces it. None of its vehicles were published; the prior inventory stays live until that crawl publishes.";
 
 /** When a validated run joined the queue. Runs validated by earlier code have no ready_at; their last_progress_at is the validation time. */
 function readySql(run: string): string {
   return `coalesce(${run}.ready_at, ${run}.last_progress_at)`;
 }
 
-const EXPIRED_WAITERS_SQL = `
+const WAITERS_SQL = `
   select id from ingestion_run
   where active_slot = 1 and status = 'running'
     and commit_started_at is null and stage <> 'sources'
-    and ${readySql("ingestion_run")} < ?
 `;
+const EXPIRED_WAITERS_SQL = `${WAITERS_SQL} and ${readySql("ingestion_run")} < ?`;
+const SUPERSEDED_WAITERS_SQL = `${WAITERS_SQL} and schedule_key < ?`;
 
-/** Releases waiters whose staged snapshot is older than the TTL. */
-function expireStatements(now: Date): InStatement[] {
-  const cutoff = now.getTime() - SNAPSHOT_TTL_MS;
+/** Releases the waiters `waitersSql` selects with `arg`, recording `error`. */
+function releaseWaiterStatements(
+  waitersSql: string,
+  arg: InValue,
+  error: string,
+  now: Date,
+): InStatement[] {
   return [
     {
       sql: `
         update ingestion_source_run set acceptance_status = 'expired'
         where acceptance_status = 'accepted'
-          and run_id in (${EXPIRED_WAITERS_SQL})
+          and run_id in (${waitersSql})
       `,
-      args: [cutoff],
+      args: [arg],
     },
     {
       sql: `
         update ingestion_run
         set status = 'error', stage = 'released', active_slot = null,
+            full_reindex_required = 0,
             errors = json_insert(coalesce(errors, '[]'), '$[#]', ?),
             completed_at = ?, released_at = ?
-        where id in (${EXPIRED_WAITERS_SQL})
+        where id in (${waitersSql})
       `,
-      args: [EXPIRED_SNAPSHOT_ERROR, now.getTime(), now.getTime(), cutoff],
+      args: [error, now.getTime(), now.getTime(), arg],
     },
   ];
+}
+
+/** Releases waiters whose staged snapshot is older than the TTL. */
+function expireStatements(now: Date): InStatement[] {
+  return releaseWaiterStatements(
+    EXPIRED_WAITERS_SQL,
+    now.getTime() - SNAPSHOT_TTL_MS,
+    EXPIRED_SNAPSHOT_ERROR,
+    now,
+  );
+}
+
+/** Releases waiters staged on an ingestion day before `scheduleKey`. */
+function supersedeStatements(scheduleKey: string, now: Date): InStatement[] {
+  return releaseWaiterStatements(
+    SUPERSEDED_WAITERS_SQL,
+    scheduleKey,
+    SUPERSEDED_SNAPSHOT_ERROR,
+    now,
+  );
 }
 
 /**
@@ -155,6 +193,7 @@ export const CommitLease = {
   snapshotTtlMs: SNAPSHOT_TTL_MS,
   readySql,
   expireStatements,
+  supersedeStatements,
   claimStatement,
   waitStatement,
 } as const;

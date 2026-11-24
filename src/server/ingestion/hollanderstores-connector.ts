@@ -239,11 +239,13 @@ export function streamHollanderstoresInventory<E, R>(
       }
       // A frozen opening cannot be repaired by re-POSTing the closing roster.
       // A failed result ends the durable source without workflow step retries.
+      // The census drifted while it was read, so a fresh crawl later in the
+      // day can pass.
       if (next.phase === "failed")
         return {
           ...empty,
           status: "failed" as const,
-          failureKind: "validation" as const,
+          failureKind: "transient" as const,
           cursor:
             pagesProcessed === 0
               ? start

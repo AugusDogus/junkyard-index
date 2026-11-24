@@ -64,6 +64,7 @@ export type DurableIngestionCompletion = {
 export type DurableIngestionExecution =
   | { status: "deduplicated"; activeRunId: string | null }
   | { status: "stopped" }
+  | { status: "released" }
   | DurableIngestionCompletion;
 
 function formatError(error: unknown): string {
@@ -167,9 +168,15 @@ export async function ingestDurableSource<
   }
 }
 
+/**
+ * staged: the run waits for the commit with its accepted sources.
+ * released: no source was accepted, so the run ended at validation without
+ * waiting for the commit.
+ */
 export type DurableIngestionStaging =
   | { status: "deduplicated"; activeRunId: string | null }
   | { status: "stopped" }
+  | { status: "released" }
   | { status: "staged" };
 
 /**
@@ -218,9 +225,14 @@ export async function stageDurableIngestion(params: {
       });
     await Promise.all(initialized.initialCursors.map(ingestSource));
     const validation = await validateSources(params.runId);
-    return validation.status === "stopped"
-      ? { status: "stopped" }
-      : { status: "staged" };
+    switch (validation.status) {
+      case "stopped":
+        return { status: "stopped" };
+      case "released":
+        return { status: "released" };
+      case "ready":
+        return { status: "staged" };
+    }
   });
 }
 

@@ -66,10 +66,13 @@ describe("AutoRecycler terminal validation", () => {
           batchClient: client,
           snapshotStore,
         });
-        expect(result.status).toBe("ready");
-        if (result.status !== "ready")
+        expect(result.status).toBe(accepted ? "ready" : "released");
+        if (result.status === "stopped")
           throw new Error("Validation was skipped");
-        expect(result.acceptedSources.includes("autorecycler")).toBe(accepted);
+        expect(
+          result.status === "ready" &&
+            result.acceptedSources.includes("autorecycler"),
+        ).toBe(accepted);
         if (!accepted)
           expect(
             result.rejectedSources.find(

@@ -16,6 +16,7 @@ import type { WhitebradstreetCanonicalVehicle } from "./whitebradstreet-transfor
 import { WHITEBRADSTREET_YARD } from "./whitebradstreet-yard-metadata";
 import type { TruckPartsCatalogRecord } from "./truck-parts-catalog";
 import { whitebradstreetRecord } from "./whitebradstreet-test-fixtures";
+import { validationRejectionKind } from "./ingestion-validation";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
@@ -817,22 +818,25 @@ test.each([
   async (_name, ageMinutes, deferrals, message) => {
     const requests = inventory({ response: () => throttled("900") });
     const since = Date.now() - ageMinutes * MINUTE;
-    await expect(
-      run(
-        WhitebradstreetCursorSchema.parse({
-          source: "whitebradstreet",
-          phase: "start",
-          rateLimit: { since, deferrals },
-          retryAt: since + 1,
-        }),
-      ),
-    ).rejects.toThrow(
+    const failure: unknown = await run(
+      WhitebradstreetCursorSchema.parse({
+        source: "whitebradstreet",
+        phase: "start",
+        rateLimit: { since, deferrals },
+        retryAt: since + 1,
+      }),
+    ).catch((error: unknown) => error);
+    expect(() => {
+      throw failure;
+    }).toThrow(
       new RegExp(
         "Retry-After 900s\\).* " +
           message +
           ".*stops without publishing\\. Previously published inventory is preserved",
       ),
     );
+    // The host may admit a crawl later today, so the day's retries stay.
+    expect(validationRejectionKind(failure)).toBe("transient");
     expect(requests).toHaveLength(1);
   },
 );

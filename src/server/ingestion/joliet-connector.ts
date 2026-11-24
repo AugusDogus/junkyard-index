@@ -13,6 +13,7 @@ import {
   type JolietSeen,
 } from "./joliet-cursor";
 import { inventoryVin } from "./inventory-vin";
+import { transientRejection } from "./ingestion-validation";
 import {
   jolietHash,
   jolietYearCounts,
@@ -56,9 +57,12 @@ const RESTARTED =
 /** Throws once a run has used every restart, so a source that keeps changing
  * still fails instead of crawling forever. */
 function requireRestart(restarts: number): void {
+  // The publish settles, so a fresh crawl later in the day can pass.
   if (restarts >= JOLIET_MAX_RESTARTS)
-    throw new Error(
-      CONTEXT_CHANGED + " after " + JOLIET_MAX_RESTARTS + " restarts",
+    throw transientRejection(
+      new Error(
+        CONTEXT_CHANGED + " after " + JOLIET_MAX_RESTARTS + " restarts",
+      ),
     );
 }
 

@@ -1,4 +1,5 @@
 import type { PipelineSourceName } from "./pipeline-policy";
+import type { ValidationRejectionKind } from "./ingestion-validation";
 
 export type ConnectorChunkStatus = "paused" | "complete" | "failed";
 
@@ -30,7 +31,9 @@ export interface ConnectorChunkResult<
   /** The crawl started over in this chunk. Its vehicles, observations and
    * counts replace everything earlier chunks of the run staged. */
   restart?: true;
-  failureKind?: "validation";
+  /** A failed chunk the provider rejected: deterministic ends the source's
+   * day, transient retries after the usual delay. */
+  failureKind?: ValidationRejectionKind;
 }
 
 export function connectorChunkMetrics(

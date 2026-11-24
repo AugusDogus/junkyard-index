@@ -272,6 +272,15 @@ export function createDurableIngestionRepository(
       sources: readonly DurableIngestionSource[] = DURABLE_INGESTION_SOURCES,
     ): Promise<DurableIngestionWakeupResult> {
       const scheduleKey = IngestionDay.key(now);
+      // Free each slot a queued snapshot no longer deserves before reading
+      // active runs, so its source is due today (see CommitLease).
+      await batchClient.batch(
+        [
+          ...CommitLease.expireStatements(now),
+          ...CommitLease.supersedeStatements(scheduleKey, now),
+        ],
+        "write",
+      );
       await database
         .update(ingestionRun)
         .set({ activeSlot: null })
@@ -297,7 +306,9 @@ export function createDurableIngestionRepository(
 
       const sourceDays = await loadIngestionSourceDays(database, scheduleKey);
       // A failed run can cross the day boundary. Its cooldown follows release,
-      // even when today's attempt count is still zero.
+      // even when today's attempt count is still zero. A snapshot released
+      // unpublished from the queue (expired or superseded) was a complete
+      // crawl, not a failure, so its source re-crawls without a cooldown.
       const recentFailures = await database
         .select({
           source: ingestionSourceRun.source,
@@ -309,6 +320,7 @@ export function createDurableIngestionRepository(
           and(
             sql`${ingestionRun.completedAt} > ${now.getTime() - IngestionSchedule.retryDelayMs}`,
             sql`not ${SourcePublication.acceptedSql}`,
+            sql`${ingestionSourceRun.acceptanceStatus} is not 'expired'`,
           ),
         )
         .groupBy(ingestionSourceRun.source);
@@ -902,7 +914,7 @@ export function createDurableIngestionRepository(
           duplicateVehicles,
           rejectedVehicles,
           errors.length > 0 ? JSON.stringify(errors) : null,
-          params.fetched.failureKind === "validation"
+          params.fetched.failureKind === "deterministic"
             ? JSON.stringify(errors)
             : null,
           ...(supersededState === null ? [] : [supersededState]),

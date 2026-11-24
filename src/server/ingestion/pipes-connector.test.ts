@@ -1,5 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import { isDurableSourceCursorTerminal } from "./durable-source";
+import { validationRejectionKind } from "./ingestion-validation";
 import { Effect, Either } from "effect";
 import { connectorChunkMetrics } from "./connector-chunk";
 import { streamPipesInventoryWithRequestGate } from "./pipes-connector";
@@ -278,9 +279,16 @@ test("Pipes rejects without callbacks when the source keeps changing after its r
     [...attempt, ...attempt, ...attempt],
   );
   const batches = { count: 0 };
-  const rejection = runToEnd(batches);
-  await expect(rejection).rejects.toThrow("after 2 in-run restarts");
-  await expect(rejection).rejects.toThrow("Closing native census for FORD");
+  const rejection: unknown = await runToEnd(batches).catch(
+    (error: unknown) => error,
+  );
+  const thrown = () => {
+    throw rejection;
+  };
+  expect(thrown).toThrow("after 2 in-run restarts");
+  expect(thrown).toThrow("Closing native census for FORD");
+  // The source kept changing, so a crawl later today can pass once it settles.
+  expect(validationRejectionKind(rejection)).toBe("transient");
   expect(batches.count).toBe(0);
   expect(requests()).toBe(21);
 });

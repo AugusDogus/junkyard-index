@@ -7,6 +7,7 @@ import type {
 } from "./durable-source";
 import type { Yard } from "~/lib/yard";
 import type { CanonicalVehicle } from "./types";
+import type { ValidationRejectionKind } from "./ingestion-validation";
 
 export type InitializeDurableIngestionResult =
   | {
@@ -86,7 +87,8 @@ export interface FetchedDurableSourceChunk<
   checkpointState?: unknown;
   /** See `ConnectorChunkResult.restart`. */
   restart?: true;
-  failureKind?: "validation";
+  /** See `ConnectorChunkResult.failureKind`. */
+  failureKind?: ValidationRejectionKind;
 }
 
 /**

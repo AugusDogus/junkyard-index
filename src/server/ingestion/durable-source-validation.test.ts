@@ -76,9 +76,10 @@ async function validateSnapshot(
       batchClient: client,
       snapshotStore,
     });
-    if (result.status !== "ready") throw new Error("Validation was skipped");
+    if (result.status === "stopped") throw new Error("Validation was skipped");
     return {
-      accepted: result.acceptedSources.includes(source),
+      accepted:
+        result.status === "ready" && result.acceptedSources.includes(source),
       errors:
         result.rejectedSources.find((rejected) => rejected.source === source)
           ?.errors ?? [],
