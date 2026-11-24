@@ -474,7 +474,8 @@ export function streamPickersInventoryWithRequestGate<E, R>(
                   receipt.kind === "query" && receipt.index === queryIndex,
               );
               // The checkpoint validator binds each bookend to its query
-              // receipt, so a missing one is a crawler defect, not yard drift.
+              // receipt (pickers-cursor.ts), so this is unreachable; if it
+              // ever fires it is a crawler defect, not yard drift.
               if (!opening)
                 throw new Error(
                   "Bookend " +

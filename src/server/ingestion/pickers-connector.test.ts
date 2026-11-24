@@ -728,7 +728,10 @@ test("a stock that changes between two different queries stays a deterministic r
   expect(validationRejectionKind(error)).toBe("deterministic");
 });
 
-test("a checkpoint missing a bookend's opening query receipt is rejected as a deterministic checkpoint defect before any request", async () => {
+// The cursor validator rejects a checkpoint whose bookends lack their opening
+// query receipts, so the connector's own !opening guard is defensive and
+// unreachable; this covers the validator rejection that guards it.
+test("the cursor validator rejects a checkpoint whose bookends lack their opening query receipts, deterministically, before any request", async () => {
   const data = smallFixture();
   transport(undefined, data);
   const closing = await run(16, (chunk) => chunk.cursor.phase === "bookends");
