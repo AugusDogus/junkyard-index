@@ -2,7 +2,9 @@ import { afterEach, expect, spyOn, test } from "bun:test";
 import { Cause, Effect, Either, Exit, Option } from "effect";
 import { acquireBigdBrowser, fetchBigdPage } from "./bigd-client";
 import { streamBigdInventory } from "./bigd-connector";
-import { Config } from "./context";
+import { createClient } from "@libsql/client";
+import { drizzle } from "drizzle-orm/libsql";
+import { Config, Database } from "./context";
 import {
   DocumentTransport,
   type BrowserDocumentMode,
@@ -753,6 +755,13 @@ const config = {
   hyperbrowserApiKey: "",
   kernelApiKey: undefined,
 };
+/** The chunks below open the fake sessions they are given, so their Kernel
+ * meter never reads this empty database. */
+const services = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+  effect.pipe(
+    Effect.provideService(Config, config),
+    Effect.provideService(Database, drizzle(createClient({ url: ":memory:" }))),
+  );
 const ignore = () => Effect.void;
 
 test.each([
@@ -787,9 +796,7 @@ test.each([
   ],
 ] as const)("%s opens no session", async (_name, run) => {
   const { sessions, events } = fakeSessions(servingPage());
-  const exit = await Effect.runPromiseExit(
-    run(sessions).pipe(Effect.provideService(Config, config)),
-  );
+  const exit = await Effect.runPromiseExit(run(sessions).pipe(services));
   expect(Exit.isFailure(exit)).toBe(true);
   expect(events).toEqual([]);
 });
@@ -803,7 +810,7 @@ test("603 with a complete checkpoint opens no session", async () => {
         onBatch: ignore,
       },
       sessions,
-    ).pipe(Effect.provideService(Config, config)),
+    ).pipe(services),
   );
   expect(result.status).toBe("complete");
   expect(events).toEqual([]);
@@ -818,7 +825,7 @@ test("Michigan Truck with a complete checkpoint opens no session", async () => {
         onBatch: ignore,
       },
       sessions,
-    ).pipe(Effect.provideService(Config, config)),
+    ).pipe(services),
   );
   expect(result.status).toBe("complete");
   expect(events).toEqual([]);
@@ -866,7 +873,7 @@ test("a Michigan Truck chunk loads every document by navigation in one session, 
           }),
       },
       sessions,
-    ).pipe(Effect.provideService(Config, config)),
+    ).pipe(services),
   );
   expect(result).toMatchObject({ status: "paused", pagesProcessed: 1 });
   expect(emitted).toBe(25);
@@ -879,7 +886,7 @@ test("a Michigan Truck chunk whose first document is refused stops its session",
   await expect(
     Effect.runPromise(
       streamMichigantruckInventory({ onBatch: ignore }, sessions).pipe(
-        Effect.provideService(Config, config),
+        services,
       ),
     ),
   ).rejects.toThrow("received 403");
@@ -889,9 +896,7 @@ test("a Michigan Truck chunk whose first document is refused stops its session",
 test("a Northwest chunk whose first document is refused stops its session", async () => {
   const { sessions, events } = fakeSessions(servingPage(refused));
   const exit = await Effect.runPromiseExit(
-    streamNorthwestInventory({ onBatch: ignore }, sessions).pipe(
-      Effect.provideService(Config, config),
-    ),
+    streamNorthwestInventory({ onBatch: ignore }, sessions).pipe(services),
   );
   expect(exit).toMatchObject({
     _tag: "Failure",
@@ -931,9 +936,9 @@ test.each([
     const { sessions, events } = fakeSessions(servingPage(), null, {
       lease: Effect.fail(busy),
     });
-    const failure = await Effect.runPromise(
-      run(sessions).pipe(Effect.provideService(Config, config)),
-    ).catch((error: unknown) => error);
+    const failure = await Effect.runPromise(run(sessions).pipe(services)).catch(
+      (error: unknown) => error,
+    );
     expect(ProviderChunkClock.deferralOf(failure)).toBe(busy);
     expect(events).toEqual([]);
   },
@@ -951,9 +956,7 @@ test("the plan's concurrent session refusal defers the chunk and releases the le
     createFailure: refusal,
   });
   const failure = await Effect.runPromise(
-    streamSix03Inventory({ onBatch: ignore }, sessions).pipe(
-      Effect.provideService(Config, config),
-    ),
+    streamSix03Inventory({ onBatch: ignore }, sessions).pipe(services),
   ).catch((error: unknown) => error);
   expect(ProviderChunkClock.deferralOf(failure)).toBeInstanceOf(
     ProviderCapacityDeferred,
@@ -990,9 +993,7 @@ test("Northwest takes the session lease before its URG turn and opens the sessio
     ),
   });
   const run = await runWithQueuedHost(
-    streamNorthwestInventory({ onBatch: ignore }, sessions).pipe(
-      Effect.provideService(Config, config),
-    ),
+    streamNorthwestInventory({ onBatch: ignore }, sessions).pipe(services),
     { turnWaitMs: 60_000 },
   );
   // The refused root fails the chunk after one URG turn, not the lease.
@@ -1054,7 +1055,7 @@ test("a Northwest chunk reads all its pages in one URG turn, so its session neve
   const { sessions, events } = fakeSessions(page);
   const run = await runWithQueuedHost(
     streamNorthwestInventory({ maxPages: 3, onBatch: ignore }, sessions).pipe(
-      Effect.provideService(Config, config),
+      services,
     ),
     // Every turn waits a minute, as under 07:00 URG contention.
     { turnWaitMs: 60_000 },
@@ -1109,9 +1110,7 @@ test("Kernel's concurrent browser refusal defers the chunk and releases the leas
     createFailure: refusal,
   });
   const failure = await Effect.runPromise(
-    streamBigdInventory({ onBatch: ignore }, sessions).pipe(
-      Effect.provideService(Config, config),
-    ),
+    streamBigdInventory({ onBatch: ignore }, sessions).pipe(services),
   ).catch((error: unknown) => error);
   expect(ProviderChunkClock.deferralOf(failure)).toBeInstanceOf(
     ProviderCapacityDeferred,
@@ -1131,9 +1130,7 @@ test("Kernel's spending cap or used-up credit defers the chunk instead of failin
     createFailure: refusal,
   });
   const failure = await Effect.runPromise(
-    streamNorthwestInventory({ onBatch: ignore }, sessions).pipe(
-      Effect.provideService(Config, config),
-    ),
+    streamNorthwestInventory({ onBatch: ignore }, sessions).pipe(services),
   ).catch((error: unknown) => error);
   expect(ProviderChunkClock.deferralOf(failure)).toBeInstanceOf(
     ProviderCapacityDeferred,

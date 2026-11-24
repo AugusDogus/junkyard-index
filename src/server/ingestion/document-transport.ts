@@ -1,4 +1,5 @@
 import { Hyperbrowser } from "@hyperbrowser/sdk";
+import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { chromium } from "playwright-core";
 import {
   Effect,
@@ -25,7 +26,11 @@ import {
   KernelSessions,
   type KernelSource,
 } from "./kernel-sessions";
-import { KernelBudgetSpent } from "./kernel-usage";
+import {
+  KernelBudgetSpent,
+  KernelUsage,
+  type MeteredKernelSource,
+} from "./kernel-usage";
 import {
   ProviderCapacityDeferred,
   type ProviderTurnDeferred,
@@ -539,6 +544,23 @@ function sourceSessions(
   );
 }
 
+/** `sourceSessions` for a source with its own Kernel caps: on Kernel, each
+ * browser is metered in `database`'s `kernel_browser_usage` and, once the
+ * source's daily or monthly cap is spent, its create is refused, deferring
+ * the chunk, without a request to Kernel (`KernelUsage.metered`). Another
+ * provider has no Kernel cap, so its sessions are returned unmetered. */
+function meteredSourceSessions(
+  source: BrowserSource & MeteredKernelSource,
+  keys: BrowserProviderKeys,
+  database: LibSQLDatabase,
+  subresources: BrowserSubresources,
+): BrowserSessions {
+  const sessions = sourceSessions(source, keys, subresources);
+  return sessions.provider === "kernel"
+    ? KernelUsage.metered(sessions, { database, source })
+    : sessions;
+}
+
 /** How each provider's refusals and leftovers are reported. */
 const PROVIDERS: Readonly<
   Record<
@@ -708,6 +730,7 @@ export const DocumentTransport = {
   kernel,
   providerSessions,
   sourceSessions,
+  meteredSourceSessions,
   sourceBrowsers,
   acquireSession,
   acquireBrowser,

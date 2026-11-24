@@ -3,9 +3,9 @@
 Sources whose sites refuse the deployment's egress read their documents
 through a remote browser. Kernel (kernel.sh) is the long-term provider.
 Hyperbrowser's free credits were a one-time grant and will run out, so every
-live browser source opens Kernel browsers since November 23, 2026. Only the
-retired 603 and Michigan Truck are still set to Hyperbrowser, and it stays
-available as a one-line fallback for any source.
+live browser source opens Kernel browsers since November 23, 2026, and 603
+since November 24. Only the retired Michigan Truck is still set to
+Hyperbrowser, and it stays available as a one-line fallback for any source.
 
 | Provider     | Sessions module                                 | Key                               | Concurrency                                           | Lease group    |
 | ------------ | ----------------------------------------------- | --------------------------------- | ----------------------------------------------------- | -------------- |
@@ -23,19 +23,19 @@ so a value that is not a whole number from 1 to 999 fails the build.
 ## Who uses which
 
 All sources are chosen in `BROWSER_PROVIDERS` in `browser-providers.ts`. U
-Pull R Parts' Kernel browsers are headful on the stealth proxy and metered
-against its daily and monthly Kernel caps; moved to Hyperbrowser, it would
-mint without those caps.
+Pull R Parts' Kernel browsers are headful on the stealth proxy. U Pull R
+Parts and 603 are [metered](#metered-sources) against their own daily and
+monthly Kernel caps; moved to Hyperbrowser, they would run without those caps.
 
-| Source               | Page driven by                                    | Provider                       |
-| -------------------- | ------------------------------------------------- | ------------------------------ |
-| Big D                | `DocumentTransport` (navigation)                  | Kernel                         |
-| Northwest            | `DocumentTransport` (fetch)                       | Kernel                         |
-| Vander Haags         | `vanderhaags-browser-session.ts`                  | Kernel                         |
-| U Pull It Davie      | `upullit-davie-browser-session.ts`                | Kernel                         |
-| 603 Auto Salvage     | `DocumentTransport` (retired: paused and hidden)  | Hyperbrowser                   |
-| Michigan Truck Parts | `DocumentTransport` (retired: paused and hidden)  | Hyperbrowser                   |
-| U Pull R Parts       | its Turnstile minter (`upullrparts-turnstile.ts`) | Kernel, headful, stealth proxy |
+| Source               | Page driven by                                    | Provider                                |
+| -------------------- | ------------------------------------------------- | --------------------------------------- |
+| Big D                | `DocumentTransport` (navigation)                  | Kernel                                  |
+| Northwest            | `DocumentTransport` (fetch)                       | Kernel                                  |
+| Vander Haags         | `vanderhaags-browser-session.ts`                  | Kernel                                  |
+| U Pull It Davie      | `upullit-davie-browser-session.ts`                | Kernel                                  |
+| 603 Auto Salvage     | `DocumentTransport` (navigation, then fetch)      | Kernel, metered                         |
+| Michigan Truck Parts | `DocumentTransport` (retired: paused and hidden)  | Hyperbrowser                            |
+| U Pull R Parts       | its Turnstile minter (`upullrparts-turnstile.ts`) | Kernel, headful, stealth proxy, metered |
 
 The choice is typed (`BrowserProvider = "hyperbrowser" | "kernel"`) and is not
 part of any cursor scope, so moving a source keeps in-flight checkpoints and
@@ -51,8 +51,8 @@ Cloudflare-blocked tenants were cut instead ([URG IIS](urgiis-ingestion.md)).
 
 `@hyperbrowser/sdk`, `HYPERBROWSER_API_KEY` (still required by `src/env.js`),
 `hyperbrowser-sessions.ts`, the Hyperbrowser half of `document-transport.ts`
-and the admin Hyperbrowser budget page remain for the fallback and the two
-retired sources; no live source is configured to use them.
+and the admin Hyperbrowser budget page remain for the fallback and the
+retired Michigan Truck; no live source is configured to use them.
 
 ## Moving a source, or falling back
 
@@ -111,7 +111,7 @@ retired sources; no live source is configured to use them.
   | HTTP 429 other (create rate limit)                          | `ProviderCapacityDeferred`                               |
   | HTTP 529 (Kernel out of capacity)                           | `ProviderCapacityDeferred`                               |
   | HTTP 403 (spending cap, monthly credit used up, plan limit) | `ProviderCapacityDeferred`                               |
-  | none sent: U Pull R Parts' $3.50 monthly budget is spent    | `ProviderCapacityDeferred`, until the next month         |
+  | none sent: a metered source's daily or monthly cap is spent | `ProviderCapacityDeferred`, until the cap resets         |
   | HTTP 401, other 4xx, 5xx, missing `KERNEL_API_KEY`          | the read fails with the provider's message               |
 
   A deferred chunk retries its cursor every five minutes. After three hours
@@ -131,8 +131,8 @@ All with `Authorization: Bearer $KERNEL_API_KEY`:
   `deleted_at`, `headless` and `usage.uptime_ms`. Sum `uptime_ms` over a
   window separately for headless and headful browsers; the gross cost before
   credits is headless seconds × 0.0000166667 plus headful seconds × 0.0001333.
-  Only U Pull R Parts runs headful, and its own spend is also in
-  `kernel_browser_usage` ([U Pull R Parts](upullrparts-ingestion.md#kernel-spend)).
+  Only U Pull R Parts runs headful. The [metered sources](#metered-sources)'
+  own spend is also in `kernel_browser_usage`.
 - `GET /browsers` (active only) should be empty outside a run; delete any
   leftover with `DELETE /browsers/{id}`.
 
@@ -161,3 +161,34 @@ Developer plan's $5 credit.
 
 U Pull R Parts bills headful seconds and is crawled in full every day; its
 spend and caps are in [Kernel spend](upullrparts-ingestion.md#kernel-spend).
+
+### Metered sources
+
+U Pull R Parts and 603 open their Kernel browsers through
+`DocumentTransport.meteredSourceSessions`, which records each browser in
+`kernel_browser_usage` (from before its create to its delete) and refuses a
+create, deferring the chunk without a request to Kernel, once the source's
+spend this UTC day or month reaches its cap in `kernel-usage.ts`. The caps
+are per source, so one source's spend never stops another. The monthly caps
+add up to $3.90, leaving about $1.10 of the $5 credit for the unmetered
+sources (about $0.94 a month). Michigan Truck is retired (paused and hidden
+in `source_control`), stays on Hyperbrowser and has no Kernel cap.
+
+| Source         | Mode     | Daily cap | Monthly cap | Normal day                         |
+| -------------- | -------- | --------: | ----------: | ---------------------------------- |
+| U Pull R Parts | headful  |     $0.25 |       $3.30 | about $0.02 to $0.03               |
+| 603            | headless |     $0.15 |       $0.60 | about $0.01 warm, about $0.05 cold |
+
+A count-only soak of 603 on Kernel from a workstation on November 24, 2026,
+with direct egress, as recorded by the soak's local `kernel_browser_usage`:
+
+| Source | Result                                          | Browsers | Browser-seconds |    Cost |
+| ------ | ----------------------------------------------- | -------: | --------------: | ------: |
+| 603    | complete, cold census, 1,029 GETs, 973 vehicles |      130 |         2,981.5 | $0.0497 |
+
+It matches 603's last accepted production run (November 23: 973). The first
+603 run after a gap of more than a day is a cold census (every donor
+article); later days carry unchanged articles and read about 170 documents.
+
+To check a metered source's spend: `select sum((coalesce(ended_at, started_at + 420000) - started_at) / 1000.0) * 0.0000166667 from kernel_browser_usage where source = '<source>' and started_at >= <start of the day or month, ms>`
+(use 0.0001333 for U Pull R Parts, which runs headful).

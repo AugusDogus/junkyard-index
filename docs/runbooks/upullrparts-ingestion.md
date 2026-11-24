@@ -300,8 +300,9 @@ measured above).
 
 Kernel's Developer plan has $5 of credit a month, shared with every Kernel
 source (Big D, Northwest, Vander Haags and U Pull It Davie, about $0.94 a
-month together). When it is used up Kernel refuses every browser with HTTP
-403, so all of them stop.
+month together, and 603, metered against its own cap of $0.60 a month; see
+[browser providers](browser-providers.md#metered-sources)). When it is used
+up Kernel refuses every browser with HTTP 403, so all of them stop.
 
 - Every U Pull R Parts browser is recorded in `kernel_browser_usage` (from
   before its create to its delete; one never closed counts its longest
@@ -313,7 +314,7 @@ month together). When it is used up Kernel refuses every browser with HTTP
   - **$0.25 a UTC day** (`KERNEL_DAILY_BUDGET_USD`), about ten healthy
     crawls, so a day of failing retries stops long before it can eat the
     month. It resets at 00:00 UTC.
-  - **$3.50 a UTC month** (`KERNEL_MONTHLY_BUDGET_USD`), so the other Kernel
+  - **$3.30 a UTC month** (`KERNEL_MONTHLY_BUDGET_USD`; $3.50 until November 24, 2026, when 603 took its own caps), so the other Kernel
     sources keep the rest of the credit. It resets on the 1st.
 
   A deferral fails its run after three hours, as any deferral does, so the
@@ -327,7 +328,7 @@ month together). When it is used up Kernel refuses every browser with HTTP
   | A healthy day (3 search chunks, measured below)   | about $0.02 to $0.03                  |
   | A healthy month (30 or 31 days)                   | about $0.60 to $0.95                  |
   | Any day, with the daily cap                       | $0.25 plus at most one browser: $0.31 |
-  | A month that fails every day, with both caps      | $3.50 plus at most one browser: $3.56 |
+  | A month that fails every day, with both caps      | $3.30 plus at most one browser: $3.36 |
 
 - To check spend: `select sum((coalesce(ended_at, started_at + 420000) - started_at) / 1000.0) * 0.0001333 from kernel_browser_usage where source = 'upullrparts' and started_at >= <start of the day or month, ms>`.
   The caps count only production's browsers; a local soak records its own in

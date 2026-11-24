@@ -20,9 +20,9 @@ export type BrowserSource =
 /**
  * Which provider opens each source's browsers. Moving a source is this one
  * line: the lease, key and capacity refusal follow the provider, and cursors
- * do not depend on it. Kernel is the long-term provider; 603 and Michigan
- * Truck are retired (paused and hidden in source_control) and stay where they
- * were. See docs/runbooks/browser-providers.md before moving one.
+ * do not depend on it. Kernel is the long-term provider; Michigan Truck is
+ * retired (paused and hidden in source_control) and stays where it was. See
+ * docs/runbooks/browser-providers.md before moving one.
  */
 export const BROWSER_PROVIDERS: Readonly<
   Record<BrowserSource, BrowserProvider>
@@ -32,8 +32,10 @@ export const BROWSER_PROVIDERS: Readonly<
   vanderhaags: "kernel",
   upullitdavie: "kernel",
   // Kernel browsers are metered against U Pull R Parts' daily and monthly
-  // Kernel caps; on Hyperbrowser they would mint without them.
+  // Kernel caps (KERNEL_DAILY_BUDGET_USD in kernel-usage.ts); on Hyperbrowser
+  // they would mint without them.
   upullrparts: "kernel",
-  six03: "hyperbrowser",
+  // 603 is metered against its own Kernel caps too.
+  six03: "kernel",
   michigantruck: "hyperbrowser",
 };
