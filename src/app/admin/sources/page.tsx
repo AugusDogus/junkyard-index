@@ -138,7 +138,7 @@ export default async function AdminSourcesPage() {
                       </div>
                     </td>
                     <td className="px-3 py-3">
-                      <SourceStateBadge summary={summary} />
+                      <SourceStateBadge state={summary.state} />
                     </td>
                     <td className="px-3 py-3 text-xs leading-5">
                       {summary.latestRun === null ? (

@@ -4,8 +4,7 @@ Every source's snapshot is checked in
 `src/server/ingestion/source-validation.ts` before its run reconciles it. A
 rejected snapshot leaves the source's previously published inventory in place.
 A source with no accepted run goes stale on `/api/status/<source>` 36 hours
-after its last accepted inventory publication (its cadence plus 12 hours for a
-source crawled less often than daily, such as U Pull R Parts).
+after its last accepted inventory publication.
 
 ## Inventory age
 

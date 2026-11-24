@@ -56,7 +56,6 @@ export function YardInventoryView({
   makes,
   makeSlugs,
   publishedAt,
-  staleAfterMs,
   nearby,
   chain,
   filter,
@@ -73,9 +72,6 @@ export function YardInventoryView({
   /** Each make's national URL slug, by make key. */
   makeSlugs: ReadonlyMap<string, string>;
   publishedAt: string | null;
-  /** How long `publishedAt` stays current for the yard's source, from
-   * `sourcePublicationLookbackMs` on the server. */
-  staleAfterMs: number;
   nearby: readonly NearbyYard[];
   /** The chain the yard belongs to, when it has other yards we track. */
   chain: { name: string; href: string; yards: number } | null;
@@ -182,10 +178,7 @@ export function YardInventoryView({
               : `Page ${inventory.page}, newest first`}
           </h2>
           <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-            <FreshnessBadge
-              publishedAt={publishedAt}
-              staleAfterMs={staleAfterMs}
-            />
+            <FreshnessBadge publishedAt={publishedAt} />
             {total > 0 && (
               <p className="text-ink text-sm font-medium tabular-nums">
                 {InventoryFormat.count(shownFrom)} to{" "}

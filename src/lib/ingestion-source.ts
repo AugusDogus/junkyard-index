@@ -324,53 +324,6 @@ export function isRetiredIngestionSource(source: IngestionSource): boolean {
   return RETIRED_INGESTION_SOURCES.includes(source);
 }
 
-/** Ingestion days between a source's scheduled crawls. */
-export type IngestionCadenceDays = 1 | 2 | 3;
-
-/**
- * Sources crawled less often than daily, because each crawl costs too much
- * to repeat. Every other source is crawled daily.
- *
- * upullrparts: every crawl mints about 860 Turnstile tokens in a headful
- * Kernel browser (about $0.17 to $0.26 measured), so a daily crawl would cost
- * about $5 to $8 a month, Kernel's whole free credit; every third day keeps it
- * near $1.70 to $2.60.
- */
-const INGESTION_SOURCE_CADENCES: Partial<
-  Record<IngestionSource, IngestionCadenceDays>
-> = { upullrparts: 3 };
-
-export function ingestionSourceCadenceDays(
-  source: IngestionSource,
-): IngestionCadenceDays {
-  return INGESTION_SOURCE_CADENCES[source] ?? 1;
-}
-
-/**
- * Scheduled runs a source may start on one ingestion day (manual runs from
- * /admin are not limited). Every source gets 3 except those listed.
- *
- * upullrparts: 1, because a failing crawl opens a new headful Kernel browser
- * for each chunk retry, and 3 failing runs a day cost about $0.40 to $1.10,
- * enough to spend Kernel's free credit that Big D and Northwest share.
- */
-const INGESTION_SOURCE_MAX_ATTEMPTS_PER_DAY: Partial<
-  Record<IngestionSource, number>
-> = { upullrparts: 1 };
-
-export function ingestionSourceMaxAttemptsPerDay(
-  source: IngestionSource,
-): number {
-  return INGESTION_SOURCE_MAX_ATTEMPTS_PER_DAY[source] ?? 3;
-}
-
-/** The longest cadence of any source. */
-export const MAX_INGESTION_CADENCE_DAYS =
-  INGESTION_SOURCES.reduce<IngestionCadenceDays>((longest, source) => {
-    const days = ingestionSourceCadenceDays(source);
-    return days > longest ? days : longest;
-  }, 1);
-
 /** Sources that are still fetched: every source except the retired ones. */
 export const ACTIVE_INGESTION_SOURCES: readonly IngestionSource[] =
   INGESTION_SOURCES.filter((source) => !isRetiredIngestionSource(source));

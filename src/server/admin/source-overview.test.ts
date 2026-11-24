@@ -220,39 +220,6 @@ describe("SourceOverview.build", () => {
     ).toMatchObject({ state: "stale", stale: true });
   });
 
-  test("a source crawled every third day rests, not stale, two days after its accepted run, until its next crawl day", () => {
-    expect(
-      summaryFor(
-        SourceOverview.build(
-          input({
-            runs: [
-              run("upullrparts", twoDaysAgo, { kind: "accepted", vehicles: 1 }),
-            ],
-            flags: { status: "read", enabled: new Set(["upullrparts"]) },
-          }),
-        ),
-        "upullrparts",
-      ),
-    ).toMatchObject({
-      state: "resting",
-      nextCrawlDay: "2026-11-23",
-      stale: false,
-    });
-  });
-
-  test("a daily source that has not run today waits rather than rests", () => {
-    expect(
-      summaryFor(
-        SourceOverview.build(
-          input({
-            runs: [run("pyp", yesterday, { kind: "accepted", vehicles: 1 })],
-          }),
-        ),
-        "pyp",
-      ),
-    ).toMatchObject({ state: "waiting", nextCrawlDay: null });
-  });
-
   test("a failing source past the freshness limit stays failing and is marked stale", () => {
     expect(
       summaryFor(

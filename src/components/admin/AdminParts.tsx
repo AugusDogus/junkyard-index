@@ -7,7 +7,6 @@ import type { Loaded } from "~/server/admin/admin-data";
 import type {
   IngestionFlag,
   SourceState,
-  SourceSummary,
 } from "~/server/admin/source-overview";
 import type { RunOutcome } from "~/server/admin/source-run";
 
@@ -121,7 +120,6 @@ export const SOURCE_STATE_LABELS: Record<SourceState, string> = {
   running: "Running",
   paused: "Paused",
   waiting: "Not updated yet today",
-  resting: "Resting",
   accepted_today: "Updated today",
   retired: "Retired",
 };
@@ -132,7 +130,6 @@ const STATE_VARIANTS = {
   running: "secondary",
   paused: "outline",
   waiting: "outline",
-  resting: "outline",
   accepted_today: "default",
   retired: "outline",
 } as const satisfies Record<
@@ -140,29 +137,9 @@ const STATE_VARIANTS = {
   "default" | "secondary" | "destructive" | "outline"
 >;
 
-/** A source's state, with a resting source's next crawl day ("Resting, next
- * crawl Mon, Nov 23"). */
-export function sourceStateLabel(
-  summary: Pick<SourceSummary, "state" | "nextCrawlDay">,
-): string {
-  if (summary.state !== "resting" || summary.nextCrawlDay === null)
-    return SOURCE_STATE_LABELS[summary.state];
-  const day = new Date(`${summary.nextCrawlDay}T12:00:00Z`).toLocaleDateString(
-    "en-US",
-    { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" },
-  );
-  return `Resting, next crawl ${day}`;
-}
-
-export function SourceStateBadge({
-  summary,
-}: {
-  summary: Pick<SourceSummary, "state" | "nextCrawlDay">;
-}) {
+export function SourceStateBadge({ state }: { state: SourceState }) {
   return (
-    <Badge variant={STATE_VARIANTS[summary.state]}>
-      {sourceStateLabel(summary)}
-    </Badge>
+    <Badge variant={STATE_VARIANTS[state]}>{SOURCE_STATE_LABELS[state]}</Badge>
   );
 }
 

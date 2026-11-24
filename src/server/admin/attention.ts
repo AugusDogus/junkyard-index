@@ -1,4 +1,4 @@
-import { sourceStaleAfterHours } from "~/server/ingestion/durable-health";
+import { SOURCE_STALE_AFTER_HOURS } from "~/server/ingestion/durable-health";
 import type { SourceSummary } from "./source-overview";
 import {
   NO_SOURCE_RUN_ERRORS,
@@ -74,7 +74,7 @@ function sourceItems(
   const messages = SourceRun.messages(errors);
   items.push({
     title: summary.stale
-      ? `${summary.name} has not been updated for over ${sourceStaleAfterHours(summary.source)} hours${failureNote(failures)}`
+      ? `${summary.name} has not been updated for over ${SOURCE_STALE_AFTER_HOURS} hours${failureNote(failures)}`
       : `${summary.name} failed its last ${failures} runs`,
     detail: latestDetail(latest, errors),
     raw: messages.length === 0 ? null : messages.join("\n"),
