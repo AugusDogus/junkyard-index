@@ -121,9 +121,15 @@ its 95 advertised rows. Coverage therefore separates three cases:
     1% bound every shortfall had before lag was separated, which allows no
     unconfirmed lag at a yard under 100 vehicles.
   - Above either bound the crawl is rejected as transient, so it retries later
-    the same day.
+    the same day. A distribution frozen while a yard only loses vehicles, with
+    no arrival to confirm it, therefore holds back every VinPlus yard until the
+    cache refreshes, because the source publishes as one unit. It has not been
+    seen: US Auto Supply's three frozen days still showed 17 arrivals.
 - A shortfall in a make-partitioned year is unreachable: a vehicle may sit behind
-  a make the controls never reached. Unreachable rows may total at most 1% of
+  a make the controls never reached. That holds even after a large year has read
+  every directory make: 195 Used Auto Parts kept the same 6 missing vehicles in
+  2006 to 2008 on November 21, 22 and 23, 2026 under two different
+  distributions, so those vehicles are hidden from make searches, not gone. Unreachable rows may total at most 1% of
   that physical yard's advertised inventory. Exactly 1% passes with a warning;
   above 1% fails deterministically, even when the same yard's lag would only
   have been a transient rejection.
@@ -135,12 +141,23 @@ admitted or replayed. Its range is bisected by year until each half is below the
 cap. A capped single year is read by its discovered makes and then, unlike a
 large year, by every other observed and directory make: its advertised count
 comes from the stale distribution, so reaching it proves nothing and the
-supplement never stops early (up to 128 more makes, each replayed at close).
-Before those reads the parser checks the yard's 1,024-control limit against the
-remaining reads of every capped year. A yard that cannot afford them is rejected
-as transient, with no make search made for those years. The connector also
-fails a yard at the limit itself with a request budget error. A make partition
-at the cap still fails the source.
+supplement never stops early. It reads every make in the union of observed and
+directory makes that the year has not been read by yet (the directory listed 49
+makes on November 23, 2026), and each read is replayed at close. Large years
+that never reconcile read the directory first. Because capped reads never stop
+early, the parser then knows the yard's remaining requests exactly and checks
+them against its 1,024-control limit. A yard that cannot afford them is rejected
+as transient, with no directory-make search made for those years. A yard or the
+source that still reaches its request limit (1,024 per yard, 2,048 in all), for
+example through large years alone, is also rejected as transient rather than
+retried on the same saved evidence. The accepted November 22 and 23 runs used
+1,012 of the 2,048 requests, so a capped year (about 110 requests at a 49-make
+directory) cannot by itself exhaust the source limit. Those runs saved a 10.7 MB
+cursor against its 16 MiB limit. Search responses there took at most about 1.8 KB
+per record and 0.2 KB when empty, so a capped year of 200 vehicles adds about
+0.7 MB at opening and close together. A cursor over 16 MiB fails the source, so
+inspect the cursor size if several yards report capped years at once. A make
+partition at the cap still fails the source.
 
 Separating lag is a deliberate tradeoff. A backend that silently dropped rows
 below the cap, identically at opening and closing, while the same yard also had

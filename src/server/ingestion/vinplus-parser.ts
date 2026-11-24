@@ -225,7 +225,8 @@ function* traversal(
    * A null-make response at the silent 100-record cap may be truncated
    * whatever the distribution advertises. It is discovery only, never
    * admitted or replayed: its range is bisected by year, and a capped single
-   * year is read by its literal makes like a large year. */
+   * year is read by its discovered makes here and later, unlike a large year,
+   * by every remaining observed and directory make without stopping early. */
   function* readPlanned(
     range: VinplusRange,
   ): Generator<VinplusControl, void, string> {
@@ -290,22 +291,6 @@ function* traversal(
     )
       throw new Error("Public vehicle directory has invalid make controls");
     menuHash = vinplusHash(JSON.parse(raw));
-    // A capped year skips the observed-make pass: it reads the whole
-    // directory anyway, so check that the yard can afford it first.
-    const cappedMakes = [...new Set([...allMakes, ...publishedMakes])].sort();
-    const cappedReads = split.reduce(
-      (sum, year) => sum + untried(ranges, year, cappedMakes).length,
-      0,
-    );
-    // Opening reads, then each range's closing replay and the closing
-    // distribution, configuration, directory and app.
-    const required = delivered.bodies + 2 * cappedReads + ranges.length + 4;
-    if (required > VINPLUS_MAX_YARD_REQUESTS)
-      throw transientRejection(
-        new Error(
-          `${tenant.yardId} years ${split.join(", ")}: each search reached the 100-record cap, so each must be read by every one of its ${cappedReads} remaining makes, and with the closing replay this yard needs at least ${required} requests, above its ${VINPLUS_MAX_YARD_REQUESTS}-request limit. No make search was made for these years and ${VINPLUS_NOT_PUBLISHED}. The source retries later today, when a refreshed distribution may advertise these years above 100; if this repeats, requalify these years with model controls`,
-        ),
-      );
     yield* supplementRanges(
       tenant,
       unresolved,
@@ -314,6 +299,23 @@ function* traversal(
       pages,
       union,
     );
+    // A capped year skips the observed-make pass and never stops early, so
+    // its remaining reads are known exactly once the large years are done.
+    const cappedMakes = [...new Set([...allMakes, ...publishedMakes])].sort();
+    const remaining = split.map((year) => ({
+      year,
+      makes: untried(ranges, year, cappedMakes).length,
+    }));
+    const cappedReads = remaining.reduce((sum, row) => sum + row.makes, 0);
+    // Opening reads, then each range's closing replay and the closing
+    // distribution, configuration, directory and app.
+    const required = delivered.bodies + 2 * cappedReads + ranges.length + 4;
+    if (required > VINPLUS_MAX_YARD_REQUESTS)
+      throw transientRejection(
+        new Error(
+          `${tenant.yardId} years ${split.join(", ")}: each search reached the 100-record cap, so each year must be read by every observed and directory make it has not been read by yet (${remaining.map((row) => `${row.year}: ${row.makes} makes`).join(", ")}). With every closing replay this yard needs ${required} requests, above its ${VINPLUS_MAX_YARD_REQUESTS}-request limit. No directory-make search was made for these years and ${VINPLUS_NOT_PUBLISHED}. The source retries later today, when a refreshed distribution may advertise these years above 100; if this repeats, requalify these years with model controls`,
+        ),
+      );
     yield* supplementRanges(
       tenant,
       split.map((year) => ({ kind: "capped" as const, year })),

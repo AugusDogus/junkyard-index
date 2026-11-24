@@ -4,7 +4,7 @@ import {
   validationRejectionKind,
 } from "./ingestion-validation";
 import { Effect, Option } from "effect";
-import { VINPLUS_TENANTS } from "./vinplus-configuration";
+import { VINPLUS_TENANTS, type VinplusTenant } from "./vinplus-configuration";
 import { VinplusCursor, VINPLUS_MAX_REQUESTS } from "./vinplus-cursor";
 import {
   inspectVinplusEvidence,
@@ -48,6 +48,34 @@ const validated = <T>(operation: string, run: () => T) =>
         : error;
     },
   });
+/** The rejection for a crawl that has used a request limit before its yard's
+ * terminal controls, or null. A step retry would replay the same saved
+ * evidence into the same limit, so it rejects the crawl as transient: a
+ * refreshed distribution can reconcile large years with fewer directory
+ * reads. */
+export function vinplusRequestBudget(
+  cursor: VinplusCursor,
+  tenant: VinplusTenant,
+): VinplusError | null {
+  const evidence = cursor.yards.at(-1) ?? [];
+  const total = cursor.yards.reduce((sum, bodies) => sum + bodies.length, 0);
+  const retry = `The source retries later today, when a refreshed year distribution may need fewer make reads; if this repeats, inspect which year controls used the requests in the saved evidence before raising the limit`;
+  if (total >= VINPLUS_MAX_REQUESTS)
+    return transientRejection(
+      VinplusError.create(
+        "request budget",
+        `VinPlus reached its cumulative ${VINPLUS_MAX_REQUESTS}-request limit at ${tenant.label} (${tenant.yardId}) before terminal controls, after ${cursor.yards.map((bodies, index) => `${VINPLUS_TENANTS[index]?.yardId ?? index}: ${bodies.length}`).join(", ")} requests, so ${VINPLUS_NOT_PUBLISHED}. ${retry}`,
+      ),
+    );
+  if (evidence.length >= VINPLUS_MAX_YARD_REQUESTS)
+    return transientRejection(
+      VinplusError.create(
+        "request budget " + tenant.yardId,
+        `${tenant.label} reached its ${VINPLUS_MAX_YARD_REQUESTS}-request limit before terminal controls, most likely because large years that never reconciled with the distribution, or capped years, read most of the make directory, so ${VINPLUS_NOT_PUBLISHED}. ${retry}`,
+      ),
+    );
+  return null;
+}
 export function streamVinplusInventory<E, R>(options: VinplusOptions<E, R>) {
   return Effect.gen(function* () {
     const budget = options.maxPages ?? 8;
@@ -94,23 +122,8 @@ export function streamVinplusInventory<E, R>(options: VinplusOptions<E, R>) {
             "Missing configured yard or evidence prefix",
           ),
         );
-      if (
-        cursor.yards.reduce((sum, bodies) => sum + bodies.length, 0) >=
-        VINPLUS_MAX_REQUESTS
-      )
-        return yield* Effect.fail(
-          VinplusError.create(
-            "request budget",
-            "Cumulative 2048-request limit reached before terminal controls",
-          ),
-        );
-      if (evidence.length >= VINPLUS_MAX_YARD_REQUESTS)
-        return yield* Effect.fail(
-          VinplusError.create(
-            "request budget " + tenant.yardId,
-            `${tenant.label} reached its ${VINPLUS_MAX_YARD_REQUESTS}-request limit before terminal controls, most likely because its large years read most of the make directory, so ${VINPLUS_NOT_PUBLISHED}. Inspect which year controls used the requests in the saved evidence before raising the limit`,
-          ),
-        );
+      const exhausted = vinplusRequestBudget(cursor, tenant);
+      if (exhausted) return yield* Effect.fail(exhausted);
       const control = yield* validated(
         "public protocol " + tenant.yardId,
         () => {
