@@ -1319,6 +1319,11 @@ describe("bounded durable reconciliation", () => {
       });
       await client.execute(`insert into yard_inventory (source, location_code, location_name, location_city, state_abbr, lat, lng, vehicle_count, inventory_url, updated_at) values
         ('pyp', 'yard-1', 'Yard 1', 'Tulsa', 'OK', 36.1, -95.9, 1, null, 0)`);
+      // pyp's publish counted it as a recent arrival in Oklahoma.
+      await client.execute({
+        sql: "insert into state_recent_arrival (source, state_abbr, available_date, observed_arrival_at, vehicle_count) values ('pyp', 'OK', null, ?, 1)",
+        args: [startedAt.getTime()],
+      });
       await database.insert(ingestionRun).values({
         id: "run-row52",
         source: "row52",
@@ -1355,6 +1360,14 @@ describe("bounded durable reconciliation", () => {
       });
       expect(upsert).toMatchObject({ status: "paused", phase: "missing" });
       expect(await yardInventoryRows(client)).toEqual([]);
+      // The upsert batch also drops it from pyp's state arrivals.
+      expect(
+        (
+          await client.execute(
+            "select count(*) as n from state_recent_arrival where source = 'pyp'",
+          )
+        ).rows[0]?.n,
+      ).toBe(0);
 
       const completed = await reconcileDurableIngestionRun({
         runId: "run-row52",

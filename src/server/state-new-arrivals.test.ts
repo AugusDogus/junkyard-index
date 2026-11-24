@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { HiddenSources } from "~/lib/hidden-source";
 import { YardInventory } from "~/lib/yard-inventory";
 import { RECONCILIATION_TEST_SCHEMA } from "./ingestion/durable-reconciliation-test-fixtures";
+import { stateRecentArrivalRebuildStatements } from "./ingestion/state-recent-arrival";
 import { yardInventoryRefreshStatements } from "./ingestion/yard-inventory";
 import { StateNewArrivals } from "./state-new-arrivals";
 
@@ -220,6 +221,35 @@ test("state new counts follow publishes, departures and restores like a vehicle 
         )
       ).rows[0]?.n,
     ).toBe(0);
+  } finally {
+    client.close();
+  }
+});
+
+test("a full rebuild replaces every source's recent arrivals from live inventory", async () => {
+  const client = createClient({ url: ":memory:" });
+  try {
+    await client.executeMultiple(RECONCILIATION_TEST_SCHEMA);
+    const now = Date.parse("2026-11-24T12:00:00.000Z");
+    // A database whose vehicles arrived after migrating, plus a stale row.
+    await insert(client, fixtures(now));
+    await client.execute({
+      sql: "insert into state_recent_arrival (source, state_abbr, available_date, observed_arrival_at, vehicle_count) values ('gone', 'NV', null, ?, 9)",
+      args: [now - DAY],
+    });
+    await client.batch(stateRecentArrivalRebuildStatements(now), "write");
+    const referenceTime = new Date(now).toISOString();
+    expect(
+      await StateNewArrivals.counts(
+        drizzle(client),
+        HiddenSources.none,
+        referenceTime,
+      ),
+    ).toEqual(await scanCounts(client, [], referenceTime));
+    expect(await scanCounts(client, [], referenceTime)).toEqual({
+      TX: 4,
+      CA: 1,
+    });
   } finally {
     client.close();
   }
