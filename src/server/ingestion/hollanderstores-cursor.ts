@@ -48,6 +48,15 @@ const common = {
   ),
   requests: z.number().int().nonnegative().max(HOLLANDERSTORES_MAX_REQUESTS),
 };
+/** A yard whose closing census drifted or whose rows failed its quality
+ * guard. It publishes nothing this run; its previous inventory stays. */
+const preservedSchema = z
+  .object({ code: z.string().min(1), reason: z.string().min(1).max(4_000) })
+  .strict();
+export type HollanderstoresPreservedYard = z.infer<typeof preservedSchema>;
+// Absent rather than empty, so checkpoints without preserved yards keep their
+// existing wire form and checksum.
+const preserved = z.array(preservedSchema).min(1).max(yardCount).optional();
 const schema = z.discriminatedUnion("phase", [
   z.object({ ...common, phase: z.literal("opening") }).strict(),
   z.object({ ...common, phase: z.literal("decoding") }).strict(),
@@ -55,6 +64,7 @@ const schema = z.discriminatedUnion("phase", [
     .object({
       ...common,
       phase: z.literal("closing"),
+      preserved,
       closed: z
         .number()
         .int()
@@ -66,6 +76,7 @@ const schema = z.discriminatedUnion("phase", [
     .object({
       ...common,
       phase: z.literal("ready"),
+      preserved,
       closed: z
         .number()
         .int()
@@ -76,6 +87,7 @@ const schema = z.discriminatedUnion("phase", [
     .object({
       ...common,
       phase: z.literal("complete"),
+      preserved,
       closed: z
         .number()
         .int()
@@ -136,6 +148,25 @@ function check(value: unknown): CheckedCursor {
   )
     throw new Error(
       "Hollander Stores checkpoint lost its ordered partial list roster",
+    );
+  // Closing preserves only yards it already read; completion may add yards
+  // that failed their quality guard. Each yard appears once, in yard order.
+  const preservedIndexes =
+    "preserved" in state && state.preserved
+      ? state.preserved.map(({ code }) =>
+          HOLLANDERSTORES_YARDS.findIndex((yard) => yard.code === code),
+        )
+      : [];
+  if (
+    preservedIndexes.some(
+      (index, position) =>
+        index < 0 ||
+        index >= closed ||
+        index <= (preservedIndexes[position - 1] ?? -1),
+    )
+  )
+    throw new Error(
+      "Hollander Stores checkpoint lists a preserved yard that is unknown, repeated, out of order or not yet closed. The checkpoint is rejected and published inventory is unchanged; restart the ingestion run.",
     );
   if (
     state.pages.reduce(

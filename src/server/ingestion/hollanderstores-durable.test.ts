@@ -10,7 +10,11 @@ import {
   createTestClient,
   TEST_SCHEMA,
 } from "./durable-ingestion-test-fixtures";
-import { HollanderstoresDurableCursor } from "./hollanderstores-durable-cursor";
+import {
+  HollanderstoresDurableCursor,
+  hollanderstoresPreservedYards,
+} from "./hollanderstores-durable-cursor";
+import { HOLLANDERSTORES_YARDS } from "./hollanderstores-yard-metadata";
 import { streamHollanderstoresDurableInventory } from "./hollanderstores-durable";
 import { streamHollanderstoresInventory } from "./hollanderstores-connector";
 import { HollanderstoresCursor } from "./hollanderstores-cursor";
@@ -169,4 +173,76 @@ test("Hollander references reject legacy, corrupt, missing and substituted censu
   expect(() => HollanderstoresDurableCursor.fromWire(" ".repeat(2049))).toThrow(
     "2 KiB",
   );
+});
+
+test("the durable reference names every preserved yard within 2 KiB and must match its snapshot", async () => {
+  // One saved-shape card per yard keeps the census small.
+  const pages = HOLLANDERSTORES_YARDS.map((yard) => ({
+    yard: yard.code,
+    total: 1,
+    rows: [
+      {
+        displayYear: "'13",
+        make: "ACURA",
+        model: "RDX",
+        stock: "offline",
+        vin: "5J8TB4H35DL015046",
+        url: `${yard.websiteUrl}VehicleDealerShowParts/${yard.tenant}/1`,
+      },
+    ],
+  }));
+  const { checksum, ...initial } = HollanderstoresCursor.initial();
+  expect(checksum).toBeString();
+  const preserved = HOLLANDERSTORES_YARDS.map((yard) => ({
+    code: yard.code,
+    reason: "x".repeat(4_000),
+  }));
+  const state = HollanderstoresCursor.checkpoint({
+    ...initial,
+    phase: "complete",
+    closed: HOLLANDERSTORES_YARDS.length,
+    startedAt: Date.now(),
+    pages,
+    requests: 2 * HOLLANDERSTORES_YARDS.length,
+    preserved,
+  });
+  const reference = {
+    ...HollanderstoresDurableCursor.checkpoint(state),
+    statePath: "hollanderstores/state",
+  };
+  const wire = HollanderstoresDurableCursor.serialize(reference);
+  expect(Buffer.byteLength(wire)).toBeLessThan(2048);
+  const parsed = HollanderstoresDurableCursor.fromWire(wire);
+  expect(hollanderstoresPreservedYards(parsed)).toEqual(
+    new Set(HOLLANDERSTORES_YARDS.map((yard) => yard.code)),
+  );
+  expect(
+    await HollanderstoresDurableCursor.load(parsed, async () => state),
+  ).toEqual(state);
+  const { preserved: _dropped, ...withoutPreserved } = reference;
+  expect(_dropped).toHaveLength(HOLLANDERSTORES_YARDS.length);
+  await expect(
+    HollanderstoresDurableCursor.load(withoutPreserved, async () => state),
+  ).rejects.toThrow("does not match its durable reference");
+  // A yard can only be preserved once it was closed, once and in yard order.
+  const closing = {
+    ...initial,
+    phase: "closing" as const,
+    startedAt: Date.now(),
+    pages,
+  };
+  for (const [closed, codes] of [
+    [1, ["leblancsauto", "leblancsauto"]],
+    [2, ["blvdautoparts", "leblancsauto"]],
+    [1, ["blvdautoparts"]],
+    [1, ["unknown-yard"]],
+  ] as const)
+    expect(() =>
+      HollanderstoresCursor.checkpoint({
+        ...closing,
+        closed,
+        requests: HOLLANDERSTORES_YARDS.length + closed,
+        preserved: codes.map((code) => ({ code, reason: "drift" })),
+      }),
+    ).toThrow("preserved yard");
 });

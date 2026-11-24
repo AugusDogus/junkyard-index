@@ -14,7 +14,10 @@ import {
   hollanderstoresSnapshot,
   type HollanderstoresVehicle,
 } from "./hollanderstores-snapshot";
-import { HOLLANDERSTORES_YARDS } from "./hollanderstores-yard-metadata";
+import {
+  HOLLANDERSTORES_YARDS,
+  type HollanderstoresYard,
+} from "./hollanderstores-yard-metadata";
 import { hollanderstoresCensusError } from "./hollanderstores-census";
 import wd2 from "./hollanderstores-test-fixtures/wd2-wmi.json";
 import {
@@ -82,59 +85,115 @@ test("publishes the observed opening set after saved one-vehicle additions and r
   expect(batches).toEqual([expected.vehicles]);
 }, 300000);
 
-test("large identity turnover with an unchanged count fails once without publishing", async () => {
-  const yard = HOLLANDERSTORES_YARDS[0];
-  const raw = fixture(yard.code);
-  const first = parseHollanderstoresPage(raw, 0);
-  const row = first.rows[0];
-  if (!row) throw new Error("Missing saved first-yard row");
-  // The first closing response fails before the other yards are read. Keep
-  // their cursor membership without loading another 76K unrelated records.
-  const opening = HOLLANDERSTORES_YARDS.map((other, index) =>
-    index === 0
-      ? first
-      : {
-          yard: other.code,
-          total: 1,
-          rows: [
-            {
-              ...row,
-              url: `${other.websiteUrl}VehicleDealerShowParts/${other.tenant}/1`,
-            },
-          ],
-        },
-  );
-  // Four replacements change eight identities, above this yard's five-row bound.
-  const destinations = opening[0]?.rows.slice(0, 4) ?? [];
-  let changed = raw;
-  for (const [index, row] of destinations.entries()) {
-    changed = changed.replace(
-      new URL(row.url).pathname,
-      `/VehicleDealerShowParts/${yard.tenant}/${90000000 + index}`,
+test("a yard whose closing census drifts keeps its previous inventory while the other yards publish", async () => {
+  const opening = pages();
+  for (const code of ["piperautoparts", "aabcoautoparts"]) {
+    const index = HOLLANDERSTORES_YARDS.findIndex((yard) => yard.code === code);
+    opening[index] = parseHollanderstoresPage(
+      fixture(code + "-initial"),
+      index,
     );
   }
-  let reads = 0;
-  const cursor = closingCursor(opening);
-  const result = await Effect.runPromise(
-    streamHollanderstoresInventory({
-      startCursor: cursor,
-      maxPages: 8,
-      decodeBatch: () => Effect.die("No decode during closing"),
-      readPage: () =>
-        Effect.sync(() => {
-          reads++;
-          return changed;
-        }),
-      onBatch: () => Effect.die("Excessive turnover cannot publish"),
-    }),
+  const drifted = HOLLANDERSTORES_YARDS[0];
+  if (!drifted) throw new Error("Missing first Hollander yard");
+  const first = opening[0];
+  if (!first) throw new Error("Missing saved first-yard census");
+  // Four replaced destinations change eight identities, above its bound.
+  let closing = fixture(drifted.code + "-closing");
+  for (const [index, row] of first.rows.slice(0, 4).entries())
+    closing = closing.replace(
+      new URL(row.url).pathname,
+      `/VehicleDealerShowParts/${drifted.tenant}/${90000000 + index}`,
+    );
+  const expected = hollanderstoresSnapshot(
+    opening,
+    hollanderstoresSeed,
+    null,
+    new Set([drifted.code]),
   );
-  expect(result.status).toBe("failed");
-  // The census drifted while it was read, so a crawl later today can pass.
-  expect(result).toMatchObject({ failureKind: "transient" });
-  expect(result.errors.join(" ")).toContain("closing census drift");
-  expect(result.cursor).toEqual(cursor);
-  expect(result.count).toBe(0);
-  expect(reads).toBe(1);
+  expect(expected.errors).toEqual([]);
+  expect(expected.rejectedYards).toEqual([]);
+  let cursor = closingCursor(opening);
+  const batches: HollanderstoresVehicle[][] = [];
+  while (cursor.phase !== "complete") {
+    const result = await Effect.runPromise(
+      streamHollanderstoresInventory({
+        startCursor: cursor,
+        maxPages: 8,
+        decodeBatch: () => Effect.die("Opening VINs are already decoded"),
+        readPage: (yard) =>
+          Effect.sync(() =>
+            yard.code === drifted.code
+              ? closing
+              : fixture(
+                  yard.code +
+                    (yard.code === "bandmauto" ? "-initial" : "-closing"),
+                ),
+          ),
+        onBatch: (vehicles) =>
+          Effect.sync(() => {
+            batches.push(vehicles);
+          }),
+      }),
+    );
+    expect(result.status).not.toBe("failed");
+    cursor = HollanderstoresCursor.fromWire(
+      HollanderstoresCursor.serialize(result.cursor),
+    );
+  }
+  expect(batches).toEqual([expected.vehicles]);
+  expect(
+    batches.flat().some((vehicle) => vehicle.locationCode === drifted.code),
+  ).toBe(false);
+  expect(cursor.preserved?.map((yard) => yard.code)).toEqual([drifted.code]);
+  expect(cursor.preserved?.[0]?.reason).toContain(
+    `${drifted.code} closing census drift`,
+  );
+}, 300000);
+
+test("a census that drifts in every yard fails once without publishing", async () => {
+  // One saved-shape card per yard; only the stock changes between censuses.
+  const response = (yard: HollanderstoresYard, stock: string) =>
+    `<html><body><a class="hpdcLogo">${yard.logo.replaceAll("&", "&amp;")}</a>
+      <p>Showing 1 Vehicles in Inventory</p><div class="individualPartHolder">
+      <span>&#39;13 ACURA RDX</span><li>VIN 5J8TB4H35DL015046</li><li>Stock# ${stock}</li>
+      <a href="/VehicleDealerShowParts/${yard.tenant}/1">View Parts</a></div></body></html>`;
+  const opening = HOLLANDERSTORES_YARDS.map((yard, index) =>
+    parseHollanderstoresPage(response(yard, "opening"), index),
+  );
+  const start = closingCursor(opening);
+  let cursor = start;
+  let reads = 0;
+  for (;;) {
+    const result = await Effect.runPromise(
+      streamHollanderstoresInventory({
+        startCursor: cursor,
+        maxPages: 8,
+        decodeBatch: () => Effect.die("No decode during closing"),
+        readPage: (yard) =>
+          Effect.sync(() => {
+            reads++;
+            return response(yard, "closing");
+          }),
+        onBatch: () =>
+          Effect.die("A census with no closed yard cannot publish"),
+      }),
+    );
+    if (result.status === "paused") {
+      cursor = result.cursor;
+      continue;
+    }
+    expect(result.status).toBe("failed");
+    // The census drifted while it was read, so a crawl later today can pass.
+    expect(result).toMatchObject({ failureKind: "transient" });
+    expect(result.errors).toHaveLength(HOLLANDERSTORES_YARDS.length);
+    expect(result.errors.join(" ")).toContain(
+      "closing census changed surviving vehicle fields",
+    );
+    expect(result.count).toBe(0);
+    break;
+  }
+  expect(reads).toBe(HOLLANDERSTORES_YARDS.length);
 });
 
 test("census turnover accepts the exact per-yard limit and rejects one more removal", () => {

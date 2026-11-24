@@ -14,6 +14,14 @@ The [November 17 east expansion](provider-coverage-east.md) adds Floras Auto Par
 
 The [November 17 mid-state qualification](provider-coverage-mid-states.md) adds Rowland Auto Wrecking and Midvale All Small Auto in Utah: 4,971 accepted donors, 59 rejects, two complete opening/closing pairs, and a combined source floor of 25,359. Historical batch totals below retain their original scope.
 
+## Per-yard acceptance
+
+Each yard is accepted or preserved on its own. A yard whose closing census drifts from its opening census, or whose rows fail its own floor, 10% rejection or 25% duplicate guard, publishes nothing that run. Its previously published vehicles stay live and its `yard_inventory.last_published_at` keeps the time of its last accepted crawl, so stale-inventory rules can judge it per yard. The other yards publish.
+
+The run's durable cursor (`ingestion_source_run.next_cursor`) lists preserved yard codes under `preserved`; the census snapshot keeps each reason, and the fetch step logs one warning per preserved yard. Shared validation then applies the source floor and the 50% previous-run drift guard only to the yards that publish: the floor is the sum of their yard floors, and the baseline is their live vehicle count. When every yard's closing census drifts, the source fails as a transient rejection and retries later that day.
+
+On November 22, 2026, Stricker's closing census changed surviving vehicle fields and rejected all 63 yards. Under per-yard acceptance only Stricker would have kept its previous inventory.
+
 ## Crossroads Salvage, November 17, 2026
 
 The [native website](https://crossroadstowparts.com/) links tenant

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { HollanderstoresCursor } from "./hollanderstores-cursor";
 import { HOLLANDERSTORES_MAX_REQUESTS } from "./hollanderstores-limits";
+import { HOLLANDERSTORES_YARDS } from "./hollanderstores-yard-metadata";
 
 const scope = HollanderstoresCursor.initial().scope;
 const common = {
@@ -14,6 +15,14 @@ const referenceSchema = z
     phase: z.enum(["opening", "decoding", "closing", "ready", "complete"]),
     requests: z.number().int().min(1).max(HOLLANDERSTORES_MAX_REQUESTS),
     checksum: z.string().regex(/^[a-f0-9]{8}$/),
+    // Yards keeping their previous inventory, so validation and
+    // reconciliation read them without loading the census snapshot. Their
+    // reasons live in the snapshot. Absent when every yard publishes.
+    preserved: z
+      .array(z.string().min(1).max(64))
+      .min(1)
+      .max(HOLLANDERSTORES_YARDS.length)
+      .optional(),
     // Null exists only between fetching and the repository's atomic checkpoint.
     statePath: z.string().min(1).max(256).nullable(),
   })
@@ -56,6 +65,10 @@ export const HollanderstoresDurableCursor = {
       phase: state.phase,
       requests: state.requests,
       checksum: state.checksum,
+      ...("preserved" in state &&
+        state.preserved && {
+          preserved: state.preserved.map((yard) => yard.code),
+        }),
       statePath: null,
     });
   },
@@ -72,10 +85,15 @@ export const HollanderstoresDurableCursor = {
     const state = HollanderstoresCursor.parse(
       await loadState(cursor.statePath),
     );
+    const preserved =
+      "preserved" in state && state.preserved
+        ? state.preserved.map((yard) => yard.code)
+        : undefined;
     if (
       state.checksum !== cursor.checksum ||
       state.phase !== cursor.phase ||
-      state.requests !== cursor.requests
+      state.requests !== cursor.requests ||
+      JSON.stringify(preserved) !== JSON.stringify(cursor.preserved)
     )
       throw new Error(
         "Hollander Stores snapshot does not match its durable reference; inspect the checkpoint and restart the run. Prior inventory is preserved.",
@@ -83,3 +101,11 @@ export const HollanderstoresDurableCursor = {
     return state;
   },
 } as const;
+
+/** Yards a terminal Hollander Stores reference keeps at their previous
+ * inventory; empty for any other reference. */
+export function hollanderstoresPreservedYards(
+  cursor: HollanderstoresDurableCursor,
+): ReadonlySet<string> {
+  return new Set(cursor.phase === "complete" ? (cursor.preserved ?? []) : []);
+}

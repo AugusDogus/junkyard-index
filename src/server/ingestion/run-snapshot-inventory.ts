@@ -1,5 +1,6 @@
 import { parseDurableSourceCursor } from "./durable-cursor";
 import { urgiisPublication } from "./urgiis-publication";
+import { hollanderstoresPreservedYards } from "./hollanderstores-durable-cursor";
 import { and, eq } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import {
@@ -30,8 +31,9 @@ export interface RunSnapshotInventory {
   /** Observations ordered for bounded VIN lookups during missing reconciliation. */
   readonly observedVinOrder: readonly string[];
   readonly acceptedSources: ReadonlySet<IngestionSource>;
-  readonly preservedUrgiisYards: ReadonlySet<string>;
-  readonly preservedAutorecyclerYards: ReadonlySet<string>;
+  /** Yards of accepted sources that keep their previous inventory and
+   * publication time this run, by source. */
+  readonly preservedYards: ReadonlyMap<string, ReadonlySet<string>>;
 }
 
 export async function loadSourceSnapshot(
@@ -109,19 +111,29 @@ export async function loadRunSnapshotInventory(params: {
 
   const vehicles = new Map<string, CanonicalVehicle>();
   const observedVins = new Set<string>();
-  let preservedUrgiisYards: ReadonlySet<string> = new Set();
-  const preservedAutorecyclerYards = new Set<string>();
+  const preservedYards = new Map<IngestionSource, ReadonlySet<string>>();
   for (const row of accepted) {
     if (row.source === "urgiis" && row.nextCursor)
-      preservedUrgiisYards = urgiisPublication(
-        parseDurableSourceCursor("urgiis", row.nextCursor),
-      ).preservedYards;
+      preservedYards.set(
+        "urgiis",
+        urgiisPublication(parseDurableSourceCursor("urgiis", row.nextCursor))
+          .preservedYards,
+      );
     if (row.source === "autorecycler" && row.nextCursor) {
       const cursor = parseDurableSourceCursor("autorecycler", row.nextCursor);
       if (cursor.phase === "complete")
-        for (const code of cursor.freshness?.preservedYards ?? [])
-          preservedAutorecyclerYards.add(code);
+        preservedYards.set(
+          "autorecycler",
+          new Set(cursor.freshness?.preservedYards ?? []),
+        );
     }
+    if (row.source === "hollanderstores" && row.nextCursor)
+      preservedYards.set(
+        "hollanderstores",
+        hollanderstoresPreservedYards(
+          parseDurableSourceCursor("hollanderstores", row.nextCursor),
+        ),
+      );
     const snapshot = await loadSourceSnapshot(params.store, row.snapshotChunks);
     for (const [vin, vehicle] of snapshot.vehicles)
       if (!vehicles.has(vin)) vehicles.set(vin, vehicle);
@@ -133,8 +145,7 @@ export async function loadRunSnapshotInventory(params: {
     observedVins,
     observedVinOrder: [...observedVins].sort(),
     acceptedSources: new Set(accepted.map((row) => row.source)),
-    preservedUrgiisYards,
-    preservedAutorecyclerYards,
+    preservedYards,
   };
   lastInventory.set(params.store, { runId: params.runId, key, inventory });
   return inventory;
