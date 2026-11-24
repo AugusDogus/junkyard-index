@@ -983,3 +983,32 @@ export const adminActionLog = sqliteTable(
     index("admin_action_log_source_idx").on(table.source, table.createdAt),
   ],
 );
+
+/**
+ * Each Kernel browser a metered source opened, for its monthly spend guard
+ * (`KernelUsage` in src/server/ingestion/kernel-usage.ts). `ended_at` is set
+ * when the browser is deleted; a row without it counts as open for the
+ * browser's longest possible life, so a process that died mid-chunk still
+ * counts what Kernel billed.
+ */
+export const kernelBrowserUsage = sqliteTable(
+  "kernel_browser_usage",
+  {
+    id: text("id").primaryKey(),
+    source: text("source").notNull(),
+    mode: text("mode", { enum: ["headless", "headful"] }).notNull(),
+    startedAt: integer("started_at").notNull(),
+    endedAt: integer("ended_at"),
+  },
+  (table) => [
+    index("kernel_browser_usage_source_idx").on(table.source, table.startedAt),
+    check(
+      "kernel_browser_usage_mode_check",
+      sql`mode in ('headless', 'headful')`,
+    ),
+    check(
+      "kernel_browser_usage_ended_check",
+      sql`ended_at is null or ended_at >= started_at`,
+    ),
+  ],
+);

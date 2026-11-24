@@ -33,6 +33,26 @@ test("known publication becomes stale after three days", () => {
   expect(html).not.toContain("bg-signal");
 });
 
+test("a source crawled every third day stays current for its five-day look-back", () => {
+  const day = 24 * 60 * 60 * 1000;
+  const current = renderToStaticMarkup(
+    <FreshnessBadge
+      publishedAt="2026-11-14T12:00:00Z"
+      staleAfterMs={5 * day}
+    />,
+  );
+  expect(current).toContain("Nov 14, 2026");
+  expect(current).not.toContain("Not updated");
+
+  const stale = renderToStaticMarkup(
+    <FreshnessBadge
+      publishedAt="2026-11-13T11:59:59Z"
+      staleAfterMs={5 * day}
+    />,
+  );
+  expect(stale).toContain("Not updated in the last 5 days");
+});
+
 test("the three-day boundary remains current and coverage is preserved", () => {
   const html = renderToStaticMarkup(
     <FreshnessBadge

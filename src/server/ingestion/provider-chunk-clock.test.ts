@@ -101,6 +101,29 @@ test("provider work beyond the deadline still fails the chunk", async () => {
   );
 });
 
+test("work left excludes queue time and is none outside a chunk", async () => {
+  const result = await run(
+    Effect.gen(function* () {
+      const outside = yield* ProviderChunkClock.workLeft;
+      const fiber = yield* Effect.fork(
+        deadline(
+          Effect.gen(function* () {
+            yield* ProviderChunkClock.queued(Effect.sleep("1 minute"));
+            yield* Effect.sleep("30 seconds");
+            return yield* ProviderChunkClock.workLeft;
+          }),
+        ),
+      );
+      yield* TestClock.adjust("2 minutes");
+      return { outside, inside: yield* Fiber.join(fiber) };
+    }),
+  );
+  expect(result).toEqual({
+    outside: Option.none(),
+    inside: Option.some(150_000),
+  });
+});
+
 test("queue time still counts toward the step's wall limit", async () => {
   const result = await run(
     Effect.gen(function* () {

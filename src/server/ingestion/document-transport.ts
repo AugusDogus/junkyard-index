@@ -25,9 +25,10 @@ import {
   KernelSessions,
   type KernelSource,
 } from "./kernel-sessions";
-import type {
+import { KernelBudgetSpent } from "./kernel-usage";
+import {
   ProviderCapacityDeferred,
-  ProviderTurnDeferred,
+  type ProviderTurnDeferred,
 } from "./provider-chunk-clock";
 
 /** The part of a fetch Response that native HTML clients validate. Clients
@@ -433,8 +434,9 @@ function hyperbrowserLifecycle(
 }
 
 /** `source`'s Kernel browsers, under the Kernel session lease: CAPTCHA
- * solver, direct egress, headless. Their pages load
- * `subresources` besides the transport's documents. Without `apiKey` every
+ * solver, headless with direct egress unless the source's
+ * `KernelSessions.browserProfile` differs. Their pages load `subresources`
+ * besides the transport's documents. Without `apiKey` every
  * create fails with `KernelKeyMissing` and no request is sent, so a source
  * configured for Kernel fails closed instead of falling back. */
 function kernel(
@@ -460,7 +462,8 @@ function kernelLifecycle(
   return {
     provider: "kernel",
     lease: KernelSessions.lease(source),
-    create: async () => KernelSessions.create(key()),
+    create: async () =>
+      KernelSessions.create(key(), KernelSessions.browserProfile(source)),
     stop: async (id) => KernelSessions.stop(key(), id),
   };
 }
@@ -554,7 +557,13 @@ const PROVIDERS: Readonly<
       `Hyperbrowser session ${id} did not stop: ${String(cause)}. Hyperbrowser ends it ${HYPERBROWSER_SESSION_TIMEOUT_MINUTES} minutes after it started; stop it in the Hyperbrowser dashboard to end billing sooner.`,
   },
   kernel: {
-    capacityDeferral: KernelSessions.capacityDeferral,
+    capacityDeferral: (cause) =>
+      cause instanceof KernelBudgetSpent
+        ? new ProviderCapacityDeferred({
+            provider: "The Kernel spend guard",
+            detail: cause.message,
+          })
+        : KernelSessions.capacityDeferral(cause),
     unstopped: (id, cause) =>
       `Kernel browser ${id} was not deleted: ${String(cause)}. Kernel deletes it ${KERNEL_SESSION_TIMEOUT_SECONDS} seconds after its CDP connection closed; delete it with DELETE /browsers/${id} or in the Kernel dashboard to end billing sooner.`,
   },

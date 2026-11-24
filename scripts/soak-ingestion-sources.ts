@@ -66,6 +66,7 @@ import { TEARAPART_SITE_CONFIG } from "../src/server/ingestion/tap-sites";
 import { streamPullNSaveInventory } from "../src/server/ingestion/pullnsave-connector";
 import { streamWrenchApartInventory } from "../src/server/ingestion/wrenchapart-connector";
 import { streamUpullRPartsInventory } from "../src/server/ingestion/upullrparts-connector";
+import { soakUpullRPartsInventory } from "./soak-upullrparts";
 import { streamIPullUPullInventory } from "../src/server/ingestion/ipullupull-connector";
 import { streamUpullitwaInventory } from "../src/server/ingestion/upullitwa-connector";
 import { streamPartsGaloreInventory } from "../src/server/ingestion/partsgalore-connector";
@@ -265,6 +266,8 @@ function soakBrowserProvider(source: IngestionSource): BrowserProvider | null {
     case "six03":
     case "michigantruck":
       return BROWSER_PROVIDERS[source];
+    case "upullrparts":
+      return "kernel";
     default:
       return HYPERBROWSER_SOURCES.has(source) ? "hyperbrowser" : null;
   }
@@ -421,6 +424,16 @@ async function main(): Promise<void> {
       address text,
       resolution_version integer not null default 0,
       updated_at integer not null
+    );
+    -- U Pull R Parts meters its Kernel browsers (kernel-usage.ts). A soak
+    -- counts only its own browsers against the monthly budget, not
+    -- production's.
+    create table kernel_browser_usage (
+      id text primary key,
+      source text not null,
+      mode text not null,
+      started_at integer not null,
+      ended_at integer
     );
   `);
   const localDatabase = drizzle(localClient);
@@ -1347,7 +1360,9 @@ async function main(): Promise<void> {
               }),
             );
           case "upullrparts":
-            return runProgram(streamUpullRPartsInventory({ onBatch }));
+            return soakUpullRPartsInventory((startCursor) =>
+              runProgram(streamUpullRPartsInventory({ startCursor, onBatch })),
+            );
           case "pullnsave":
             return runProgram(
               streamPullNSaveInventory({

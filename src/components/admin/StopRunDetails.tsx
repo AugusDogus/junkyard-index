@@ -43,7 +43,7 @@ export function stopRunConsequences(
     "Vehicles it already published stay; its unpublished crawl data and any temporary search copy are discarded.",
     run.source === null
       ? "Its sources' next scheduled runs are started by the ingestion pass, on the code that pass started on."
-      : `${run.name}'s next scheduled retry comes ${RETRY_HOURS} hours after the stop while it has attempts left today (${IngestionSchedule.maxAttemptsPerDay} a day), otherwise in tomorrow's daily pass. Today's ingestion pass starts that retry on the code the pass started on, which may be older than current code.`,
+      : `${run.name}'s next scheduled retry comes ${RETRY_HOURS} hours after the stop while it has attempts left today (${IngestionSchedule.maxAttemptsPerDay(run.source)} a day), otherwise in tomorrow's daily pass. Today's ingestion pass starts that retry on the code the pass started on, which may be older than current code.`,
     ...(run.source !== null && run.deployment.kind === "other"
       ? [
           `This run is on another deployment (${run.deployment.deploymentId}), so a retry today may run that same old code. Use Stop and run again to restart it on current code now.`,

@@ -140,6 +140,160 @@ describe("durable ingestion repository", () => {
       testDatabase.cleanup();
     }
   });
+  test("rests a source crawled every third day after an accepted run, then starts it on its third day", async () => {
+    const { client, cleanup } = createTestClient();
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const repository = createDurableIngestionRepository(
+        drizzle(client),
+        client,
+        IngestionSnapshotStore.memory(),
+      );
+      const acceptedAt = Date.UTC(2026, 7, 21, 8, 30);
+      await client.execute({
+        sql: `insert into ingestion_run (
+          id, source, schedule_key, status, stage, started_at, last_progress_at,
+          completed_at, inventory_published_at
+        ) values ('accepted', 'upullrparts', '2026-08-21', 'success', 'released', ?, 0, ?, ?)`,
+        args: [Date.UTC(2026, 7, 21, 7), acceptedAt, acceptedAt],
+      });
+      await client.execute({
+        sql: `insert into ingestion_source_run (
+          id, run_id, source, status, acceptance_status, started_at
+        ) values ('accepted:upullrparts', 'accepted', 'upullrparts', 'success', 'accepted', ?)`,
+        args: [Date.UTC(2026, 7, 21, 7)],
+      });
+
+      const nextDay = await repository.prepareWakeup(
+        new Date("2026-08-22T07:00:00.000Z"),
+        ["upullrparts", "pyp"],
+      );
+      const pypRun = startedRun(nextDay);
+      expect((await repository.getRun(pypRun)).source).toBe("pyp");
+      await client.execute({
+        sql: "update ingestion_run set active_slot = null, status = 'success', completed_at = ?, inventory_published_at = ? where id = ?",
+        args: [Date.UTC(2026, 7, 22, 8), Date.UTC(2026, 7, 22, 8), pypRun],
+      });
+      await client.execute({
+        sql: "update ingestion_source_run set status = 'success', acceptance_status = 'accepted' where run_id = ?",
+        args: [pypRun],
+      });
+      // The resting source does not hold today's pass open.
+      expect(
+        await repository.prepareWakeup(new Date("2026-08-22T09:00:00.000Z"), [
+          "upullrparts",
+          "pyp",
+        ]),
+      ).toEqual({ status: "complete" });
+
+      const thirdDay = await repository.prepareWakeup(
+        new Date("2026-08-24T07:00:00.000Z"),
+        ["upullrparts"],
+      );
+      expect((await repository.getRun(startedRun(thirdDay))).source).toBe(
+        "upullrparts",
+      );
+    } finally {
+      cleanup();
+    }
+  });
+
+  test("rests a source crawled every third day from its accepted run's ingestion day when that run publishes after the next day's boundary", async () => {
+    const { client, cleanup } = createTestClient();
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const repository = createDurableIngestionRepository(
+        drizzle(client),
+        client,
+        IngestionSnapshotStore.memory(),
+      );
+      // Started in 2026-08-21's pass, published at 08:30 on 2026-08-22.
+      const startedAt = Date.UTC(2026, 7, 21, 7);
+      const publishedAt = Date.UTC(2026, 7, 22, 8, 30);
+      await client.execute({
+        sql: `insert into ingestion_run (
+          id, source, schedule_key, status, stage, started_at, last_progress_at,
+          completed_at, inventory_published_at
+        ) values ('late', 'upullrparts', '2026-08-21', 'success', 'released', ?, 0, ?, ?)`,
+        args: [startedAt, publishedAt, publishedAt],
+      });
+      await client.execute({
+        sql: `insert into ingestion_source_run (
+          id, run_id, source, status, acceptance_status, started_at
+        ) values ('late:upullrparts', 'late', 'upullrparts', 'success', 'accepted', ?)`,
+        args: [startedAt],
+      });
+
+      expect(
+        await repository.prepareWakeup(new Date("2026-08-22T09:00:00.000Z"), [
+          "upullrparts",
+        ]),
+      ).toEqual({ status: "complete" });
+      expect(
+        await repository.prepareWakeup(new Date("2026-08-23T07:00:00.000Z"), [
+          "upullrparts",
+        ]),
+      ).toEqual({ status: "complete" });
+      const thirdDay = await repository.prepareWakeup(
+        new Date("2026-08-24T07:00:00.000Z"),
+        ["upullrparts"],
+      );
+      expect((await repository.getRun(startedRun(thirdDay))).source).toBe(
+        "upullrparts",
+      );
+    } finally {
+      cleanup();
+    }
+  });
+
+  test("rests a source crawled every third day for a day after a failed crawl day, while a daily source retries the next day", async () => {
+    const { client, cleanup } = createTestClient();
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const repository = createDurableIngestionRepository(
+        drizzle(client),
+        client,
+        IngestionSnapshotStore.memory(),
+      );
+      for (const source of ["upullrparts", "pyp"]) {
+        const startedAt = Date.UTC(2026, 7, 21, 7);
+        await client.execute({
+          sql: `insert into ingestion_run (
+            id, source, schedule_key, status, stage, started_at, last_progress_at,
+            completed_at
+          ) values (?, ?, '2026-08-21', 'failed', 'sources', ?, 0, ?)`,
+          args: [`failed-${source}`, source, startedAt, startedAt + 3_600_000],
+        });
+        await client.execute({
+          sql: `insert into ingestion_source_run (
+            id, run_id, source, status, started_at
+          ) values (?, ?, ?, 'failed', ?)`,
+          args: [
+            `failed-${source}:${source}`,
+            `failed-${source}`,
+            source,
+            startedAt,
+          ],
+        });
+      }
+
+      const nextDay = await repository.prepareWakeup(
+        new Date("2026-08-22T07:00:00.000Z"),
+        ["upullrparts", "pyp"],
+      );
+      expect((await repository.getRun(startedRun(nextDay))).source).toBe("pyp");
+      const dayAfter = await repository.prepareWakeup(
+        new Date("2026-08-23T07:00:00.000Z"),
+        ["upullrparts"],
+      );
+      expect((await repository.getRun(startedRun(dayAfter))).source).toBe(
+        "upullrparts",
+      );
+    } finally {
+      cleanup();
+    }
+  });
+
   test("starts a manual run on a day whose attempts are used up, once at a time", async () => {
     const { client, cleanup } = createTestClient();
     try {
@@ -673,7 +827,7 @@ describe("durable ingestion repository", () => {
       });
       for (
         let attempt = 2;
-        attempt <= IngestionSchedule.maxAttemptsPerDay;
+        attempt <= IngestionSchedule.maxAttemptsPerDay("pyp");
         attempt += 1
       ) {
         const retry = startedRun(

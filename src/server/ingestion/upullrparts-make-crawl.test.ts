@@ -77,10 +77,11 @@ describe("crawlUpullRPartsMake", () => {
     expect(result.vehicles.every((vehicle) => vehicle.make === "Ford")).toBe(
       true,
     );
+    // Models are searched in label order, so a paused make resumes by label.
     expect(shop.calls.map((call) => call.models)).toEqual([
       "0",
-      "FOCUS",
       "ESCAPE",
+      "FOCUS",
       "TAURUS",
     ]);
   });
@@ -194,6 +195,166 @@ describe("crawlUpullRPartsMake", () => {
       expect(full.left.message).toContain("still returned 100");
   });
 
+  test("pauses inside a split make and resumes after its last searched model", async () => {
+    const stock: Row[] = [];
+    const shop = inventory(stock);
+    stock.push(
+      ...shop.assign("Ford", [
+        ...rows(40, { Model: "FOCUS" }, "F"),
+        ...rows(40, { Model: "ESCAPE" }, "E"),
+        ...rows(40, { Model: "TAURUS" }, "T"),
+      ]),
+    );
+    const models = directory({ Ford: ["TAURUS", "FOCUS", "ESCAPE"] });
+    let checks = 0;
+    const first = await Effect.runPromise(
+      crawlUpullRPartsMake("1", "Ford", shop.search, models, {
+        after: null,
+        shouldContinue: () => checks++ < 1,
+      }),
+    );
+    // Models run in label order; the first search of a chunk is always sent.
+    expect(first.progress).toEqual({
+      status: "paused",
+      at: { model: "FOCUS", year: null },
+    });
+    if (first.progress.status !== "paused") throw new Error("not paused");
+    const second = await Effect.runPromise(
+      crawlUpullRPartsMake("1", "Ford", shop.search, models, {
+        after: first.progress.at,
+        shouldContinue: () => true,
+      }),
+    );
+    expect(second.progress).toEqual({ status: "complete" });
+    const stocks = [...first.vehicles, ...second.vehicles].map(
+      (vehicle) => vehicle.record.StockNumber,
+    );
+    expect(stocks).toHaveLength(120);
+    expect(new Set(stocks).size).toBe(120);
+    expect(shop.calls.map((call) => call.models)).toEqual([
+      "0",
+      "ESCAPE",
+      "FOCUS",
+      "0",
+      "TAURUS",
+    ]);
+  });
+
+  test("resumes a year split after its last searched year", async () => {
+    const stock: Row[] = [];
+    const shop = inventory(stock);
+    stock.push(
+      ...shop.assign("Ford", [
+        ...rows(50, { Model: "FOCUS", Year: 2014 }, "A"),
+        ...rows(50, { Model: "FOCUS", Year: 2015 }, "B"),
+        ...rows(50, { Model: "FOCUS", Year: 2016 }, "C"),
+      ]),
+    );
+    const models = directory({ Ford: ["FOCUS"] }, ["2016", "2014", "2015"]);
+    const first = await Effect.runPromise(
+      crawlUpullRPartsMake("1", "Ford", shop.search, models, {
+        after: null,
+        shouldContinue: () => false,
+      }),
+    );
+    expect(first.progress).toEqual({
+      status: "paused",
+      at: { model: "FOCUS", year: "2014" },
+    });
+    if (first.progress.status !== "paused") throw new Error("not paused");
+    const second = await Effect.runPromise(
+      crawlUpullRPartsMake("1", "Ford", shop.search, models, {
+        after: first.progress.at,
+        shouldContinue: () => true,
+      }),
+    );
+    expect(second.progress).toEqual({ status: "complete" });
+    const stocks = [...first.vehicles, ...second.vehicles].map(
+      (vehicle) => vehicle.record.StockNumber,
+    );
+    expect(new Set(stocks).size).toBe(150);
+    expect(stocks).toHaveLength(150);
+    expect(
+      shop.calls.filter((call) => call.years !== "0").map((call) => call.years),
+    ).toEqual(["2014", "2015", "2016"]);
+  });
+
+  test("a resumed make that is no longer full emits only vehicles past the cursor", async () => {
+    const stock: Row[] = [];
+    const shop = inventory(stock);
+    stock.push(
+      ...shop.assign("Ford", [
+        ...rows(60, { Model: "ESCAPE" }, "E"),
+        ...rows(50, { Model: "FOCUS" }, "F"),
+      ]),
+    );
+    const models = directory({ Ford: ["ESCAPE", "FOCUS"] });
+    const first = await Effect.runPromise(
+      crawlUpullRPartsMake("1", "Ford", shop.search, models, {
+        after: null,
+        shouldContinue: () => false,
+      }),
+    );
+    expect(first.progress).toEqual({
+      status: "paused",
+      at: { model: "ESCAPE", year: null },
+    });
+    if (first.progress.status !== "paused") throw new Error("not paused");
+    // 20 FOCUS sell between chunks, so the make search is no longer full.
+    stock.splice(60, 20);
+    const second = await Effect.runPromise(
+      crawlUpullRPartsMake("1", "Ford", shop.search, models, {
+        after: first.progress.at,
+        shouldContinue: () => true,
+      }),
+    );
+    expect(second.progress).toEqual({ status: "complete" });
+    const stocks = [...first.vehicles, ...second.vehicles].map(
+      (vehicle) => vehicle.record.StockNumber,
+    );
+    expect(new Set(stocks).size).toBe(90);
+    expect(stocks).toHaveLength(90);
+  });
+
+  test("a resumed model that is no longer full emits only years past the cursor", async () => {
+    const stock: Row[] = [];
+    const shop = inventory(stock);
+    stock.push(
+      ...shop.assign("Ford", [
+        ...rows(50, { Model: "FOCUS", Year: 2014 }, "A"),
+        ...rows(50, { Model: "FOCUS", Year: 2015 }, "B"),
+        ...rows(10, { Model: "ESCAPE", Year: 2015 }, "E"),
+      ]),
+    );
+    const models = directory({ Ford: ["ESCAPE", "FOCUS"] }, ["2014", "2015"]);
+    let checks = 0;
+    const first = await Effect.runPromise(
+      crawlUpullRPartsMake("1", "Ford", shop.search, models, {
+        after: null,
+        shouldContinue: () => checks++ < 2,
+      }),
+    );
+    expect(first.progress).toEqual({
+      status: "paused",
+      at: { model: "FOCUS", year: "2014" },
+    });
+    if (first.progress.status !== "paused") throw new Error("not paused");
+    // 5 of the 2015 FOCUS sell, so FOCUS is no longer full but the make is.
+    stock.splice(50, 5);
+    const second = await Effect.runPromise(
+      crawlUpullRPartsMake("1", "Ford", shop.search, models, {
+        after: first.progress.at,
+        shouldContinue: () => true,
+      }),
+    );
+    expect(second.progress).toEqual({ status: "complete" });
+    const stocks = [...first.vehicles, ...second.vehicles].map(
+      (vehicle) => vehicle.record.StockNumber,
+    );
+    expect(new Set(stocks).size).toBe(105);
+    expect(stocks).toHaveLength(105);
+  });
+
   test("confirms an empty make once", async () => {
     const shop = inventory([]);
     const result = await Effect.runPromise(
@@ -207,22 +368,25 @@ describe("crawlUpullRPartsMake", () => {
 describe("crawlUpullRPartsMakes", () => {
   const makes = ["Kia", "Acura", "Ford", "Buick"];
   const empty = inventory([]);
+  const start = { phase: "crawl", afterMake: null } as const;
 
-  test("pauses after the last started make once the budget runs out", async () => {
+  test("pauses after the last finished make once the budget runs out", async () => {
     let checks = 0;
     const result = await Effect.runPromise(
       crawlUpullRPartsMakes({
         site: "1",
         makes,
-        afterMake: null,
+        resume: start,
         search: empty.search,
         directory: directory({}),
-        makeConcurrency: 1,
-        shouldStartMake: () => checks++ < 1,
+        shouldContinue: () => checks++ < 1,
       }),
     );
     expect(result.results).toHaveLength(2);
-    expect(result.progress).toEqual({ status: "paused", afterMake: "Buick" });
+    expect(result.progress).toEqual({
+      status: "paused",
+      resume: { phase: "crawl", afterMake: "Buick" },
+    });
   });
 
   test("resumes after a make and completes the location", async () => {
@@ -230,29 +394,74 @@ describe("crawlUpullRPartsMakes", () => {
       crawlUpullRPartsMakes({
         site: "1",
         makes,
-        afterMake: "Buick",
+        resume: { phase: "crawl", afterMake: "Buick" },
         search: empty.search,
         directory: directory({}),
-        makeConcurrency: 2,
-        shouldStartMake: () => true,
+        shouldContinue: () => true,
       }),
     );
     expect(result.results).toHaveLength(2);
     expect(result.progress).toEqual({ status: "complete" });
   });
 
-  test("always starts one make so a chunk makes progress", async () => {
+  test("pauses inside a make and resumes it before the next make", async () => {
+    const stock: Row[] = [];
+    const shop = inventory(stock);
+    stock.push(
+      ...shop.assign("Ford", [
+        ...rows(60, { Model: "ESCAPE" }, "E"),
+        ...rows(60, { Model: "FOCUS" }, "F"),
+      ]),
+      ...shop.assign("Kia", rows(3, { Model: "RIO" }, "K")),
+    );
+    const models = directory({ Ford: ["ESCAPE", "FOCUS"] });
+    const first = await Effect.runPromise(
+      crawlUpullRPartsMakes({
+        site: "1",
+        makes: ["Kia", "Ford"],
+        resume: start,
+        search: shop.search,
+        directory: models,
+        shouldContinue: () => false,
+      }),
+    );
+    expect(first.progress).toEqual({
+      status: "paused",
+      resume: { phase: "split", make: "Ford", model: "ESCAPE", year: null },
+    });
+    if (first.progress.status !== "paused") throw new Error("not paused");
+    const second = await Effect.runPromise(
+      crawlUpullRPartsMakes({
+        site: "1",
+        makes: ["Kia", "Ford"],
+        resume: first.progress.resume,
+        search: shop.search,
+        directory: models,
+        shouldContinue: () => true,
+      }),
+    );
+    expect(second.progress).toEqual({ status: "complete" });
+    const stocks = [...first.results, ...second.results].flatMap((result) =>
+      result.vehicles.map((vehicle) => vehicle.record.StockNumber),
+    );
+    expect(stocks).toHaveLength(123);
+    expect(new Set(stocks).size).toBe(123);
+  });
+
+  test("always finishes one step so a chunk makes progress", async () => {
     const result = await Effect.runPromise(
       crawlUpullRPartsMakes({
         site: "1",
         makes,
-        afterMake: null,
+        resume: start,
         search: empty.search,
         directory: directory({}),
-        makeConcurrency: 3,
-        shouldStartMake: () => false,
+        shouldContinue: () => false,
       }),
     );
-    expect(result.progress).toEqual({ status: "paused", afterMake: "Acura" });
+    expect(result.progress).toEqual({
+      status: "paused",
+      resume: { phase: "crawl", afterMake: "Acura" },
+    });
   });
 });

@@ -60,6 +60,8 @@ function recording(respond: (url: string, init: RequestInit) => Response) {
   return { request, requests };
 }
 
+const HEADLESS_DIRECT = { mode: "headless", egress: "direct" } as const;
+
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), {
     status,
@@ -74,7 +76,7 @@ test("a browser is created stealth and headless with direct egress and the inact
       headless: true,
     }),
   );
-  expect(await KernelSessions.create("key", request)).toEqual({
+  expect(await KernelSessions.create("key", HEADLESS_DIRECT, request)).toEqual({
     id: "k1",
     wsEndpoint: "wss://browser.kernel/k1",
   });
@@ -96,6 +98,42 @@ test("a browser is created stealth and headless with direct egress and the inact
   });
 });
 
+test("a headful browser on the stealth proxy is created with headless off and no direct egress", async () => {
+  const { request, requests } = recording(() =>
+    json(200, { session_id: "k2", cdp_ws_url: "wss://browser.kernel/k2" }),
+  );
+  await KernelSessions.create(
+    "key",
+    { mode: "headful", egress: "stealthProxy" },
+    request,
+  );
+  // Without `proxy`, `stealth` routes through Kernel's default stealth proxy.
+  expect(JSON.parse(String(requests[0]?.init.body))).toEqual({
+    stealth: true,
+    headless: false,
+    timeout_seconds: KERNEL_SESSION_TIMEOUT_SECONDS,
+  });
+});
+
+test("sources run headless with direct egress, except U Pull R Parts: headful, whose Turnstile crashes headless, on the stealth proxy, which mints its tokens faster", () => {
+  expect(
+    Object.fromEntries(
+      KERNEL_SOURCES.map((source) => [
+        source,
+        KernelSessions.browserProfile(source),
+      ]),
+    ),
+  ).toEqual({
+    bigd: HEADLESS_DIRECT,
+    northwest: HEADLESS_DIRECT,
+    six03: HEADLESS_DIRECT,
+    michigantruck: HEADLESS_DIRECT,
+    vanderhaags: HEADLESS_DIRECT,
+    upullitdavie: HEADLESS_DIRECT,
+    upullrparts: { mode: "headful", egress: "stealthProxy" },
+  });
+});
+
 test("a refused create carries Kernel's status, code and message", async () => {
   const { request } = recording(() =>
     json(429, {
@@ -104,9 +142,11 @@ test("a refused create carries Kernel's status, code and message", async () => {
         "org limit exceeded for unified_concurrent_sessions: limit=5, utilization=5, requested=1",
     }),
   );
-  const failure = await KernelSessions.create("key", request).catch(
-    (error: unknown) => error,
-  );
+  const failure = await KernelSessions.create(
+    "key",
+    HEADLESS_DIRECT,
+    request,
+  ).catch((error: unknown) => error);
   expect(failure).toEqual(
     new KernelApiError({
       operation: "create",
@@ -120,7 +160,9 @@ test("a refused create carries Kernel's status, code and message", async () => {
 
 test("a create response without a session or CDP URL fails instead of opening nothing", async () => {
   const { request } = recording(() => json(200, { session_id: "k1" }));
-  await expect(KernelSessions.create("key", request)).rejects.toThrow();
+  await expect(
+    KernelSessions.create("key", HEADLESS_DIRECT, request),
+  ).rejects.toThrow();
 });
 
 test("stopping deletes the browser, and a browser Kernel already deleted counts as stopped", async () => {
@@ -206,10 +248,12 @@ test("every ingestion module that creates a Kernel browser takes the Kernel leas
   // Session modules that drive their own page start a session through
   // `acquireSession`, which takes the lease itself; only document-transport.ts
   // calls a session lifecycle's `create` (not the Hyperbrowser SDK's
-  // `client.sessions.create`, which hyperbrowser-sessions.ts guards).
+  // `client.sessions.create`, which hyperbrowser-sessions.ts guards), besides
+  // kernel-usage.ts, whose `metered` wraps a lifecycle's `create` in one that
+  // `acquireSession` still starts under the lease.
   expect(
     sources
       .filter(([, source]) => /(?<![.\w])sessions\.create\(/.test(source ?? ""))
       .map(([file]) => file),
-  ).toEqual(["document-transport.ts"]);
+  ).toEqual(["document-transport.ts", "kernel-usage.ts"]);
 });
