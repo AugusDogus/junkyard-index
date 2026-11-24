@@ -1,13 +1,7 @@
-import { getSessionCookie } from "better-auth/cookies";
-import { headers } from "next/headers";
 import { Suspense } from "react";
 import { PricingPlansSection } from "~/components/marketing/PricingPlansSection";
 
-export async function HomePricing() {
-  const initialIsRegistered = Boolean(
-    getSessionCookie(new Headers(await headers())),
-  );
-
+export function HomePricing() {
   return (
     <section
       id="pricing"
@@ -28,10 +22,9 @@ export async function HomePricing() {
           </p>
         </div>
         <Suspense>
-          <PricingPlansSection
-            initialIsRegistered={initialIsRegistered}
-            sourcePage="home"
-          />
+          {/* src/proxy.ts sends signed-in visitors to /search, so the
+          landing page starts as a guest; the client session confirms. */}
+          <PricingPlansSection initialIsRegistered={false} sourcePage="home" />
         </Suspense>
       </div>
     </section>

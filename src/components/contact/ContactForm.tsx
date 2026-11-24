@@ -6,17 +6,25 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Textarea } from "~/components/ui/textarea";
+import { useSession } from "~/lib/auth-client";
 
 type FormState = "idle" | "submitting" | "success" | "error";
 
-export function ContactForm({ initialEmail = "" }: { initialEmail?: string }) {
+/** `email` is null until the visitor types one: the account's email shows. */
+type ContactFormData = { name: string; email: string | null; message: string };
+
+const EMPTY_FORM: ContactFormData = { name: "", email: null, message: "" };
+
+/**
+ * Served from the CDN, so a signed-in visitor's email comes from the client
+ * session once it loads, until they type their own.
+ */
+export function ContactForm() {
   const [formState, setFormState] = useState<FormState>("idle");
   const [errorMessage, setErrorMessage] = useState("");
-  const [formData, setFormData] = useState({
-    name: "",
-    email: initialEmail,
-    message: "",
-  });
+  const [formData, setFormData] = useState<ContactFormData>(EMPTY_FORM);
+  const { data: session } = useSession();
+  const email = formData.email ?? session?.user.email ?? "";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,9 +35,7 @@ export function ContactForm({ initialEmail = "" }: { initialEmail?: string }) {
       const response = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...formData,
-        }),
+        body: JSON.stringify({ ...formData, email }),
       });
 
       const data = await response.json();
@@ -43,11 +49,7 @@ export function ContactForm({ initialEmail = "" }: { initialEmail?: string }) {
       }
 
       setFormState("success");
-      setFormData({
-        name: "",
-        email: initialEmail,
-        message: "",
-      });
+      setFormData(EMPTY_FORM);
     } catch {
       setFormState("error");
       setErrorMessage("Failed to send message. Please try again.");
@@ -113,7 +115,7 @@ export function ContactForm({ initialEmail = "" }: { initialEmail?: string }) {
               type="email"
               placeholder="you@example.com"
               required
-              value={formData.email}
+              value={email}
               onChange={(e) =>
                 setFormData({ ...formData, email: e.target.value })
               }

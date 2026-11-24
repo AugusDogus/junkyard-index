@@ -17,6 +17,7 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import type { MapYard } from "./yard-map-data";
 import { YardDirectory } from "./YardDirectory";
+import { useApproximateLocation } from "~/hooks/use-approximate-location";
 import { sortYardsByDistance, type YardLocation } from "~/lib/yard-directory";
 import { cn } from "~/lib/utils";
 const YardLocationControls = lazy(() => import("./YardLocationControls"));
@@ -24,20 +25,17 @@ const YardLocationControls = lazy(() => import("./YardLocationControls"));
 type YardMapProps = {
   yards: MapYard[];
   vehicleCount: number;
-  approximateLocation: YardLocation | null;
-  compactMap: boolean;
 };
 
-export function YardMap({
-  yards,
-  vehicleCount,
-  approximateLocation,
-  compactMap,
-}: YardMapProps) {
+export function YardMap({ yards, vehicleCount }: YardMapProps) {
   const [filter, setFilter] = useState("");
   const [directoryOpen, setDirectoryOpen] = useState(false);
   const [selected, setSelected] = useState<MapYard | null>(null);
-  const [location, setLocation] = useState(approximateLocation);
+  const approximateLocation = useApproximateLocation();
+  // The location controls report the visitor's chosen location, which falls
+  // back to the approximate one; until they load, the approximate one sorts.
+  const [chosenLocation, setLocation] = useState<YardLocation | null>(null);
+  const location = chosenLocation ?? approximateLocation;
   const [locationMode, setLocationMode] = useState<
     "deferred" | "ready" | "request"
   >("deferred");
@@ -112,7 +110,6 @@ export function YardMap({
       <div className="homepage-map-layout border-ink grid grid-cols-[minmax(0,1fr)] overflow-hidden border-t-2 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="homepage-map-canvas relative isolate min-w-0">
           <YardMapCanvas
-            compact={compactMap}
             yards={yards}
             selected={selected}
             onSelect={setSelected}

@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import { ContactForm } from "~/components/contact/ContactForm";
 import { PageShell } from "~/components/PageShell";
-import { auth } from "~/lib/auth";
 
 export const metadata: Metadata = {
   title: "Contact",
@@ -11,14 +9,10 @@ export const metadata: Metadata = {
   alternates: { canonical: "/contact" },
 };
 
-export default async function ContactPage() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
+export default function ContactPage() {
   return (
-    <PageShell>
-      <ContactForm initialEmail={session?.user.email} />
+    <PageShell rendering="static">
+      <ContactForm />
     </PageShell>
   );
 }

@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { Footer } from "~/components/Footer";
-import { Header } from "~/components/Header";
+import { PublicHeader } from "~/components/PublicHeader";
 import { HomeSearchHero } from "~/components/home/HomeSearchHero";
 import { RecentVehicles } from "~/components/home/RecentVehicles";
 import {
@@ -25,7 +25,7 @@ export async function HomeLandingPage() {
 
   return (
     <div className="bg-background flex min-h-dvh flex-col">
-      <Header />
+      <PublicHeader />
       <main className="flex-1">
         <JsonLd
           nodes={[
@@ -93,7 +93,7 @@ export async function HomeLandingPage() {
         <HomePricing />
         <HomeClosingCta />
       </main>
-      <Footer />
+      <Footer status="link" />
     </div>
   );
 }

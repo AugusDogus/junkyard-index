@@ -18,12 +18,7 @@ test("hundreds of visible map pins share one Tab stop", () => {
     return { ...yard, ...getYardDetails(yard, null), path: null };
   });
   const html = renderToStaticMarkup(
-    <YardMapCanvas
-      yards={yards}
-      compact={false}
-      selected={null}
-      onSelect={() => {}}
-    />,
+    <YardMapCanvas yards={yards} selected={null} onSelect={() => {}} />,
   );
   const pins = html.match(/<button[^>]*class="yard-map-pin"[^>]*>/g) ?? [];
   expect(pins).toHaveLength(386);

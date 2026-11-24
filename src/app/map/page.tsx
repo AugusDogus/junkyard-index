@@ -1,5 +1,5 @@
 import { Footer } from "~/components/Footer";
-import { Header } from "~/components/Header";
+import { PublicHeader } from "~/components/PublicHeader";
 import {
   loadYardMapSection,
   YardMapSection,
@@ -8,13 +8,17 @@ import { mapMetadata } from "./map-metadata";
 
 export const metadata = mapMetadata;
 
+// Served from the CDN and rebuilt after each daily ingestion pass, which
+// invalidates the inventory cache tag. This is the fallback lifetime.
+export const revalidate = 86400;
+
 // src/proxy.ts sends signed-in visitors from "/" to /search; this page is
 // where they reach the yard map.
 export default async function MapPage() {
   const { inventory, section } = await loadYardMapSection();
   return (
     <div className="bg-background flex min-h-dvh flex-col">
-      <Header />
+      <PublicHeader />
       <main className="shell pt-6 pb-12 sm:pt-8">
         <div className="pb-5">
           <h1 className="text-[clamp(1.75rem,1.6vw+1rem,2.5rem)] leading-[1.04] font-extrabold">
@@ -27,7 +31,7 @@ export default async function MapPage() {
         </div>
         <YardMapSection {...section} />
       </main>
-      <Footer />
+      <Footer status="link" />
     </div>
   );
 }
