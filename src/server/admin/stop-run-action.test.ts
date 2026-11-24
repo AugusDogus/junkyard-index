@@ -193,6 +193,25 @@ describe("StopRunAction.perform", () => {
     );
   });
 
+  test("a workflow that had already finished is not sent for a hand cancel", async () => {
+    const result = await perform(
+      dependencies(crawling, {
+        abandon: async ({ runId }) => ({
+          status: "abandoned",
+          abandoned: { runId, workflowRunId: "wrun-1" },
+          workflowCancellation: "already_finished",
+          rebuildCleanup: "done",
+        }),
+      }),
+      { kind: "stop", runId: "run-1", force: false },
+    );
+    expect(result.status).toBe("done");
+    expect(result.message).toContain(
+      "Its workflow had already finished, and runs queued behind it can go ahead.",
+    );
+    expect(result.message).not.toContain("Vercel dashboard");
+  });
+
   test("a stop whose log write failed still reports the stop", async () => {
     const result = await perform(
       dependencies(crawling, {

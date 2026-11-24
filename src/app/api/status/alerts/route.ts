@@ -1,4 +1,5 @@
 import { db } from "~/lib/db";
+import { retryTursoRead } from "~/lib/turso-read-retry";
 import { AlertStatus } from "~/server/alerts/alert-status";
 import { DELIVERY_LEASE_MS } from "~/server/alerts/durable-alert-delivery-runtime";
 import { SearchAlertsFlag } from "~/server/alerts/search-alerts-flag";
@@ -10,7 +11,9 @@ export async function GET() {
   const now = new Date();
   const mode = await SearchAlertsFlag.mode();
   const status = AlertStatus.evaluate(
-    await AlertStatus.load(db, now, mode, DELIVERY_LEASE_MS),
+    await retryTursoRead(() =>
+      AlertStatus.load(db, now, mode, DELIVERY_LEASE_MS),
+    ),
     now,
   );
   return Response.json(status, {

@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { z } from "zod";
 
 const statusPageResponseSchema = z.object({
@@ -22,14 +23,14 @@ const STATE_STYLES = new Map<string, { dot: string; label: string }>([
 
 const FALLBACK_STATE = { dot: "bg-ink-3", label: "System status" };
 
-async function getAggregateState(
+async function loadAggregateState(
   statusPageUrl: string,
 ): Promise<{ dot: string; label: string } | null> {
   try {
     const response = await fetch(
       `${statusPageUrl.replace(/\/+$/, "")}/index.json`,
       {
-        next: { revalidate: 300 },
+        cache: "no-store",
         signal: AbortSignal.timeout(3000),
       },
     );
@@ -46,6 +47,21 @@ async function getAggregateState(
     return null;
   }
 }
+
+/**
+ * The status page's state, cached for five minutes. Cached here rather than
+ * in the fetch cache: Next revalidates a stale cached fetch in the background
+ * without its abort signal and logs any failure, so an unreachable status
+ * page waited out the 10 s connect timeout and logged on page renders. This
+ * loader never throws, so revalidating it logs nothing; a failed read shows
+ * the plain label until the next one. Bound so every route bundle shares one
+ * entry (see cacheInventory).
+ */
+export const getAggregateState = unstable_cache(
+  loadAggregateState.bind(null),
+  ["status-chip-state-v1"],
+  { revalidate: 300 },
+);
 
 export async function StatusChip({ statusPageUrl }: { statusPageUrl: string }) {
   const state = await getAggregateState(statusPageUrl);

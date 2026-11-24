@@ -58,6 +58,33 @@ const SCRIPT = `
     },
   });
 
+  // A Workflow that already finished answers the cancel with a conflict:
+  // the abandon succeeds without telling anyone to cancel it by hand.
+  const { EntityConflictError } = await import("workflow/internal/errors");
+  await client.execute({
+    sql: \`insert into ingestion_run (id, source, workflow_run_id, status, stage,
+      active_slot, execution_failures, started_at, last_progress_at)
+      values ('run-finished', 'row52', 'wf-2', 'running', 'full_reindex_load', 1, 0, ?, ?)\`,
+    args: [now, now],
+  });
+  // Rebuild cleanup logs its own Algolia failures; keep only Workflow ones.
+  const logged = [];
+  const consoleError = console.error;
+  console.error = (...args) => {
+    if (String(args[0]).includes("Workflow")) logged.push(String(args[0]));
+    else consoleError(...args);
+  };
+  const finished = await abandonDurableIngestion({
+    runId: "run-finished",
+    force: true,
+    cancelWorkflow: async (workflowRunId) => {
+      throw new EntityConflictError(
+        \`Cannot cancel run \${workflowRunId}: already finished with status failed\`,
+      );
+    },
+  });
+  console.error = consoleError;
+
   // The fifth failure abandons the run.
   await client.execute({
     sql: \`insert into ingestion_run (id, source, status, stage, active_slot,
@@ -74,6 +101,7 @@ const SCRIPT = `
     abandonment,
     again,
     cancelled,
+    finished: { workflowCancellation: finished.workflowCancellation, logged },
     deleteIndexCalls,
     runs: runs.rows.map((row) => [row.id, row.status]),
   }));
@@ -117,13 +145,16 @@ test.each([
         runStatus: "abandoned",
       },
       cancelled: [],
+      finished: { workflowCancellation: "already_finished", logged: [] },
       deleteIndexCalls: [
         "vehicles__rebuild_run-abandon",
+        "vehicles__rebuild_run-finished",
         "vehicles__rebuild_run-fail",
       ],
       runs: [
         ["run-abandon", "abandoned"],
         ["run-fail", "abandoned"],
+        ["run-finished", "abandoned"],
       ],
     });
   },

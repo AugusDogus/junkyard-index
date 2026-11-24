@@ -25,7 +25,7 @@ async function request(path: string): Promise<Outcome> {
       mock.module("~/lib/db", () => ({ db: {} }));
       const { TRPCError } = await import("@trpc/server");
       const { fetchRequestHandler } = await import("@trpc/server/adapters/fetch");
-      const { createTRPCContext, createTRPCRouter, publicProcedure } = await import(${JSON.stringify(MODULE)});
+      const { createTRPCContext, createTRPCRouter, protectedProcedure, publicProcedure } = await import(${JSON.stringify(MODULE)});
       const router = createTRPCRouter({
         vehicle: createTRPCRouter({
           missing: publicProcedure.query(() => {
@@ -34,6 +34,9 @@ async function request(path: string): Promise<Outcome> {
           broken: publicProcedure.query(() => {
             throw new Error("database unreachable");
           }),
+        }),
+        user: createTRPCRouter({
+          settings: protectedProcedure.query(() => "settings"),
         }),
       });
       const req = new Request("https://junkyardindex.com/api/trpc/${path}");
@@ -93,6 +96,13 @@ describe("tRPC error reporting", () => {
     expect(await request("vehicle.missing")).toEqual({
       status: 404,
       reported: ["Vehicle not found"],
+    });
+  });
+
+  test("a signed-out call to a protected procedure is a 401 and is not reported", async () => {
+    expect(await request("user.settings")).toEqual({
+      status: 401,
+      reported: [],
     });
   });
 
