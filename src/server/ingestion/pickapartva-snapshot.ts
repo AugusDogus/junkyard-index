@@ -69,6 +69,13 @@ export function pickapartvaSnapshotHash(
 }
 
 const cardKey = pickapartvaCardKey;
+/** A donor's valid VIN and native stock, the identities `bind` holds to one
+ * donor. */
+const identifiers = (record: PickapartvaRecord) => {
+  const vin = inventoryVin(record.vin, record.year);
+  const stock = pickapartvaStock(record.stock);
+  return [...(vin ? ["vin:" + vin] : []), ...(stock ? ["stock:" + stock] : [])];
+};
 
 /** A catalog card that repeats a native card already shown on an earlier page. */
 interface RepeatSlot {
@@ -119,6 +126,11 @@ function pickapartvaRepeatSlots(
       if (first === undefined) firstPage.set(key, entry.page.page);
       else if (first < entry.page.page)
         repeats.push({ page: entry.page.page, index, date: record.setDate });
+      // One page is one native query, so it can list a donor only once.
+      else
+        throw new Error(
+          `Pick-A-Part VA catalog lists one donor card twice on page ${entry.page.page} (stock ${record.stock}, Set Date ${record.setDate}), so its repeated slots cannot be counted`,
+        );
     });
   if (repeats.length && !ordered)
     throw new Error(
@@ -185,6 +197,19 @@ export function buildPickapartvaSnapshot(
   );
   const recovered = new Set<string>();
   for (const recovery of recoveries) {
+    // A card key holds stock, VIN and Set Date, so a search that lists a
+    // shown donor under another stock or VIN text would pass as hidden.
+    const dated = pages.flatMap((entry) =>
+      entry.page.records.filter((record) => record.setDate === recovery.date),
+    );
+    const held = new Set(dated.flatMap(identifiers));
+    const reused = recovery.hidden.find(({ record }) =>
+      identifiers(record).some((identifier) => held.has(identifier)),
+    );
+    if (reused)
+      throw new Error(
+        `Pick-A-Part VA recovered donor ${reused.record.stock || "without a stock"} for ${recovery.date} has the VIN or stock of a donor the catalog showed for that date under another card, so the set-date search no longer matches the catalog's donor cards and the hidden donor is unproven. Compare the ${reused.id} ${reused.make} search with the catalog cards of that VIN or stock`,
+      );
     const slots = repeats.filter((slot) => slot.date === recovery.date);
     slots.forEach((slot, index) => {
       const donor = recovery.hidden[index];

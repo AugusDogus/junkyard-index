@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { pickapartvaCardKey } from "./pickapartva-parser";
+import { PICKAPARTVA_MAX_REPLANS } from "./pickapartva-recovery";
 import { pickapartvaSnapshotHash } from "./pickapartva-snapshot";
 import {
   PICKAPARTVA_MAKE,
@@ -43,6 +44,38 @@ const MAX_SEARCHES =
 const step = z.object({ id: scope, make }).strict();
 const stepKey = (entry: { id: string; make: string }) =>
   `${entry.id}:${entry.make}`;
+
+/** Whether the searches and pending steps follow `PickapartvaRecovery`'s
+ * escalation: every yard first unless the date fills a search page, a yard
+ * only after that search was capped or skipped, a make only of a capped yard
+ * search, and a capped make search only as the one that resolved the date. */
+function escalates(entry: {
+  slots: number;
+  shown: string[];
+  searches: Array<{ id: string; make: string; capped: boolean }>;
+  pending: Array<{ id: string; make: string }>;
+}) {
+  const steps = [...entry.searches, ...entry.pending];
+  const capped = (id: string) =>
+    entry.searches.some(
+      (search) => search.id === id && search.make === "ANY" && search.capped,
+    );
+  const everyYard = entry.shown.length + entry.slots < PICKAPARTVA_PAGE_SIZE;
+  return (
+    (steps[0]?.id === "ANY") === everyYard &&
+    steps.every((step, index) =>
+      step.id === "ANY"
+        ? index === 0
+        : step.make === "ANY"
+          ? !everyYard || capped("ANY")
+          : capped(step.id),
+    ) &&
+    entry.searches.every(
+      (search) =>
+        search.make === "ANY" || !search.capped || entry.pending.length === 0,
+    )
+  );
+}
 
 /** See `PickapartvaRecovery`. */
 const recovery = z
@@ -95,7 +128,8 @@ const recovery = z
           (donor.make !== "ANY" && donor.record.make !== donor.make),
       ) ||
       hidden.length > entry.slots ||
-      (entry.pending.length === 0) !== (hidden.length === entry.slots)
+      (entry.pending.length === 0) !== (hidden.length === entry.slots) ||
+      !escalates(entry)
     )
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -124,6 +158,8 @@ export const PickapartvaCursorSchema = z
       .object({
         source: z.literal("pickapartva"),
         phase: z.literal("searches"),
+        // Censuses in a row that planned a date's searches again.
+        replans: z.number().int().min(0).max(PICKAPARTVA_MAX_REPLANS),
         recoveries: recoveries.refine(
           (entries) => entries.length > 0,
           "Pick-A-Part VA set-date recovery checkpoint has no Set Date",

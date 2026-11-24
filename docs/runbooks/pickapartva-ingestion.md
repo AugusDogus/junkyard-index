@@ -50,7 +50,8 @@ pages are rebuilt without repeating inventory callbacks.
   the epoch milliseconds of that catalog read (`startedAt`), the searches run
   so far (yard, make, URL, hash and whether it was capped), the hidden donors
   they found with the search that listed each, and the searches still
-  pending. It emits nothing.
+  pending, plus `replans`, how many censuses in a row planned a date again
+  (0 to 2). It emits nothing.
 - `pages`: whole-snapshot fingerprint, all ordered page URL/hash receipts,
   the set-date search date/URL/hash receipts, the resolved recoveries those
   searches came from, `lastPage`, `nextPage` and cumulative `processed`,
@@ -96,8 +97,15 @@ failed search discards that chunk's searches and the retry starts from the
 chunk's starting checkpoint. Once every recovery is resolved, the next chunk
 reads the catalog again. A recovery answers for that census only when the
 catalog shows its date with the same repeated slots and the same shown
-donors, and when it is at most 60 minutes old; any other tie date is planned
-again from that read. The published census then replaces each repeated slot
+donors, and when it is at most 60 minutes old (with its progress, resolved
+or not); any other tie date is planned again from that read. A search chunk
+whose recoveries include one past 60 minutes runs no search and reads the
+catalog again instead. A census that plans any date again adds one to
+`replans`; the third in a row fails as a transient rejection naming each date
+and why (newly repeated, shown donors or repeated slots changed, or searches
+older than 60 minutes), so a catalog that orders a tie differently on every
+read ends the crawl instead of searching forever. A resumed `pages`
+checkpoint whose recoveries no longer answer fails the same way. The published census then replaces each repeated slot
 with one recovered donor of its date and closes pages 1, 2 and the terminal
 page.
 
@@ -105,8 +113,8 @@ Each date's searches escalate and stop as soon as the date is recovered:
 
 1. The native search across every yard,
    `https://pickapartva.com/inventory/ANY/ANY/?k=1&id=ANY&search=YYYY-MM-DD`.
-   It is skipped when the catalog already shows 500 or more donors of that
-   date, since it would be capped.
+   It is skipped when the date's shown and hidden donors (shown donors plus
+   repeated slots) number 500 or more, since it would be capped.
 2. If that search was capped (or skipped), each yard in turn:
    `?k=1&id=TT87&search=YYYY-MM-DD` and `id=UU81`. A yard that set no donors
    that day answers with the native "No Results Found" page, as Stafford did
@@ -137,11 +145,19 @@ path (`ANY` for a yard search) and name only the searched yard in
 Results Found" page, which has no form and cannot reflect the Set Date. The
 search across every yard may not answer empty.
 
-Searches that list more unseen donors of a date than the catalog repeated, or
-run out of pending searches with fewer, mean the inventory changed between
-reads: the rejection is transient and a crawl later in the day can pass. If
-donors repeat while the catalog is no longer ordered by Set Date, the census
-fails because hidden donors cannot be located. Each recovered donor takes the
+Searches that list more unseen donors of a date than the catalog repeated
+mean the inventory changed between reads: the rejection is transient and a
+crawl later in the day can pass. Running out of pending searches with fewer
+is transient too. After a make split its message names both causes, an
+inventory change or a hidden donor of a make the native selector does not
+offer, and lists the makes searched per yard. It stays transient because a
+donor removed between the catalog read and the make searches looks the
+same, and that crawl can pass later in the day. If donors repeat while the
+catalog is no longer ordered by Set Date, or one page lists the same donor
+card twice, the census fails because hidden donors cannot be located or
+counted. A recovered donor whose valid VIN or native stock matches a donor
+the catalog showed for that date under another card fails the census as
+contract drift. Each recovered donor takes the
 repeated card's slot, so it is accounted once instead of as a duplicate, and
 its details link is the search that listed it with its stock fragment.
 
@@ -152,7 +168,7 @@ donors; that census still closes pages 1, 2 and the terminal page.
 
 The native make selector omits Tesla. A hidden Tesla donor is found only if a
 search across every yard or one yard lists it; otherwise its date runs out
-of searches and the rejection is transient.
+of searches and the transient rejection lists the makes searched.
 
 ## Required identity and optional metadata
 

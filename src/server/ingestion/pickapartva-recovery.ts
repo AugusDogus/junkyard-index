@@ -97,19 +97,55 @@ function splitMakes(
     .map(({ make }) => make);
 }
 
-const short = (recovery: PickapartvaRecovery, found: number) =>
-  `Pick-A-Part VA set-date searches for ${recovery.date} add ${found} donors, but the catalog repeated ${recovery.slots} cards of that date; the inventory changed between reads, so completeness is unproven`;
+/** At most this many censuses in a row may plan searches again because the
+ * catalog no longer showed a tie date as its recovery saw it. */
+export const PICKAPARTVA_MAX_REPLANS = 2;
+
+/** Why a census planned a tie date's searches again instead of reusing its
+ * saved recovery. */
+export type PickapartvaReplanReason = "new" | "changed" | "stale";
+export interface PickapartvaReplan {
+  date: string;
+  reason: PickapartvaReplanReason;
+}
+const replanReasons: Record<PickapartvaReplanReason, string> = {
+  new: "newly repeated",
+  changed: "shown donors or repeated slots changed",
+  stale: `searches older than ${PICKAPARTVA_RECOVERY_LIFETIME_MS / 60_000} minutes`,
+};
+
+const unproven = (recovery: PickapartvaRecovery, found: number) =>
+  `Pick-A-Part VA set-date searches for ${recovery.date} add ${found} donors, but the catalog repeated ${recovery.slots} cards of that date, so completeness is unproven`;
+
+/** Searches that ran out short. After a make split the missing donor may be
+ * of a make the native selector does not offer (Tesla), which no search
+ * reaches, so the message names both causes and the makes searched. */
+function shortfall(
+  recovery: PickapartvaRecovery,
+  found: number,
+  searched: readonly PickapartvaSearchStep[],
+) {
+  const splits = PICKAPARTVA_YARD_CODES.flatMap((id) => {
+    const makes = searched
+      .filter((step) => step.id === id && step.make !== "ANY")
+      .map((step) => step.make);
+    return makes.length ? [`${id}: ${makes.join(", ")}`] : [];
+  });
+  return splits.length
+    ? `${unproven(recovery, found)}. Either the inventory changed between reads, or a hidden donor's make is missing from the native make selector (${splits.join("; ")}). The source retries from a fresh catalog read within its daily attempts; if every attempt fails this way, compare the yard's donors on its set-date search with these makes`
+    : `${unproven(recovery, found)}. The inventory changed between reads; the source retries from a fresh catalog read within its daily attempts`;
+}
 
 export const PickapartvaRecovery = {
-  /** The first search for a tie date: every yard at once, unless the catalog
-   * already shows a full search page of the date, which would cap it. */
+  /** The first search for a tie date: every yard at once, unless the date's
+   * shown and hidden donors fill a search page, which would cap it. */
   plan: (tie: PickapartvaTie, startedAt: number): PickapartvaRecovery => ({
     ...tie,
     startedAt,
     searches: [],
     hidden: [],
     pending:
-      tie.shown.length < PICKAPARTVA_PAGE_SIZE
+      tie.shown.length + tie.slots < PICKAPARTVA_PAGE_SIZE
         ? [{ id: "ANY", make: "ANY" }]
         : yards(),
   }),
@@ -126,6 +162,44 @@ export const PickapartvaRecovery = {
   fresh: (recovery: PickapartvaRecovery, now: number) =>
     now >= recovery.startedAt &&
     now - recovery.startedAt <= PICKAPARTVA_RECOVERY_LIFETIME_MS,
+
+  /**
+   * The recoveries a census at `now` uses for its `ties`: each saved recovery
+   * that still matches its tie and is fresh, with its progress, and a new
+   * plan for every other tie, with why it was planned again.
+   */
+  reconcile: (
+    stored: readonly PickapartvaRecovery[],
+    ties: readonly PickapartvaTie[],
+    now: number,
+  ): { recoveries: PickapartvaRecovery[]; replans: PickapartvaReplan[] } => {
+    const replans: PickapartvaReplan[] = [];
+    const recoveries = ties.map((tie) => {
+      const saved = stored.find((recovery) => recovery.date === tie.date);
+      if (
+        saved &&
+        PickapartvaRecovery.matches(saved, tie) &&
+        PickapartvaRecovery.fresh(saved, now)
+      )
+        return saved;
+      replans.push({
+        date: tie.date,
+        reason:
+          saved === undefined
+            ? "new"
+            : PickapartvaRecovery.matches(saved, tie)
+              ? "stale"
+              : "changed",
+      });
+      return PickapartvaRecovery.plan(tie, now);
+    });
+    return { recoveries, replans };
+  },
+
+  describeReplans: (replans: readonly PickapartvaReplan[]) =>
+    replans
+      .map((replan) => `${replan.date} (${replanReasons[replan.reason]})`)
+      .join(", "),
 
   /**
    * Records the next pending search's result. Throws when the searches list
@@ -163,7 +237,11 @@ export const PickapartvaRecovery = {
     }
     const hidden = [...recovery.hidden, ...found];
     if (hidden.length > recovery.slots)
-      throw transientRejection(new Error(short(recovery, hidden.length)));
+      throw transientRejection(
+        new Error(
+          `${unproven(recovery, hidden.length)}. The inventory changed between reads; the source retries from a fresh catalog read within its daily attempts`,
+        ),
+      );
     const capped = result.status === "capped";
     let pending = rest;
     if (hidden.length === recovery.slots) pending = [];
@@ -186,7 +264,11 @@ export const PickapartvaRecovery = {
             ];
     }
     if (!pending.length && hidden.length < recovery.slots)
-      throw transientRejection(new Error(short(recovery, hidden.length)));
+      throw transientRejection(
+        new Error(
+          shortfall(recovery, hidden.length, [...recovery.searches, step]),
+        ),
+      );
     return {
       ...recovery,
       searches: [
