@@ -7,6 +7,6 @@ const config = document.getElementById("config")?.textContent;
 if (!root || !config)
   throw new Error("The yard map fixture page is missing #root or #config.");
 const props = z
-  .object({ compact: z.boolean(), width: z.number(), height: z.number() })
+  .object({ width: z.number(), height: z.number() })
   .parse(JSON.parse(config));
 hydrateRoot(root, <YardMapFixture {...props} />);

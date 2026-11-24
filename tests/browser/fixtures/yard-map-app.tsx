@@ -3,9 +3,8 @@ import YardMapCanvas from "~/components/home/YardMapCanvas";
 import type { MapYard } from "~/components/home/yard-map-data";
 import { getYardDetails } from "~/lib/yard-details";
 
-/** The server's size guess, and the container the map really gets. */
+/** The container the map really gets; the server always guesses 900 x 400. */
 export type YardMapFixtureProps = {
-  compact: boolean;
   width: number;
   height: number;
 };
@@ -30,23 +29,14 @@ const yards: MapYard[] = places.map((place) => {
   return { ...yard, ...getYardDetails(yard, null), path: null };
 });
 
-export function YardMapFixture({
-  compact,
-  width,
-  height,
-}: YardMapFixtureProps) {
+export function YardMapFixture({ width, height }: YardMapFixtureProps) {
   // Runs after the map's layout effect has measured its real size.
   useEffect(() => {
     document.body.dataset.hydrated = "";
   }, []);
   return (
     <div style={{ width, height }}>
-      <YardMapCanvas
-        yards={yards}
-        compact={compact}
-        selected={null}
-        onSelect={() => {}}
-      />
+      <YardMapCanvas yards={yards} selected={null} onSelect={() => {}} />
     </div>
   );
 }

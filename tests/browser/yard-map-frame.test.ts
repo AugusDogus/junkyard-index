@@ -107,10 +107,10 @@ async function framesAcrossHydration(props: YardMapFixtureProps) {
 }
 
 for (const [name, props] of [
-  // A desktop guess (900px) for what is really a phone-width map.
-  ["a narrow map guessed wide", { compact: false, width: 356, height: 285 }],
-  // A phone guess (360px) for what is really a wide map.
-  ["a wide map guessed narrow", { compact: true, width: 916, height: 512 }],
+  // The server's 900px guess for what is really a phone-width map.
+  ["a narrow map guessed wide", { width: 356, height: 285 }],
+  // The same guess for a wide map.
+  ["a wide map", { width: 916, height: 512 }],
 ] as const) {
   test(`${name} keeps its framing through hydration`, async () => {
     const { before, after } = await framesAcrossHydration(props);
