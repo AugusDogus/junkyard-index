@@ -65,7 +65,7 @@ export const BetterStackProviders = {
     });
     if (!response.ok)
       throw new Error(
-        `Pinging the ${INGESTION_SOURCE_DISPLAY_NAMES[params.source]} Better Stack progress heartbeat returned HTTP ${response.status}; the staged census is preserved. Inspect heartbeat delivery before the 30-hour window expires.`,
+        `Pinging the ${INGESTION_SOURCE_DISPLAY_NAMES[params.source]} Better Stack progress heartbeat returned HTTP ${response.status}; the staged census is preserved. Inspect heartbeat delivery before the heartbeat's period and grace run out.`,
       );
   },
   /** Parses BETTERSTACK_PROVIDERS: a JSON object of source to row settings. */
@@ -108,7 +108,7 @@ export const BetterStackProviders = {
       });
       if (!response.ok) {
         throw new Error(
-          `Pinging the ${name} Better Stack heartbeat returned HTTP ${response.status}; its status row turns red if pings stay missing for 30 hours.`,
+          `Pinging the ${name} Better Stack heartbeat returned HTTP ${response.status}; its status row turns red once pings stay missing past the heartbeat's period and grace.`,
         );
       }
     }

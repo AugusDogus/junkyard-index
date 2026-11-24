@@ -84,17 +84,18 @@ test("all-sources status is 200 when every active source is fresh", () => {
       status: "healthy",
       staleAfterHours: 36,
       checked: ACTIVE_INGESTION_SOURCES.length,
+      outageAfterStale: Math.ceil(ACTIVE_INGESTION_SOURCES.length * 0.2),
       paused: [],
       stale: [],
     },
   });
 });
 
-test("all-sources status is 503 and lists stale sources", () => {
+test("all-sources status is 200 degraded and lists a few stale sources", () => {
   expect(statusFor({ ...withoutAero, pyp: 40 }, [])).toMatchObject({
-    status: 503,
+    status: 200,
     body: {
-      status: "stale",
+      status: "degraded",
       stale: [
         {
           source: "pyp",
@@ -104,6 +105,21 @@ test("all-sources status is 503 and lists stale sources", () => {
         { source: "aero", name: "Aero Auto Parts", lastPublishedAt: null },
       ],
     },
+  });
+});
+
+test("all-sources status is 503 once a fifth of the checked sources are stale", () => {
+  const outageAfterStale = Math.ceil(ACTIVE_INGESTION_SOURCES.length * 0.2);
+  const staleSources = ACTIVE_INGESTION_SOURCES.slice(0, outageAfterStale);
+  const published = Object.fromEntries(
+    ACTIVE_INGESTION_SOURCES.map((source) => [
+      source,
+      staleSources.includes(source) ? 40 : 3,
+    ]),
+  );
+  expect(statusFor(published, [])).toMatchObject({
+    status: 503,
+    body: { status: "stale", outageAfterStale },
   });
 });
 
