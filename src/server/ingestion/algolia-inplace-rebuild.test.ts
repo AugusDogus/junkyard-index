@@ -213,6 +213,57 @@ describe("in-place full reindex", () => {
     }
   });
 
+  test("keeps a page's last stale record until the next page is read, so its cursor stays valid", async () => {
+    const setupResult = await setup({
+      turso: ["A", "C", "E"],
+      live: ["A", "B", "C", "D", "E"],
+      limit: 10,
+      browsePageSize: 2,
+      cursorMode: "anchored",
+    });
+    const { client, algolia } = setupResult;
+    try {
+      const { result } = await drive(setupResult);
+
+      expect(result.status).toBe("complete");
+      expect(algolia.objectIDs(INDEX)).toEqual(["A", "C", "E"]);
+      // One pass: B and D were each deleted after the page that follows them.
+      expect(
+        algolia.calls.filter((call) => call === `browse ${INDEX} start`),
+      ).toHaveLength(2);
+    } finally {
+      client.close();
+    }
+  });
+
+  test("restarts the pass when Algolia refuses a cursor whose last hit was deleted", async () => {
+    const setupResult = await setup({
+      turso: ["A", "C", "E"],
+      live: ["A", "C", "D", "E"],
+      limit: 10,
+      browsePageSize: 2,
+      cursorMode: "anchored",
+    });
+    const { client, algolia } = setupResult;
+    try {
+      // A sweep stored before this fix: B, its page's last hit, was deleted.
+      await client.execute({
+        sql: "update ingestion_run set stage = 'full_reindex_inplace_sweep', full_reindex_cursor = ? where id = ?",
+        args: [JSON.stringify({ pass: 1, browse: "B" }), RUN],
+      });
+
+      const { result } = await drive(setupResult);
+
+      expect(result.status).toBe("complete");
+      expect(algolia.objectIDs(INDEX)).toEqual(["A", "C", "E"]);
+      expect(
+        algolia.calls.filter((call) => call.startsWith("browse")).slice(0, 2),
+      ).toEqual([`browse ${INDEX} B`, `browse ${INDEX} start`]);
+    } finally {
+      client.close();
+    }
+  });
+
   test("resumes a sweep mid-pass without rereading earlier pages", async () => {
     const turso = vins("VIN", 120);
     const stale = vins("ZZZ", 30);
