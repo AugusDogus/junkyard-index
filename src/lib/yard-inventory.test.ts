@@ -300,31 +300,41 @@ describe("YardInventory.summary", () => {
     make("C", "FORD", null),
     make("D", "Other", "2026-11-17"),
     make("E", "FORD", "2026-10-02"),
+    // Only first seen this week: no known arrival, so never new.
+    YardInventory.vehicle(
+      row({
+        vin: "F",
+        availableDate: null,
+        observedArrivalAt: null,
+        firstSeenAt: Date.parse("2026-11-18T00:00:00Z"),
+      }),
+    ),
   ]);
 
   test("counts makes and new arrivals as the whole list does", () => {
     const summary = YardInventory.summary(yard);
-    expect(summary.total).toBe(5);
+    expect(summary.total).toBe(6);
     expect(summary.makes).toEqual(YardInventory.makeCounts(yard));
-    expect(
-      YardInventory.newArrivalsFrom(
-        YardInventory.yardArrivals(summary),
-        YardInventory.yardArrivals(summary),
-        now,
-      ),
-    ).toEqual(YardInventory.newArrivals(yard, yard, now));
+    const counted = YardInventory.newArrivalsFrom(
+      YardInventory.yardArrivals(summary),
+      YardInventory.yardArrivals(summary),
+      now,
+    );
+    expect(counted).toEqual({ kind: "counted", count: 2, since: now });
+    expect(counted).toEqual(YardInventory.newArrivals(yard, yard, now));
   });
 
   test("counts one make's new arrivals against the whole yard", () => {
     const summary = YardInventory.summary(yard);
     const hondas = yard.filter((vehicle) => vehicle.make === "Honda");
-    expect(
-      YardInventory.newArrivalsFrom(
-        YardInventory.makeArrivals(summary, "HONDA"),
-        YardInventory.yardArrivals(summary),
-        now,
-      ),
-    ).toEqual(YardInventory.newArrivals(hondas, yard, now));
+    const counted = YardInventory.newArrivalsFrom(
+      YardInventory.makeArrivals(summary, "HONDA"),
+      YardInventory.yardArrivals(summary),
+      now,
+    );
+    expect(counted).toEqual({ kind: "counted", count: 1, since: now });
+    expect(counted).toEqual(YardInventory.newArrivals(hondas, yard, now));
+    expect(YardInventory.makeArrivals(summary, "HONDA").total).toBe(3);
     expect(YardInventory.makeArrivals(summary, "TESLA")).toEqual({
       total: 0,
       knownAt: [],
