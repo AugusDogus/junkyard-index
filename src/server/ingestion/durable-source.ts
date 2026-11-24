@@ -6,7 +6,7 @@ import { VinplusCursor } from "./vinplus-cursor";
 import { UrgiisCursor } from "./urgiis-cursor";
 import type { ConnectorChunkStatus } from "./connector-chunk";
 import { CstruckCursor } from "./cstruck-cursor";
-import { ByotCursor } from "./byot-cursor";
+import { BYOT_CHUNK_REQUESTS, ByotCursor } from "./byot-cursor";
 import { AlliedCursor } from "./allied-cursor";
 import { ALLIED_CONTRACT } from "./allied-configuration";
 import { PontiacCursor } from "./pontiac-cursor";
@@ -660,7 +660,7 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   },
   byot: {
     initialCursor: ByotCursor.initial(),
-    maxPagesPerChunk: 8,
+    maxPagesPerChunk: BYOT_CHUNK_REQUESTS,
     terminal: COMPLETE_PHASE,
   },
   vinplus: {

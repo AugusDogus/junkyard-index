@@ -5,7 +5,7 @@ import { loadByotPublishedCursor } from "./byot-history";
 import { ByotCursor } from "./byot-cursor";
 import { byotTerminal, byotValue } from "./byot-test-fixtures";
 
-test("weekly sweep resumes only from the latest accepted inventory-published terminal cursor", async () => {
+test("the daily sweep resumes only from the latest accepted inventory-published terminal cursor", async () => {
   const client = createClient({ url: ":memory:" });
   const database = drizzle(client);
   try {

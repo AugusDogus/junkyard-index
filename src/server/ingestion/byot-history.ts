@@ -2,7 +2,7 @@ import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { ByotCursor } from "./byot-cursor";
 import { SourcePublication } from "./source-publication";
 
-/** Failed, partial and unpublished runs cannot advance the weekly sweep.
+/** Failed, partial and unpublished runs cannot seed the next daily sweep.
  * The terminal cursor survives snapshot cleanup in ingestion_source_run. */
 export async function loadByotPublishedCursor(
   database: LibSQLDatabase,

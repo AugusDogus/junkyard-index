@@ -1,11 +1,11 @@
 import {
+  BYOT_CHUNK_REQUESTS,
   ByotCursor,
   BYOT_RUN_REQUESTS,
 } from "../src/server/ingestion/byot-cursor";
 import type { ByotStreamResult } from "../src/server/ingestion/byot-connector";
 
-/** Count-only daily slice. Pass the previous terminal cursor to resume next
- * day's sweep. No database, Blob, Algolia or feature-flag writes. */
+/** Count-only daily sweep. No database, Blob, Algolia or feature-flag writes. */
 export async function soakByotInventory(
   runChunk: (cursor: ByotCursor, maxPages: number) => Promise<ByotStreamResult>,
   maxRequests = BYOT_RUN_REQUESTS,
@@ -17,7 +17,7 @@ export async function soakByotInventory(
   while (pagesProcessed < maxRequests) {
     const chunk = await runChunk(
       cursor,
-      Math.min(8, maxRequests - pagesProcessed),
+      Math.min(BYOT_CHUNK_REQUESTS, maxRequests - pagesProcessed),
     );
     const wire = ByotCursor.serialize(chunk.cursor);
     if (!wire.ok) throw new Error(wire.error.message);
