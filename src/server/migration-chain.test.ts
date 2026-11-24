@@ -41,6 +41,7 @@ const LEGACY_SCHEMA = `
     lat real not null default 0,
     lng real not null default 0,
     details_url text,
+    available_date text,
     first_seen_at integer not null default 0,
     missing_since_at integer
   );

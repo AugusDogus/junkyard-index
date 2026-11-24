@@ -1,4 +1,5 @@
 import type { InStatement } from "@libsql/client";
+import { stateRecentArrivalRefreshStatements } from "./state-recent-arrival";
 
 const columns = `source, location_code, location_name, location_city, state_abbr,
   lat, lng, vehicle_count, inventory_url, updated_at`;
@@ -31,7 +32,10 @@ export function yardInventoryInsertSql(sourceFilter: string) {
   `;
 }
 
-/** Rebuild summaries without changing their last accepted publication. */
+/**
+ * Rebuild summaries without changing their last accepted publication. Each
+ * source's recent arrivals, which state pages count, rebuild with them.
+ */
 export function yardInventoryRefreshStatements(
   sources: readonly string[],
   now: number,
@@ -40,6 +44,7 @@ export function yardInventoryRefreshStatements(
   if (unique.length === 0) return [];
   const placeholders = unique.map(() => "?").join(", ");
   return [
+    ...stateRecentArrivalRefreshStatements(unique, now),
     {
       sql: `delete from yard_inventory where source in (${placeholders})
         and not exists (select 1 from vehicle indexed by vehicle_yard_live_idx
