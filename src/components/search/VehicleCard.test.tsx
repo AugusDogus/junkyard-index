@@ -146,6 +146,15 @@ describe("search card details", () => {
     expect(html).toContain("Select make and model");
   });
 
+  test("shows a one-line manual search instruction without folding it", () => {
+    const html = card({
+      source: "vinplus",
+      detailsUrl: "https://vinplus.texnrewards.com/parts/pick-ur-part",
+    });
+    expect(html).not.toContain("<details");
+    expect(html).toContain("Match the VIN, stock number and physical yard.");
+  });
+
   test("gives the provider link vehicle and new-tab context", () => {
     expect(card()).toContain(
       'aria-label="View inventory for the 2012 Honda Civic (opens in a new tab)"',

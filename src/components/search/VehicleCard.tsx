@@ -18,6 +18,11 @@ import { VehicleDestination } from "~/lib/vehicle-destination";
 import { VehicleName } from "~/lib/vehicle-name";
 import { useHiddenSources } from "~/components/HiddenSourcesContext";
 
+// About one line of small text on the narrowest card. Shorter manual search
+// instructions ("Match the VIN, stock number and physical yard.") stay
+// visible; folding them would hide less than the disclosure takes.
+const ONE_LINE_INSTRUCTION = 50;
+
 function VehicleCardComponent({
   vehicle,
   priority = false,
@@ -178,26 +183,29 @@ function VehicleCardComponent({
       </div>
 
       <div className="flex flex-col items-stretch gap-2 p-3 pt-0 sm:p-4 sm:pt-0">
-        {destination.kind === "unavailable" && (
+        {(destination.kind === "unavailable" ||
+          (destination.kind === "manual-search" &&
+            destination.explanation.length <= ONE_LINE_INSTRUCTION)) && (
           <p className="text-muted-foreground text-xs text-pretty">
             {destination.explanation}
           </p>
         )}
-        {destination.kind === "manual-search" && (
-          // Steps repeat on every card from the provider, so they stay folded.
-          <details className="group text-xs">
-            <summary className="text-muted-foreground hover:text-ink focus-visible:outline-focus flex min-h-6 cursor-pointer list-none items-center gap-1 outline-none focus-visible:outline-2 focus-visible:outline-solid [&::-webkit-details-marker]:hidden">
-              <ChevronRight
-                aria-hidden="true"
-                className="size-3.5 shrink-0 transition-transform group-open:rotate-90"
-              />
-              How to find this vehicle
-            </summary>
-            <p className="text-muted-foreground mt-1 text-pretty">
-              {destination.explanation}
-            </p>
-          </details>
-        )}
+        {destination.kind === "manual-search" &&
+          destination.explanation.length > ONE_LINE_INSTRUCTION && (
+            // Steps repeat on every card from the provider, so they stay folded.
+            <details className="group text-xs">
+              <summary className="text-muted-foreground hover:text-ink focus-visible:outline-focus flex min-h-6 cursor-pointer list-none items-center gap-1 outline-none focus-visible:outline-2 focus-visible:outline-solid [&::-webkit-details-marker]:hidden">
+                <ChevronRight
+                  aria-hidden="true"
+                  className="size-3.5 shrink-0 transition-transform group-open:rotate-90"
+                />
+                How to find this vehicle
+              </summary>
+              <p className="text-muted-foreground mt-1 text-pretty">
+                {destination.explanation}
+              </p>
+            </details>
+          )}
         {destination.kind !== "inventory" && (
           <>
             {vin && (
