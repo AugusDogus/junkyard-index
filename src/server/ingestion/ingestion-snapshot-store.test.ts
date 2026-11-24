@@ -45,7 +45,7 @@ test("Blob delete makes no request for no chunks", async () => {
   expect(requests).toBe(0);
 });
 
-function blobResponse(pathname: string, body: Uint8Array) {
+function blobResponse(pathname: string, body: Uint8Array<ArrayBuffer>) {
   return {
     statusCode: 200 as const,
     stream: new Blob([body]).stream(),
@@ -67,8 +67,8 @@ function blobResponse(pathname: string, body: Uint8Array) {
 /** A Blob SDK whose reads fail with these HTTP statuses before succeeding. */
 async function flakyBlobStore(statuses: readonly number[]) {
   const pathname = "ingestion-runs/run/hollanderstores/chunk-AbC123.json.gz";
-  const body = gzipSync(
-    JSON.stringify({ vehicles: [], observedVins: ["VIN1"] }),
+  const body = new Uint8Array(
+    gzipSync(JSON.stringify({ vehicles: [], observedVins: ["VIN1"] })),
   );
   const failures = [...statuses];
   const sleeps: number[] = [];
