@@ -18,18 +18,21 @@ export function hasMapCoordinates(location: YardLocation) {
   );
 }
 
-/** Below this width, the map frames the lower 48 for phones. */
+/**
+ * Below this width, the map frames the lower 48 for phones. The map's
+ * `@max-[640px]` container query must match it.
+ */
 const NARROW_WIDTH = 640;
 // The zoom and fullscreen buttons' column at the map's right edge.
 const NARROW_CONTROLS = 56;
 
 /** Whether a map this wide frames the lower 48 instead of every yard. */
-export function isNarrowYardMap(width: number): boolean {
+function isNarrowYardMap(width: number): boolean {
   return width < NARROW_WIDTH;
 }
 
 /** Pixels at the right edge the overview keeps pins out of, for the controls. */
-export function yardMapControlsInset(width: number): number {
+function yardMapControlsInset(width: number): number {
   return isNarrowYardMap(width) ? NARROW_CONTROLS : 0;
 }
 
@@ -57,6 +60,37 @@ export function getYardMapBounds(
   const right = Math.max(southeast.x, ...points.map((point) => point.x)) + 1;
   const bottom = Math.max(southeast.y, ...points.map((point) => point.y)) + 1;
   return { left, top, width: right - left, height: bottom - top };
+}
+
+/** A CSS scale and offset for a map drawn at one view to show another. */
+export type YardMapFitCss = { scale: string; x: string; y: string };
+
+/**
+ * CSS that makes a map drawn at `drawn`, the view for a guessed size, show
+ * the narrow or wide overview `getYardMapView` gives the map's real size.
+ * It reads that size from the container (`cqw`, `cqh`), so it is right
+ * before any script measures it. The offset applies after the scale.
+ */
+export function getYardMapFitCss(
+  locations: readonly YardLocation[],
+  drawn: YardMapView,
+  narrow: boolean,
+): YardMapFitCss {
+  const bounds = getYardMapBounds(locations, narrow);
+  const controls = narrow ? NARROW_CONTROLS : 0;
+  // Pixels per projected unit, as getYardMapView's clamped zoom gives them.
+  const fit = `clamp(0.5, min(calc((100cqw - ${32 + controls}px) / ${bounds.width}px), calc((100cqh - 32px) / ${bounds.height}px)), 32)`;
+  const center = projectYardLocation({
+    lat: drawn.center[0],
+    lng: drawn.center[1],
+  });
+  const dx = center.x - (bounds.left + bounds.width / 2);
+  const dy = center.y - (bounds.top + bounds.height / 2);
+  return {
+    scale: `calc(${fit} / ${2 ** (drawn.zoom - 2)})`,
+    x: `calc(${dx}px * ${fit} - ${controls / 2}px)`,
+    y: `calc(${dy}px * ${fit})`,
+  };
 }
 
 export type YardMapView = { center: [number, number]; zoom: number };

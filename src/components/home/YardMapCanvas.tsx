@@ -20,11 +20,9 @@ import {
 import { Button } from "~/components/ui/button";
 import type { MapYard } from "./yard-map-data";
 import {
+  getYardMapFitCss,
   getYardMapView,
-  getYardMapBounds,
   hasMapCoordinates,
-  isNarrowYardMap,
-  yardMapControlsInset,
 } from "~/lib/yard-map-projection";
 
 const YardMapCanvas = memo(function YardMapCanvas({
@@ -91,22 +89,31 @@ const YardMapCanvas = memo(function YardMapCanvas({
   }, [loading]);
 
   const current = view ?? overview;
-  const narrow = isNarrowYardMap(size.width);
-  const bounds = useMemo(
-    () => getYardMapBounds(yards, narrow),
-    [yards, narrow],
+  // Match getYardMapView's narrow or wide overview before the actual size is
+  // known. A container query picks the frame, so a wrong size guess does
+  // not change the framing on hydration.
+  const fit = useMemo(
+    () =>
+      view
+        ? null
+        : {
+            wide: getYardMapFitCss(yards, overview, false),
+            narrow: getYardMapFitCss(yards, overview, true),
+          },
+    [yards, overview, view],
   );
-  // Match getYardMapView's geographic fit before the actual size is known.
-  // Scaling the estimated viewport instead changes the framing on hydration.
-  const controls = yardMapControlsInset(size.width);
-  const fitScale = `calc(clamp(0.5, min(calc((100cqw - ${32 + controls}px) / ${bounds.width}px), calc((100cqh - 32px) / ${bounds.height}px)), 32) / ${2 ** (overview.zoom - 2)})`;
   const mapStyle = {
     width: size.width,
     height: size.height,
-    translate: "-50% -50%",
+    translate: "calc(-50% + var(--yard-map-x)) calc(-50% + var(--yard-map-y))",
     scale: "var(--yard-map-scale)",
-    "--yard-map-scale": view ? "1" : fitScale,
-  } satisfies CSSProperties & { "--yard-map-scale": string };
+    "--yard-map-wide-scale": fit?.wide.scale ?? "1",
+    "--yard-map-wide-x": fit?.wide.x ?? "0px",
+    "--yard-map-wide-y": fit?.wide.y ?? "0px",
+    "--yard-map-narrow-scale": fit?.narrow.scale ?? "1",
+    "--yard-map-narrow-x": fit?.narrow.x ?? "0px",
+    "--yard-map-narrow-y": fit?.narrow.y ?? "0px",
+  } satisfies CSSProperties & Record<`--yard-map-${string}`, string>;
 
   useLayoutEffect(() => {
     const container = containerRef.current;
@@ -202,7 +209,8 @@ const YardMapCanvas = memo(function YardMapCanvas({
       }}
     >
       <div
-        className="absolute top-1/2 left-1/2"
+        // 640px is the narrow width in yard-map-projection.
+        className="absolute top-1/2 left-1/2 [--yard-map-scale:var(--yard-map-wide-scale)] [--yard-map-x:var(--yard-map-wide-x)] [--yard-map-y:var(--yard-map-wide-y)] @max-[640px]:[--yard-map-scale:var(--yard-map-narrow-scale)] @max-[640px]:[--yard-map-x:var(--yard-map-narrow-x)] @max-[640px]:[--yard-map-y:var(--yard-map-narrow-y)]"
         style={mapStyle}
         aria-busy={loading}
       >
