@@ -1,4 +1,8 @@
-import { ingestionValidation } from "./ingestion-validation";
+import {
+  ingestionValidation,
+  transientRejection,
+  validationRejectionKind,
+} from "./ingestion-validation";
 import { Effect, Option } from "effect";
 import { VINPLUS_TENANTS } from "./vinplus-configuration";
 import { VinplusCursor, VINPLUS_MAX_REQUESTS } from "./vinplus-cursor";
@@ -25,14 +29,20 @@ export type VinplusStreamResult = ConnectorChunkResult<
   "vinplus",
   VinplusCursor
 >;
+/** Keeps a transient mark from the protocol, such as a stale year
+ * distribution, so the source retries later the same day. */
 const validated = <T>(operation: string, run: () => T) =>
   ingestionValidation({
     try: run,
-    catch: (cause) =>
-      VinplusError.create(
+    catch: (cause) => {
+      const error = VinplusError.create(
         operation,
         cause instanceof Error ? cause.message : String(cause),
-      ),
+      );
+      return validationRejectionKind(cause) === "transient"
+        ? transientRejection(error)
+        : error;
+    },
   });
 export function streamVinplusInventory<E, R>(options: VinplusOptions<E, R>) {
   return Effect.gen(function* () {

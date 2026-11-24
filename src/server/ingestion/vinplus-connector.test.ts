@@ -1,5 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { Effect, Either } from "effect";
+import { z } from "zod";
+import { validationRejectionKind } from "./ingestion-validation";
 import { VINPLUS_API, VINPLUS_TENANTS } from "./vinplus-configuration";
 import { VinplusCursor, VINPLUS_MAX_CURSOR_BYTES } from "./vinplus-cursor";
 import { streamVinplusInventory } from "./vinplus-connector";
@@ -347,3 +349,50 @@ test("VinPlus keeps advancing when every API request waits minutes for a shared 
   // Two queued turns per chunk; the app pages around them are not queued.
   expect(pages).toEqual([3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 4]);
 }, 120_000);
+
+test("a year distribution too stale to vouch for a yard rejects the crawl as transient", async () => {
+  const [app, config, , opening] = vinplusCensus()[0] ?? [];
+  if (!app || !config || !opening) throw new Error("Missing Pocatello fixture");
+  const matches = z
+    .object({ matches: z.array(z.record(z.unknown())) })
+    .passthrough()
+    .parse(JSON.parse(opening))
+    .matches.slice(0, 10)
+    .map((record) => ({ ...record, year: 2000 }));
+  // The cached distribution still counts 20 vehicles; live search has 10.
+  const analytics = JSON.stringify({
+    success: true,
+    data: { current_count: 20, by_year: [{ year: "2000", count: 20 }] },
+  });
+  const search = JSON.stringify({
+    success: true,
+    match_count: matches.length,
+    matches,
+    search_criteria: {
+      yard_id: "u_pull_auto_parts_pocatello",
+      year_min: 2000,
+      year_max: 2000,
+      make: null,
+      model: null,
+    },
+  });
+  const bodies = [app, config, analytics, search];
+  let requests = 0;
+  const result = await Effect.runPromise(
+    Effect.either(
+      streamVinplusInventory({
+        maxPages: 16,
+        readControl: () => {
+          const body = bodies[requests++];
+          return body === undefined
+            ? Effect.die(new Error("Unexpected extra request"))
+            : Effect.succeed(body);
+        },
+        onBatch: () => Effect.void,
+      }),
+    ),
+  );
+  if (Either.isRight(result)) throw new Error("Stale distribution passed");
+  expect(result.left.message).toContain("exceeds the 10% lag limit");
+  expect(validationRejectionKind(result.left)).toBe("transient");
+}, 30_000);

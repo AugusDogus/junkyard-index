@@ -105,6 +105,16 @@ function* supplementRanges(
     }
   }
 }
+/** Literal make selectors from a capped discovery response, which supplies
+ * selectors only and never donors. */
+function discoveredMakes(records: readonly VinplusRecord[]): string[] {
+  const literals = [
+    ...new Set(records.map((record) => vinplusOptionalText(record.make))),
+  ];
+  if (literals.some((make) => make === null))
+    throw new Error("Capped year discovery lacks a literal make selector");
+  return z.array(z.string().min(1).max(100)).min(1).parse(literals).sort();
+}
 function app(raw: string) {
   if (
     !/<\/html>\s*$/i.test(raw) ||
@@ -172,38 +182,53 @@ function* traversal(
       throw new Error(
         "Large-year discovery changed the verified 100-record cap",
       );
-    const literals = [
-      ...new Set(records.map((record) => vinplusOptionalText(record.make))),
-    ];
-    if (literals.some((make) => make === null))
-      throw new Error("Large-year discovery lacks a literal make selector");
-    makes.set(
-      row.year,
-      z.array(z.string().min(1).max(100)).min(1).parse(literals).sort(),
-    );
+    makes.set(row.year, discoveredMakes(records));
   }
-  const ranges = vinplusRanges(counts, makes);
   const pages: VinplusRecord[][] = [];
   const union = VinplusRecordUnion.create();
-  for (const range of ranges) {
-    const records = yield* readRange(tenant, range);
-    // The year distribution lags live search, so coverage keeps surplus rows.
-    // A null-make response at the cap above its advertised total may be
-    // silently truncated; only an exact advertised 100 remains admissible.
-    const planned = counts.years
-      .filter((row) => row.year >= range.min && row.year <= range.max)
-      .reduce((sum, row) => sum + row.count, 0);
-    if (
-      range.make === null &&
-      records.length >= 100 &&
-      records.length > planned
-    )
-      throw new Error(
-        `${tenant.yardId} ${range.min}-${range.max}: public query reached the silent 100-record cap above its ${planned} advertised rows because the year distribution is stale; retry after it refreshes or requalify narrower controls`,
-      );
+  const ranges: VinplusRange[] = [];
+  // Years an uncapped null-make search answered whole, and years whose
+  // single-year null-make search reached the cap above a stale distribution.
+  const complete = new Set<number>();
+  const split: number[] = [];
+  const admit = (range: VinplusRange, records: VinplusRecord[]) => {
+    ranges.push(range);
     pages.push(records);
     union.add(records);
+  };
+  /** The year distribution lags live search, so coverage keeps surplus rows.
+   * A null-make response at the silent 100-record cap may be truncated
+   * whatever the distribution advertises. It is discovery only, never
+   * admitted or replayed: its range is bisected by year, and a capped single
+   * year is read by its literal makes like a large year. */
+  function* readPlanned(
+    range: VinplusRange,
+  ): Generator<VinplusControl, void, string> {
+    const records = yield* readRange(tenant, range);
+    if (range.make === null && records.length < 100)
+      for (let year = range.min; year <= range.max; year++) complete.add(year);
+    if (range.make !== null || records.length < 100) {
+      admit(range, records);
+      return;
+    }
+    if (records.length !== 100)
+      throw new Error(
+        `${tenant.yardId} ${range.min}-${range.max}: null-make search returned ${records.length} rows, so the verified 100-record cap changed; requalify the year controls`,
+      );
+    if (range.min < range.max) {
+      const middle = Math.floor((range.min + range.max) / 2);
+      yield* readPlanned({ min: range.min, max: middle, make: null });
+      yield* readPlanned({ min: middle + 1, max: range.max, make: null });
+      return;
+    }
+    split.push(range.min);
+    for (const make of discoveredMakes(records))
+      admit(
+        { min: range.min, max: range.min, make },
+        yield* readRange(tenant, { min: range.min, max: range.min, make }),
+      );
   }
+  for (const range of vinplusRanges(counts, makes)) yield* readPlanned(range);
   // A capped year can omit a make entirely. Supplement its discovered makes
   // with literal makes observed in the rest of this tenant's opening census.
   const allMakes = [
@@ -214,18 +239,18 @@ function* traversal(
         .filter((make) => make !== null),
     ),
   ].sort();
-  yield* supplementRanges(
-    tenant,
-    counts.years.filter((row) => row.count > 100),
-    allMakes,
-    ranges,
-    pages,
-    union,
-  );
+  const partitioned = [
+    ...counts.years.filter((row) => row.count > 100),
+    ...split.map((year) => ({
+      year,
+      count: counts.years.find((row) => row.year === year)?.count ?? 0,
+    })),
+  ].sort((a, b) => a.year - b.year);
+  yield* supplementRanges(tenant, partitioned, allMakes, ranges, pages, union);
   let menuHash: string | null = null;
   const menuControl = get(VINPLUS_API + "/api/vehicle-groups");
-  const unresolved = counts.years.filter(
-    (row) => row.count > 100 && union.yearCount(row.year) !== row.count,
+  const unresolved = partitioned.filter(
+    (row) => union.yearCount(row.year) !== row.count,
   );
   if (unresolved.length) {
     const raw = yield menuControl;
@@ -265,7 +290,12 @@ function* traversal(
   const actual = new Map<number, number>();
   for (const record of records)
     actual.set(record.year, (actual.get(record.year) ?? 0) + 1);
-  const coverage = VinplusCoverage.fromCounts(tenant.label, counts, actual);
+  const coverage = VinplusCoverage.fromCounts(
+    tenant.label,
+    counts,
+    actual,
+    complete,
+  );
   for (const [index, range] of ranges.entries()) {
     const closing = yield* readRange(tenant, range);
     if (

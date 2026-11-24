@@ -7,6 +7,7 @@ import {
   parseVinplusYearSearch,
 } from "./vinplus-protocol";
 import { vinplusSnapshot } from "./vinplus-snapshot";
+import { validationRejectionKind } from "./ingestion-validation";
 import { vinplusPublicDate } from "./vinplus-public-enrichment";
 
 import {
@@ -164,17 +165,21 @@ describe("frozen public VinPlus protocol", () => {
       ),
     ).toBe(true);
   });
-  test("rejects truncation above 1% even when match_count equals matches.length", () => {
+  test("reports rows a complete uncapped search omits as distribution lag, never as donors", () => {
     const evidence = [...(vinplusCensus()[0] ?? [])];
+    const closingIndex = 3 + (evidence.length - 6) / 2;
     const page = z
       .object({ matches: z.array(z.unknown()), match_count: z.number() })
       .passthrough()
       .parse(JSON.parse(evidence[3] ?? ""));
     page.matches.splice(-8);
     page.match_count -= 8;
-    evidence[3] = JSON.stringify(page);
-    expect(() => inspectVinplusEvidence(first(), evidence)).toThrow(
-      "exceeds the 1% limit",
+    evidence[3] = evidence[closingIndex] = JSON.stringify(page);
+    const result = inspectVinplusEvidence(first(), evidence);
+    if (result.kind !== "complete") throw new Error("Pending evidence");
+    expect(result.records).toHaveLength(712);
+    expect(result.warnings.join(" ")).toContain(
+      "8 advertised vehicles / 720 (1.111111%) are absent from complete live searches",
     );
   });
   test("rejects wrong tenant, stock repeats, out-of-range years and unknown fields", () => {
@@ -344,39 +349,177 @@ describe("US Auto Supply year distribution lagging live search", () => {
     expect(result.warnings.join(" ")).toContain("1999: 20 of 17 advertised");
   });
 
-  test("a surplus cannot offset another year's unreachable deficit", () => {
-    expect(() =>
-      inspectVinplusEvidence(
-        tenant(),
-        evidence((years) => {
-          years.delete("1976");
-          years.set("1998", 13);
-        }),
-      ),
-    ).toThrow("2 unreachable advertised vehicles / 82");
+  test("a surplus cannot offset another year's lag", () => {
+    const result = inspectVinplusEvidence(
+      tenant(),
+      evidence((years) => {
+        years.delete("1976");
+        years.set("1998", 13);
+      }),
+    );
+    if (result.kind !== "complete") throw new Error("Pending evidence");
+    expect(result.records).toHaveLength(81);
+    // 2026-11-24: a distribution unchanged since 2026-11-22 still counted
+    // vehicles complete live year searches no longer returned.
+    expect(result.warnings.join(" ")).toContain(
+      "US Auto Supply: 2 advertised vehicles / 82 (2.439024%) are absent from complete live searches (1998: 2)",
+    );
+    expect(result.warnings.join(" ")).toContain("1976: 1 of 0 advertised");
+    expect(result.warnings.join(" ")).not.toContain("unreachable");
   });
 
-  test("a stale range that hits the silent 100-record cap fails instead of keeping surplus", () => {
-    const bodies = evidence(() => undefined);
-    const page = z
-      .object({
-        match_count: z.number(),
-        matches: z.array(z.object({ stock: z.string() }).passthrough()),
-      })
+  /** Answers each pending control from `live` like the public backend,
+   * including its silent 100-record search cap. */
+  const drive = (
+    analytics: string,
+    live: readonly Record<string, unknown>[],
+  ) => {
+    const [app, config] = vinplusCensus()[2] ?? [];
+    if (!app || !config) throw new Error("Missing US Auto Supply app/config");
+    const bodies: string[] = [];
+    const searches: string[] = [];
+    for (;;) {
+      const step = inspectVinplusEvidence(tenant(), bodies);
+      if (step.kind === "complete") return { result: step, searches };
+      const { url, body } = step.control;
+      if (url.endsWith("/parts/us-auto-supply")) bodies.push(app);
+      else if (url.includes("/api/yard-info/")) bodies.push(config);
+      else if (url.includes("/year-distribution")) bodies.push(analytics);
+      else if (url.endsWith("/api/vehicle-groups"))
+        bodies.push(
+          JSON.stringify({
+            success: true,
+            data: Object.fromEntries(
+              [...new Set(live.map((record) => String(record.make)))].map(
+                (make) => [make, []],
+              ),
+            ),
+          }),
+        );
+      else {
+        const criteria = z
+          .object({
+            yard_id: z.string(),
+            year_min: z.number(),
+            year_max: z.number(),
+            make: z.string().nullable(),
+            model: z.null(),
+          })
+          .parse(JSON.parse(body ?? ""));
+        const matches = live
+          .filter(
+            (record) =>
+              Number(record.year) >= criteria.year_min &&
+              Number(record.year) <= criteria.year_max &&
+              (criteria.make === null || record.make === criteria.make),
+          )
+          .slice(0, 100);
+        searches.push(
+          `${criteria.year_min}-${criteria.year_max} ${criteria.make ?? "*"}`,
+        );
+        bodies.push(
+          JSON.stringify({
+            success: true,
+            match_count: matches.length,
+            matches,
+            search_criteria: criteria,
+          }),
+        );
+      }
+    }
+  };
+  const liveRecords = () =>
+    z
+      .object({ matches: z.array(z.record(z.unknown())) })
       .passthrough()
-      .parse(JSON.parse(bodies[3] ?? ""));
-    const extra = page.matches
-      .slice(0, 100 - page.matches.length)
-      .map((record, index) => ({
+      .parse(JSON.parse(vinplusUsAutoSupplyLive().search)).matches;
+  /** Distinct stocks cloned from the live capture, cycling through it. */
+  const extra = (
+    count: number,
+    patch: Record<string, unknown>,
+  ): Record<string, unknown>[] => {
+    const live = liveRecords();
+    return Array.from({ length: count }, (_, index) => {
+      const record = live[index % live.length];
+      if (!record) throw new Error("Missing live US Auto Supply record");
+      return {
         ...record,
+        ...patch,
         stock: `STK${String(900_000 + index)}`,
-      }));
-    page.matches.push(...extra);
-    page.match_count = page.matches.length;
-    bodies[3] = JSON.stringify(page);
-    expect(() => inspectVinplusEvidence(tenant(), bodies)).toThrow(
-      "silent 100-record cap above its 81 advertised rows",
+      };
+    });
+  };
+
+  test("lag above 10% of the yard is a transient rejection", () => {
+    let caught: unknown = null;
+    try {
+      drive(evidence(() => undefined)[2] ?? "", liveRecords().slice(9));
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught instanceof Error ? caught.message : "").toContain(
+      "9 advertised vehicles / 81 (11.111111%) are absent from complete live searches",
     );
+    expect(caught instanceof Error ? caught.message : "").toContain(
+      "exceeds the 10% lag limit",
+    );
+    expect(validationRejectionKind(caught)).toBe("transient");
+  });
+
+  test("a stale range that hits the silent 100-record cap is bisected by year instead of rejected", () => {
+    const { result, searches } = drive(evidence(() => undefined)[2] ?? "", [
+      ...liveRecords(),
+      ...extra(19, {}),
+    ]);
+    if (result.kind !== "complete") throw new Error("Pending evidence");
+    expect(searches.slice(0, 3)).toEqual([
+      "1960-1999 *",
+      "1960-1979 *",
+      "1980-1999 *",
+    ]);
+    expect(result.records).toHaveLength(100);
+    expect(result.warnings.join(" ")).toContain(
+      "19 searchable vehicles exceed the lagging year distribution",
+    );
+  });
+
+  test("a capped single year below its stale advertised count is read by make", () => {
+    const records = [
+      ...liveRecords(),
+      ...extra(80, { year: 1999 }),
+      // A make only past the cap, reached through the public make directory.
+      ...extra(85, { year: 1999, make: "SAAB", model: "9-3" }).slice(80),
+    ];
+    const advertised = new Map<number, number>();
+    for (const record of records)
+      advertised.set(
+        Number(record.year),
+        (advertised.get(Number(record.year)) ?? 0) + 1,
+      );
+    // The cached distribution trails the yard's 1999 arrivals.
+    advertised.set(1999, 95);
+    const by_year = [...advertised].map(([year, count]) => ({
+      year: String(year),
+      count,
+    }));
+    const { result, searches } = drive(
+      JSON.stringify({
+        success: true,
+        data: {
+          current_count: by_year.reduce((sum, row) => sum + row.count, 0),
+          by_year,
+        },
+      }),
+      records,
+    );
+    if (result.kind !== "complete") throw new Error("Pending evidence");
+    expect(searches).toContain("1999-1999 *");
+    expect(searches).toContain("1999-1999 SAAB");
+    expect(
+      result.records.filter((record) => record.year === 1999),
+    ).toHaveLength(records.filter((record) => record.year === 1999).length);
+    expect(result.records).toHaveLength(records.length);
+    expect(result.warnings.join(" ")).not.toContain("unreachable");
   });
 });
 
