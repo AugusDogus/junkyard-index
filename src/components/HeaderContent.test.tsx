@@ -17,7 +17,7 @@ function renderHeader(pathname: string, query = "") {
   );
 }
 
-test("every header has pricing, sign in, and search except on search itself", () => {
+test("every header has pricing, sign in, and search", () => {
   for (const path of [
     "/",
     "/junkyards/texas",
@@ -28,11 +28,21 @@ test("every header has pricing, sign in, and search except on search itself", ()
     const html = renderHeader(path);
     expect(html).toContain('href="/pricing"');
     expect(html).toContain(">Sign in</a>");
-    expect(html.includes('href="/search"')).toBe(path !== "/search");
+    expect(html).toContain('href="/search"');
     expect(html).not.toContain("hidden sm:inline-flex");
     expect(html).toContain('href="#main-content"');
     expect(html).toContain("Skip to content");
   }
+});
+
+test("search marks its own nav link as the current page", () => {
+  const html = renderHeader("/search", "q=Saab");
+  expect(html).toMatch(
+    /aria-current="page"[^>]*href="\/search"|href="\/search"[^>]*aria-current="page"/,
+  );
+  expect(renderHeader("/cars")).not.toMatch(
+    /href="\/search"[^>]*aria-current|aria-current[^>]*href="\/search"/,
+  );
 });
 
 test("header sign in preserves the current path and all query parameters", () => {

@@ -74,14 +74,13 @@ export function HeaderContent({ auth }: HeaderContentProps) {
 }
 
 function MainLinks() {
-  const pathname = usePathname();
   return (
     <>
       <MainLink href="/junkyards">Junkyards</MainLink>
       <MainLink href="/map">Map</MainLink>
       <MainLink href="/cars">Cars</MainLink>
       <MainLink href="/pricing">Pricing</MainLink>
-      {pathname !== "/search" && <MainLink href="/search">Search</MainLink>}
+      <MainLink href="/search">Search</MainLink>
     </>
   );
 }
