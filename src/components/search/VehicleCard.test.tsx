@@ -131,6 +131,9 @@ describe("search card details", () => {
     expect(card({ make: "Honda", model: "CR-V" })).toContain(
       'aria-label="2012 Honda CR-V"',
     );
+    expect(card({ make: "Hyundai", model: "SANTA FE" })).toContain(
+      'aria-label="2012 Hyundai Santa Fe"',
+    );
   });
 
   test("tucks manual search steps behind one line", () => {

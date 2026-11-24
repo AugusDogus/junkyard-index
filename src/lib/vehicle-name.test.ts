@@ -231,13 +231,27 @@ test("display softens all-caps names and leaves the rest alone", () => {
   expect(VehicleName.display("SE Hatch")).toBe("SE Hatch");
 });
 
-test("displayWhole softens a vehicle's name only when no short word stays caps", () => {
-  expect(VehicleName.displayWhole("PASSAT")).toBe("Passat");
-  expect(VehicleName.displayWhole("TOWN & COUNTRY")).toBe("Town & Country");
-  expect(VehicleName.displayWhole("SANTA FE")).toBe("SANTA FE");
-  expect(VehicleName.displayWhole("GRAND AM")).toBe("GRAND AM");
-  expect(VehicleName.displayWhole("CR-V")).toBe("CR-V");
-  expect(VehicleName.displayWhole("Civic")).toBe("Civic");
+test("display softens short plain words, not model codes or trims", () => {
+  const cases: [raw: string, shown: string][] = [
+    ["SANTA FE", "Santa Fe"],
+    ["TOWN CAR", "Town Car"],
+    ["NEW YORKER", "New Yorker"],
+    ["EL CAMINO", "El Camino"],
+    ["LE SABRE", "Le Sabre"],
+    ["GRAND AM", "Grand Am"],
+    ["TOWN AND COUNTRY", "Town and Country"],
+    ["RAM VAN", "Ram Van"],
+    // Codes and trims keep their capitals.
+    ["CIVIC CRX", "Civic CRX"],
+    ["CAMRY LE", "Camry LE"],
+    ["LE", "LE"],
+    ["AM GENERAL", "AM General"],
+    ["RX 300", "RX 300"],
+    ["CR-V", "CR-V"],
+    ["Civic", "Civic"],
+  ];
+  for (const [raw, shown] of cases)
+    expect(VehicleName.display(raw)).toBe(shown);
 });
 
 test("sameSlug ignores hyphens and case", () => {
