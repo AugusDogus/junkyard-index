@@ -1611,6 +1611,12 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
           startCursor: cursor,
           onBatch: context.onBatch,
           onYards: context.onYards,
+          loadState: async (path) =>
+            (
+              await IngestionSnapshotStore.vercelBlob(
+                env.BLOB_READ_WRITE_TOKEN,
+              ).load(path)
+            ).checkpointState,
         }),
       ),
       (next) => next,

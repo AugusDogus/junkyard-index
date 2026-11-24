@@ -1,4 +1,11 @@
-import { Data, Duration, Effect, Option, RateLimiter } from "effect";
+import {
+  Data,
+  Duration,
+  Effect,
+  Option,
+  RateLimiter,
+  type Scope,
+} from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import { Config, Database } from "./context";
 import {
@@ -14,29 +21,36 @@ import {
 } from "./provider-chunk-clock";
 import type { ProviderRequestGate } from "./provider-http-client";
 import {
-  fetchUpullRPartsMakes,
-  fetchUpullRPartsModels,
   fetchUpullRPartsVehicles,
-  fetchUpullRPartsYears,
   UpullRPartsProviderError,
+  type UpullRPartsVehicle,
 } from "./upullrparts-client";
 import {
   UPULLRPARTS_BLOCK_RETRY_MS,
   UPULLRPARTS_MAX_BLOCK_MS,
   UpullRPartsCursor,
 } from "./upullrparts-cursor";
-import { loadUpullRPartsImages } from "./upullrparts-images";
 import {
   checkUpullRPartsSearch,
-  crawlUpullRPartsMakes,
+  crawlUpullRPartsDayByMake,
+  crawlUpullRPartsWindows,
+  planUpullRPartsWindows,
+  UPULLRPARTS_FIRST_DAY,
   UPULLRPARTS_LOCATIONS,
-  UPULLRPARTS_MAX_STEP_SEARCHES,
+  UPULLRPARTS_SEARCH_LIMIT,
+  UpullRPartsDay,
   type UpullRPartsCrawlError,
-  type UpullRPartsCrawlProgress,
-  type UpullRPartsResumePoint,
   type UpullRPartsSearch,
   UpullRPartsSearchBlocked,
-} from "./upullrparts-make-crawl";
+} from "./upullrparts-date-crawl";
+import { UpullRPartsHistory } from "./upullrparts-history";
+import { loadUpullRPartsImages } from "./upullrparts-images";
+import {
+  resolveUpullRPartsMakes,
+  UpullRPartsDirectory,
+  UpullRPartsDirectorySchema,
+  type UpullRPartsVinMakes,
+} from "./upullrparts-makes";
 import {
   isUsableUpullRPartsVehicle,
   transformUpullRPartsVehicle,
@@ -47,6 +61,8 @@ import {
   UpullRPartsTurnstile,
   type UpullRPartsTokenError,
 } from "./upullrparts-turnstile";
+import { VinDecode } from "./vin-decode";
+import { vpicClient } from "./vpic-client";
 import {
   findUpullRPartsYard,
   UPULLRPARTS_YARDS,
@@ -65,21 +81,30 @@ export const UPULLRPARTS_BATCH_SIZE = 250;
  * do not count. Searches start no more often than this, 8 a minute.
  */
 export const UPULLRPARTS_SEARCH_INTERVAL = Duration.millis(7_500);
-/** Searches one chunk may send, both canaries included. The chunk mints a
- * token for each, plus `TOKEN_RETRIES` for searches that fail in transit. */
+/** The most searches one chunk sends, both canaries included. */
 export const UPULLRPARTS_CHUNK_SEARCHES = 30;
+const CANARIES = 2;
+/** An empty window's canary and its one re-search. */
+const EMPTY_WINDOW_SEARCHES = 2;
+/** Day and make searches kept for models that more than one make lists. */
+export const UPULLRPARTS_MAKE_SEARCHES = 3;
+/** Searches for halving windows that fill the limit, as after a stale
+ * snapshot, beyond the plan. */
+const SPLIT_SEARCHES = 3;
+/** Tokens for searches that fail in transit and are sent again. */
 const TOKEN_RETRIES = 2;
 /**
- * A chunk stops starting crawl steps this long after its opening canary, or
- * earlier when less than {@link UPULLRPARTS_CHUNK_TAIL_MS} of its work limit
- * would be left, as after a slow session open.
+ * A chunk stops starting window searches this long after its opening
+ * canary, or earlier when less than {@link UPULLRPARTS_CHUNK_TAIL_MS} of its
+ * work limit would be left, as after a slow session open.
  */
-export const UPULLRPARTS_MAKE_START_BUDGET_MS = 200_000;
-/** Work after the last step starts: the step itself (up to
- * {@link UPULLRPARTS_MAX_STEP_SEARCHES} paced searches and getYears), the
- * closing canary, photo lookups and callbacks. */
-const UPULLRPARTS_CHUNK_TAIL_MS = 60_000;
-const CHUNK_WORK_LIMIT = "5 minutes";
+export const UPULLRPARTS_START_BUDGET_MS = 200_000;
+/** Work after the last window starts: that window with its canary and
+ * re-search, the make searches, the closing canary, a VIN decode, photo
+ * lookups and callbacks. */
+const UPULLRPARTS_CHUNK_TAIL_MS = 90_000;
+export const UPULLRPARTS_CHUNK_WORK_LIMIT = "5 minutes";
+const VIN_DECODE_TIMEOUT = "20 seconds";
 
 export class UpullRPartsStreamError extends Data.TaggedError(
   "UpullRPartsStreamError",
@@ -91,6 +116,24 @@ export interface UpullRPartsStreamOptions<E, R> {
     vehicles: UpullRPartsCanonicalVehicle[],
   ) => Effect.Effect<void, E, R>;
   onYards?: (yards: UpullRPartsYard[]) => Effect.Effect<void, E, R>;
+  /** Reads the state a checkpoint stored at `path` (the run's make
+   * directory), as the repository's snapshot store does. */
+  loadState: (path: string) => Promise<unknown>;
+}
+
+/** What a chunk needs besides its options; tests replace each. */
+export interface UpullRPartsChunkDeps<S> {
+  /** Paces directory requests. */
+  requestGate: ProviderRequestGate;
+  /** A search for the enclosing scope that mints `tokens` Turnstile
+   * tokens. */
+  openSearch: (
+    tokens: number,
+  ) => Effect.Effect<UpullRPartsSearch<S>, never, Scope.Scope>;
+  /** Yesterday's published snapshot. */
+  loadHistory: Effect.Effect<UpullRPartsHistory, UpullRPartsStreamError>;
+  decodeVins: UpullRPartsVinMakes;
+  now?: () => number;
 }
 
 type SearchError =
@@ -104,42 +147,29 @@ type StreamError =
   | UpullRPartsStreamError
   | ProviderChunkWallTimeout;
 
-type CrawlCursor = Exclude<UpullRPartsCursor, { phase: "complete" }>;
+type SearchCursor = Extract<UpullRPartsCursor, { phase: "crawl" | "split" }>;
 
 function storeId(yard: UpullRPartsYard): number {
   return Number(yard.code.replace("UPRRP-", ""));
 }
 
-function resumePoint(cursor: CrawlCursor): UpullRPartsResumePoint {
-  return cursor.phase === "split"
-    ? {
-        phase: "split",
-        make: cursor.make,
-        model: cursor.model,
-        year: cursor.year,
-      }
-    : { phase: "crawl", afterMake: cursor.afterMake };
-}
-
-function nextCursor(
-  cursor: CrawlCursor,
-  progress: UpullRPartsCrawlProgress,
-  storesSeen: number[],
-): UpullRPartsCursor {
-  const { location } = cursor;
-  if (progress.status === "paused")
-    return { source: "upullrparts", location, storesSeen, ...progress.resume };
-  const index = UPULLRPARTS_LOCATIONS.indexOf(location);
-  const next = UPULLRPARTS_LOCATIONS[index + 1];
-  return next === undefined
-    ? { source: "upullrparts", phase: "complete", storesSeen }
-    : {
-        source: "upullrparts",
-        phase: "crawl",
-        location: next,
-        afterMake: null,
-        storesSeen,
-      };
+function emptyResult(cursor: UpullRPartsCursor): UpullRPartsStreamResult {
+  return {
+    source: "upullrparts",
+    status: "complete",
+    cursor,
+    count: 0,
+    errors: [],
+    warnings: [],
+    observedVins: [],
+    pagesProcessed: 0,
+    accounting: {
+      recordsProcessed: 0,
+      recordsExcluded: 0,
+      recordsRejected: 0,
+      duplicateVehicles: 0,
+    },
+  };
 }
 
 /**
@@ -149,7 +179,7 @@ function nextCursor(
  * the next retry would start past the block limit.
  */
 function waitForBlock(
-  cursor: CrawlCursor,
+  cursor: SearchCursor,
   blocked: UpullRPartsSearchBlocked,
   at: number,
 ) {
@@ -191,50 +221,162 @@ export function makeUpullRPartsTokenSearch(
     );
 }
 
+function loadDirectory(
+  cursor: SearchCursor,
+  loadState: (path: string) => Promise<unknown>,
+) {
+  return Effect.gen(function* () {
+    const path = cursor.statePath;
+    if (path === null)
+      return yield* new UpullRPartsStreamError({
+        message:
+          "U Pull R Parts checkpoint names no stored make directory, so the run cannot resolve makes. No batches were emitted and prior published inventory is preserved; restart the run, which loads the directory again.",
+      });
+    const state = yield* Effect.tryPromise({
+      try: () => loadState(path),
+      catch: (cause) =>
+        new UpullRPartsStreamError({
+          message: `U Pull R Parts could not read the run's make directory at ${path}: ${String(cause)}. No batches were emitted and prior published inventory is preserved; retry the chunk, and restart the run if the snapshot is gone.`,
+        }),
+    });
+    const parsed = UpullRPartsDirectorySchema.safeParse(state);
+    if (!parsed.success)
+      return yield* new UpullRPartsStreamError({
+        message: `U Pull R Parts make directory at ${path} is not a valid directory (${parsed.error.issues[0]?.message ?? "unknown issue"}). No batches were emitted and prior published inventory is preserved; restart the run, which loads the directory again.`,
+      });
+    return parsed.data;
+  });
+}
+
+/** The crawl cursor of `location` after a split or window end, or of the
+ * next location once `location` has none left. */
+function afterLocation(
+  cursor: SearchCursor,
+  end: string | null,
+  storesSeen: number[],
+): UpullRPartsCursor {
+  const { today, statePath } = cursor;
+  if (end !== null && end >= UPULLRPARTS_FIRST_DAY)
+    return {
+      source: "upullrparts",
+      phase: "crawl",
+      location: cursor.location,
+      today,
+      end,
+      statePath,
+      storesSeen,
+    };
+  const next =
+    UPULLRPARTS_LOCATIONS[UPULLRPARTS_LOCATIONS.indexOf(cursor.location) + 1];
+  return next === undefined
+    ? { source: "upullrparts", phase: "complete", storesSeen }
+    : {
+        source: "upullrparts",
+        phase: "crawl",
+        location: next,
+        today,
+        end: today,
+        statePath,
+        storesSeen,
+      };
+}
+
 /**
- * Crawls U Pull R Parts make by make, one location at a time, sending at most
- * {@link UPULLRPARTS_CHUNK_SEARCHES} searches and starting crawl steps for up
- * to {@link UPULLRPARTS_MAKE_START_BUDGET_MS} per chunk; a chunk can pause
- * inside a split make. Vehicles are emitted only after a chunk's searches and
- * photos all succeed, so a failed chunk retries from its cursor without
- * partial output.
+ * Loads the run's make directory, stored with this chunk's checkpoint for
+ * the crawl chunks, and dates the run: every location is searched up to
+ * today's UTC day.
  */
-export function streamUpullRPartsInventoryWithSearch<E, R, S>(
+function directoryChunk<E, R>(
   options: UpullRPartsStreamOptions<E, R>,
   requestGate: ProviderRequestGate,
-  search: UpullRPartsSearch<S>,
-  now: () => number = Date.now,
-): Effect.Effect<UpullRPartsStreamResult, StreamError | S | E, R> {
+  now: () => number,
+) {
   return Effect.gen(function* () {
-    const cursor = options.startCursor ?? UpullRPartsCursor.initial;
-    const empty: UpullRPartsStreamResult = {
-      source: "upullrparts",
-      status: "complete",
-      cursor,
-      count: 0,
-      errors: [],
-      warnings: [],
-      observedVins: [],
-      pagesProcessed: 0,
-      accounting: {
-        recordsProcessed: 0,
-        recordsExcluded: 0,
-        recordsRejected: 0,
-        duplicateVehicles: 0,
+    const directory = yield* UpullRPartsDirectory.load(requestGate);
+    if (options.onYards) yield* options.onYards([...UPULLRPARTS_YARDS]);
+    const today = UpullRPartsDay.of(now());
+    const result: UpullRPartsStreamResult = {
+      ...emptyResult(UpullRPartsCursor.initial),
+      status: "paused",
+      cursor: {
+        source: "upullrparts",
+        phase: "crawl",
+        location: "1",
+        today,
+        end: today,
+        statePath: null,
+        storesSeen: [],
       },
+      pagesProcessed: directory.makes.length + 1,
+      checkpointState: directory,
     };
-    if (cursor.phase === "complete") return empty;
+    return result;
+  });
+}
 
+/** The vehicles a chunk found, each with its canonical make. */
+interface FoundVehicle {
+  record: UpullRPartsVehicle;
+  make: string;
+}
+
+/**
+ * One chunk at one location, both canaries included: a crawl chunk searches
+ * date windows planned from the snapshot, newest first, then the makes of
+ * models two makes list; a split chunk searches one full day make by make.
+ */
+function searchChunk<E, R, S>(
+  cursor: SearchCursor,
+  directory: UpullRPartsDirectory,
+  options: UpullRPartsStreamOptions<E, R>,
+  deps: UpullRPartsChunkDeps<S>,
+  now: () => number,
+): Effect.Effect<
+  UpullRPartsStreamResult,
+  StreamError | S | E,
+  R | Scope.Scope
+> {
+  return Effect.gen(function* () {
+    const site = cursor.location;
+    const history = yield* deps.loadHistory;
+    const windows =
+      cursor.phase === "crawl"
+        ? planUpullRPartsWindows({
+            end: cursor.end,
+            counts: history.counts[site],
+            unknownFrom: history.publishedDay ?? cursor.today,
+            newDayEstimate: UpullRPartsHistory.newDayEstimate(history, site),
+          })
+        : [];
+    const splitMakes =
+      cursor.phase === "split"
+        ? directory.makes.filter(
+            (make) => cursor.afterMake === null || make > cursor.afterMake,
+          ).length
+        : 0;
+    // Tokens are minted for the plan, not a fixed count: the browser bills
+    // every second it mints.
+    const budget = Math.min(
+      UPULLRPARTS_CHUNK_SEARCHES,
+      cursor.phase === "crawl"
+        ? windows.length +
+            CANARIES +
+            EMPTY_WINDOW_SEARCHES +
+            UPULLRPARTS_MAKE_SEARCHES +
+            SPLIT_SEARCHES
+        : splitMakes + CANARIES,
+    );
+    const opened = yield* deps.openSearch(budget + TOKEN_RETRIES);
     let sent = 0;
-    const counted: UpullRPartsSearch<S> = (params) =>
+    const search: UpullRPartsSearch<S> = (params) =>
       Effect.suspend(() => {
         sent += 1;
-        return search(params);
+        return opened(params);
       });
-    const makes = yield* fetchUpullRPartsMakes(requestGate);
+
     const searched = yield* Effect.gen(function* () {
-      // A blocked IP returns empty lists that look like makes with no stock.
-      yield* checkUpullRPartsSearch(cursor.location, counted, "before");
+      // A blocked IP returns empty lists that look like days with no stock.
+      yield* checkUpullRPartsSearch(site, search, "before");
       // Opening the session counts toward the chunk's work limit.
       const workLeft = Option.getOrElse(
         yield* ProviderChunkClock.workLeft,
@@ -243,27 +385,115 @@ export function streamUpullRPartsInventoryWithSearch<E, R, S>(
       const deadline =
         now() +
         Math.min(
-          UPULLRPARTS_MAKE_START_BUDGET_MS,
+          UPULLRPARTS_START_BUDGET_MS,
           workLeft - UPULLRPARTS_CHUNK_TAIL_MS,
         );
-      const crawl = yield* crawlUpullRPartsMakes({
-        site: cursor.location,
-        makes,
-        resume: resumePoint(cursor),
-        search: counted,
-        directory: {
-          models: (make) => fetchUpullRPartsModels(make, requestGate),
-          years: (make, model) =>
-            fetchUpullRPartsYears(make, model, requestGate),
-        },
-        // A whole step and the closing canary must still fit in the budget.
-        shouldContinue: () =>
+      const warnings: string[] = [];
+      if (cursor.phase === "split") {
+        const split = yield* crawlUpullRPartsDayByMake({
+          site,
+          day: cursor.day,
+          makes: directory.makes,
+          from: { afterMake: cursor.afterMake, missing: cursor.missing },
+          search,
+          // A whole make search and the closing canary must still fit.
+          mayStart: () => now() < deadline && sent + 2 <= budget,
+        });
+        yield* checkUpullRPartsSearch(site, search, "after");
+        const found: FoundVehicle[] = split.results.flatMap((result) =>
+          result.records.map((record) => ({
+            record,
+            make: normalizeCanonicalMake(result.make),
+          })),
+        );
+        const next: UpullRPartsCursor =
+          split.progress.status === "complete"
+            ? afterLocation(cursor, UpullRPartsDay.add(cursor.day, -1), [])
+            : {
+                source: "upullrparts",
+                phase: "split",
+                location: site,
+                today: cursor.today,
+                day: cursor.day,
+                afterMake: split.progress.afterMake,
+                missing: [...split.progress.missing],
+                statePath: cursor.statePath,
+                storesSeen: [],
+              };
+        return {
+          status: "searched",
+          found,
+          rejectedRows: split.results.reduce(
+            (total, result) => total + result.rejectedRows,
+            0,
+          ),
+          next,
+          warnings,
+        } as const;
+      }
+      const crawl = yield* crawlUpullRPartsWindows({
+        site,
+        windows,
+        search,
+        // A window with its canary and re-search, the make searches and the
+        // closing canary must still fit.
+        mayStart: () =>
           now() < deadline &&
-          sent + UPULLRPARTS_MAX_STEP_SEARCHES + 1 <=
-            UPULLRPARTS_CHUNK_SEARCHES,
+          sent + 1 + EMPTY_WINDOW_SEARCHES + UPULLRPARTS_MAKE_SEARCHES + 1 <=
+            budget,
       });
-      yield* checkUpullRPartsSearch(cursor.location, counted, "after");
-      return { status: "crawled", crawl } as const;
+      const records = crawl.results.flatMap((result) => result.records);
+      const known = new Map(
+        [...history.known].map(([vin, vehicle]) => [vin, vehicle.make]),
+      );
+      const resolved = yield* resolveUpullRPartsMakes({
+        site,
+        vehicles: records.filter(isUsableUpullRPartsVehicle).map((record) => ({
+          vin: record.VIN.trim().toUpperCase(),
+          year: record.Year,
+          model: record.Model,
+          day: UpullRPartsDay.parse(record.DateSetData),
+        })),
+        known,
+        index: UpullRPartsDirectory.index(directory),
+        search,
+        searchBudget: budget - sent - 1,
+        decodeVins: deps.decodeVins,
+      });
+      warnings.push(...resolved.warnings);
+      yield* checkUpullRPartsSearch(site, search, "after");
+      const found: FoundVehicle[] = records.map((record) => ({
+        record,
+        make:
+          resolved.makes.get(record.VIN?.trim().toUpperCase() ?? "") ?? "Other",
+      }));
+      const progress = crawl.progress;
+      const next: UpullRPartsCursor =
+        progress.status === "complete"
+          ? afterLocation(cursor, null, [])
+          : progress.status === "paused"
+            ? afterLocation(cursor, progress.end, [])
+            : {
+                source: "upullrparts",
+                phase: "split",
+                location: site,
+                today: cursor.today,
+                day: progress.day,
+                afterMake: null,
+                missing: progress.sample.slice(0, UPULLRPARTS_SEARCH_LIMIT),
+                statePath: cursor.statePath,
+                storesSeen: [],
+              };
+      return {
+        status: "searched",
+        found,
+        rejectedRows: crawl.results.reduce(
+          (total, result) => total + result.rejectedRows,
+          0,
+        ),
+        next,
+        warnings,
+      } as const;
     }).pipe(
       Effect.catchIf(
         (error) => error instanceof UpullRPartsSearchBlocked,
@@ -273,19 +503,19 @@ export function streamUpullRPartsInventoryWithSearch<E, R, S>(
     if (searched.status === "blocked") {
       yield* Effect.logWarning(searched.warning);
       const result: UpullRPartsStreamResult = {
-        ...empty,
+        ...emptyResult(cursor),
         status: "paused",
         cursor: searched.cursor,
         warnings: [searched.warning],
+        pagesProcessed: sent,
       };
       return result;
     }
-    const { crawl } = searched;
 
     const accounting = {
-      recordsProcessed: 0,
+      recordsProcessed: searched.found.length + searched.rejectedRows,
       recordsExcluded: 0,
-      recordsRejected: 0,
+      recordsRejected: searched.rejectedRows,
       duplicateVehicles: 0,
     };
     const storesSeen = new Set(cursor.storesSeen);
@@ -293,43 +523,38 @@ export function streamUpullRPartsInventoryWithSearch<E, R, S>(
     const unresolvedStores = new Map<number, number>();
     const seen = new Set<string>();
     const vehicles: UpullRPartsCanonicalVehicle[] = [];
-    for (const result of crawl.results) {
-      accounting.recordsProcessed +=
-        result.vehicles.length + result.rejectedRows;
-      accounting.recordsRejected += result.rejectedRows;
-      for (const { record, make } of result.vehicles) {
-        const yard = findUpullRPartsYard(record.Store);
-        const usable = isUsableUpullRPartsVehicle(record);
-        if (yard && usable) storesSeen.add(storeId(yard));
-        if (!yard || yard.lat === null || yard.lng === null) {
-          accounting.recordsExcluded += 1;
-          const vin = record.VIN?.trim().toUpperCase();
-          if (vin) observedVins.add(vin);
-          unresolvedStores.set(
-            record.Store,
-            (unresolvedStores.get(record.Store) ?? 0) + 1,
-          );
-          continue;
-        }
-        const vehicle = transformUpullRPartsVehicle(
-          record,
-          yard,
-          normalizeCanonicalMake(make),
+    for (const { record, make } of searched.found) {
+      const yard = findUpullRPartsYard(record.Store);
+      if (yard && isUsableUpullRPartsVehicle(record))
+        storesSeen.add(storeId(yard));
+      if (!yard || yard.lat === null || yard.lng === null) {
+        accounting.recordsExcluded += 1;
+        const vin = record.VIN?.trim().toUpperCase();
+        if (vin) observedVins.add(vin);
+        unresolvedStores.set(
+          record.Store,
+          (unresolvedStores.get(record.Store) ?? 0) + 1,
         );
-        if (!vehicle) {
-          accounting.recordsRejected += 1;
-          continue;
-        }
-        if (seen.has(vehicle.vin)) {
-          accounting.duplicateVehicles += 1;
-          continue;
-        }
-        seen.add(vehicle.vin);
-        vehicles.push(vehicle);
+        continue;
       }
+      const vehicle = transformUpullRPartsVehicle(record, yard, make);
+      if (!vehicle) {
+        accounting.recordsRejected += 1;
+        continue;
+      }
+      if (seen.has(vehicle.vin)) {
+        accounting.duplicateVehicles += 1;
+        continue;
+      }
+      seen.add(vehicle.vin);
+      vehicles.push(vehicle);
     }
 
-    const next = nextCursor(cursor, crawl.progress, [...storesSeen].sort());
+    // A chunk whose canaries passed clears any block wait.
+    const next: UpullRPartsCursor = {
+      ...searched.next,
+      storesSeen: [...storesSeen].sort((a, b) => a - b),
+    };
     if (next.phase === "complete") {
       // There is no upstream total. A known yard with no vehicles across the
       // whole crawl is not evidence that it emptied; it must not retire its
@@ -343,22 +568,30 @@ export function streamUpullRPartsInventoryWithSearch<E, R, S>(
         });
     }
 
+    // A known vehicle keeps its stored photo; only new stock, and known
+    // stock that had none, is looked up.
+    const lookups = vehicles.filter((vehicle) => {
+      const known = history.known.get(vehicle.vin);
+      return !(
+        known !== undefined &&
+        known.imageUrl !== null &&
+        known.stockNumber === vehicle.stockNumber
+      );
+    });
     const images = yield* loadUpullRPartsImages(
-      vehicles.map((vehicle) => vehicle.stockNumber),
+      lookups.map((vehicle) => vehicle.stockNumber),
     );
     for (const vehicle of vehicles) {
+      const known = history.known.get(vehicle.vin);
       vehicle.imageUrl =
-        vehicle.stockNumber === null
-          ? null
-          : (images.get(vehicle.stockNumber) ?? null);
+        known !== undefined &&
+        known.imageUrl !== null &&
+        known.stockNumber === vehicle.stockNumber
+          ? known.imageUrl
+          : vehicle.stockNumber === null
+            ? null
+            : (images.get(vehicle.stockNumber) ?? null);
     }
-    if (
-      options.onYards &&
-      cursor.phase === "crawl" &&
-      cursor.afterMake === null &&
-      cursor.location === "1"
-    )
-      yield* options.onYards([...UPULLRPARTS_YARDS]);
     for (
       let offset = 0;
       offset < vehicles.length;
@@ -368,38 +601,62 @@ export function streamUpullRPartsInventoryWithSearch<E, R, S>(
         vehicles.slice(offset, offset + UPULLRPARTS_BATCH_SIZE),
       );
     }
-    const warnings = [...unresolvedStores].map(
-      ([store, count]) =>
-        `U Pull R Parts yard ${store}: skipped ${count} vehicles because yard coordinates are unresolved. Observed VINs preserve known inventory; verify public metadata before adding this yard.`,
-    );
+    const warnings = [
+      ...searched.warnings,
+      ...[...unresolvedStores].map(
+        ([store, count]) =>
+          `U Pull R Parts yard ${store}: skipped ${count} vehicles because yard coordinates are unresolved. Observed VINs preserve known inventory; verify public metadata before adding this yard.`,
+      ),
+    ];
     for (const warning of warnings) yield* Effect.logWarning(warning);
     const result: UpullRPartsStreamResult = {
-      ...empty,
+      ...emptyResult(next),
       status: next.phase === "complete" ? "complete" : "paused",
-      cursor: next,
       count: seen.size,
-      pagesProcessed: crawl.results.reduce(
-        (total, result) => total + result.searches,
-        0,
-      ),
+      pagesProcessed: sent,
       accounting,
       warnings,
       observedVins: [...observedVins],
     };
     return result;
+  });
+}
+
+/**
+ * Crawls U Pull R Parts by arrival date, one location at a time: a first
+ * chunk loads the make directory, then each chunk searches one location's
+ * date windows from its cursor back to the first day, sending at most
+ * {@link UPULLRPARTS_CHUNK_SEARCHES} searches. Vehicles are emitted only
+ * after a chunk's searches, both canaries and its photos all succeed, so a
+ * failed chunk retries from its cursor without partial output.
+ */
+export function streamUpullRPartsInventoryWithSearch<E, R, S>(
+  options: UpullRPartsStreamOptions<E, R>,
+  deps: UpullRPartsChunkDeps<S>,
+): Effect.Effect<UpullRPartsStreamResult, StreamError | S | E, R> {
+  return Effect.gen(function* () {
+    const now = deps.now ?? Date.now;
+    const cursor = options.startCursor ?? UpullRPartsCursor.initial;
+    if (cursor.phase === "complete") return emptyResult(cursor);
+    if (cursor.phase === "directory")
+      return yield* directoryChunk(options, deps.requestGate, now);
+    const directory = yield* loadDirectory(cursor, options.loadState);
+    return yield* Effect.scoped(
+      searchChunk(cursor, directory, options, deps, now),
+    );
   }).pipe(
     // Waiting for the browser session lease is not provider work.
     ProviderChunkClock.deadline({
-      duration: CHUNK_WORK_LIMIT,
+      duration: UPULLRPARTS_CHUNK_WORK_LIMIT,
       onTimeout: () =>
         new UpullRPartsStreamError({
-          message: `U Pull R Parts chunk exceeded its ${CHUNK_WORK_LIMIT} work limit. Retry from the same cursor; this chunk emitted no checkpoint and prior inventory is preserved.`,
+          message: `U Pull R Parts chunk exceeded its ${UPULLRPARTS_CHUNK_WORK_LIMIT} work limit. Retry from the same cursor; this chunk emitted no checkpoint and prior inventory is preserved.`,
         }),
     }),
   );
 }
 
-// Directory lookups (getMakes, getModels, getYears) stay serial and rate limited.
+// Directory lookups (getMakes, getModels) stay serial and rate limited.
 export const makeUpullRPartsRequestGate = RateLimiter.make({
   limit: 1,
   interval: "1500 millis",
@@ -416,17 +673,41 @@ export const makeUpullRPartsSearchGate = RateLimiter.make({
  * 2026). */
 const TOKEN_TABS = 2;
 
+/** Makes of VINs from NHTSA's vPIC, which never fails the chunk: a decoder
+ * that is down or slow decodes none. */
+export const decodeUpullRPartsVinMakes: UpullRPartsVinMakes = (vehicles) =>
+  Effect.tryPromise(async () => {
+    const identities = vehicles.flatMap((vehicle) => {
+      const identity = VinDecode.identity(vehicle.vin, vehicle.year);
+      return identity === null ? [] : [identity];
+    });
+    if (identities.length === 0) return new Map<string, string>();
+    const decoded = await vpicClient.decode(identities);
+    return new Map(
+      identities.flatMap((identity) => {
+        const decode = decoded.decodes.get(identity.key);
+        return decode === undefined ? [] : [[identity.vin, decode.make]];
+      }),
+    );
+  }).pipe(
+    Effect.timeout(VIN_DECODE_TIMEOUT),
+    Effect.orElseSucceed(() => new Map<string, string>()),
+  );
+
 /**
  * Searches are sent natively from this process. Only Turnstile needs a
  * browser: a remote browser session under its provider's session lease mints
  * the chunk's tokens, opened by its first search and stopped once they are
  * minted or the chunk ends. `sessions` defaults to the source's headful Kernel
  * browsers on the stealth proxy (`KernelSessions.browserProfile`), metered
- * against its monthly Kernel budget (`KernelUsage.metered`): once it is spent,
- * chunks defer without opening a browser until the next month.
+ * against its daily and monthly Kernel caps (`KernelUsage.metered`): once one
+ * is spent, chunks defer without opening a browser until it resets.
+ * `loadHistory` defaults to the published snapshot in `Database`.
  */
 export function streamUpullRPartsInventory<E, R>(
-  options: UpullRPartsStreamOptions<E, R>,
+  options: UpullRPartsStreamOptions<E, R> & {
+    loadHistory?: () => Promise<UpullRPartsHistory>;
+  },
   sessions?: BrowserSessions,
 ): Effect.Effect<
   UpullRPartsStreamResult,
@@ -434,27 +715,39 @@ export function streamUpullRPartsInventory<E, R>(
   R | Config | Database
 > {
   return Effect.gen(function* () {
+    const database = yield* Database;
+    const browsers =
+      sessions ??
+      KernelUsage.metered(
+        DocumentTransport.kernel(
+          (yield* Config).kernelApiKey,
+          "upullrparts",
+          "page",
+        ),
+        { database, source: "upullrparts" },
+      );
+    const loadHistory =
+      options.loadHistory ?? (() => UpullRPartsHistory.load(database));
     const requestGate = yield* makeUpullRPartsRequestGate;
-    const pace = yield* makeUpullRPartsSearchGate;
-    const tokens = yield* UpullRPartsTokens.make(
-      UpullRPartsTurnstile.open(
-        sessions ??
-          KernelUsage.metered(
-            DocumentTransport.kernel(
-              (yield* Config).kernelApiKey,
-              "upullrparts",
-              "page",
-            ),
-            { database: yield* Database, source: "upullrparts" },
-          ),
-        TOKEN_TABS,
-      ),
-      UPULLRPARTS_CHUNK_SEARCHES + TOKEN_RETRIES,
-    );
-    return yield* streamUpullRPartsInventoryWithSearch(
-      options,
+    return yield* streamUpullRPartsInventoryWithSearch(options, {
       requestGate,
-      makeUpullRPartsTokenSearch(tokens, pace),
-    );
+      openSearch: (tokens) =>
+        Effect.gen(function* () {
+          const pace = yield* makeUpullRPartsSearchGate;
+          const minted = yield* UpullRPartsTokens.make(
+            UpullRPartsTurnstile.open(browsers, TOKEN_TABS),
+            tokens,
+          );
+          return makeUpullRPartsTokenSearch(minted, pace);
+        }),
+      loadHistory: Effect.tryPromise({
+        try: loadHistory,
+        catch: (cause) =>
+          new UpullRPartsStreamError({
+            message: `U Pull R Parts could not read its published snapshot to plan the crawl: ${String(cause)}. No batches were emitted and prior inventory is preserved; retry the chunk once the database answers.`,
+          }),
+      }),
+      decodeVins: decodeUpullRPartsVinMakes,
+    });
   }).pipe(Effect.scoped);
 }

@@ -460,12 +460,10 @@ describe("durable ingestion cursors", () => {
         afterLocationId: 4,
       }),
     ).toBe('{"afterLocationId":4}');
-    // Checkpoints written before the make crawl still resume.
+    // Scalar checkpoints written before the make crawl still resume.
     expect(parseDurableSourceCursor("upullrparts", "0")).toEqual({
       source: "upullrparts",
-      phase: "crawl",
-      location: "1",
-      afterMake: null,
+      phase: "directory",
       storesSeen: [],
     });
     expect(parseDurableSourceCursor("upullrparts", "1")).toEqual({
@@ -477,14 +475,28 @@ describe("durable ingestion cursors", () => {
       source: "upullrparts",
       phase: "crawl",
       location: "3",
-      afterMake: "Ford",
+      today: "2026-11-24",
+      end: "2026-11-20",
+      statePath: "ingestion/run/upullrparts/chunk.json",
       storesSeen: [1, 2],
     };
     const serialized = serializeDurableSourceCursor(crawl);
-    expect(serialized).toBe(
-      '{"phase":"crawl","location":"3","afterMake":"Ford","storesSeen":[1,2]}',
-    );
+    expect(JSON.parse(serialized)).toEqual({
+      phase: "crawl",
+      location: "3",
+      today: "2026-11-24",
+      end: "2026-11-20",
+      statePath: "ingestion/run/upullrparts/chunk.json",
+      storesSeen: [1, 2],
+    });
     expect(parseDurableSourceCursor("upullrparts", serialized)).toEqual(crawl);
+    // A make-walk checkpoint from an older deployment is not a date cursor.
+    expect(() =>
+      parseDurableSourceCursor(
+        "upullrparts",
+        '{"phase":"crawl","location":"3","afterMake":"Ford","storesSeen":[1,2]}',
+      ),
+    ).toThrow();
     expect(parseDurableSourceCursor("pullnsave", "11")).toEqual({
       source: "pullnsave",
       page: 11,
