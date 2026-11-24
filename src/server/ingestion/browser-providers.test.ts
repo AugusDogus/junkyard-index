@@ -9,6 +9,7 @@ test("every live browser source opens Kernel browsers; the retired 603 and Michi
     northwest: "kernel",
     vanderhaags: "kernel",
     upullitdavie: "kernel",
+    upullrparts: "kernel",
     six03: "hyperbrowser",
     michigantruck: "hyperbrowser",
   });

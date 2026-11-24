@@ -8,10 +8,12 @@ import {
 } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
+import { BROWSER_PROVIDERS } from "./browser-providers";
 import { Config, Database } from "./context";
 import {
   DocumentTransport,
   type BrowserOpenError,
+  type BrowserProviderKeys,
   type BrowserSessions,
 } from "./document-transport";
 import { KernelUsage } from "./kernel-usage";
@@ -694,12 +696,35 @@ export const makeUpullRPartsSearchGate = RateLimiter.make({
  * 2026). */
 const TOKEN_TABS = 2;
 
+/**
+ * U Pull R Parts' token browsers from the provider `BROWSER_PROVIDERS`
+ * chooses. On Kernel they are headful on the stealth proxy
+ * (`KernelSessions.browserProfile`) and metered against its daily and
+ * monthly Kernel caps (`KernelUsage.metered`): once one is spent, chunks
+ * defer without opening a browser until it resets.
+ */
+export function upullRPartsBrowsers(
+  keys: BrowserProviderKeys,
+  database: LibSQLDatabase,
+): BrowserSessions {
+  const sessions = DocumentTransport.sourceSessions(
+    "upullrparts",
+    keys,
+    "page",
+  );
+  return sessions.provider === "kernel"
+    ? KernelUsage.metered(sessions, { database, source: "upullrparts" })
+    : sessions;
+}
+
 /** Defers the chunk, as the metered browser create would, once U Pull R
  * Parts' daily or monthly Kernel cap is spent, before it reads its
- * snapshot: a deferred chunk is retried every few minutes for hours. */
+ * snapshot: a deferred chunk is retried every few minutes for hours. Its
+ * browsers on another provider have no Kernel cap. */
 export function checkUpullRPartsKernelSpend(
   database: LibSQLDatabase,
 ): Effect.Effect<void, ProviderCapacityDeferred | UpullRPartsStreamError> {
+  if (BROWSER_PROVIDERS.upullrparts !== "kernel") return Effect.void;
   return Effect.tryPromise({
     try: () => KernelUsage.capReached(database, "upullrparts", new Date()),
     catch: (cause) =>
@@ -745,10 +770,7 @@ export const decodeUpullRPartsVinMakes: UpullRPartsVinMakes = (vehicles) =>
  * Searches are sent natively from this process. Only Turnstile needs a
  * browser: a remote browser session under its provider's session lease mints
  * the chunk's tokens, opened by its first search and stopped once they are
- * minted or the chunk ends. `sessions` defaults to the source's headful Kernel
- * browsers on the stealth proxy (`KernelSessions.browserProfile`), metered
- * against its daily and monthly Kernel caps (`KernelUsage.metered`): once one
- * is spent, chunks defer without opening a browser until it resets.
+ * minted or the chunk ends. `sessions` defaults to `upullRPartsBrowsers`.
  * `loadHistory` defaults to the published snapshot in `Database`.
  */
 export function streamUpullRPartsInventory<E, R>(
@@ -763,16 +785,7 @@ export function streamUpullRPartsInventory<E, R>(
 > {
   return Effect.gen(function* () {
     const database = yield* Database;
-    const browsers =
-      sessions ??
-      KernelUsage.metered(
-        DocumentTransport.kernel(
-          (yield* Config).kernelApiKey,
-          "upullrparts",
-          "page",
-        ),
-        { database, source: "upullrparts" },
-      );
+    const browsers = sessions ?? upullRPartsBrowsers(yield* Config, database);
     const loadHistory =
       options.loadHistory ?? (() => UpullRPartsHistory.load(database));
     const requestGate = yield* makeUpullRPartsRequestGate;

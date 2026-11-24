@@ -22,9 +22,10 @@ so a value that is not a whole number from 1 to 999 fails the build.
 
 ## Who uses which
 
-All sources but U Pull R Parts are chosen in `BROWSER_PROVIDERS` in
-`browser-providers.ts`; U Pull R Parts always mints its Turnstile tokens in
-Kernel browsers.
+All sources are chosen in `BROWSER_PROVIDERS` in `browser-providers.ts`. U
+Pull R Parts' Kernel browsers are headful on the stealth proxy and metered
+against its daily and monthly Kernel caps; moved to Hyperbrowser, it would
+mint without those caps.
 
 | Source               | Page driven by                                    | Provider                       |
 | -------------------- | ------------------------------------------------- | ------------------------------ |

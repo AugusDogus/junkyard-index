@@ -268,11 +268,10 @@ function soakBrowserProvider(source: IngestionSource): BrowserProvider | null {
     case "northwest":
     case "vanderhaags":
     case "upullitdavie":
+    case "upullrparts":
     case "six03":
     case "michigantruck":
       return BROWSER_PROVIDERS[source];
-    case "upullrparts":
-      return "kernel";
     default:
       return HYPERBROWSER_SOURCES.has(source) ? "hyperbrowser" : null;
   }

@@ -24,6 +24,7 @@ export const HYPERBROWSER_CONCURRENT_SESSIONS = 1;
  * Hyperbrowser, keeping the one-line fallback available to every source. */
 export const HYPERBROWSER_SOURCES = [
   "upullitdavie",
+  "upullrparts",
   "vanderhaags",
   "bigd",
   "northwest",
