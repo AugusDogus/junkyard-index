@@ -377,6 +377,37 @@ test.each([
   },
 );
 
+test("All-N-1 does not follow redirects and names each failed response check", async () => {
+  const redirects: (RequestRedirect | undefined)[] = [];
+  globalThis.fetch = Object.assign(
+    async (_input: RequestInfo | URL, init?: RequestInit) => {
+      redirects.push(init?.redirect);
+      return new Response(null, {
+        status: 302,
+        headers: { location: "https://example.com/blocked" },
+      });
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  await expect(run()).rejects.toThrow(
+    "but its status was HTTP 302 with Location https://example.com/blocked",
+  );
+  expect(redirects).toEqual(["manual"]);
+  mock(
+    undefined,
+    (body) =>
+      new Response(body, {
+        headers: {
+          "content-type": "application/json",
+          "content-range": "bytes 0-1/9",
+        },
+      }),
+  );
+  await expect(run()).rejects.toThrow(
+    "but its content type was application/json, and it was partial (Content-Range bytes 0-1/9)",
+  );
+});
+
 test.each([1, 2, 3, 32])(
   "All-N-1 canonical bytes match the pre-generalization fixture at budget %i",
   async (budget) => {

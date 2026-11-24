@@ -234,7 +234,9 @@ then deferred, the chunk returns a `closing` checkpoint, and the next chunk
 makes only the finishing reads. The tests replay the captured census with
 every read, the root included, at up to 59 seconds: it completes in two
 chunks. Only complete unredirected HTTP 200
-`text/html` from the verified destination is accepted. Partial ranges, length
+`text/html` from the verified destination is accepted. Redirects are not
+followed, and a refused response names each failed check (status with its
+Location, final URL, Content-Range and content type). Partial ranges, length
 mismatches, invalid UTF-8 and bodies over 4 MiB fail closed. Preserve prior
 accepted inventory on failure, inspect native ownership, scope and pagination,
 then retry from the last validated checkpoint. A changed anchor requires a

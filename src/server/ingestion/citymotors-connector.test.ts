@@ -8,6 +8,7 @@ import {
 import {
   CITYMOTORS_CHUNK_DEADLINE_MS,
   CITYMOTORS_COMPLETION_RESERVE_MS,
+  CITYMOTORS_RATE_LIMIT_BACKOFF_MS,
   CITYMOTORS_WORST_CASE_REQUEST_MS,
   streamCitymotorsInventoryWithRequestGate,
 } from "./citymotors-connector";
@@ -41,7 +42,9 @@ function mockInventory(
      */
     transientFailures?: {
       at: number[];
-      kind: "timeout" | "server" | "stalledBody" | "hang";
+      kind: "timeout" | "server" | "stalledBody" | "hang" | "rateLimited";
+      /** Retry-After seconds sent with a rateLimited HTTP 429. */
+      retryAfterSeconds?: number;
     };
     /** Called when a stalled body starts, so a test can fire its deadline. */
     onStalledBody?: () => void;
@@ -70,6 +73,20 @@ function mockInventory(
           );
         if (options.transientFailures.kind === "hang")
           return new Promise<Response>(() => {});
+        if (options.transientFailures.kind === "rateLimited")
+          return new Response("Too Many Requests", {
+            status: 429,
+            headers: {
+              "content-type": "text/html",
+              ...(options.transientFailures.retryAfterSeconds === undefined
+                ? {}
+                : {
+                    "retry-after": String(
+                      options.transientFailures.retryAfterSeconds,
+                    ),
+                  }),
+            },
+          });
         return new Response("Service Unavailable", {
           status: 503,
           headers: { "content-type": "text/html" },
@@ -384,6 +401,81 @@ test("City Motors resends a failed GET only when it still fits the chunk deadlin
   } finally {
     clock.mockRestore();
   }
+});
+
+test("City Motors waits out a rate limit's Retry-After before sending the GET once more", async () => {
+  const requests = mockInventory({
+    transientFailures: { at: [2], kind: "rateLimited", retryAfterSeconds: 40 },
+  });
+  const result = await Effect.runPromise(
+    Effect.gen(function* () {
+      const fiber = yield* Effect.fork(
+        streamCitymotorsInventoryWithRequestGate(
+          { maxPages: 32, onBatch: () => Effect.void },
+          gate,
+        ),
+      );
+      // Let the refused GET finish, then prove the resend waits.
+      yield* Effect.promise(() => new Promise((done) => setTimeout(done, 50)));
+      yield* TestClock.adjust(39_000);
+      yield* Effect.promise(() => new Promise((done) => setTimeout(done, 50)));
+      const waited = requests.length;
+      yield* TestClock.adjust(1_000);
+      return { waited, result: yield* Fiber.join(fiber) };
+    }).pipe(Effect.provide(TestContext.TestContext)),
+  );
+  expect(result.waited).toBe(2);
+  expect(result.result).toMatchObject({
+    status: "complete",
+    pagesProcessed: 12,
+  });
+  expect(requests).toHaveLength(13);
+  expect(requests[2]).toBe(requests[1]);
+});
+
+test("City Motors backs off a rate limit without Retry-After before sending the GET once more", async () => {
+  const requests = mockInventory({
+    transientFailures: { at: [1], kind: "rateLimited" },
+  });
+  const result = await Effect.runPromise(
+    Effect.gen(function* () {
+      const fiber = yield* Effect.fork(
+        streamCitymotorsInventoryWithRequestGate(
+          { maxPages: 1, onBatch: () => Effect.void },
+          gate,
+        ),
+      );
+      yield* Effect.promise(() => new Promise((done) => setTimeout(done, 50)));
+      const waited = requests.length;
+      yield* TestClock.adjust(CITYMOTORS_RATE_LIMIT_BACKOFF_MS);
+      return { waited, result: yield* Fiber.join(fiber) };
+    }).pipe(Effect.provide(TestContext.TestContext)),
+  );
+  expect(result.waited).toBe(1);
+  expect(result.result).toMatchObject({ status: "paused", pagesProcessed: 1 });
+  expect(requests).toEqual([CITYMOTORS_CATALOG, CITYMOTORS_CATALOG]);
+});
+
+test("City Motors returns the last validated checkpoint when a rate limit's Retry-After does not fit the chunk", async () => {
+  const requests = mockInventory({
+    transientFailures: { at: [2], kind: "rateLimited", retryAfterSeconds: 600 },
+  });
+  const paused = await run(undefined, 3);
+  expect(paused).toMatchObject({ status: "paused", pagesProcessed: 1 });
+  expect(requests).toHaveLength(2);
+  const resumed = await run(paused.cursor);
+  expect(resumed).toMatchObject({ status: "complete", pagesProcessed: 11 });
+  expect(requests[2]).toBe(requests[1]);
+});
+
+test("City Motors fails an unadvanced chunk whose first GET is rate-limited past the chunk", async () => {
+  const requests = mockInventory({
+    transientFailures: { at: [1], kind: "rateLimited", retryAfterSeconds: 600 },
+  });
+  await expect(run()).rejects.toThrow(
+    /with no time to resend: .*HTTP 429.*Retry-After 600 s.*prior inventory is preserved/,
+  );
+  expect(requests).toHaveLength(1);
 });
 
 test("City Motors rejects late catalog drift and excessive required loss before callbacks", async () => {

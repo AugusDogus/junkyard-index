@@ -72,12 +72,19 @@ function assertUncached(response: Response, url: string): void {
 /**
  * Each way `response` is not the complete, unredirected HTTP 200 text/html
  * page at `requestUrl`, worded to follow "but". Empty when it is that page.
+ * A non-200 status carries its Location, since redirects are not followed.
  * A mocked Response has no URL, so an empty URL is not a redirect.
  */
 function endpointFailures(response: Response, requestUrl: string): string[] {
   const failures: string[] = [];
-  if (response.status !== 200)
-    failures.push("its status was HTTP " + response.status);
+  if (response.status !== 200) {
+    const location = response.headers.get("location");
+    failures.push(
+      "its status was HTTP " +
+        response.status +
+        (location === null ? "" : " with Location " + location),
+    );
+  }
   if (response.redirected || (response.url && response.url !== requestUrl))
     failures.push("it was redirected to " + (response.url || "(unknown URL)"));
   const mediaType = response.headers
@@ -107,6 +114,9 @@ function read(url: string, gate: ProviderRequestGate, nonce: string | null) {
       url: requestUrl,
       context: "All-N-1 " + requestUrl,
       requestGate: gate,
+      // A redirect is never followed, so its status and Location reach the
+      // failure message instead of the page it leads to.
+      redirect: "manual",
       retry: {
         timeoutMs: ALLN1_REQUEST_TIMEOUT_MS,
         retryLimit: 0,

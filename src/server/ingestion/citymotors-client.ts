@@ -3,6 +3,7 @@ import { ProviderRequestError, RequestTimeoutError } from "./errors";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import {
   fetchProviderResponse,
+  parseRetryAfterMs,
   type ProviderRequestGate,
 } from "./provider-http-client";
 import {
@@ -20,18 +21,36 @@ export class CitymotorsProviderError extends Data.TaggedError(
   }
 }
 /**
- * One GET that timed out or answered HTTP 5xx. Neither says anything about the
- * page, so the connector may send the same GET again while it fits the chunk
- * deadline. Every other failure stays a `CitymotorsProviderError`.
+ * One GET that timed out, answered HTTP 5xx or was rate-limited with HTTP 429.
+ * None says anything about the page, so the connector may send the same GET
+ * again while it fits the chunk deadline, first waiting `retryAfterMs` (the
+ * host's Retry-After, or zero) for a rate limit. Every other failure stays a
+ * `CitymotorsProviderError`.
  */
 export class CitymotorsTransientFailure extends Data.TaggedError(
   "CitymotorsTransientFailure",
-)<{ url: string; cause: unknown }> {}
+)<{
+  url: string;
+  cause: unknown;
+  rateLimited: null | { retryAfterMs: number };
+}> {}
 class CitymotorsServerStatus extends Error {}
+class CitymotorsRateLimited extends Error {
+  constructor(readonly retryAfterMs: number) {
+    super(
+      "City Motors origin answered HTTP 429" +
+        (retryAfterMs > 0
+          ? " with Retry-After " + Math.ceil(retryAfterMs / 1000) + " s"
+          : " without a Retry-After"),
+    );
+  }
+}
+const statusCause = (cause: unknown) =>
+  cause instanceof ProviderRequestError ? cause.cause : null;
 const isTransientCause = (cause: unknown) =>
   cause instanceof RequestTimeoutError ||
-  (cause instanceof ProviderRequestError &&
-    cause.cause instanceof CitymotorsServerStatus) ||
+  statusCause(cause) instanceof CitymotorsServerStatus ||
+  statusCause(cause) instanceof CitymotorsRateLimited ||
   (cause instanceof DOMException && cause.name === "TimeoutError");
 /**
  * Per-GET budget for headers, body and the combined deadline. The origin can
@@ -63,6 +82,13 @@ export function fetchCitymotorsPage(url: string, gate: ProviderRequestGate) {
             if (result.status >= 500)
               throw new CitymotorsServerStatus(
                 `City Motors origin answered HTTP ${result.status}`,
+              );
+            if (result.status === 429)
+              throw new CitymotorsRateLimited(
+                parseRetryAfterMs(
+                  result.headers.get("retry-after"),
+                  Date.now(),
+                ),
               );
             if (
               result.status !== 200 ||
@@ -111,10 +137,18 @@ export function fetchCitymotorsPage(url: string, gate: ProviderRequestGate) {
       );
     }),
   ).pipe(
-    Effect.mapError((cause) =>
-      isTransientCause(cause)
-        ? new CitymotorsTransientFailure({ url, cause })
-        : new CitymotorsProviderError({ operation: url, cause }),
-    ),
+    Effect.mapError((cause) => {
+      if (!isTransientCause(cause))
+        return new CitymotorsProviderError({ operation: url, cause });
+      const status = statusCause(cause);
+      return new CitymotorsTransientFailure({
+        url,
+        cause,
+        rateLimited:
+          status instanceof CitymotorsRateLimited
+            ? { retryAfterMs: status.retryAfterMs }
+            : null,
+      });
+    }),
   );
 }
