@@ -50,8 +50,9 @@ pages are rebuilt without repeating inventory callbacks.
   the epoch milliseconds of that catalog read (`startedAt`), the searches run
   so far (yard, make, URL, hash and whether it was capped), the hidden donors
   they found with the search that listed each, and the searches still
-  pending, plus `replans`, how many censuses in a row planned a date again
-  (0 to 2). It emits nothing.
+  pending, plus `replans`, how many censuses since the searches began planned
+  a date again (0 to 2). It never resets before the crawl completes. It
+  emits nothing.
 - `pages`: whole-snapshot fingerprint, all ordered page URL/hash receipts,
   the set-date search date/URL/hash receipts, the resolved recoveries those
   searches came from, `lastPage`, `nextPage` and cumulative `processed`,
@@ -101,7 +102,8 @@ donors, and when it is at most 60 minutes old (with its progress, resolved
 or not); any other tie date is planned again from that read. A search chunk
 whose recoveries include one past 60 minutes runs no search and reads the
 catalog again instead. A census that plans any date again adds one to
-`replans`; the third in a row fails as a transient rejection naming each date
+`replans`, which never resets before the crawl completes; the third such
+census fails as a transient rejection naming each date
 and why (newly repeated, shown donors or repeated slots changed, or searches
 older than 60 minutes), so a catalog that orders a tie differently on every
 read ends the crawl instead of searching forever. A resumed `pages`
@@ -154,8 +156,8 @@ offer, and lists the makes searched per yard. It stays transient because a
 donor removed between the catalog read and the make searches looks the
 same, and that crawl can pass later in the day. If donors repeat while the
 catalog is no longer ordered by Set Date, or one page lists the same donor
-card twice, the census fails because hidden donors cannot be located or
-counted. A recovered donor whose valid VIN or native stock matches a donor
+card twice (even one an earlier page already showed), the census fails as a
+deterministic rejection because hidden donors cannot be located or counted. A recovered donor whose valid VIN or native stock matches a donor
 the catalog showed for that date under another card fails the census as
 contract drift. Each recovered donor takes the
 repeated card's slot, so it is accounted once instead of as a duplicate, and
