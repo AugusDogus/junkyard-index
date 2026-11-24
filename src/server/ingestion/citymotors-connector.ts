@@ -62,6 +62,19 @@ export const CITYMOTORS_WORST_CASE_REQUEST_MS =
  * which run inside the same chunk deadline.
  */
 export const CITYMOTORS_COMPLETION_RESERVE_MS = 10_000;
+/**
+ * Least wait before resending a rate-limited GET. The host answered HTTP 429
+ * to the first catalog GET of a run on November 23, 2026; resending at once
+ * would only be refused again. A longer Retry-After is honored as sent.
+ */
+export const CITYMOTORS_RATE_LIMIT_BACKOFF_MS = 15_000;
+const resendDelayMs = (failure: CitymotorsTransientFailure) =>
+  failure.rateLimited === null
+    ? 0
+    : Math.max(
+        CITYMOTORS_RATE_LIMIT_BACKOFF_MS,
+        failure.rateLimited.retryAfterMs,
+      );
 const attempt = <A>(operation: string, run: () => A) =>
   ingestionValidation({
     try: run,
@@ -188,9 +201,10 @@ export function streamCitymotorsInventoryWithRequestGate<E, R>(
     if (cursor.phase === "complete")
       return { ...summary, status: "complete" as const };
     const started = Date.now();
-    const requestFits = () =>
+    const requestFits = (waitMs = 0) =>
       Date.now() -
         started +
+        waitMs +
         CITYMOTORS_WORST_CASE_REQUEST_MS +
         CITYMOTORS_COMPLETION_RESERVE_MS <=
       CITYMOTORS_CHUNK_DEADLINE_MS;
@@ -200,17 +214,22 @@ export function streamCitymotorsInventoryWithRequestGate<E, R>(
       const url: string = yield* attempt("next native control", (): string =>
         nextUrl(current),
       );
-      // The slow origin occasionally stalls or answers 5xx. Such a GET is sent
-      // once more if a full request still fits. If it still fails, a chunk that
-      // already validated pages returns that checkpoint so the next chunk
-      // resumes there; one that has not fails without advancing.
+      // The slow origin occasionally stalls, answers 5xx or rate-limits. Such a
+      // GET is sent once more if its wait (a rate limit's backoff) and a full
+      // request still fit. If it still fails, a chunk that already validated
+      // pages returns that checkpoint so the next chunk resumes there; one
+      // that has not fails without advancing.
       let fetched = yield* Effect.either(fetchCitymotorsPage(url, gate));
-      const resent =
+      const waitMs =
         Either.isLeft(fetched) &&
-        fetched.left instanceof CitymotorsTransientFailure &&
-        requestFits();
-      if (resent)
+        fetched.left instanceof CitymotorsTransientFailure
+          ? resendDelayMs(fetched.left)
+          : null;
+      const resent = waitMs !== null && requestFits(waitMs);
+      if (resent) {
+        if (waitMs > 0) yield* Effect.sleep(waitMs);
         fetched = yield* Effect.either(fetchCitymotorsPage(url, gate));
+      }
       if (Either.isLeft(fetched)) {
         const failure = fetched.left;
         if (failure instanceof CitymotorsProviderError)

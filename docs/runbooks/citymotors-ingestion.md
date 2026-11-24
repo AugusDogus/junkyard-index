@@ -80,7 +80,9 @@ Paused chunks emit no vehicles, yards, presence or accounting. The completed
 snapshot emits only after all closing pages and full-population quality guards
 pass. A failed parser, guard or callback returns no advanced checkpoint. A GET
 that times out or answers HTTP 5xx is sent once more if a full request budget
-still fits; if it fails again, a chunk that already validated pages returns that
+still fits. A GET answered with HTTP 429 is sent once more after its
+Retry-After, or at least 15 seconds, if that wait and a full request budget
+still fit. If it fails again, a chunk that already validated pages returns that
 checkpoint as paused and logs a warning naming the URL and cause, and one that
 has not fails without advancing. Prior accepted inventory remains preserved. A
 complete cursor performs no HTTP or callbacks when replayed.
