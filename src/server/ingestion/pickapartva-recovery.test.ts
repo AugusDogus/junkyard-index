@@ -67,6 +67,7 @@ const shown = Array.from({ length: 10 }, (_, index) => donor(index));
 const tie = { date, slots: 2, shown: shown.map(pickapartvaCardKey).sort() };
 const hiddenA = donor(10);
 const hiddenB = donor(11, { yardCode: "UU81" });
+const legacyHidden = donor(10, { cardId: null, stock: "LEGACY10" });
 
 test("Pick-A-Part VA plans every yard at once unless the catalog already shows a full search page", () => {
   expect(PickapartvaRecovery.plan(tie, 1).pending).toEqual([
@@ -129,6 +130,21 @@ test("Pick-A-Part VA fails a catalog page that lists one donor card twice", () =
   );
   expect(() => pickapartvaTies([{ url: catalogUrl(1), page }])).toThrow(
     "lists one donor card twice on page 1",
+  );
+  // A card first shown on an earlier page and then twice on one later page
+  // is still one native query listing it twice, not two repeated slots.
+  const pages = [
+    [legacy, ...Array.from({ length: 499 }, (_, index) => donor(index + 1))],
+    [legacy, donor(500), legacy],
+  ].map((records, index) => ({
+    url: catalogUrl(index + 1),
+    page: parsePickapartvaPage(
+      pickapartvaTestPage(records, index + 1, 2),
+      index + 1,
+    ),
+  }));
+  expect(() => pickapartvaTies(pages)).toThrow(
+    "lists one donor card twice on page 2",
   );
 });
 
@@ -277,6 +293,18 @@ test("Pick-A-Part VA names a make missing from the native selector when a make s
 });
 
 test.each<[string, () => unknown, string, "transient" | "deterministic"]>([
+  [
+    // The parser already refuses a repeated card id; a legacy card has none.
+    "lists one legacy donor card twice",
+    () =>
+      PickapartvaRecovery.record(
+        PickapartvaRecovery.plan(tie, 1),
+        href(),
+        search([...shown, legacyHidden, legacyHidden]),
+      ),
+    `search ${href()} lists one donor card twice (stock ${legacyHidden.stock}`,
+    "deterministic",
+  ],
   [
     "lists more unseen donors than the catalog hid",
     () =>
