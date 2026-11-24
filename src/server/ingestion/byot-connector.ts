@@ -5,6 +5,8 @@ import {
   ByotCursor,
   byotQueryKey,
   BYOT_MAX_RUN_MS,
+  BYOT_RUN_REQUESTS,
+  byotRequestsSent,
   type ByotCursorState,
 } from "./byot-cursor";
 import {
@@ -45,6 +47,9 @@ export interface ByotOptions<E, R> {
   startCursor?: unknown;
   /** Only the prior accepted, search-published terminal cursor can seed a new run. */
   previousCursor?: ByotCursor | null;
+  /** The last checkpoint of the newest finished attempt, when it failed. A
+   * new run continues it when `ByotCursor.resume` allows. */
+  failedAttemptCursor?: string | null;
   now?: number;
   maxPages?: number;
   readPage: (url: string, code: string) => Effect.Effect<string, ByotError>;
@@ -74,24 +79,50 @@ export function streamByotInventory<E, R>(
     let cursor = yield* unwrap(
       ByotCursor.parse(options.startCursor ?? ByotCursor.initial()),
     );
+    const now = options.now ?? Date.now();
     if (cursor.phase === "initial") {
       const previous = options.previousCursor
         ? yield* unwrap(ByotCursor.parse(options.previousCursor))
         : null;
-      cursor = yield* unwrap(
-        ByotCursor.begin(previous, options.now ?? Date.now()),
-      );
+      const resumption = options.failedAttemptCursor
+        ? ByotCursor.resume(options.failedAttemptCursor, previous, now)
+        : null;
+      if (resumption?.kind === "fresh")
+        yield* Effect.logWarning(resumption.reason);
+      cursor =
+        resumption?.kind === "resume"
+          ? resumption.cursor
+          : yield* unwrap(ByotCursor.begin(previous, now));
     }
-    if (
-      "startedAt" in cursor &&
-      (options.now ?? Date.now()) - cursor.startedAt > BYOT_MAX_RUN_MS
-    )
+    if ("startedAt" in cursor && now - cursor.startedAt > BYOT_MAX_RUN_MS)
       return yield* Effect.fail(
         ByotResult.error(
           "daily run deadline",
-          `${BYOT_MAX_RUN_MS / 3_600_000}-hour limit exceeded, so this run's search evidence is too old to publish. Published inventory is unchanged; restart from the prior published sweep checkpoint`,
+          `${BYOT_MAX_RUN_MS / 3_600_000}-hour limit exceeded, so this run's search evidence is too old to publish. Published inventory is unchanged; the next attempt starts a fresh sweep from the latest publication`,
         ),
       );
+    if (
+      (cursor.phase === "arrivals" || cursor.phase === "search") &&
+      cursor.paceFrom !== undefined
+    ) {
+      // Fail before sending when this attempt's observed pace, chunk
+      // transitions included, cannot finish the sweep inside the run limit.
+      const sent = byotRequestsSent(cursor);
+      const measured = sent - cursor.paceFrom.sent;
+      const pace = (now - cursor.paceFrom.at) / Math.max(1, measured);
+      const remaining = BYOT_RUN_REQUESTS - sent;
+      const finish = now + remaining * pace;
+      if (
+        measured >= BYOT_CHUNK_REQUESTS &&
+        finish - cursor.startedAt > BYOT_MAX_RUN_MS
+      )
+        return yield* Effect.fail(
+          ByotResult.error(
+            "daily run deadline",
+            `At this attempt's observed ${(pace / 1_000).toFixed(1)} s per request, its ${remaining} remaining requests would end at about ${new Date(finish).toISOString()}, after the ${BYOT_MAX_RUN_MS / 3_600_000}-hour limit for evidence from ${new Date(cursor.startedAt).toISOString()}. No request was sent in this chunk; published inventory is unchanged and the checkpoint after ${sent} requests is kept. Check BYOT response times before the next attempt`,
+          ),
+        );
+    }
     // Requests advance one working state, which the chunk seals and
     // validates once at the end. After a request has succeeded, a failed one
     // ends the chunk with the work before it, so a step retry does not resend

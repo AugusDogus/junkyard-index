@@ -3,15 +3,20 @@ import { z } from "zod";
 import { BYOT_YARDS } from "./byot-configuration";
 import { BYOT_QUERIES } from "./byot-directory";
 import { ByotResult } from "./byot-result";
+import { IngestionDay } from "./ingestion-day";
 
 export const BYOT_MAX_CURSOR_BYTES = 16 * 1024 * 1024;
 export const BYOT_RETIRED_QUERY_MAX_AGE_MS = 21 * 24 * 60 * 60 * 1000;
 /** Each daily run reads every yard's feed and searches every query at every
  * yard: 6,695 serial requests, about five hours at the qualified two-second
  * pacing. A resumed run older than this fails instead of publishing stale
- * search evidence, and restarts from its preceding publication. */
+ * search evidence. */
 export const BYOT_MAX_RUN_MS = 8 * 60 * 60 * 1000;
 export const BYOT_RUN_REQUESTS = BYOT_YARDS.length * (1 + BYOT_QUERIES.length);
+/** Expected time per request: the measured 0.6-0.7 s response plus the
+ * two-second pause. A retry resumes a failed attempt only when its remaining
+ * requests at this pace still end inside `BYOT_MAX_RUN_MS`. */
+export const BYOT_EXPECTED_REQUEST_MS = 2_700;
 /** Request cap per chunk, which normally ends a chunk. When responses are
  * slow, the connector stops earlier, once one more request could overrun the
  * chunk deadline. */
@@ -63,6 +68,16 @@ const active = {
   previousCounts: z
     .array(z.number().int().nonnegative())
     .max(BYOT_YARDS.length),
+  /** When this attempt began sending and how many requests the sweep had
+   * sent by then, so a chunk can measure the attempt's pace. Absent on
+   * checkpoints saved before pace tracking, which skip the projection. */
+  paceFrom: z
+    .object({
+      at: z.number().int().nonnegative(),
+      sent: z.number().int().nonnegative(),
+    })
+    .strict()
+    .optional(),
 };
 const schema = z.discriminatedUnion("phase", [
   z.object({ ...base, phase: z.literal("initial") }).strict(),
@@ -107,6 +122,22 @@ const schema = z.discriminatedUnion("phase", [
 ]);
 export type ByotCursor = z.infer<typeof schema>;
 export type ByotCache = z.infer<typeof cache>;
+/** A sweep that still has requests to send. */
+export type ByotSweepCursor = Extract<
+  ByotCursor,
+  { phase: "arrivals" | "search" }
+>;
+/** Whether a retry continues a failed attempt or starts a fresh sweep, and
+ * why not. */
+export type ByotResumption =
+  | { kind: "resume"; cursor: ByotCursor }
+  | { kind: "fresh"; reason: string };
+/** Requests a sweep has sent, including the yard feeds. */
+export function byotRequestsSent(cursor: ByotSweepCursor): number {
+  return cursor.phase === "arrivals"
+    ? cursor.feeds.length
+    : BYOT_YARDS.length + cursor.progress;
+}
 type Unsigned<C = ByotCursor> = C extends { checksum: string }
   ? Omit<C, "checksum">
   : never;
@@ -142,6 +173,15 @@ function validate(input: unknown): ByotCursor {
     cursor.previousCounts.length !== BYOT_YARDS.length
   )
     throw new Error("Previous yard counts are incomplete");
+  if (
+    (cursor.phase === "arrivals" || cursor.phase === "search") &&
+    cursor.paceFrom !== undefined &&
+    (cursor.paceFrom.at < cursor.startedAt ||
+      cursor.paceFrom.sent > byotRequestsSent(cursor))
+  )
+    throw new Error(
+      "Pace origin precedes the run or counts more requests than were sent",
+    );
   const now = "startedAt" in cursor ? cursor.startedAt : cursor.completedAt;
   for (const yard of cursor.cache) {
     if (new Set(yard.map((entry) => entry.query)).size !== yard.length)
@@ -240,8 +280,74 @@ export const ByotCursor = {
             : BYOT_YARDS.map(() => []),
         previousCounts:
           previous?.phase === "complete" ? previous.yardCounts : [],
+        paceFrom: { at: now, sent: 0 },
         feeds: [],
       });
     });
+  },
+  /**
+   * Decides whether a retry continues the last checkpoint of a failed attempt
+   * (`failedWire`) instead of starting a fresh sweep from `previous`, the
+   * latest publication. It continues only a sweep with requests left, begun
+   * from that publication on the same ingestion day, whose remaining requests
+   * at the expected pace still end inside the run limit. Its search evidence
+   * keeps the attempt's start time, so the run limit spans every attempt.
+   */
+  resume(
+    failedWire: string,
+    previous: ByotCursor | null,
+    now: number,
+  ): ByotResumption {
+    const fresh = (reason: string): ByotResumption => ({
+      kind: "fresh",
+      reason: `BYOT starts a fresh daily sweep instead of resuming the failed attempt: ${reason}`,
+    });
+    const parsed = ByotCursor.fromWire(failedWire);
+    if (!parsed.ok)
+      return fresh(`its checkpoint did not load (${parsed.error.message})`);
+    const failed = parsed.value;
+    if (failed.phase !== "arrivals" && failed.phase !== "search")
+      return fresh(
+        failed.phase === "ready"
+          ? "it failed after every search (phase ready), and a fresh crawl can change data that failed snapshot validation"
+          : `its checkpoint holds no sweep in progress (phase ${failed.phase})`,
+      );
+    if (
+      IngestionDay.key(new Date(failed.startedAt)) !==
+      IngestionDay.key(new Date(now))
+    )
+      return fresh(
+        `it began on ingestion day ${IngestionDay.key(new Date(failed.startedAt))}, not today's`,
+      );
+    const remaining = BYOT_RUN_REQUESTS - byotRequestsSent(failed);
+    const finish = now + remaining * BYOT_EXPECTED_REQUEST_MS;
+    if (finish - failed.startedAt > BYOT_MAX_RUN_MS)
+      return fresh(
+        `its ${remaining} remaining requests would end at about ${new Date(finish).toISOString()}, after the ${BYOT_MAX_RUN_MS / 3_600_000}-hour limit for evidence from ${new Date(failed.startedAt).toISOString()}`,
+      );
+    // A publication is dated by its own run's start. The attempt began from
+    // the latest one only when it started after it and carries its offset
+    // and yard counts.
+    const expected = ByotCursor.begin(previous, failed.startedAt);
+    if (
+      previous?.phase !== "complete" ||
+      previous.completedAt > failed.startedAt ||
+      !expected.ok ||
+      expected.value.phase !== "arrivals" ||
+      expected.value.sweepStart !== failed.sweepStart ||
+      JSON.stringify(expected.value.previousCounts) !==
+        JSON.stringify(failed.previousCounts)
+    )
+      return fresh(
+        "it did not begin from the latest publication, so its carried evidence and yard counts may be stale",
+      );
+    // This attempt's pace is measured from now, not across the retry delay.
+    const resumed = ByotCursor.checkpoint({
+      ...failed,
+      paceFrom: { at: now, sent: byotRequestsSent(failed) },
+    });
+    return resumed.ok
+      ? { kind: "resume", cursor: resumed.value }
+      : fresh(`its checkpoint did not reseal (${resumed.error.message})`);
   },
 } as const;

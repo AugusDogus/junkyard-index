@@ -54,11 +54,22 @@ When responses are slow, it ends earlier, before a request at its full
 deadline plus pause and the snapshot could overrun its four minutes. It
 validates its checkpoint once rather than after each request. When a request
 fails after others in the chunk succeeded, the chunk returns the work before
-it, and the next chunk sends the failed request first. A resumed daily run
-older than eight hours fails and must restart from its preceding publication.
-A failed run also restarts from that publication, so each attempt costs the
-full five hours. Retries start two hours after a failure, so a failure after
-about 11:00 UTC leaves the retry finishing after the 18:00 UTC alert check.
+it, and the next chunk sends the failed request first.
+
+Search evidence older than eight hours cannot publish. Once an attempt has
+sent a full chunk, each chunk first projects its remaining requests at the
+attempt's observed pace (chunk transitions included) and fails before sending
+when the run would end past that limit, so slow responses stop the run early
+instead of after eight hours. Retries start two hours after a failure. A retry
+continues the failed attempt from its last saved checkpoint when that attempt
+began on the same ingestion day from the latest publication, had searches left
+and its remaining requests at 2.7 s each still end inside the eight hours; its
+pace is then measured from the retry. Otherwise, including a failure after
+every search (snapshot validation), the retry logs why and starts a fresh
+sweep from the latest publication. For example, a run started at 07:00 UTC
+that fails at 11:00 (about 5,300 requests sent) resumes at 13:00 and
+finishes about 14:00 UTC, before the 18:00 UTC alert check.
+
 Each response has a combined 45-second request/body deadline and a 2 MiB cap,
 with no automatic retries. HTTP 429, redirects, partial responses, wrong MIME
 types and unowned URLs stop the run. Resume only after the provider's
@@ -79,7 +90,9 @@ refresh. Published cursors from the earlier weekly sweep (a seventh of the
 directory per run) still seed the next daily run.
 
 The durable adapter loads only the latest accepted, search-published BYOT
-terminal cursor. Failed, partial or unpublished runs cannot seed the next run.
+terminal cursor. Failed, partial or unpublished runs cannot seed the next
+run's carried evidence; a failed attempt's own checkpoint only continues its
+sweep, as above.
 Checkpoints bind the qualified directory and yard metadata, validate
 the contiguous per-yard search prefix, carry previous published yard counts,
 and have a 16 MiB cap. Snapshot cleanup preserves terminal source cursors.
