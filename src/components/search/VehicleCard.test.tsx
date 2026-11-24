@@ -81,8 +81,8 @@ describe("search card details", () => {
     expect(html).toContain("Automatic</dd>");
   });
 
-  test("shows row alone, including zero, without empty position labels", () => {
-    expect(card({ row: "0" })).toContain("Row 0");
+  test("shows row alone, without empty position labels or row 0", () => {
+    expect(card({ row: "0" })).not.toContain("Row 0");
     expect(card({ row: "215" })).toContain("Row 215");
     expect(card({ row: "215" })).not.toContain("Section ");
     expect(card({ row: "215" })).not.toContain("Space ");
@@ -122,6 +122,25 @@ describe("search card details", () => {
     expect(html).toContain("Yard type: Self-service");
     expect(html).toContain('fetchPriority="high"');
     expect(html).not.toContain('data-slot="card"');
+  });
+
+  test("title-cases all-caps models and keeps model codes", () => {
+    expect(card({ make: "Kia", model: "SPECTRA" })).toContain(
+      'aria-label="2012 Kia Spectra"',
+    );
+    expect(card({ make: "Honda", model: "CR-V" })).toContain(
+      'aria-label="2012 Honda CR-V"',
+    );
+  });
+
+  test("tucks manual search steps behind one line", () => {
+    const html = card({
+      source: "byot",
+      detailsUrl: "https://www.byotautoparts.com/locations/beaumont/inventory/",
+    });
+    expect(html).toContain("<details");
+    expect(html).toContain("How to find this vehicle</summary>");
+    expect(html).toContain("Select make and model");
   });
 
   test("gives the provider link vehicle and new-tab context", () => {

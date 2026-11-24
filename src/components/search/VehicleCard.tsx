@@ -2,7 +2,7 @@
 
 import { YardService } from "~/lib/yard-service";
 import { YardServiceLine } from "~/components/junkyards/YardServiceLine";
-import { ArrowUpRight, Copy, MapPin } from "lucide-react";
+import { ArrowUpRight, ChevronRight, Copy, MapPin } from "lucide-react";
 import Link from "next/link";
 import { Analytics } from "~/lib/analytics";
 import { memo, useCallback, useState } from "react";
@@ -15,6 +15,7 @@ import { AnalyticsEvents } from "~/lib/analytics-events";
 import type { VehicleCardProps } from "~/lib/types";
 import { VehicleCardDetails } from "~/lib/vehicle-card-details";
 import { VehicleDestination } from "~/lib/vehicle-destination";
+import { VehicleName } from "~/lib/vehicle-name";
 import { useHiddenSources } from "~/components/HiddenSourcesContext";
 
 function VehicleCardComponent({
@@ -30,7 +31,9 @@ function VehicleCardComponent({
   const miles = VehicleCardDetails.miles(vehicle.distance);
   const engine = VehicleCardDetails.text(vehicle.engine);
   const transmission = VehicleCardDetails.text(vehicle.transmission);
-  const title = `${vehicle.year} ${vehicle.make} ${vehicle.model}`;
+  // Yards often send all-caps models ("SPECTRA"); codes keep their caps.
+  const model = VehicleName.display(vehicle.model);
+  const title = `${vehicle.year} ${vehicle.make} ${model}`;
   const geoLabel =
     vehicle.locationCity && vehicle.locationCity !== "Unknown"
       ? `${vehicle.locationCity}, ${vehicle.stateAbbr}`
@@ -77,7 +80,7 @@ function VehicleCardComponent({
             <VehicleImage
               priority={priority}
               src={primaryImage}
-              alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
+              alt={title}
               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             />
           ) : (
@@ -100,7 +103,7 @@ function VehicleCardComponent({
         <div>
           <h3 className="text-xl leading-tight font-extrabold text-balance break-words">
             <span className="tabular-nums">{vehicle.year}</span> {vehicle.make}{" "}
-            {vehicle.model}
+            {model}
           </h3>
           {vehicle.trim && (
             <p className="text-muted-foreground text-sm">{vehicle.trim}</p>
@@ -175,11 +178,28 @@ function VehicleCardComponent({
       </div>
 
       <div className="flex flex-col items-stretch gap-2 p-3 pt-0 sm:p-4 sm:pt-0">
-        {destination.kind !== "inventory" && (
-          <>
-            <p className="text-muted-foreground text-xs text-pretty">
+        {destination.kind === "unavailable" && (
+          <p className="text-muted-foreground text-xs text-pretty">
+            {destination.explanation}
+          </p>
+        )}
+        {destination.kind === "manual-search" && (
+          // Steps repeat on every card from the provider, so they stay folded.
+          <details className="group text-xs">
+            <summary className="text-muted-foreground hover:text-ink focus-visible:outline-focus flex min-h-6 cursor-pointer list-none items-center gap-1 outline-none focus-visible:outline-2 focus-visible:outline-solid [&::-webkit-details-marker]:hidden">
+              <ChevronRight
+                aria-hidden="true"
+                className="size-3.5 shrink-0 transition-transform group-open:rotate-90"
+              />
+              How to find this vehicle
+            </summary>
+            <p className="text-muted-foreground mt-1 text-pretty">
               {destination.explanation}
             </p>
+          </details>
+        )}
+        {destination.kind !== "inventory" && (
+          <>
             {vin && (
               <Button
                 type="button"
