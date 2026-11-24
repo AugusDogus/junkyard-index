@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { Effect, TestClock, TestContext } from "effect";
+import { Effect, Logger, TestClock, TestContext } from "effect";
 import { streamByotInventory } from "./byot-connector";
 import {
   BYOT_CHUNK_REQUESTS,
@@ -366,6 +366,7 @@ test("after a request succeeds, a failed one ends the chunk with the work before
           ? Effect.fail(ByotResult.error("fixture", "HTTP429 Retry-After: 60"))
           : Effect.succeed(JSON.stringify(byotFixtureFeeds[code] ?? [])),
       );
+  const logs: string[] = [];
   const partial = await Effect.runPromise(
     streamByotInventory({
       startCursor: ByotCursor.initial(),
@@ -373,8 +374,25 @@ test("after a request succeeds, a failed one ends the chunk with the work before
       maxPages: BYOT_CHUNK_REQUESTS,
       readPage: failing((call) => call === 5),
       onBatch: () => Effect.void,
-    }),
+    }).pipe(
+      Effect.provide(
+        Logger.replace(
+          Logger.defaultLogger,
+          Logger.make(({ logLevel, message }) => {
+            logs.push(`${logLevel.label} ${String(message)}`);
+          }),
+        ),
+      ),
+    ),
   );
+  // The failure is logged even though the chunk keeps its earlier work.
+  expect(logs).toEqual([
+    expect.stringMatching(
+      new RegExp(
+        `^WARN BYOT ${BYOT_YARDS[4]?.code} arrivals request failed after 4 succeeded in this chunk \\(.*HTTP429 Retry-After: 60.*\\)`,
+      ),
+    ),
+  ]);
   expect(partial.status).toBe("paused");
   expect(partial.pagesProcessed).toBe(4);
   expect(partial.cursor).toMatchObject({ phase: "arrivals" });
@@ -420,8 +438,14 @@ test("checkpoints without the required search evidence are rejected", () => {
     cache: weekly.cache,
   });
   expect(ready.ok).toBe(false);
-  if (!ready.ok)
-    expect(ready.error.message).toContain("contiguous search evidence");
+  if (!ready.ok) {
+    expect(ready.error.message).toContain(
+      "lacks this run's contiguous search evidence",
+    );
+    // The message also fits seeding and sealing, where nothing is resumed.
+    expect(ready.error.message).not.toContain("resumed");
+    expect(ready.error.message).toContain("Published inventory is unchanged");
+  }
 });
 
 test("the durable source sends BYOT's full chunk request cap", () => {

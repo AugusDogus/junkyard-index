@@ -145,6 +145,12 @@ export function streamByotInventory<E, R>(
             ),
           ),
       );
+    // Logs a failure that ends the chunk early, since the chunk itself
+    // succeeds and leaves no other trace of it.
+    const pauseAfter = (request: string, error: ByotError) =>
+      Effect.logWarning(
+        `BYOT ${request} request failed after ${pagesProcessed} succeeded in this chunk (${error.message}); keeping their checkpoint and pausing, so the next chunk sends this request first and fails the run if it fails again.`,
+      );
     while (
       state.phase !== "ready" &&
       state.phase !== "complete" &&
@@ -176,7 +182,10 @@ export function streamByotInventory<E, R>(
           yard.code,
         );
         if (fetched._tag === "Left") {
-          if (pagesProcessed > 0) break;
+          if (pagesProcessed > 0) {
+            yield* pauseAfter(`${yard.code} arrivals`, fetched.left);
+            break;
+          }
           return yield* Effect.fail(fetched.left);
         }
         const records = fetched.right;
@@ -205,7 +214,13 @@ export function streamByotInventory<E, R>(
           `${yard.code} query ${index}`,
         );
         if (fetched._tag === "Left") {
-          if (pagesProcessed > 0) break;
+          if (pagesProcessed > 0) {
+            yield* pauseAfter(
+              `${yard.code} query ${index} search`,
+              fetched.left,
+            );
+            break;
+          }
           return yield* Effect.fail(fetched.left);
         }
         const records = fetched.right;

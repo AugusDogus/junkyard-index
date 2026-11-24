@@ -54,14 +54,18 @@ When responses are slow, it ends earlier, before a request at its full
 deadline plus pause and the snapshot could overrun its four minutes. It
 validates its checkpoint once rather than after each request. When a request
 fails after others in the chunk succeeded, the chunk returns the work before
-it, and the next chunk sends the failed request first.
+it, logs a warning naming the failed request and its error, and the next
+chunk sends the failed request first.
 
 Search evidence older than eight hours cannot publish. Once an attempt has
 sent a full chunk, each chunk first projects its remaining requests at the
 attempt's observed pace (chunk transitions included) and fails before sending
 when the run would end past that limit, so slow responses stop the run early
-instead of after eight hours. Retries start two hours after a failure. A retry
-continues the failed attempt from its last saved checkpoint when that attempt
+instead of after eight hours. The workflow step retries that failure twice
+within seconds; each retry also fails before sending a request. Retries start
+two hours after a failure. A retry continues the newest saved checkpoint of a
+failed attempt since the last success (passing over a failed retry that
+saved no chunk, so its earlier checkpoint is used) when that attempt
 began on the same ingestion day from the latest publication, had searches left
 and its remaining requests at 2.7 s each still end inside the eight hours; its
 pace is then measured from the retry. Otherwise, including a failure after

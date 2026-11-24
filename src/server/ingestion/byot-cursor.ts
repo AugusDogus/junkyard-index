@@ -223,7 +223,7 @@ function validate(input: unknown): ByotCursor {
       );
       if (!entry || entry.checkedAt !== now)
         throw new Error(
-          `Checkpoint lacks this run's contiguous search evidence for yard ${BYOT_YARDS[i % BYOT_YARDS.length]?.code ?? "unknown"} query ${index}, so it was not resumed. Published inventory is unchanged; discard this checkpoint and restart the run from the latest published cursor`,
+          `Checkpoint lacks this run's contiguous search evidence for yard ${BYOT_YARDS[i % BYOT_YARDS.length]?.code ?? "unknown"} query ${index}, so it was rejected. Published inventory is unchanged. If this checkpoint was saved by a run, that run ends and the next attempt starts a fresh sweep; if it is the latest publication, restore a complete published cursor`,
         );
     }
   }

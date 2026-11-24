@@ -3,7 +3,11 @@ import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { Effect } from "effect";
 import { streamByotInventory } from "./byot-connector";
-import { BYOT_CHUNK_REQUESTS, ByotCursor } from "./byot-cursor";
+import {
+  BYOT_CHUNK_REQUESTS,
+  BYOT_MAX_RUN_MS,
+  ByotCursor,
+} from "./byot-cursor";
 import { BYOT_ARRIVALS_URL, byotSearchUrl } from "./byot-directory";
 import { BYOT_YARDS } from "./byot-configuration";
 import { loadByotFailedAttemptCursor } from "./byot-history";
@@ -108,11 +112,17 @@ test("a retry continues a failed attempt from its last checkpoint when the same 
 test("a chunk fails before sending when the attempt's observed pace cannot finish inside the run limit", async () => {
   const failed = await failedAttempt();
   // 64 requests took 640 s, so 10 s each: 6,631 more need about 18 hours.
-  const slow = await chunk({
-    startCursor: failed.cursor,
-    now: startedAt + BYOT_CHUNK_REQUESTS * 10_000,
-  });
+  // It fails before sending, so a step retry of it sends nothing either.
+  const sent: string[] = [];
+  const slow = await chunk(
+    {
+      startCursor: failed.cursor,
+      now: startedAt + BYOT_CHUNK_REQUESTS * 10_000,
+    },
+    sent,
+  );
   expect(slow._tag).toBe("Left");
+  expect(sent).toEqual([]);
   if (slow._tag === "Left") {
     expect(slow.left.message).toContain("observed 10.0 s per request");
     expect(slow.left.message).toContain("published inventory is unchanged");
@@ -180,36 +190,59 @@ test("a retry starts a fresh sweep when the failed attempt cannot be resumed", a
   ).toContain("ready");
 });
 
-test("only the newest finished BYOT run's checkpoint is offered for resumption, and only when it failed", async () => {
+test("the newest failed BYOT run's checkpoint is offered for resumption, skipping failed runs that saved none, until a run succeeded", async () => {
   const client = createClient({ url: ":memory:" });
   const database = drizzle(client);
+  const at = 10 * hour;
   try {
     await client.execute(
-      "create table ingestion_source_run (run_id text, source text, status text, started_at integer, next_cursor text)",
+      "create table ingestion_source_run (id text primary key, run_id text, source text, status text, started_at integer, start_cursor text, next_cursor text)",
     );
-    expect(await loadByotFailedAttemptCursor(database)).toBeNull();
+    // The durable framework inserts each run with its start cursor as next.
+    const initial = byotValue(ByotCursor.serialize(ByotCursor.initial()));
+    expect(await loadByotFailedAttemptCursor(database, at)).toBeNull();
     const insert = (
       runId: string,
       source: string,
       status: string,
-      at: number,
+      startedAt: number,
       cursor: string | null,
     ) =>
       client.execute({
-        sql: "insert into ingestion_source_run values (?, ?, ?, ?, ?)",
-        args: [runId, source, status, at, cursor],
+        sql: "insert into ingestion_source_run values (?, ?, ?, ?, ?, ?, ?)",
+        args: [
+          `${runId}-${source}`,
+          runId,
+          source,
+          status,
+          startedAt,
+          initial,
+          cursor,
+        ],
       });
-    await insert("published", "byot", "success", 100, "published");
-    await insert("failed", "byot", "error", 200, "failed");
-    await insert("current", "byot", "running", 300, "current");
-    await insert("other", "pyp", "error", 400, "other");
-    expect(await loadByotFailedAttemptCursor(database)).toBe("failed");
+    await insert("published", "byot", "success", 5 * hour, "published");
+    await insert("failed", "byot", "error", 6 * hour, "failed");
+    await insert("current", "byot", "running", 9 * hour, "current");
+    await insert("other", "pyp", "error", 9 * hour, "other");
+    expect(await loadByotFailedAttemptCursor(database, at)).toBe("failed");
     await client.execute(
       "update ingestion_source_run set status = 'partial' where run_id = 'failed'",
     );
-    expect(await loadByotFailedAttemptCursor(database)).toBe("failed");
-    await insert("rejected", "byot", "success", 250, "rejected");
-    expect(await loadByotFailedAttemptCursor(database)).toBeNull();
+    expect(await loadByotFailedAttemptCursor(database, at)).toBe("failed");
+    // A retry that failed before its first checkpoint saved only the initial
+    // cursor, or none, so the checkpoint before it is still the latest.
+    await insert("unstarted", "byot", "error", 7 * hour, initial);
+    await insert("unsaved", "byot", "error", 8 * hour, null);
+    expect(await loadByotFailedAttemptCursor(database, at)).toBe("failed");
+    // A checkpoint from a run that began before the run limit cannot finish.
+    expect(
+      await loadByotFailedAttemptCursor(
+        database,
+        6 * hour + BYOT_MAX_RUN_MS + 1,
+      ),
+    ).toBeNull();
+    await insert("rejected", "byot", "success", 6.5 * hour, "rejected");
+    expect(await loadByotFailedAttemptCursor(database, at)).toBeNull();
   } finally {
     client.close();
   }
