@@ -33,6 +33,28 @@ export function pickapartvaTestRecords(count = 500, offset = 0) {
   );
 }
 
+const header = `<h1>Search Our Vehicles</h1><h2>U-Pull-It Inventory</h2><p>Vehicles listed in rows 700 - 799, rows 900 &#8211; 999 and rows 1-99 are not U-Pick vehicles.</p>`;
+const footer = `<footer>Pick-A-Part Recycled Auto Parts Our Locations Fredericksburg 540-693-1028 9001 Patriot Hwy Fredericksburg, VA 22407 Stafford 540-659-6800 164 Norman Rd. Stafford, VA 22554</footer>`;
+
+/** A native set-date search answer in the live format: the date in the form,
+ * empty pagination toolbars and the applied make and yard in the native
+ * scripts, or the native "No Results Found" page without a form. */
+export function pickapartvaTestSearch(
+  records: readonly PickapartvaRecord[],
+  date: string,
+  id: "ANY" | "TT87" | "UU81" = "ANY",
+  make = "ANY",
+  makes: readonly string[] = ["FORD", "LAND ROVER"],
+): string {
+  const path = make.replaceAll(" ", "_");
+  const yard = (value: string, label: string) =>
+    `<option value="${value}"${value === id ? " selected" : ""}>${label}</option>`;
+  const listing = records.length
+    ? `<form action="/inventory/${path}/ANY/" class="iis-upull-search-form" method="get"><input name="k" value="1"><input name="id" value="${id}"><input name="search" value="${date}"></form><div class="iis-upull-toolbar-pagination"></div>${records.map(pickapartvaTestCard).join("")}`
+    : "<p>No Results Found. Try Browsing Our Parts Or Search Again</p>";
+  return `<html><body>${header}<select class="upullsimpleMake"><option value="ANY">ANY</option>${makes.map((value) => `<option value="${value}">${value}</option>`).join("")}</select><select class="upullsimpleLocation">${yard("ANY", "ANY")}${yard("TT87", "Fredericksburg")}${yard("UU81", "Stafford")}</select>${listing}${footer}<script>var iisupullurgid = 'TT87,UU81'; var setMake = "${path}"; var urgID = "${id}";</script></body></html>`;
+}
+
 export function pickapartvaTestPage(
   records = [pickapartvaTestRecord],
   page = 1,

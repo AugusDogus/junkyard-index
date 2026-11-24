@@ -8,30 +8,27 @@ import {
 import {
   PickapartvaCursor,
   PickapartvaCursorSchema,
-  pickapartvaMakeSplitComplete,
-  type PickapartvaMakeSplit,
 } from "./pickapartva-cursor";
 import {
   parsePickapartvaPage,
   parsePickapartvaSearch,
   type PickapartvaPage,
-  type PickapartvaSearchPage,
 } from "./pickapartva-parser";
+import {
+  PICKAPARTVA_RECOVERY_LIFETIME_MS,
+  PickapartvaRecovery,
+} from "./pickapartva-recovery";
 import {
   buildPickapartvaSnapshot,
   pickapartvaPrefix,
-  pickapartvaTieDates,
+  pickapartvaTies,
 } from "./pickapartva-snapshot";
 import type { PickapartvaCanonicalVehicle } from "./pickapartva-transform";
 import {
   PICKAPARTVA_CATALOG,
   PICKAPARTVA_MAX_PAGES,
-  PICKAPARTVA_MAX_TIE_SEARCHES,
-  PICKAPARTVA_PAGE_SIZE,
-  PICKAPARTVA_YARD_CODES,
   PICKAPARTVA_YARDS,
   pickapartvaSearchHref,
-  type PickapartvaSearchScope,
   type PickapartvaYard,
 } from "./pickapartva-yard-metadata";
 import { ProviderChunkClock } from "./provider-chunk-clock";
@@ -47,31 +44,19 @@ interface PickapartvaOptions<E, R> {
   ) => Effect.Effect<void, E, R>;
   onYards?: (yards: PickapartvaYard[]) => Effect.Effect<void, E, R>;
 }
-/** Every catalog page, for each page boundary one search plus one per yard
- * when that search is capped, and three closing reads. Make searches run in
- * their own chunks. */
-const PICKAPARTVA_MAX_REQUESTS =
-  PICKAPARTVA_MAX_PAGES +
-  PICKAPARTVA_MAX_TIE_SEARCHES * (1 + PICKAPARTVA_YARD_CODES.length) +
-  3;
-/** The turn estimate reserves the six set-date searches the November 12, 2026
- * census needed. Turns estimate 8.5 s per request (a 5 s answer plus the URG
- * gap), so this reserves 204 s and a turn is still granted after the two
- * minute queue waits seen at 07:00; reserving more would not be. Measured
- * reads take longer: about 14 s per catalog page at November 19, 2026 latency
- * (11 s on November 12), 10 s per search and 5 s per edge-cached closing read,
- * about 286 s for this census. A date set in bulk past the 500-card search cap
- * (2026-11-18, about 580 donors) needs two yard searches. The catalog already
- * shows over 500 of its donors, so its capped unfiltered search is skipped and
- * the date costs one search more than a small date, about 10 s. A turn that
- * waited long reaches the chunk horizon first and the chunk is deferred whole. A turn that waited under 40 s reaches the five-minute work
- * limit first, which fails the chunk once a census needs more than about 7
- * searches (12 at November 12 latency). Neither advances a checkpoint. A yard
- * search still capped (2026-11-16 in Fredericksburg, over 500 donors) ends the
- * census there with a `makes` checkpoint. Its make searches run in later
- * chunks, and the next census reads that date from them without the capped
- * unfiltered and yard searches. */
-const PICKAPARTVA_TURN_REQUESTS = PICKAPARTVA_MAX_PAGES + 6 + 3;
+/** Every catalog page and three closing reads. Set-date searches run in their
+ * own chunks. */
+const PICKAPARTVA_MAX_REQUESTS = PICKAPARTVA_MAX_PAGES + 3;
+/** Turns estimate 8.5 s per request (a 5 s answer plus the URG gap), so the
+ * census reserves 153 s and a turn is still granted after the two-minute
+ * queue waits seen at 07:00. Measured reads take longer: about 14 s per
+ * catalog page at November 19, 2026 latency (11 s on November 12, 10 to 21 s
+ * on November 24) and 5 s per edge-cached closing read, about 225 s. A turn
+ * that waited long reaches the chunk horizon first and the chunk is deferred
+ * whole; neither advances a checkpoint. Set-date searches cost about 10 s
+ * each, so a census with six tie dates (November 24) cannot also run them
+ * inside the five-minute work limit. */
+const PICKAPARTVA_TURN_REQUESTS = PICKAPARTVA_MAX_REQUESTS;
 export type PickapartvaStreamResult = ConnectorChunkResult<
   "pickapartva",
   PickapartvaCursor
@@ -85,95 +70,71 @@ const attempt = <A>(operation: string, run: () => A) =>
   });
 
 /**
- * Start no new make search after this much of the five-minute chunk limit.
- * The remainder covers a shared host slot wait plus one request's 25-second
- * limit and its 1.6-second spacing. Each make search takes its own shared
- * host turn. At about 10 s per search, a split of the 62 native makes takes
- * about four chunks.
+ * Start no new set-date search after this much of the five-minute chunk
+ * limit. The remainder covers a shared host slot wait plus one request's
+ * 25-second limit and its 1.6-second spacing. Each search takes its own
+ * shared host turn, about 10 s of work.
  */
-export const PICKAPARTVA_MAKE_CHUNK_SOFT_MS = 180_000;
+export const PICKAPARTVA_SEARCH_CHUNK_SOFT_MS = 180_000;
 
 /**
- * How long saved make searches stand in for a capped yard search. Later
- * chunks re-read the catalog but not the make searches, so a stale split
- * could pass reconciliation after one hidden donor left and another took its
- * Set Date. A split older than this, or dated in the future, fails the run.
+ * Runs the pending set-date searches of each recovery in order, one shared
+ * host turn each, so a recovery never has to fit one chunk. Returns the
+ * advanced `searches` checkpoint when the chunk ends: after the soft stop, a
+ * deferred turn or the last pending search. A failed search discards the
+ * chunk's progress.
  */
-export const PICKAPARTVA_MAKE_SPLIT_LIFETIME_MS = 60 * 60_000;
-
-/**
- * Runs the pending make searches of capped yard searches, one shared host
- * turn each, so a split of every native make never has to fit one chunk.
- * Returns the advanced `makes` checkpoint when the chunk ends: after the
- * soft stop, a deferred turn or the last make. A failed make search discards
- * the chunk's progress. A make search that is itself capped fails closed: no
- * narrower native split is verified.
- */
-function searchPickapartvaMakes(
-  splits: readonly PickapartvaMakeSplit[],
+function searchPickapartvaRecoveries(
+  recoveries: readonly PickapartvaRecovery[],
   gate: ProviderRequestGate,
 ) {
   return Effect.gen(function* () {
     const started = yield* Clock.currentTimeMillis;
-    let next = [...splits];
+    let next = [...recoveries];
     let advanced = false;
     while (true) {
       const index = next.findIndex(
-        (split) => !pickapartvaMakeSplitComplete(split),
+        (recovery) => !PickapartvaRecovery.resolved(recovery),
       );
-      const split = next[index];
-      const make = split?.makes[split.searches.length];
-      if (split === undefined || make === undefined) break;
+      const recovery = next[index];
+      const step = recovery?.pending[0];
+      if (recovery === undefined || step === undefined) break;
       // Always make progress, then checkpoint before the hard chunk limit.
       if (
         advanced &&
         (yield* Clock.currentTimeMillis) - started >=
-          PICKAPARTVA_MAKE_CHUNK_SOFT_MS
+          PICKAPARTVA_SEARCH_CHUNK_SOFT_MS
       )
         break;
-      const operation = `make search ${split.date} ${split.id} ${make}`;
-      const url = pickapartvaSearchHref(split.date, split.id, make);
+      const operation = `set-date search ${recovery.date} ${step.id} ${step.make}`;
+      const url = pickapartvaSearchHref(recovery.date, step.id, step.make);
       if (url === null)
         return yield* failure(
           operation,
-          "The native make selector offers a make outside the verified make path contract",
+          "The pending search is outside the verified set-date search contract",
         );
       const read = yield* fetchPickapartvaPage(url, gate).pipe(
         sharedProviderHostTurn(url),
         ProviderChunkClock.unlessDeferred(advanced),
       );
       if (Option.isNone(read)) break;
-      const result = yield* attempt(operation, () =>
-        parsePickapartvaSearch(read.value, split.date, split.id, make),
+      const recorded = yield* attempt(operation, () =>
+        PickapartvaRecovery.record(
+          recovery,
+          url,
+          parsePickapartvaSearch(read.value, recovery.date, step.id, step.make),
+        ),
       );
-      if (result.status === "capped")
-        return yield* failure(
-          operation,
-          `Pick-A-Part VA ${make} search for ${split.date} in ${split.id} returned ${result.cards} cards; completeness is only known for 0 to ${PICKAPARTVA_PAGE_SIZE - 1} matched donor cards per make, and no narrower native split is verified`,
-        );
       next = next.map((entry, position) =>
-        position === index
-          ? {
-              ...entry,
-              searches: [
-                ...entry.searches,
-                {
-                  make,
-                  url,
-                  hash: result.page.hash,
-                  records: result.page.records,
-                },
-              ],
-            }
-          : entry,
+        position === index ? recorded : entry,
       );
       advanced = true;
     }
-    return yield* attempt("make split checkpoint", () =>
+    return yield* attempt("set-date recovery checkpoint", () =>
       PickapartvaCursorSchema.parse({
         source: "pickapartva",
-        phase: "makes",
-        partitions: next,
+        phase: "searches",
+        recoveries: next,
       }),
     );
   });
@@ -215,32 +176,21 @@ export function streamPickapartvaInventoryWithRequestGate<E, R>(
       },
     };
     if (parsed.data.phase === "complete") return summary;
-    const splits =
-      parsed.data.phase === "makes" || parsed.data.phase === "pages"
-        ? parsed.data.partitions
+    const stored =
+      parsed.data.phase === "searches" || parsed.data.phase === "pages"
+        ? parsed.data.recoveries
         : [];
-    const now = yield* Clock.currentTimeMillis;
-    const stale = splits.find(
-      (split) =>
-        now < split.startedAt ||
-        now - split.startedAt > PICKAPARTVA_MAKE_SPLIT_LIFETIME_MS,
-    );
-    if (stale)
-      return yield* failure(
-        "make split lifetime",
-        `The make split for ${stale.date} in ${stale.id} started at ${new Date(stale.startedAt).toISOString()}, outside the last ${PICKAPARTVA_MAKE_SPLIT_LIFETIME_MS / 60_000} minutes, so its saved make searches no longer prove the current inventory. Restart the source from the start cursor`,
-      );
     if (
-      parsed.data.phase === "makes" &&
-      !splits.every(pickapartvaMakeSplitComplete)
+      parsed.data.phase === "searches" &&
+      !stored.every(PickapartvaRecovery.resolved)
     )
       return {
         ...summary,
         status: "paused",
-        cursor: yield* searchPickapartvaMakes(splits, gate),
+        cursor: yield* searchPickapartvaRecoveries(stored, gate),
       } satisfies PickapartvaStreamResult;
     // The census is atomic: emitting any page depends on every later page, the
-    // set-date searches and the closing reads, so the whole crawl is one
+    // recovered tie donors and the closing reads, so the whole crawl is one
     // shared host turn. It only fetches and validates; nothing here touches
     // chunk state, so a deferred turn discards it whole.
     const census = yield* Effect.gen(function* () {
@@ -274,80 +224,28 @@ export function streamPickapartvaInventoryWithRequestGate<E, R>(
         nextUrl = page.nextUrl;
       }
       // Pages split Set Date ties differently at each offset, so a donor of a
-      // tied date can repeat while another of that date is never shown. Each
-      // repeated date's native search lists all its donors on one page.
-      const searches: Array<{ url: string; page: PickapartvaSearchPage }> = [];
-      const dates = yield* attempt("set-date ties", () =>
-        pickapartvaTieDates(pages),
+      // tied date can repeat while another of that date is never shown. A
+      // saved recovery still answers for a tie this catalog shows the same
+      // way; any other tie is planned again from this read.
+      const ties = yield* attempt("set-date ties", () =>
+        pickapartvaTies(pages),
       );
-      const search = (date: string, id: PickapartvaSearchScope) =>
-        Effect.gen(function* () {
-          const url = pickapartvaSearchHref(date, id);
-          if (url === null)
-            return yield* failure(
-              "set-date search " + date,
-              "Repeated catalog donors carry an invalid Set Date",
-            );
-          const raw = yield* read(url);
-          const result = yield* attempt("set-date search " + date, () =>
-            parsePickapartvaSearch(raw, date, id),
-          );
-          return { url, result };
-        });
-      // Make splits this census reads from the checkpoint, in search order.
-      const used: PickapartvaMakeSplit[] = [];
-      for (const { date, shown } of dates) {
-        const stored = splits.filter((split) => split.date === date);
-        // A catalog that already showed a full search page of this date's
-        // donors, or a date already split by make, would get a capped
-        // unfiltered search, so that search is skipped to keep the census
-        // inside the five-minute work limit.
-        if (shown < PICKAPARTVA_PAGE_SIZE && !stored.length) {
-          const all = yield* search(date, "ANY");
-          if (all.result.status === "complete") {
-            searches.push({ url: all.url, page: all.result.page });
-            continue;
-          }
-        }
-        // One search page holds at most 500 cards, so a date set in bulk is
-        // read one physical yard at a time, and a yard that still reaches
-        // the cap one make at a time.
-        for (const id of PICKAPARTVA_YARD_CODES) {
-          const split = stored.find((entry) => entry.id === id);
-          if (split) {
-            used.push(split);
-            for (const entry of split.searches)
-              searches.push({
-                url: entry.url,
-                page: {
-                  date,
-                  id,
-                  make: entry.make,
-                  records: entry.records,
-                  hash: entry.hash,
-                },
-              });
-            continue;
-          }
-          const yard = yield* search(date, id);
-          if (yard.result.status === "capped") {
-            // The make searches run in later chunks, so this census stops
-            // here without its closing reads. Completed splits are kept for
-            // the dates this census has not reached.
-            const pending: PickapartvaMakeSplit = {
-              date,
-              id,
-              makes: yard.result.makes,
-              searches: [],
-              startedAt: yield* Clock.currentTimeMillis,
-            };
-            return { status: "split", splits: [...splits, pending] } as const;
-          }
-          searches.push({ url: yard.url, page: yard.result.page });
-        }
-      }
+      const now = yield* Clock.currentTimeMillis;
+      const recoveries = ties.map(
+        (tie) =>
+          stored.find(
+            (recovery) =>
+              PickapartvaRecovery.matches(recovery, tie) &&
+              PickapartvaRecovery.resolved(recovery) &&
+              PickapartvaRecovery.fresh(recovery, now),
+          ) ?? PickapartvaRecovery.plan(tie, now),
+      );
+      // The searches run in later chunks, so this census stops here without
+      // its closing reads, and the next one reads the catalog again.
+      if (!recoveries.every(PickapartvaRecovery.resolved))
+        return { status: "searches", recoveries } as const;
       const snapshot = yield* attempt("complete global census", () =>
-        buildPickapartvaSnapshot(pages, searches),
+        buildPickapartvaSnapshot(pages, recoveries),
       );
       for (const ordinal of new Set([
         1,
@@ -367,23 +265,24 @@ export function streamPickapartvaInventoryWithRequestGate<E, R>(
             `Native page ${ordinal} donor fields, physical scope or continuation changed`,
           );
       }
-      return { status: "census", pages, snapshot, splits: used } as const;
+      return { status: "census", pages, snapshot, recoveries } as const;
     }).pipe(
       sharedProviderHostTurn(PICKAPARTVA_CATALOG, PICKAPARTVA_TURN_REQUESTS),
     );
-    if (census.status === "split") {
-      // A resumed emission was checkpointed against a census that needed no
-      // further split, so a new one means the census changed.
+    if (census.status === "searches") {
+      // A resumed emission was checkpointed against recoveries that answered
+      // for the census, so needing new searches means the census changed or
+      // its searches outlived their lifetime.
       if (parsed.data.phase === "pages")
         return yield* failure(
           "resume snapshot",
-          "A set-date search the checkpointed census completed is now capped",
+          `The checkpointed census's set-date searches no longer answer for the catalog's repeated Set Dates or are older than ${PICKAPARTVA_RECOVERY_LIFETIME_MS / 60_000} minutes. Restart the source from the start cursor`,
         );
-      const cursor = yield* attempt("make split checkpoint", () =>
+      const cursor = yield* attempt("set-date recovery checkpoint", () =>
         PickapartvaCursorSchema.parse({
           source: "pickapartva",
-          phase: "makes",
-          partitions: census.splits,
+          phase: "searches",
+          recoveries: census.recoveries,
         }),
       );
       return {
@@ -432,7 +331,7 @@ export function streamPickapartvaInventoryWithRequestGate<E, R>(
               snapshotHash: snapshot.hash,
               receipts: snapshot.receipts,
               searches: snapshot.searches,
-              partitions: census.splits,
+              recoveries: census.recoveries,
               lastPage: pages.length,
               nextPage,
               ...counts,
@@ -470,15 +369,15 @@ export function streamPickapartvaInventoryWithRequestGate<E, R>(
           : [],
     } satisfies PickapartvaStreamResult;
   }).pipe(
-    // Measured reads put this census at about 286 s of provider work (see
+    // Measured reads put this census at about 225 s of provider work (see
     // PICKAPARTVA_TURN_REQUESTS). A census past five minutes fails here unless
-    // its turn waited over 40 s and reached the chunk horizon first.
+    // its turn reached the chunk horizon first.
     ProviderChunkClock.deadline({
       duration: "5 minutes",
       onTimeout: () =>
         failure(
           "chunk budget",
-          "Five-minute provider work limit exceeded before the catalog, set-date searches and closing reads finished. No checkpoint advanced and previous inventory is preserved. Check native latency and the number of repeated Set Dates before retrying",
+          "Five-minute provider work limit exceeded before the catalog and closing reads or the set-date searches finished. No checkpoint advanced and previous inventory is preserved. Check native catalog latency before retrying",
         ),
     }),
   );

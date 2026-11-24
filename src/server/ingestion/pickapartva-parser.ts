@@ -50,6 +50,14 @@ export interface PickapartvaPage {
 export const pickapartvaHash = (value: unknown) =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
 
+/** One native donor card's identity across catalog pages and searches. */
+export const pickapartvaCardKey = (record: PickapartvaRecord) =>
+  JSON.stringify([
+    record.stock,
+    record.vin.trim().toUpperCase(),
+    record.setDate,
+  ]);
+
 function donor(
   card: { tag: string; body: string },
   makes: string[],
@@ -252,19 +260,21 @@ export interface PickapartvaSearchPage {
   hash: string;
 }
 /** A search page holds at most 500 cards, so a full page proves nothing about
- * further matches: `capped` carries no donors and the caller must narrow the
- * search or fail closed. `makes` are the native makes it can be split by. */
+ * further matches. A `capped` page still lists real donors of its date and
+ * scope, which count toward the date's hidden donors; the caller narrows the
+ * search when they are not enough. `makes` are the native makes it can be
+ * split by. */
 export type PickapartvaSearchResult =
   | { status: "complete"; page: PickapartvaSearchPage }
-  | { status: "capped"; cards: number; makes: string[] };
+  | { status: "capped"; page: PickapartvaSearchPage; makes: string[] };
 
 /**
  * The native search for one Set Date across every yard (`id` ANY), within
  * one physical yard, or for one make within one yard. It must answer the same
  * owner as the catalog, select exactly the searched yard and make, reflect the
  * searched date, publish no continuation and hold only donors of that make
- * (or its native make group) set on that date in that yard. Only a make
- * search may answer with no donors.
+ * (or its native make group) set on that date in that yard. Only a yard or
+ * make search may answer with no donors.
  */
 export function parsePickapartvaSearch(
   raw: string,
@@ -307,8 +317,10 @@ export function parsePickapartvaSearch(
     throw new Error(
       `Pick-A-Part VA set-date search for ${date} in ${id} returned ${cards.length} cards or unmatched donor cards; a repeated Set Date has at least one donor`,
     );
-  if (cards.length >= PICKAPARTVA_PAGE_SIZE)
-    return { status: "capped", cards: cards.length, makes };
+  if (cards.length > PICKAPARTVA_PAGE_SIZE)
+    throw new Error(
+      `Pick-A-Part VA set-date search for ${date} in ${id} returned ${cards.length} cards, more than one native page holds`,
+    );
   const records = pickapartvaRecords(cards, makes);
   if (records.some((record) => record.setDate !== date))
     throw new Error(
@@ -329,8 +341,14 @@ export function parsePickapartvaSearch(
   // come from their own searches.
   const own =
     make === "ANY" ? records : records.filter((record) => record.make === make);
-  return {
-    status: "complete",
-    page: { date, id, make, records: own, hash: pickapartvaHash([date, own]) },
+  const page = {
+    date,
+    id,
+    make,
+    records: own,
+    hash: pickapartvaHash([date, own]),
   };
+  return cards.length === PICKAPARTVA_PAGE_SIZE
+    ? { status: "capped", page, makes }
+    : { status: "complete", page };
 }

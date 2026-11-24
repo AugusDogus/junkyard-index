@@ -11,53 +11,56 @@ image download, alternative host, inferred VIN or guessed detail route is used.
 
 ## Native protocol and checkpoints
 
-Each chunk enumerates the complete literal native Next chain from page 1,
-validates every physical owner and unfiltered control, recovers donors hidden
-by Set Date ties, and closes pages 1, 2 and the terminal page before any
-callback. The measured catalog has 15 pages:
-500 cards on pages 1 through 14 and 449 on page 15. The terminal page has no
-Next link. These controls establish a bounded stable traversal, not an atomic
-provider snapshot or a source-published total count.
+Each census chunk enumerates the complete literal native Next chain from
+page 1, validates every physical owner and unfiltered control, and finds the
+donors Set Date ties hid. When every tie date already has recovered donors
+(see [Set Date ties](#set-date-ties)), it closes pages 1, 2 and the terminal
+page before any callback. The measured catalog has 15 pages: 500 cards on
+pages 1 through 14 and 449 on page 15 (9 on November 24, 2026). The terminal
+page has no Next link. These controls establish a bounded stable traversal,
+not an atomic provider snapshot or a source-published total count.
 
 The safety ceiling is 15 catalog pages, 500 cards per page, 4 MiB per body,
-32 requests per chunk (15 pages, at most 14 set-date searches and 3 closing
-reads), 25 seconds per request/body read and five minutes of provider work per
-chunk. The shared URG host turn is estimated at 24 requests of 8.5 seconds
-(204 seconds), which reserves six searches and still grants a turn after the
-two-minute queue waits seen at 07:00. Measured reads take longer: about 14
-seconds per catalog page at November 19 latency (11 at November 12 latency),
-10 per search and 5 per edge-cached closing read, about 286 seconds with six
-searches. A turn that waited long reaches the chunk horizon first and the
-chunk is deferred whole. A turn that waited under 40 seconds reaches the
-five-minute work limit first, so a census needing more than about seven
-searches (twelve at November 12 latency) fails with the chunk budget error.
-Neither advances a checkpoint, and previous inventory is preserved. At 500 cards per page, a catalog above 7,500 cards
-publishes page 16, which the page guard rejects. Requests are serial,
-unredirected HTTPS GETs with no retry. Production
-requests include a 1,600 ms finalizer delay on success and failure, preserving
-spacing across separately created durable chunks.
+18 requests per census chunk (15 pages and 3 closing reads), 25 seconds per
+request/body read and five minutes of provider work per chunk. The shared URG
+host turn is estimated at 18 requests of 8.5 seconds (153 seconds), so a turn
+is still granted after the two-minute queue waits seen at 07:00. Measured
+reads take longer: about 14 seconds per catalog page at November 19 latency
+(11 at November 12, 10 to 21 on November 24) and 5 per edge-cached closing
+read, about 225 seconds. A turn that waited long reaches the chunk horizon
+first and the chunk is deferred whole. Set-date searches take about 10
+seconds each, so the six tie dates of November 24 could not also fit the
+census's five-minute work limit; they run in their own chunks. No failed
+chunk advances a checkpoint, and previous inventory is preserved. At 500 cards
+per page, a catalog above 7,500 cards publishes page 16, which the page guard
+rejects. Requests are serial, unredirected HTTPS GETs with no retry.
+Production requests include a 1,600 ms finalizer delay on success and
+failure, preserving spacing across separately created durable chunks.
 
 `streamPickapartvaInventory` accepts `startCursor`, `maxPages`, `onBatch` and
 optional `onYards`. `maxPages` counts emitted raw-page partitions, from 1 to 15. Every partial emission chunk still validates the full native census.
-Normal ingestion uses 15, requiring 18 controls plus one search per tied date. Three five-page chunks require
-54 controls. Prefix pages are rebuilt without repeating inventory callbacks.
+Normal ingestion uses 15. Three five-page chunks require 54 controls. Prefix
+pages are rebuilt without repeating inventory callbacks.
 
 `PickapartvaCursorSchema` validates these states:
 
 - `start`: source `pickapartva` and phase `start`.
-- `makes`: the make splits of yard searches that reached the 500-card cap.
-  Each holds the Set Date, yard, native make list, the epoch milliseconds of
-  the capped yard search (`startedAt`) and the completed make searches in
-  that order, with their URLs, hashes and donors. It emits
-  nothing. See [Set Date ties](#set-date-ties).
+- `searches`: one recovery per tie date of the census that planned them. Each
+  holds the Set Date, its repeated slots, the card keys of its shown donors,
+  the epoch milliseconds of that catalog read (`startedAt`), the searches run
+  so far (yard, make, URL, hash and whether it was capped), the hidden donors
+  they found with the search that listed each, and the searches still
+  pending. It emits nothing.
 - `pages`: whole-snapshot fingerprint, all ordered page URL/hash receipts,
-  the set-date search date/URL/hash receipts (empty in earlier checkpoints),
-  the complete make splits those searches used (empty in earlier
-  checkpoints), `lastPage`, `nextPage` and cumulative `processed`,
+  the set-date search date/URL/hash receipts, the resolved recoveries those
+  searches came from, `lastPage`, `nextPage` and cumulative `processed`,
   `emitted`, `rejected` and `duplicates` counters. Rebuilt prefix counters
   must exactly match before another batch is emitted.
 - `complete`: source `pickapartva` and phase `complete`. Replaying it performs
   no requests, callbacks or accounting increments.
+
+A checkpoint written by the earlier `makes` phase no longer parses; start that
+run again from `start`.
 
 Changed pages, truncation, foreign/filtered URLs, owner changes, unknown yards,
 forged cursors, conflicting required identities or failed closing controls abort
@@ -72,63 +75,84 @@ each offset orders a date's donors differently. A page boundary that splits a
 date can show one donor of that date on both pages and never show another. The
 November 12 census repeated 18 cards this way at six dates (2026-11-07,
 2026-11-04, 2026-10-28, 2026-10-24, 2026-10-20 and 2026-10-16), so 18 donors
-were invisible to every catalog page.
+were invisible to every catalog page. The November 24 census repeated 25 cards
+at six dates, two of them set past the 500-card search cap in Fredericksburg
+alone (568 donors on 2026-11-21 and 715 on 2026-11-16).
 
 Because dates are strictly ordered across pages, a date's donors fill one
 fixed run of catalog slots. Each card of that date repeated on a later page
-stands in for exactly one hidden donor of that date. After the page chain, the
-connector requests the native search
-`https://pickapartva.com/inventory/ANY/ANY/?k=1&id=ANY&search=YYYY-MM-DD` for
-every date with repeated cards, in catalog order. A search page must pass the
-same owner, footer, yard selector, make selector and `iisupullurgid` checks,
-reflect the searched date in its form, publish no pagination, hold 1 to 499
-cards (0 to 499 for a make search), and list only donors set on that date.
-Together a date's searches must add exactly as many
-unseen donors as the catalog repeated for that date. Otherwise the inventory
-changed between reads, the census fails, and previous inventory is preserved.
-Each recovered donor takes the repeated card's slot, so it is accounted once
-instead of as a duplicate, and its details link is the search URL with its
-stock fragment. If donors repeat while the catalog is no longer ordered by
-Set Date, the census fails because hidden donors cannot be located.
+stands in for exactly one hidden donor of that date. So with the inventory
+unchanged, any donor of that date a native search lists and no catalog page
+showed is one of the hidden donors, and once a date's searches list as many
+such donors as the catalog repeated, every hidden donor of the date is found.
+This holds whether or not a search reached the cap.
+
+The census that finds unrecovered tie dates plans one recovery per date and
+stops before its closing reads with a `searches` checkpoint. Later chunks run
+the pending searches, each in its own shared host turn. No new search starts
+after 180 seconds of a chunk, and a turn deferred after at least one search
+ends the chunk too. The checkpoint is written when the chunk ends, so a
+failed search discards that chunk's searches and the retry starts from the
+chunk's starting checkpoint. Once every recovery is resolved, the next chunk
+reads the catalog again. A recovery answers for that census only when the
+catalog shows its date with the same repeated slots and the same shown
+donors, and when it is at most 60 minutes old; any other tie date is planned
+again from that read. The published census then replaces each repeated slot
+with one recovered donor of its date and closes pages 1, 2 and the terminal
+page.
+
+Each date's searches escalate and stop as soon as the date is recovered:
+
+1. The native search across every yard,
+   `https://pickapartva.com/inventory/ANY/ANY/?k=1&id=ANY&search=YYYY-MM-DD`.
+   It is skipped when the catalog already shows 500 or more donors of that
+   date, since it would be capped.
+2. If that search was capped (or skipped), each yard in turn:
+   `?k=1&id=TT87&search=YYYY-MM-DD` and `id=UU81`. A yard that set no donors
+   that day answers with the native "No Results Found" page, as Stafford did
+   for 2026-11-21 on November 24, 2026.
+3. For each capped yard search, one search per value of its native make
+   selector: `/inventory/<MAKE>/ANY/?k=1&id=TT87&search=YYYY-MM-DD`, with
+   spaces in the make written as underscores (`LAND_ROVER`, verified live).
+   Makes run in order of how many donors the capped search listed, most
+   first, then in native order, so the makes most likely to hold an unlisted
+   donor run first.
 
 The native search ignores `pagenum` and lists at most 500 cards, newest model
-year first. A search that reaches 500 cards is capped and proves nothing
-about further matches. A capped unfiltered search is split by yard:
-`?k=1&id=TT87&search=YYYY-MM-DD` and `id=UU81`. The unfiltered search is
-skipped when the catalog already shows 500 or more donors of that date. On
-November 22, 2026, Fredericksburg alone held over 500 donors set on
-2026-11-16, so its yard search was capped too. A capped yard search is split
-by make, using every value of the native make selector in order:
-`/inventory/<MAKE>/ANY/?k=1&id=TT87&search=YYYY-MM-DD`, with spaces in the
-make written as underscores (`LAND_ROVER`, verified live). The census stops
-at that yard search with a `makes` checkpoint and no closing reads. Later
-chunks run the make searches, each in its own shared host turn. No new make
-search starts after 180 seconds of a chunk, and a turn deferred after at
-least one make search ends the chunk too. The checkpoint is written when the
-chunk ends, so a failed make search discards that chunk's make searches and
-the retry starts from the chunk's starting checkpoint. Once every make is
-searched, the next chunk reads the census again and takes that yard and date
-from the saved make searches instead of the capped searches.
+year first (the capped 2026-11-21 search lists model years 2024 down to
+2007). A capped search proves nothing about further matches, but every donor
+it lists is a real donor of that date and scope, so it still counts. The
+form's single search term matches stock, year, Set Date and VIN as
+substrings and cannot combine a date with a stock prefix (November 24, 2026:
+`2026-11-21 PAP1764` returns no results), so make searches are the narrowest
+verified split. A make search that is itself capped fails the run, because no
+narrower native split is verified.
 
-The saved make searches are not read again, so they are trusted for 60
-minutes from the capped yard search (`startedAt` in each split). A chunk that
-finds a split older than that, or dated in the future, fails before any
-request, in the `makes` and `pages` phases alike. Otherwise a hidden donor
-removed while another hidden donor took its Set Date could still reconcile.
-Restart the source from the start cursor.
+A search page must pass the same owner, footer, yard selector, make selector
+and `iisupullurgid` checks, reflect the searched date in its form, publish no
+pagination, and list only donors set on that date in its yard and make. A
+yard or make search must carry exactly one `var setMake` equal to its make
+path (`ANY` for a yard search) and name only the searched yard in
+`var urgID`. A yard or make with no donors answers with the native "No
+Results Found" page, which has no form and cannot reflect the Set Date. The
+search across every yard may not answer empty.
 
-A make search must pass the owner, footer and yard selector checks, carry
-exactly one `var setMake` equal to the make path, name only the searched yard
-in `var urgID`, and list only donors of that make, date and yard. Its form
-action must be the make path. A make with no donors answers with the native
-"No Results Found" page, which has no form and cannot reflect the Set Date.
-The make split must cover the catalog's native make list exactly. It must
-list every donor of that date and yard the catalog shows, so the make totals
-add up to the shown donors plus the repeated slots. The selector omits Tesla:
-a shown Tesla keeps its catalog slot, and a hidden one leaves the split short
-of the repeated slots, so the census fails. A make search that is itself
-capped at 500 cards fails the run, because no narrower native split is
-verified.
+Searches that list more unseen donors of a date than the catalog repeated, or
+run out of pending searches with fewer, mean the inventory changed between
+reads: the rejection is transient and a crawl later in the day can pass. If
+donors repeat while the catalog is no longer ordered by Set Date, the census
+fails because hidden donors cannot be located. Each recovered donor takes the
+repeated card's slot, so it is accounted once instead of as a duplicate, and
+its details link is the search that listed it with its stock fragment.
+
+A date that stops early is not cross-checked against the scopes it did not
+search. Its recovered donors are trusted for 60 minutes, and only while the
+census that publishes shows the date with the same repeated slots and shown
+donors; that census still closes pages 1, 2 and the terminal page.
+
+The native make selector omits Tesla. A hidden Tesla donor is found only if a
+search across every yard or one yard lists it; otherwise its date runs out
+of searches and the rejection is transient.
 
 ## Required identity and optional metadata
 
@@ -181,7 +205,12 @@ The saved packet has no set-date searches, and its census repeats cards at
 six Set Dates. Only the 2026-10-16 search was captured. The supported replay
 of this census is `pickapartva-ties.test.ts`, which serves the same catalog
 pages and closing reads from `src/server/ingestion/pickapartva-test-fixtures/`
-with the captured search and five documented synthetic searches.
+with the captured search and five documented synthetic searches. Its tie
+dates fit one search each, so the replay plans them in one census, runs them
+in one search chunk and publishes from a second census.
+`pickapartva-recovery.test.ts` covers a date set past the search cap: a
+capped yard search, an empty yard and make searches that stop at the make
+listing the hidden donor.
 
 Run focused tests with:
 
@@ -202,7 +231,8 @@ bun scripts/soak-pickapartva.ts \
 
 `--searches` must hold one saved search body per repeated Set Date. Without
 it, or with a date missing, the replay names the search it needs and writes
-nothing.
+nothing. The replay serves only searches across every yard; a date that
+needs yard or make searches cannot be replayed from saved evidence.
 
 Repeat with `--chunk-pages 5` and a different output directory to exercise three
 serialized chunks. The replay uses the real durable cursor codecs and

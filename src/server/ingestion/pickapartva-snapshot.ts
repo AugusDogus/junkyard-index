@@ -1,12 +1,15 @@
 import type { ConnectorChunkAccounting } from "./connector-chunk";
 import { inventoryVin } from "./inventory-vin";
-import { transientRejection } from "./ingestion-validation";
 import {
+  pickapartvaCardKey,
   pickapartvaHash,
   type PickapartvaPage,
   type PickapartvaRecord,
-  type PickapartvaSearchPage,
 } from "./pickapartva-parser";
+import {
+  PickapartvaRecovery,
+  type PickapartvaTie,
+} from "./pickapartva-recovery";
 import {
   mergePickapartvaVehicles,
   pickapartvaStock,
@@ -15,12 +18,7 @@ import {
   type PickapartvaListing,
 } from "./pickapartva-transform";
 import { SourceValidationPolicy } from "./source-validation";
-import {
-  PICKAPARTVA_YARD_CODES,
-  pickapartvaSearchHref,
-  pickapartvaSearchPlan,
-  type PickapartvaYardCode,
-} from "./pickapartva-yard-metadata";
+import type { PickapartvaYardCode } from "./pickapartva-yard-metadata";
 
 export interface PickapartvaCounts {
   processed: number;
@@ -70,12 +68,7 @@ export function pickapartvaSnapshotHash(
   ]);
 }
 
-const cardKey = (record: PickapartvaRecord) =>
-  JSON.stringify([
-    record.stock,
-    record.vin.trim().toUpperCase(),
-    record.setDate,
-  ]);
+const cardKey = pickapartvaCardKey;
 
 /** A catalog card that repeats a native card already shown on an earlier page. */
 interface RepeatSlot {
@@ -135,87 +128,53 @@ function pickapartvaRepeatSlots(
 }
 
 /** The Set Dates whose donors the page chain repeated, in catalog order, each
- * with how many distinct donors of that date the catalog showed. Each needs
+ * with how many cards it repeated and the donors it showed. Each needs
  * set-date searches to recover the donors it hid. */
-export function pickapartvaTieDates(
+export function pickapartvaTies(
   pages: Array<{ url: string; page: PickapartvaPage }>,
-): Array<{ date: string; shown: number }> {
-  const dates = new Set(pickapartvaRepeatSlots(pages).map((slot) => slot.date));
-  return [...dates].map((date) => ({
+): PickapartvaTie[] {
+  const repeats = pickapartvaRepeatSlots(pages);
+  const dates = [...new Set(repeats.map((slot) => slot.date))];
+  return dates.map((date) => ({
     date,
-    shown: new Set(
-      pages.flatMap((entry) =>
-        entry.page.records
-          .filter((record) => record.setDate === date)
-          .map(cardKey),
+    slots: repeats.filter((slot) => slot.date === date).length,
+    shown: [
+      ...new Set(
+        pages.flatMap((entry) =>
+          entry.page.records
+            .filter((record) => record.setDate === date)
+            .map(cardKey),
+        ),
       ),
-    ).size,
+    ].sort(),
   }));
 }
 
+/** Every catalog page with each repeated slot replaced by one hidden donor
+ * its date's recovery found. Each tie date needs exactly one resolved
+ * recovery planned for the same repeated slots and shown donors. */
 export function buildPickapartvaSnapshot(
   pages: Array<{ url: string; page: PickapartvaPage }>,
-  searches: Array<{ url: string; page: PickapartvaSearchPage }>,
+  recoveries: readonly PickapartvaRecovery[],
 ): PickapartvaSnapshot {
   const repeats = pickapartvaRepeatSlots(pages);
-  const dates = [...new Set(repeats.map((slot) => slot.date))];
+  const ties = pickapartvaTies(pages);
   if (
-    JSON.stringify([...new Set(searches.map((search) => search.page.date))]) !==
-      JSON.stringify(dates) ||
-    !pickapartvaSearchPlan(searches.map((search) => search.url)) ||
-    searches.some(
-      (search) =>
-        pickapartvaSearchHref(
-          search.page.date,
-          search.page.id,
-          search.page.make,
-        ) !== search.url,
-    )
+    recoveries.length !== ties.length ||
+    ties.some((tie, index) => {
+      const recovery = recoveries[index];
+      return (
+        recovery === undefined ||
+        !PickapartvaRecovery.matches(recovery, tie) ||
+        !PickapartvaRecovery.resolved(recovery) ||
+        recovery.hidden.length !== tie.slots
+      );
+    })
   )
     throw new Error(
-      `Pick-A-Part VA set-date searches do not match the catalog's repeated Set Dates (${dates.join(", ") || "none"})`,
+      `Pick-A-Part VA set-date searches do not match the catalog's repeated Set Dates (${ties.map((tie) => tie.date).join(", ") || "none"})`,
     );
-  // A yard split by make is complete only when it searched every native make
-  // and listed every donor of that date and yard the catalog shows, so its
-  // make totals add up to the shown donors plus the repeated slots below. The
-  // native make selector omits Tesla: a shown Tesla keeps its catalog slot,
-  // and a hidden one leaves the split short of the repeated slots, which
-  // fails below.
-  const makes = pages[0]?.page.makes ?? [];
-  for (const date of dates)
-    for (const id of PICKAPARTVA_YARD_CODES) {
-      const split = searches.filter(
-        (search) =>
-          search.page.date === date &&
-          search.page.id === id &&
-          search.page.make !== "ANY",
-      );
-      if (!split.length) continue;
-      if (
-        JSON.stringify(split.map((search) => search.page.make)) !==
-        JSON.stringify(makes)
-      )
-        throw new Error(
-          `Pick-A-Part VA make searches for ${date} in ${id} do not cover the native make selector's ${makes.length} makes`,
-        );
-      const listed = new Set(
-        split.flatMap((search) => search.page.records.map(cardKey)),
-      );
-      const missing = pages.flatMap((entry) =>
-        entry.page.records.filter(
-          (record) =>
-            record.setDate === date &&
-            record.yardCode === id &&
-            makes.includes(record.make) &&
-            !listed.has(cardKey(record)),
-        ),
-      );
-      if (missing.length)
-        throw new Error(
-          `Pick-A-Part VA make searches for ${date} in ${id} omit ${missing.length} donors the catalog shows (first ${missing[0]?.stock} ${missing[0]?.make}); the make totals do not reconcile, so completeness is unproven`,
-        );
-    }
-  // Pair each repeated slot with one donor its date's search adds, so every
+  // Pair each repeated slot with one hidden donor of its date, so every
   // catalog slot still accounts for exactly one native donor.
   const replacements = new Map<
     string,
@@ -224,39 +183,27 @@ export function buildPickapartvaSnapshot(
   const shown = new Set(
     pages.flatMap((entry) => entry.page.records.map(cardKey)),
   );
-  for (const date of dates) {
-    const slots = repeats.filter((slot) => slot.date === date);
-    // A date split by yard or make is the union of its disjoint partitions.
-    const found = searches
-      .filter((search) => search.page.date === date)
-      .flatMap((search) =>
-        search.page.records.map((record) => ({
-          record,
-          id: search.page.id,
-          make: search.page.make,
-        })),
-      );
-    const keys = found.map(({ record }) => cardKey(record));
-    if (new Set(keys).size !== keys.length)
-      throw new Error(
-        `Pick-A-Part VA set-date search for ${date} repeats a native donor card`,
-      );
-    const hidden = found.filter(({ record }) => !shown.has(cardKey(record)));
-    if (hidden.length !== slots.length)
-      // The catalog changed while it was read, so a fresh crawl later in the
-      // day can pass.
-      throw transientRejection(
-        new Error(
-          `Pick-A-Part VA set-date search for ${date} adds ${hidden.length} donors, but the catalog repeated ${slots.length} cards of that date; the inventory changed between reads, so completeness is unproven`,
-        ),
-      );
+  const recovered = new Set<string>();
+  for (const recovery of recoveries) {
+    const slots = repeats.filter((slot) => slot.date === recovery.date);
     slots.forEach((slot, index) => {
-      const entry = hidden[index];
-      if (entry)
-        replacements.set(`${slot.page}:${slot.index}`, {
-          record: entry.record,
-          listing: { search: date, id: entry.id, make: entry.make },
-        });
+      const donor = recovery.hidden[index];
+      const key = donor && cardKey(donor.record);
+      if (
+        !donor ||
+        key === undefined ||
+        donor.record.setDate !== recovery.date ||
+        shown.has(key) ||
+        recovered.has(key)
+      )
+        throw new Error(
+          `Pick-A-Part VA recovered donors for ${recovery.date} are shown, repeated or set on another date`,
+        );
+      recovered.add(key);
+      replacements.set(`${slot.page}:${slot.index}`, {
+        record: donor.record,
+        listing: { search: recovery.date, id: donor.id, make: donor.make },
+      });
     });
   }
   const yards = { TT87: empty(), UU81: empty() };
@@ -287,7 +234,8 @@ export function buildPickapartvaSnapshot(
     if (vin) identities.set(vin, identity);
   };
   for (const entry of pages) entry.page.records.forEach(bind);
-  for (const search of searches) search.page.records.forEach(bind);
+  for (const recovery of recoveries)
+    for (const donor of recovery.hidden) bind(donor.record);
   const observedVins = new Set<string>();
   const buckets: PickapartvaBucket[] = [];
   for (const entry of pages) {
@@ -357,11 +305,13 @@ export function buildPickapartvaSnapshot(
     page: entry.page.page,
     hash: entry.page.hash,
   }));
-  const searchReceipts = searches.map((search) => ({
-    date: search.page.date,
-    url: search.url,
-    hash: search.page.hash,
-  }));
+  const searchReceipts = recoveries.flatMap((recovery) =>
+    recovery.searches.map((search) => ({
+      date: recovery.date,
+      url: search.url,
+      hash: search.hash,
+    })),
+  );
   return {
     hash: pickapartvaSnapshotHash(receipts, searchReceipts),
     receipts,
