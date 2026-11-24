@@ -385,6 +385,49 @@ test("City Motors treats the combined request deadline as transient", async () =
   }
 });
 
+test.each([
+  [null, 0, "without a Retry-After header"],
+  ["40", 40_000, 'with Retry-After "40" (a 40 s wait)'],
+  ["0", 0, 'with Retry-After "0" (zero, past or unreadable, so no wait)'],
+  [
+    "Wed, 21 Oct 2015 07:28:00 GMT",
+    0,
+    'with Retry-After "Wed, 21 Oct 2015 07:28:00 GMT" (zero, past or unreadable, so no wait)',
+  ],
+  [
+    "99999999999999999",
+    Infinity,
+    'with Retry-After "99999999999999999" (longer than any finite wait)',
+  ],
+])(
+  "City Motors quotes a 429 Retry-After of %p and the wait it asks for",
+  async (retryAfter, retryAfterMs, wording) => {
+    globalThis.fetch = Object.assign(
+      async () =>
+        new Response("Too Many Requests", {
+          status: 429,
+          headers: {
+            "content-type": "text/html",
+            ...(retryAfter === null ? {} : { "retry-after": retryAfter }),
+          },
+        }),
+      { preconnect: originalFetch.preconnect },
+    );
+    const result = await Effect.runPromise(
+      Effect.either(fetchCitymotorsPage(CITYMOTORS_CATALOG, gate)),
+    );
+    if (
+      Either.isRight(result) ||
+      !(result.left instanceof CitymotorsTransientFailure)
+    )
+      throw new Error("Expected a rate-limited GET");
+    expect(result.left.rateLimited).toEqual({ retryAfterMs });
+    expect(String(result.left.cause)).toContain(
+      "City Motors origin answered HTTP 429 " + wording,
+    );
+  },
+);
+
 test("City Motors resends a failed GET only when it still fits the chunk deadline", async () => {
   const requests = mockInventory({
     transientFailures: { at: [3], kind: "timeout" },
@@ -517,6 +560,45 @@ test.each([0, 1])(
   },
 );
 
+test("City Motors waits out the rest of a cooldown when the Workflow wakes within clock skew of retryAt", async () => {
+  const requests = mockInventory({
+    transientFailures: { at: [1], kind: "rateLimited", retryAfterSeconds: 300 },
+  });
+  const paused = await run();
+  if (paused.cursor.phase === "complete" || !paused.cursor.retryAt)
+    throw new Error("Expected a rate-limit cooldown checkpoint");
+  const retryAt = paused.cursor.retryAt;
+  const cursor = paused.cursor;
+  const clock = spyOn(Date, "now").mockImplementation(() => retryAt - 5_000);
+  try {
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const fiber = yield* Effect.fork(
+          streamCitymotorsInventoryWithRequestGate(
+            { startCursor: cursor, maxPages: 1, onBatch: () => Effect.void },
+            gate,
+          ),
+        );
+        yield* sleepingUntil(5_000);
+        const waited = requests.length;
+        yield* TestClock.adjust(5_000);
+        return { waited, result: yield* Fiber.join(fiber) };
+      }).pipe(Effect.provide(TestContext.TestContext)),
+    );
+    expect(result.waited).toBe(1);
+    expect(result.result).toMatchObject({
+      status: "paused",
+      pagesProcessed: 1,
+    });
+    if (result.result.cursor.phase === "complete")
+      throw new Error("Expected a resumable checkpoint");
+    expect(result.result.cursor.retryAt).toBeUndefined();
+  } finally {
+    clock.mockRestore();
+  }
+  expect(requests).toEqual([CITYMOTORS_CATALOG, CITYMOTORS_CATALOG]);
+});
+
 test("City Motors fails as transient when the host still rate-limits right after a cooldown", async () => {
   const requests = mockInventory({
     transientFailures: {
@@ -536,7 +618,7 @@ test("City Motors fails as transient when the host still rate-limits right after
       (cause: unknown) => cause,
     );
     expect(String(error)).toMatch(
-      /HTTP 429 with Retry-After 300 again right after its cooldown.*prior inventory is preserved/,
+      /HTTP 429 with Retry-After "300" \(a 300 s wait\) again right after its cooldown.*prior inventory is preserved/,
     );
     expect(validationRejectionKind(error)).toBe("transient");
   } finally {
@@ -558,7 +640,7 @@ test("City Motors fails as transient when a Retry-After exceeds the longest dura
     (cause: unknown) => cause,
   );
   expect(String(error)).toMatch(
-    /with no time to resend: .*HTTP 429 with Retry-After 3600, longer than the 10-minute wait.*prior inventory is preserved/,
+    /with no time to resend: .*HTTP 429 with Retry-After "3600" \(a 3600 s wait\), longer than the 10-minute wait.*prior inventory is preserved/,
   );
   expect(validationRejectionKind(error)).toBe("transient");
   expect(requests).toHaveLength(1);

@@ -174,6 +174,25 @@ test("Pratt request/body timeout aborts each in-flight attempt and fails after t
   expect(calls).toBe(PRATT_REQUEST_ATTEMPTS);
   expect(aborted).toBe(PRATT_REQUEST_ATTEMPTS);
 });
+test("Pratt backs off a timed-out attempt 5 then 10 seconds before resending", async () => {
+  const sent: number[] = [];
+  let now = 0;
+  stub(async (_url, options) => {
+    sent.push(now);
+    return new Promise<Response>((_resolve, reject) => {
+      options?.signal?.addEventListener(
+        "abort",
+        () => reject(options.signal?.reason),
+        { once: true },
+      );
+    });
+  });
+  const result = await onTestClock(readPrattPage(url, direct), (ms) => {
+    now = ms;
+  });
+  expect(result._tag).toBe("Left");
+  expect(sent).toEqual([0, 25_000, 55_000]);
+});
 test("Pratt body shares the request deadline and releases each stalled response reader", async () => {
   const responses: Response[] = [];
   let canceled = 0;

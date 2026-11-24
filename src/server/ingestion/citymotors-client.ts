@@ -39,13 +39,20 @@ class CitymotorsServerStatus extends Error {}
 class CitymotorsRateLimited extends Error {
   readonly retryAfterMs: number;
   constructor(retryAfter: string | null) {
+    const retryAfterMs = parseRetryAfterMs(retryAfter, Date.now());
+    const wait =
+      retryAfterMs === 0
+        ? "zero, past or unreadable, so no wait"
+        : Number.isFinite(retryAfterMs)
+          ? `a ${Math.ceil(retryAfterMs / 1000)} s wait`
+          : "longer than any finite wait";
     super(
       "City Motors origin answered HTTP 429 " +
         (retryAfter === null
           ? "without a Retry-After header"
-          : "with Retry-After " + retryAfter),
+          : `with Retry-After ${JSON.stringify(retryAfter)} (${wait})`),
     );
-    this.retryAfterMs = parseRetryAfterMs(retryAfter, Date.now());
+    this.retryAfterMs = retryAfterMs;
   }
 }
 const statusCause = (cause: unknown) =>
