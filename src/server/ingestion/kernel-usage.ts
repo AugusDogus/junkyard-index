@@ -32,6 +32,16 @@ export const KERNEL_MONTHLY_BUDGET_USD = {
 } as const satisfies Partial<Record<KernelSource, number>>;
 export type MeteredKernelSource = keyof typeof KERNEL_MONTHLY_BUDGET_USD;
 
+/**
+ * UTC-day Kernel spend at which a source's chunks stop opening browsers. A
+ * full U Pull R Parts crawl costs about $0.02 to $0.03, so $0.25 allows every
+ * retry a bad day needs, while a crawl stuck failing cannot spend the month's
+ * budget in a few days.
+ */
+export const KERNEL_DAILY_BUDGET_USD = {
+  upullrparts: 0.25,
+} as const satisfies Record<MeteredKernelSource, number>;
+
 /** The longest a chunk's browser can bill: the chunk ends within its wall
  * limit, and Kernel deletes a browser whose delete failed this long after its
  * CDP connection closed. A row the process never closed counts this long. */
@@ -39,18 +49,26 @@ const MAX_BROWSER_MS =
   Duration.toMillis(PROVIDER_CHUNK_WALL_LIMIT) +
   KERNEL_SESSION_TIMEOUT_SECONDS * 1_000;
 
-/** The source's month-to-date Kernel spend reached its budget, so no browser
- * was opened. */
+/** The source's Kernel spend this UTC day or month reached that period's
+ * cap, so no browser was opened. */
 export class KernelBudgetSpent extends Data.TaggedError("KernelBudgetSpent")<{
   source: MeteredKernelSource;
+  cap: "daily" | "monthly";
   spentUsd: number;
   budgetUsd: number;
-  monthStart: Date;
-  nextMonthStart: Date;
+  periodStart: Date;
+  nextPeriodStart: Date;
 }> {
   override get message() {
-    const day = (date: Date) => date.toISOString().slice(0, 10);
-    return `${INGESTION_SOURCE_DISPLAY_NAMES[this.source]} has spent $${this.spentUsd.toFixed(2)} of its $${this.budgetUsd.toFixed(2)} monthly Kernel budget since ${day(this.monthStart)} (kernel_browser_usage), so no browser was opened and Big D and Northwest keep the rest of Kernel's credit. Its chunks defer until ${day(this.nextMonthStart)}; raise KERNEL_MONTHLY_BUDGET_USD in kernel-usage.ts only if the Kernel dashboard shows credit to spare.`;
+    const name = INGESTION_SOURCE_DISPLAY_NAMES[this.source];
+    const spent = `$${this.spentUsd.toFixed(2)} of its $${this.budgetUsd.toFixed(2)}`;
+    if (this.cap === "monthly") {
+      const day = (date: Date) => date.toISOString().slice(0, 10);
+      return `${name} has spent ${spent} monthly Kernel budget since ${day(this.periodStart)} (kernel_browser_usage), so no browser was opened and Big D and Northwest keep the rest of Kernel's credit. Its chunks defer until ${day(this.nextPeriodStart)}; raise KERNEL_MONTHLY_BUDGET_USD in kernel-usage.ts only if the Kernel dashboard shows credit to spare.`;
+    }
+    const minute = (date: Date) =>
+      `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+    return `${name} has spent ${spent} daily Kernel cap since ${minute(this.periodStart)} (kernel_browser_usage), so no browser was opened; a full day's crawl costs about $0.03, so its chunks are most likely failing and retrying. Its chunks defer until the cap resets at ${minute(this.nextPeriodStart)}, and prior inventory is preserved. Read the run's errors in /admin before raising KERNEL_DAILY_BUDGET_USD in kernel-usage.ts.`;
   }
 }
 
@@ -60,14 +78,73 @@ function monthStart(now: Date, monthsAhead = 0): Date {
   );
 }
 
-/**
- * The source's Kernel spend from the first of `now`'s UTC month: each
- * browser's seconds from create to delete at its mode's rate. A browser not
- * yet closed counts until `now`, at most its longest possible life.
- */
-async function monthToDateUsd(
+function dayStart(now: Date, daysAhead = 0): Date {
+  return new Date(
+    Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate() + daysAhead,
+    ),
+  );
+}
+
+/** The source's Kernel spend from the first of `now`'s UTC month. */
+function monthToDateUsd(
   database: LibSQLDatabase,
   source: MeteredKernelSource,
+  now: Date,
+): Promise<number> {
+  return spentSinceUsd(database, source, monthStart(now), now);
+}
+
+/** The source's Kernel spend from the start of `now`'s UTC day. */
+function dayToDateUsd(
+  database: LibSQLDatabase,
+  source: MeteredKernelSource,
+  now: Date,
+): Promise<number> {
+  return spentSinceUsd(database, source, dayStart(now), now);
+}
+
+/** The cap the source's spend has reached, the monthly one first, or null. */
+async function capReached(
+  database: LibSQLDatabase,
+  source: MeteredKernelSource,
+  now: Date,
+): Promise<KernelBudgetSpent | null> {
+  const monthly = await monthToDateUsd(database, source, now);
+  if (monthly >= KERNEL_MONTHLY_BUDGET_USD[source])
+    return new KernelBudgetSpent({
+      source,
+      cap: "monthly",
+      spentUsd: monthly,
+      budgetUsd: KERNEL_MONTHLY_BUDGET_USD[source],
+      periodStart: monthStart(now),
+      nextPeriodStart: monthStart(now, 1),
+    });
+  const daily = await dayToDateUsd(database, source, now);
+  if (daily >= KERNEL_DAILY_BUDGET_USD[source])
+    return new KernelBudgetSpent({
+      source,
+      cap: "daily",
+      spentUsd: daily,
+      budgetUsd: KERNEL_DAILY_BUDGET_USD[source],
+      periodStart: dayStart(now),
+      nextPeriodStart: dayStart(now, 1),
+    });
+  return null;
+}
+
+/**
+ * The source's Kernel spend from `from` to `now`: each browser started since
+ * `from`, billed for its seconds from create to delete at its mode's rate. A
+ * browser not yet closed counts until `now`, at most its longest possible
+ * life.
+ */
+async function spentSinceUsd(
+  database: LibSQLDatabase,
+  source: MeteredKernelSource,
+  from: Date,
   now: Date,
 ): Promise<number> {
   const rows = await database
@@ -80,7 +157,7 @@ async function monthToDateUsd(
     .where(
       and(
         eq(kernelBrowserUsage.source, source),
-        gte(kernelBrowserUsage.startedAt, monthStart(now).getTime()),
+        gte(kernelBrowserUsage.startedAt, from.getTime()),
       ),
     );
   return rows.reduce((total, row) => {
@@ -93,8 +170,8 @@ async function monthToDateUsd(
 
 /**
  * `sessions` with each browser recorded in `kernel_browser_usage`, and a
- * create refused with `KernelBudgetSpent` once the source's month-to-date
- * spend reaches its budget. The row is written before the browser is created,
+ * create refused with `KernelBudgetSpent` once the source's spend this UTC
+ * month reaches its monthly budget, or this UTC day its daily cap. The row is written before the browser is created,
  * so a process that dies with it open still counts it; a refused create
  * counts nothing, and a failed delete counts until Kernel deletes it.
  */
@@ -109,7 +186,6 @@ function metered(
   const { database, source } = params;
   const now = params.now ?? (() => new Date());
   const mode = KernelSessions.browserProfile(source).mode;
-  const budgetUsd = KERNEL_MONTHLY_BUDGET_USD[source];
   const rows = new Map<string, string>();
   // A row left open counts its longest possible life, more than the browser
   // billed, so a failed write only makes the guard stricter; it is logged
@@ -131,15 +207,8 @@ function metered(
     ...sessions,
     create: async () => {
       const at = now();
-      const spentUsd = await monthToDateUsd(database, source, at);
-      if (spentUsd >= budgetUsd)
-        throw new KernelBudgetSpent({
-          source,
-          spentUsd,
-          budgetUsd,
-          monthStart: monthStart(at),
-          nextMonthStart: monthStart(at, 1),
-        });
+      const refused = await capReached(database, source, at);
+      if (refused) throw refused;
       const rowId = crypto.randomUUID();
       await database
         .insert(kernelBrowserUsage)
@@ -174,4 +243,4 @@ function metered(
   };
 }
 
-export const KernelUsage = { monthToDateUsd, metered } as const;
+export const KernelUsage = { monthToDateUsd, dayToDateUsd, metered } as const;

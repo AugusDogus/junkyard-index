@@ -7,6 +7,7 @@ import { kernelBrowserUsage } from "~/schema";
 import { DocumentTransport, type BrowserSessions } from "./document-transport";
 import { KernelApiError } from "./kernel-sessions";
 import {
+  KERNEL_DAILY_BUDGET_USD,
   KERNEL_MONTHLY_BUDGET_USD,
   KERNEL_USD_PER_SECOND,
   KernelBudgetSpent,
@@ -218,6 +219,39 @@ describe("KernelUsage.metered", () => {
     );
 
     now = at("2026-12-01T07:00:00Z");
+    await metered.create();
+    expect(calls).toEqual(["create"]);
+  });
+
+  test("opens no browser once the UTC day's spend reaches its daily cap, until the next day", async () => {
+    // $0.25 at $0.48 an hour is 1,875 headful seconds.
+    expect(KERNEL_DAILY_BUDGET_USD.upullrparts).toBe(0.25);
+    await insertUsage(
+      "yesterday",
+      "2026-11-23T07:00:00Z",
+      "2026-11-23T08:00:00Z",
+    );
+    await insertUsage("today", "2026-11-24T07:00:00Z", "2026-11-24T07:31:15Z");
+    const { sessions, calls } = fakeSessions();
+    let now = at("2026-11-24T09:00:00Z");
+    const metered = KernelUsage.metered(sessions, {
+      database: drizzle(client),
+      source: "upullrparts",
+      now: () => now,
+    });
+    const refused = await metered.create().then(
+      () => null,
+      (error: unknown) => error,
+    );
+    expect(refused).toBeInstanceOf(KernelBudgetSpent);
+    expect(calls).toEqual([]);
+    expect(
+      String(refused instanceof KernelBudgetSpent && refused.message),
+    ).toBe(
+      "U Pull R Parts has spent $0.25 of its $0.25 daily Kernel cap since 2026-11-24 00:00 UTC (kernel_browser_usage), so no browser was opened; a full day's crawl costs about $0.03, so its chunks are most likely failing and retrying. Its chunks defer until the cap resets at 2026-11-25 00:00 UTC, and prior inventory is preserved. Read the run's errors in /admin before raising KERNEL_DAILY_BUDGET_USD in kernel-usage.ts.",
+    );
+
+    now = at("2026-11-25T07:00:00Z");
     await metered.create();
     expect(calls).toEqual(["create"]);
   });
