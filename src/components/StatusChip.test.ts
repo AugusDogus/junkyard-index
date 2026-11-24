@@ -27,12 +27,12 @@ async function read(answer: "operational" | "unreachable"): Promise<unknown> {
         if (${JSON.stringify(answer)} === "unreachable") {
           throw new TypeError("fetch failed", { cause: new Error("ConnectTimeoutError") });
         }
-        return Response.json({ data: { attributes: { aggregate_state: "operational" } } });
+        return Response.json({ included: [{ id: "1", type: "status_page_section", attributes: { position: 0 } }, { id: "site", type: "status_page_resource", attributes: { status_page_section_id: 1, status: "operational" } }] });
       };
       let logged = 0;
       console.error = () => { logged += 1; };
-      const { getAggregateState } = await import(${JSON.stringify(MODULE)});
-      const state = await getAggregateState("https://status.example/");
+      const { getSiteStatus } = await import(${JSON.stringify(MODULE)});
+      const state = await getSiteStatus("https://status.example/");
       process.stdout.write(JSON.stringify({ state, cache, request, logged }) + "\\n");
     `,
     ],
@@ -53,9 +53,9 @@ test("the status state is cached by unstable_cache, not by a revalidating fetch"
   // abort signal and logs the failure, so the request must bypass the fetch
   // cache and keep its own timeout on every read.
   expect(await read("operational")).toEqual({
-    state: { dot: "bg-success", label: "All systems operational" },
+    state: "operational",
     cache: {
-      keyParts: ["status-chip-state-v1"],
+      keyParts: ["status-chip-state-v2"],
       options: { revalidate: 300 },
     },
     request: { cache: "no-store", next: undefined, hasSignal: true },
@@ -64,5 +64,8 @@ test("the status state is cached by unstable_cache, not by a revalidating fetch"
 });
 
 test("an unreachable status page shows the plain label without logging", async () => {
-  expect(await read("unreachable")).toMatchObject({ state: null, logged: 0 });
+  expect(await read("unreachable")).toMatchObject({
+    state: "unknown",
+    logged: 0,
+  });
 });
