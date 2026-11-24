@@ -6,15 +6,24 @@ type Outcome =
   | { notFound: true }
   | { page: number; pageCount: number; vehicles: number; total: number };
 
+/** The make's own URL, or its /page/N URL. */
+type Route = "first" | "paged";
+
+const routeFiles: Record<Route, string> = {
+  first: fileURLToPath(new URL("../../page.tsx", import.meta.url)),
+  paged: fileURLToPath(new URL("./page.tsx", import.meta.url)),
+};
+
 /**
- * Opens /junkyards/tx/calton/make/{make}/page/{page} with 150 Chevrolets at
- * the yard. Runs in its own process so the module mocks stay out of other
- * test files.
+ * Opens /junkyards/tx/calton/make/{make}/page/{page} (or the make's own URL)
+ * with 150 Chevrolets and no Fords at the yard. Runs in its own process so
+ * the module mocks stay out of other test files.
  */
 async function open(
   yard: string,
   make: string,
   page: string,
+  route: Route = "paged",
 ): Promise<{ outcome: Outcome; metadata: unknown }> {
   const child = Bun.spawn(
     [
@@ -33,8 +42,9 @@ async function open(
     }));
     mock.module("~/server/source-control/hidden-sources-loader", () => ({ getHiddenSources: async () => ({ list: [] }) }));
     const chevrolet = { key: "CHEVROLET", name: "Chevrolet", slug: "chevrolet" };
+    const ford = { key: "FORD", name: "Ford", slug: "ford" };
     mock.module("~/server/vehicle-models", () => ({
-      findMake: async (slug) => (slug === "chevrolet" || slug === "chevy" ? chevrolet : null),
+      findMake: async (slug) => (slug === "chevrolet" || slug === "chevy" ? chevrolet : slug === "ford" ? ford : null),
       getMakeSlugs: async () => new Map([["CHEVROLET", "chevrolet"]]),
     }));
     const { YardInventory } = await import("~/lib/yard-inventory");
@@ -56,7 +66,7 @@ async function open(
         data: YardInventory.page(vehicles.filter((vehicle) => scope.kind === "yard" || scope.key === "CHEVROLET"), page),
       }),
     }));
-    const route = await import(${JSON.stringify(fileURLToPath(new URL("./page.tsx", import.meta.url)))});
+    const route = await import(process.argv[4]);
     const params = Promise.resolve({ state: "tx", yard: process.argv[1], make: process.argv[2], page: process.argv[3] });
     let outcome;
     try {
@@ -75,6 +85,7 @@ async function open(
       yard,
       make,
       page,
+      routeFiles[route],
     ],
     { stdout: "pipe", stderr: "pipe" },
   );
@@ -121,6 +132,13 @@ describe("yard make page N", () => {
         notFound: true,
       });
     }
+  });
+
+  test("answers 404 with no metadata for a make the yard has none of", async () => {
+    expect(await open("calton", "ford", "1", "first")).toEqual({
+      outcome: { notFound: true },
+      metadata: {},
+    });
   });
 
   test("answers 404 past the last page and for a malformed page", async () => {
