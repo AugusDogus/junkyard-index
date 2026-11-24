@@ -6,6 +6,7 @@ import { Breadcrumbs } from "~/components/junkyards/Breadcrumbs";
 import { PublicPageShell } from "~/components/junkyards/PublicPageShell";
 import { YardList } from "~/components/junkyards/YardList";
 import { JsonLd } from "~/components/JsonLd";
+import { KeepHyphenated } from "~/components/KeepHyphenated";
 import { env } from "~/env";
 import { InventoryFormat } from "~/lib/inventory-format";
 import { SITE_OPEN_GRAPH, SITE_TWITTER } from "~/lib/site-metadata";
@@ -119,7 +120,7 @@ export default async function ChainPage({
       <Breadcrumbs crumbs={crumbs} />
       <header>
         <h1 className="text-display-s leading-[1.02] font-extrabold">
-          {chain.name} inventory
+          <KeepHyphenated text={chain.name} /> inventory
         </h1>
         <p className="text-lead text-ink-2 mt-5 max-w-[56ch] leading-[1.45]">
           <span className="text-ink font-extrabold tabular-nums">
@@ -146,7 +147,7 @@ export default async function ChainPage({
             id="largest-title"
             className="text-section leading-[1.02] font-extrabold lg:col-span-7"
           >
-            Largest {chain.name} yards
+            Largest <KeepHyphenated text={chain.name} /> yards
           </h2>
           <p className="text-board-muted text-lead leading-[1.45] text-pretty lg:col-span-5">
             Pick a yard to see everything it has, newest first.
@@ -165,7 +166,7 @@ export default async function ChainPage({
             id="states-title"
             className="text-section leading-[1.02] font-extrabold lg:sticky lg:top-28 lg:col-span-4 lg:self-start"
           >
-            Every {chain.name} yard, by state
+            Every <KeepHyphenated text={chain.name} /> yard, by state
           </h2>
           <div className="border-ink border-t-2 lg:col-span-8">
             {YardPath.byRegion(chain.yards).map(({ region, yards }) => (
