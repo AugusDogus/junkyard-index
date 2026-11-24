@@ -154,7 +154,7 @@ const YardMapCanvas = memo(function YardMapCanvas({
       role="region"
       tabIndex={pins.length === 0 ? 0 : -1}
       aria-label="Map of indexed junkyard locations"
-      aria-description="Use arrow keys to move between yard pins, Enter to select, Shift and arrow keys to pan, plus and minus to zoom, and Home to show all yards."
+      aria-description="Use arrow keys to move between yard pins, Enter to select, Shift and arrow keys to pan, plus and minus to zoom, and Home to return to the overview."
       onErrorCapture={() => setTileError(true)}
       onKeyDown={(event) => {
         const pinIndex = pins.findIndex(
@@ -271,8 +271,8 @@ const YardMapCanvas = memo(function YardMapCanvas({
           variant="outline"
           size="icon"
           className="bg-paper-3 hover:bg-ink"
-          aria-label="Show all yards on the map"
-          title="Show all yards"
+          aria-label="Return to the map overview"
+          title="Map overview"
           onClick={() => {
             onSelect(null);
             requestView(null);
