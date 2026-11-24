@@ -65,7 +65,7 @@ export const VinplusCoverage = {
     if (lagging * 10 > advertised.count)
       throw transientRejection(
         new Error(
-          `${lagDetail}; exceeds the 10% lag limit, so the year distribution is too stale to vouch for this yard. The source retries later in the day; if this repeats, compare the distribution with live year searches`,
+          `${lagDetail}; exceeds the 10% lag limit, so the year distribution is too stale to vouch for this yard. The source retries later in the day, but a distribution frozen for days fails every retry that day; if this repeats, compare the distribution with live year searches before raising the limit`,
         ),
       );
     return {

@@ -124,8 +124,20 @@ yard's. A null-make response at the 100-record cap may be silently truncated
 whatever the distribution advertises, so it is discovery only and never
 admitted or replayed. Its range is bisected by year until each half is below the
 cap, and a capped single year is read by its literal makes, observed makes and
-the make directory, exactly like a large year. A make partition at the cap still
-fails the source.
+the make directory, like a large year. Unlike a large year, a capped year usually
+has more live rows than it advertises, so its supplement rarely reconciles and
+reads every directory make (up to 128, replayed at close). Each yard is limited
+to 1,024 controls; a yard with several capped years fails that limit with a
+request budget error. A make partition at the cap still fails the source.
+
+Treating complete-year shortfalls as lag is a deliberate tradeoff. A backend
+that silently dropped rows below the cap, identically at opening and closing,
+would look like lag, so up to 10% of a yard could be delisted with only a
+warning. The search has only ever been seen truncating at the 100-record cap,
+and the per-yard floor and the 50% drift guard still catch larger losses. A
+distribution frozen for days, as from November 22 to 24, fails every same-day
+retry once its lag passes 10%, and that holds back every VinPlus yard, because
+the source publishes as one unit.
 
 Make searches can return a different published make, as Killeen's Chrysler
 query does for an Oldsmobile record. Response criteria must match the request;

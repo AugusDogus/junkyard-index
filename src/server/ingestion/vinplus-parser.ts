@@ -107,12 +107,18 @@ function* supplementRanges(
 }
 /** Literal make selectors from a capped discovery response, which supplies
  * selectors only and never donors. */
-function discoveredMakes(records: readonly VinplusRecord[]): string[] {
+function discoveredMakes(
+  tenant: VinplusTenant,
+  year: number,
+  records: readonly VinplusRecord[],
+): string[] {
   const literals = [
     ...new Set(records.map((record) => vinplusOptionalText(record.make))),
   ];
   if (literals.some((make) => make === null))
-    throw new Error("Capped year discovery lacks a literal make selector");
+    throw new Error(
+      `${tenant.yardId} ${year}: capped year discovery returned a record without a literal make, so this year cannot be partitioned by make; inspect that record's make before retrying`,
+    );
   return z.array(z.string().min(1).max(100)).min(1).parse(literals).sort();
 }
 function app(raw: string) {
@@ -182,13 +188,15 @@ function* traversal(
       throw new Error(
         "Large-year discovery changed the verified 100-record cap",
       );
-    makes.set(row.year, discoveredMakes(records));
+    makes.set(row.year, discoveredMakes(tenant, row.year, records));
   }
   const pages: VinplusRecord[][] = [];
   const union = VinplusRecordUnion.create();
   const ranges: VinplusRange[] = [];
   // Years an uncapped null-make search answered whole, and years whose
-  // single-year null-make search reached the cap above a stale distribution.
+  // single-year null-make search reached the cap. A capped year usually has
+  // more live rows than it advertises, so its supplement rarely reconciles
+  // and reads every observed and directory make (about 128, replayed at close).
   const complete = new Set<number>();
   const split: number[] = [];
   const admit = (range: VinplusRange, records: VinplusRecord[]) => {
@@ -213,7 +221,7 @@ function* traversal(
     }
     if (records.length !== 100)
       throw new Error(
-        `${tenant.yardId} ${range.min}-${range.max}: null-make search returned ${records.length} rows, so the verified 100-record cap changed; requalify the year controls`,
+        `${tenant.yardId} ${range.min}-${range.max}: null-make search returned ${records.length} rows, so the verified 100-record cap changed and capped ranges can no longer be detected; requalify the year controls`,
       );
     if (range.min < range.max) {
       const middle = Math.floor((range.min + range.max) / 2);
@@ -222,7 +230,7 @@ function* traversal(
       return;
     }
     split.push(range.min);
-    for (const make of discoveredMakes(records))
+    for (const make of discoveredMakes(tenant, range.min, records))
       admit(
         { min: range.min, max: range.min, make },
         yield* readRange(tenant, { min: range.min, max: range.min, make }),
