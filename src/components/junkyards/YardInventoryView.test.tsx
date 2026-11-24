@@ -106,7 +106,9 @@ function props(vehicles: YardVehicle[]): Props {
     makes: YardInventory.makeCounts(vehicles),
     makeSlugs: new Map([["honda", "honda"]]),
     publishedAt,
-    checkedAt: publishedAt,
+    // Checked just now, so the yard is current and shows its new arrivals;
+    // a stale one shows none (see the staleness tests).
+    checkedAt: new Date().toISOString(),
     nearby: [],
     chain: null,
     filter: null,
@@ -177,6 +179,20 @@ describe("YardInventoryView staleness", () => {
       }),
     );
     expect(html.match(/Last checked 3 days ago/g)?.length).toBe(2);
+  });
+
+  test("shows no New badges or new-this-week count next to Last checked, since its newest cars are only new as of that check", async () => {
+    const html = await render({
+      ...props([
+        vehicle("VIN00001", "2026-11-18T00:00:00.000Z"),
+        vehicle("VIN00004", "2026-10-01T00:00:00.000Z"),
+      ]),
+      publishedAt: daysAgo(3),
+      checkedAt: daysAgo(3),
+    });
+    expect(text(html)).toContain("Last checked 3 days ago");
+    expect(text(html)).not.toContain("new this week");
+    expect(badges(html)).toBe(0);
   });
 
   test("uses the source's date for a yard without its own, so an untracked yard of a stale source still says it", async () => {

@@ -24,7 +24,9 @@ export const INVENTORY_HIDDEN_AFTER_DAYS = 7;
  * INVENTORY_STALE_AFTER_HOURS) at once before ingestion as a whole counts as
  * down. Status checks fail on it, and the automatic 7-day hide stops while it
  * holds, so an ingestion outage leaves "Last checked" labels on the site
- * instead of emptying it (owner decision, November 24, 2026).
+ * instead of emptying it (owner decision, November 24, 2026). Status checks
+ * count only unpaused sources; the hide counts every active source, since it
+ * reads publications alone (docs/runbooks/hide-source.md).
  */
 export const OUTAGE_STALE_SHARE = 0.2;
 

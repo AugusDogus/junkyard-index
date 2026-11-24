@@ -55,6 +55,16 @@ that share are stale. This was the owner's decision on 2026-11-24. A fresh
 development database with no recent runs reads as an outage, so it hides
 nothing automatically.
 
+The hide and `/api/status` count different sets. `/api/status` leaves out
+sources paused from /admin or by their Vercel flag; the hide counts every
+active source, paused or not, since it reads only accepted publications. That
+keeps one rule, with no flag or `source_control` read, for every reader of
+`loadHiddenSources` (pages, alert workflows, IndexNow and the hourly check).
+So a paused source past 36 hours counts toward the hide's 20%, and once paused
+sources alone reach it (19 of 92 active sources; 2 were paused on
+2026-11-24), the hide stays off while `/api/status` reads healthy. Resume or
+retire long-paused sources before that.
+
 ### When labels and hides change without a publication
 
 A source going stale publishes nothing, so no publication expires the cached

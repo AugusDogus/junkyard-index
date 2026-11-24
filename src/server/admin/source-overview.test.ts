@@ -67,11 +67,29 @@ const healthyRuns = (...except: string[]): SourceRun[] =>
     (source) => run(source, today, { kind: "accepted", vehicles: 1 }),
   );
 
+/**
+ * Each active source's newest accepted publication, as loadSourceFreshness
+ * reads it: this morning, apart from `overrides` (null: none in the lookback).
+ */
+const published = (
+  overrides: Record<string, Date | null> = {},
+): Map<string, number | null> =>
+  new Map(
+    ACTIVE_INGESTION_SOURCES.map((source) => {
+      const at = overrides[source];
+      return [
+        source,
+        at === undefined ? today.getTime() + 2 * HOUR : (at?.getTime() ?? null),
+      ];
+    }),
+  );
+
 const input = (
   overrides: Partial<SourceOverviewInput> = {},
 ): SourceOverviewInput => ({
   now,
   runs: [],
+  published: published(),
   activeRuns: [],
   publishedCounts: new Map(),
   flags: { status: "read", enabled: new Set(["pyp", "row52", "meeks"]) },
@@ -341,6 +359,9 @@ describe("SourceOverview.build", () => {
             run("pyp", eightDaysAgo, { kind: "accepted", vehicles: 1 }),
             run("pyp", today, { kind: "rejected" }),
           ],
+          published: published({
+            pyp: new Date(eightDaysAgo.getTime() + 2 * HOUR),
+          }),
         }),
       ),
       "pyp",
@@ -365,6 +386,24 @@ describe("SourceOverview.build", () => {
     expect(recovered.staleHide).toBeNull();
   });
 
+  test("a source page, which loads only that source's runs, still shows its 7-day hide", () => {
+    const nineDaysAgo = new Date(now.getTime() - 9 * 24 * HOUR);
+    const summary = summaryFor(
+      SourceOverview.build(
+        input({
+          runs: [run("pyp", nineDaysAgo, { kind: "accepted", vehicles: 1 })],
+          published: published({
+            pyp: new Date(nineDaysAgo.getTime() + 2 * HOUR),
+          }),
+        }),
+      ),
+      "pyp",
+    );
+    expect(summary.staleHide).toEqual({
+      lastAcceptedAt: new Date(nineDaysAgo.getTime() + 2 * HOUR),
+    });
+  });
+
   test("a source stale for under 7 days stays shown, and a retired one is never hidden automatically", () => {
     const summaries = SourceOverview.build(
       input({
@@ -372,6 +411,10 @@ describe("SourceOverview.build", () => {
           ...healthyRuns("pyp", "row52"),
           run("pyp", twoDaysAgo, { kind: "accepted", vehicles: 1 }),
         ],
+        published: published({
+          pyp: new Date(twoDaysAgo.getTime() + 2 * HOUR),
+          row52: null,
+        }),
       }),
     );
     expect(summaryFor(summaries, "pyp")).toMatchObject({
@@ -379,7 +422,8 @@ describe("SourceOverview.build", () => {
       staleHide: null,
     });
     expect(summaryFor(summaries, "brandywine").staleHide).toBeNull();
-    // Without any accepted run in the window, an active source is hidden.
+    // Without any accepted publication in the lookback, an active source is
+    // hidden.
     expect(summaryFor(summaries, "row52").staleHide).toEqual({
       lastAcceptedAt: null,
     });
@@ -400,6 +444,14 @@ describe("SourceOverview.build", () => {
             run(source, eightDaysAgo, { kind: "accepted", vehicles: 1 }),
           ),
         ],
+        published: published(
+          Object.fromEntries(
+            down.map((source) => [
+              source,
+              new Date(eightDaysAgo.getTime() + 2 * HOUR),
+            ]),
+          ),
+        ),
       }),
     );
     for (const source of down)
@@ -472,10 +524,15 @@ describe("SourceOverview.counts", () => {
 
   test("counts sources hidden for staleness apart from the owner's hides", () => {
     const counts = SourceOverview.counts(
-      SourceOverview.build(input({ runs: healthyRuns("pyp", "row52") })),
+      SourceOverview.build(
+        input({
+          runs: healthyRuns("pyp", "row52"),
+          published: published({ pyp: null, row52: null }),
+        }),
+      ),
     );
-    // Neither has an accepted run in the window; the owner's hide of Meeks
-    // counts apart.
+    // Neither has an accepted publication in the lookback; the owner's hide
+    // of Meeks counts apart.
     expect(counts.staleHidden).toBe(2);
     expect(counts.hidden).toBe(1);
   });
