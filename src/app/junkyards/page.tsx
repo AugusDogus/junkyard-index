@@ -206,10 +206,15 @@ export default async function JunkyardsPage() {
             Open a state to list its yards with their city and vehicle count.
           </p>
         </div>
-        {/* Two states a row on wide screens. */}
-        <div className="border-ink mt-(--space-xl) border-t-2 lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-10">
+        {/* Two columns on wide screens, read down each like the states
+            above. An opened state stays whole and the columns rebalance
+            around it, so no gap opens beside it. */}
+        <div className="border-ink mt-(--space-xl) gap-x-10 border-t-2 lg:columns-2">
           {groups.map(({ region, yards: regionYards }) => (
-            <details key={region.slug} className="group border-rule border-b">
+            <details
+              key={region.slug}
+              className="group border-rule break-inside-avoid border-b"
+            >
               <summary className="board-step hover:bg-paper-2 active:bg-paper-2 focus-visible:outline-focus flex list-none items-center justify-between gap-4 px-2 py-3 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid [&::-webkit-details-marker]:hidden">
                 <span className="text-[0.9375rem] font-extrabold">
                   {region.name}
