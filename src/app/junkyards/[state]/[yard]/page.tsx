@@ -8,7 +8,7 @@ import {
 import { YardInventory } from "~/lib/yard-inventory";
 import { getMakeSlugs } from "~/server/vehicle-models";
 import { getHiddenSources } from "~/server/source-control/hidden-sources-loader";
-import { getYardPageData } from "~/server/yard-inventory";
+import { getYardPageData, getYardVehiclePage } from "~/server/yard-inventory";
 
 // Served from the CDN and rebuilt after each daily ingestion pass, which
 // invalidates the inventory cache tag. This is the fallback lifetime.
@@ -30,7 +30,7 @@ export async function generateMetadata({
   const { state, yard } = await params;
   const data = await getYardPageData(state, yard);
   if (!data) return {};
-  return yardPageMetadata(data.yard, data.vehicles.length, data.publishedAt, 1);
+  return yardPageMetadata(data.yard, data.summary.total, data.publishedAt, 1);
 }
 
 export default async function YardPage({
@@ -40,21 +40,24 @@ export default async function YardPage({
 }) {
   const { state, yard } = await params;
   const data = await getYardPageData(state, yard);
-  const inventory = data && YardInventory.page(data.vehicles, 1);
+  const inventory =
+    data &&
+    (await getYardVehiclePage(data.yard, data.summary, { kind: "yard" }, 1));
   if (!data || !inventory) notFound();
+  const arrivals = YardInventory.yardArrivals(data.summary);
 
   return (
     <PublicPageShell>
       <YardInventoryView
         yard={data.yard}
         inventory={inventory}
-        total={data.vehicles.length}
-        makes={data.makes}
+        total={data.summary.total}
+        makes={data.summary.makes}
         makeSlugs={await getMakeSlugs()}
         hiddenSources={await getHiddenSources()}
-        newArrivals={YardInventory.newArrivals(
-          data.vehicles,
-          data.vehicles,
+        newArrivals={YardInventory.newArrivalsFrom(
+          arrivals,
+          arrivals,
           new Date().toISOString(),
         )}
         filter={null}

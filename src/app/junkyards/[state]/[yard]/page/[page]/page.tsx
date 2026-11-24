@@ -6,9 +6,10 @@ import {
   yardPageMetadata,
 } from "~/components/junkyards/YardInventoryView";
 import { YardInventory } from "~/lib/yard-inventory";
+import { YardPath } from "~/lib/yard-path";
 import { getMakeSlugs } from "~/server/vehicle-models";
 import { getHiddenSources } from "~/server/source-control/hidden-sources-loader";
-import { getYardPageData } from "~/server/yard-inventory";
+import { getYardPageData, getYardVehiclePage } from "~/server/yard-inventory";
 
 // See ../../page.tsx: rebuilt after each daily pass; this is the fallback.
 export const revalidate = 86400;
@@ -20,18 +21,19 @@ export function generateStaticParams(): Params[] {
   return [];
 }
 
-/** Page numbers are canonical decimals from 2 up; anything else is not a page. */
-function parsePage(value: string): number | null {
-  return /^[1-9]\d{0,3}$/.test(value) ? Number(value) : null;
-}
-
 async function load(params: Promise<Params>) {
   const { state, yard, page } = await params;
-  const number = parsePage(page);
+  const number = YardPath.pageNumber(page);
   if (number === null) return null;
   const data = await getYardPageData(state, yard);
   if (!data) return null;
-  return { data, number, inventory: YardInventory.page(data.vehicles, number) };
+  const inventory = await getYardVehiclePage(
+    data.yard,
+    data.summary,
+    { kind: "yard" },
+    number,
+  );
+  return { data, number, inventory };
 }
 
 export async function generateMetadata({
@@ -44,7 +46,7 @@ export async function generateMetadata({
   const { data, number } = loaded;
   return yardPageMetadata(
     data.yard,
-    data.vehicles.length,
+    data.summary.total,
     data.publishedAt,
     number,
   );
@@ -60,19 +62,20 @@ export default async function YardInventoryPage({
   const { data, number, inventory } = loaded;
   if (number === 1) permanentRedirect(data.yard.path.href);
   if (!inventory) notFound();
+  const arrivals = YardInventory.yardArrivals(data.summary);
 
   return (
     <PublicPageShell>
       <YardInventoryView
         yard={data.yard}
         inventory={inventory}
-        total={data.vehicles.length}
-        makes={data.makes}
+        total={data.summary.total}
+        makes={data.summary.makes}
         makeSlugs={await getMakeSlugs()}
         hiddenSources={await getHiddenSources()}
-        newArrivals={YardInventory.newArrivals(
-          data.vehicles,
-          data.vehicles,
+        newArrivals={YardInventory.newArrivalsFrom(
+          arrivals,
+          arrivals,
           new Date().toISOString(),
         )}
         filter={null}
