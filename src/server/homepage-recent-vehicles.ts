@@ -23,6 +23,8 @@ export async function getRecentHomepageVehicles(
       state: vehicle.stateAbbr,
       imageUrl: vehicle.imageUrl,
       indexedAt: vehicle.firstSeenAt,
+      source: vehicle.source,
+      locationCode: vehicle.locationCode,
     })
     .from(vehicle)
     .innerJoin(
