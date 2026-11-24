@@ -64,11 +64,11 @@ export class KernelBudgetSpent extends Data.TaggedError("KernelBudgetSpent")<{
     const spent = `$${this.spentUsd.toFixed(2)} of its $${this.budgetUsd.toFixed(2)}`;
     if (this.cap === "monthly") {
       const day = (date: Date) => date.toISOString().slice(0, 10);
-      return `${name} has spent ${spent} monthly Kernel budget since ${day(this.periodStart)} (kernel_browser_usage), so no browser was opened and Big D and Northwest keep the rest of Kernel's credit. Its chunks defer until ${day(this.nextPeriodStart)}; raise KERNEL_MONTHLY_BUDGET_USD in kernel-usage.ts only if the Kernel dashboard shows credit to spare.`;
+      return `${name} has spent ${spent} monthly Kernel budget since ${day(this.periodStart)} (kernel_browser_usage), so no browser was opened and Big D and Northwest keep the rest of Kernel's credit. Its chunks defer, opening no browser, until ${day(this.nextPeriodStart)}, and a run still deferred after three hours fails, so the source shows as failing until then; raise KERNEL_MONTHLY_BUDGET_USD in kernel-usage.ts only if the Kernel dashboard shows credit to spare.`;
     }
     const minute = (date: Date) =>
       `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
-    return `${name} has spent ${spent} daily Kernel cap since ${minute(this.periodStart)} (kernel_browser_usage), so no browser was opened; a full day's crawl costs about $0.03, so its chunks are most likely failing and retrying. Its chunks defer until the cap resets at ${minute(this.nextPeriodStart)}, and prior inventory is preserved. Read the run's errors in /admin before raising KERNEL_DAILY_BUDGET_USD in kernel-usage.ts.`;
+    return `${name} has spent ${spent} daily Kernel cap since ${minute(this.periodStart)} (kernel_browser_usage), so no browser was opened; a full day's crawl costs about $0.03, so its chunks are most likely failing and retrying. Its chunks defer, opening no browser, until the cap resets at ${minute(this.nextPeriodStart)}; a run still deferred after three hours fails and the next scheduled run tries again, and prior inventory is preserved. Read the run's errors in /admin before raising KERNEL_DAILY_BUDGET_USD in kernel-usage.ts.`;
   }
 }
 
@@ -243,4 +243,9 @@ function metered(
   };
 }
 
-export const KernelUsage = { monthToDateUsd, dayToDateUsd, metered } as const;
+export const KernelUsage = {
+  monthToDateUsd,
+  dayToDateUsd,
+  capReached,
+  metered,
+} as const;

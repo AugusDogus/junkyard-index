@@ -81,7 +81,7 @@ const DEFAULT_BROWSER_PROFILE: KernelBrowserProfile = {
  * widget crashes (Cloudflare error 300031) in most tabs and issues no token.
  * Stealth proxy, because one live chunk's 32 tokens took 72 browser-seconds
  * through it and 124 with direct egress, with the same 195 vehicles either
- * way: about $0.26 a crawl against $0.45 (November 23, 2026).
+ * way (November 23, 2026): minting takes about half as long.
  */
 const KERNEL_BROWSER_PROFILES: Partial<
   Record<KernelSource, KernelBrowserProfile>

@@ -198,7 +198,7 @@ function make(
     let expired = 0;
     const exhausted = () =>
       new UpullRPartsTokenError({
-        message: `U Pull R Parts spent all ${count} tokens minted for this chunk (${expired} expired before use, after ${UPULLRPARTS_TOKEN_MAX_AGE_MS / 1000} s). The crawl sends no more searches than it mints tokens for, so this chunk sent searches that were not counted; nothing from it was accepted.`,
+        message: `U Pull R Parts spent all ${count} tokens minted for this chunk (${expired} expired before use, after ${UPULLRPARTS_TOKEN_MAX_AGE_MS / 1000} s). The chunk mints one per search it may send plus a few for searches resent after a transit failure, so more transit failures than that, or searches slow enough for tokens to expire, used them up. Nothing from this chunk was accepted and prior inventory is preserved; it retries from its cursor with a new browser, and repeated failures point to getVehicles timing out.`,
       });
 
     const mintAll = Effect.scoped(

@@ -215,7 +215,7 @@ describe("KernelUsage.metered", () => {
     expect(
       String(refused instanceof KernelBudgetSpent && refused.message),
     ).toBe(
-      "U Pull R Parts has spent $3.50 of its $3.50 monthly Kernel budget since 2026-11-01 (kernel_browser_usage), so no browser was opened and Big D and Northwest keep the rest of Kernel's credit. Its chunks defer until 2026-12-01; raise KERNEL_MONTHLY_BUDGET_USD in kernel-usage.ts only if the Kernel dashboard shows credit to spare.",
+      "U Pull R Parts has spent $3.50 of its $3.50 monthly Kernel budget since 2026-11-01 (kernel_browser_usage), so no browser was opened and Big D and Northwest keep the rest of Kernel's credit. Its chunks defer, opening no browser, until 2026-12-01, and a run still deferred after three hours fails, so the source shows as failing until then; raise KERNEL_MONTHLY_BUDGET_USD in kernel-usage.ts only if the Kernel dashboard shows credit to spare.",
     );
 
     now = at("2026-12-01T07:00:00Z");
@@ -248,7 +248,7 @@ describe("KernelUsage.metered", () => {
     expect(
       String(refused instanceof KernelBudgetSpent && refused.message),
     ).toBe(
-      "U Pull R Parts has spent $0.25 of its $0.25 daily Kernel cap since 2026-11-24 00:00 UTC (kernel_browser_usage), so no browser was opened; a full day's crawl costs about $0.03, so its chunks are most likely failing and retrying. Its chunks defer until the cap resets at 2026-11-25 00:00 UTC, and prior inventory is preserved. Read the run's errors in /admin before raising KERNEL_DAILY_BUDGET_USD in kernel-usage.ts.",
+      "U Pull R Parts has spent $0.25 of its $0.25 daily Kernel cap since 2026-11-24 00:00 UTC (kernel_browser_usage), so no browser was opened; a full day's crawl costs about $0.03, so its chunks are most likely failing and retrying. Its chunks defer, opening no browser, until the cap resets at 2026-11-25 00:00 UTC; a run still deferred after three hours fails and the next scheduled run tries again, and prior inventory is preserved. Read the run's errors in /admin before raising KERNEL_DAILY_BUDGET_USD in kernel-usage.ts.",
     );
 
     now = at("2026-11-25T07:00:00Z");
@@ -270,6 +270,6 @@ describe("KernelUsage.metered", () => {
     expect(result).toMatchObject({ _tag: "Left" });
     const error = result._tag === "Left" ? result.left : null;
     expect(error).toBeInstanceOf(ProviderCapacityDeferred);
-    expect(error?.message).toContain("Its chunks defer until 2026-12-01");
+    expect(error?.message).toContain("until 2026-12-01");
   });
 });

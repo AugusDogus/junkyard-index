@@ -165,9 +165,20 @@ export function planUpullRPartsWindows(params: {
         : 0,
     );
   // Past the oldest counted or estimated day, every day expects nothing.
+  // Days are walked back to the first day at most; a stored day before it
+  // (none is real) only moves the oldest window's start back to it.
   let oldest =
     params.unknownFrom < params.end ? params.unknownFrom : params.end;
-  for (const day of params.counts.keys()) if (day < oldest) oldest = day;
+  let firstDay = UPULLRPARTS_FIRST_DAY;
+  let beforeFirstDay = 0;
+  for (const [day, count] of params.counts) {
+    if (day < oldest) oldest = day;
+    if (day < UPULLRPARTS_FIRST_DAY) {
+      beforeFirstDay += count;
+      if (day < firstDay) firstDay = day;
+    }
+  }
+  if (oldest < UPULLRPARTS_FIRST_DAY) oldest = UPULLRPARTS_FIRST_DAY;
   const windows: UpullRPartsWindow[] = [];
   let endDate = params.end;
   let sum = 0;
@@ -184,8 +195,12 @@ export function planUpullRPartsWindows(params: {
     }
     sum += count;
   }
-  if (endDate >= UPULLRPARTS_FIRST_DAY)
-    windows.push({ beginDate: UPULLRPARTS_FIRST_DAY, endDate, expected: sum });
+  if (endDate >= firstDay)
+    windows.push({
+      beginDate: firstDay,
+      endDate,
+      expected: sum + beforeFirstDay,
+    });
   return windows;
 }
 
@@ -423,7 +438,7 @@ export function crawlUpullRPartsDayByMake<S>(options: {
     }
     if (missing.size > 0)
       return yield* new UpullRPartsCrawlError({
-        message: `U Pull R Parts location ${site} arrivals on ${day} filled a search, and splitting them by make never found ${missing.size} of its vehicles (${[...missing].slice(0, 3).join(", ")}). A rejected token or a blocked IP returns an empty list, so a make search most likely came back empty. No batches were emitted for this chunk and prior inventory is preserved; the retry searches the day's makes again from this chunk's cursor.`,
+        message: `U Pull R Parts location ${site} arrivals on ${day} filled a search, and splitting them by make never found ${missing.size} of its vehicles (${[...missing].slice(0, 3).join(", ")}). A rejected token or a blocked IP returns an empty list, so a make search most likely came back empty, possibly in an earlier chunk of this split. No batches were emitted for this chunk and prior inventory is preserved. A retry resumes after the last make an earlier chunk finished, so it can fail the same way; the next scheduled run splits the day again from its first make.`,
       });
     return { results, searches, progress: { status: "complete" } };
   });

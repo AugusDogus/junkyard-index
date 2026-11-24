@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { Clock, Duration, Effect, Fiber, TestClock, TestContext } from "effect";
 import fixture from "./fixtures/upullrparts-vehicle.json";
+import { ProviderCapacityDeferred } from "./provider-chunk-clock";
 import images from "./fixtures/upullrparts-images.json";
 import partialImages from "./fixtures/upullrparts-partial-images.json";
 import {
@@ -196,6 +197,7 @@ function deps(
         opened.push(tokens);
         return search;
       }),
+    checkSpend: Effect.void,
     loadHistory: Effect.succeed(fields.history ?? UpullRPartsHistory.empty),
     decodeVins: () => Effect.succeed(new Map()),
     now: () => NOW,
@@ -637,6 +639,37 @@ describe("U Pull R Parts date crawl", () => {
     expect(result.status).toBe("paused");
     expect(result.cursor).not.toHaveProperty("blockedSince");
     expect(result.cursor).not.toHaveProperty("retryAt");
+  });
+
+  test("defers a chunk whose Kernel spend cap is reached before reading the snapshot or opening a browser", async () => {
+    mockDirectory();
+    let historyReads = 0;
+    const { deps: chunkDeps, opened } = deps(
+      site([car(1, "2026-11-23")]).search,
+      {
+        checkSpend: Effect.fail(
+          new ProviderCapacityDeferred({
+            provider: "The Kernel spend guard",
+            detail: "daily cap reached",
+          }),
+        ),
+        loadHistory: Effect.sync(() => {
+          historyReads += 1;
+          return UpullRPartsHistory.empty;
+        }),
+      },
+    );
+    const result = await Effect.runPromise(
+      Effect.either(
+        streamUpullRPartsInventoryWithSearch(collect(crawlAt("1")), chunkDeps),
+      ),
+    );
+    expect(result).toMatchObject({
+      _tag: "Left",
+      left: { _tag: "ProviderCapacityDeferred" },
+    });
+    expect(historyReads).toBe(0);
+    expect(opened).toEqual([]);
   });
 
   test("fails clearly, emitting nothing, when the checkpoint names no stored directory", async () => {
