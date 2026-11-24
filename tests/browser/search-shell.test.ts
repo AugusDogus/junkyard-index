@@ -230,6 +230,13 @@ test("a crawler's /search render has one H1 and an intro before hydration", asyn
     expect(await page.locator("h1").allTextContents()).toEqual([
       "Search salvage yard inventory",
     ]);
+    // It sits in a landmark, since the search's <main> renders after it.
+    expect(
+      await page
+        .getByRole("region", { name: "Search salvage yard inventory" })
+        .locator("h1")
+        .count(),
+    ).toBe(1);
   } finally {
     await closePage(page);
   }
