@@ -4,7 +4,10 @@ import { z } from "zod";
 import { validationRejectionKind } from "./ingestion-validation";
 import { VINPLUS_API, VINPLUS_TENANTS } from "./vinplus-configuration";
 import { VinplusCursor, VINPLUS_MAX_CURSOR_BYTES } from "./vinplus-cursor";
-import { streamVinplusInventory } from "./vinplus-connector";
+import {
+  streamVinplusInventory,
+  vinplusRequestBudget,
+} from "./vinplus-connector";
 import { inspectVinplusEvidence } from "./vinplus-parser";
 import { readVinplusControl } from "./vinplus-client";
 import { vinplusCensus } from "./vinplus-test-fixtures";
@@ -396,3 +399,37 @@ test("a year distribution too stale to vouch for a yard rejects the crawl as tra
   expect(result.left.message).toContain("This exceeds the 1% lag limit");
   expect(validationRejectionKind(result.left)).toBe("transient");
 }, 30_000);
+
+test("a crawl at a request limit rejects as transient instead of retrying the step on the same evidence", () => {
+  const [pocatello, ryans] = VINPLUS_TENANTS;
+  if (!pocatello || !ryans) throw new Error("Missing VinPlus tenants");
+  const bodies = (length: number) => Array.from({ length }, () => "");
+  const cursor = (yards: string[][]): VinplusCursor => ({
+    source: "vinplus",
+    version: 1,
+    phase: "collecting",
+    scope: "",
+    checksum: "0".repeat(64),
+    yards,
+  });
+  expect(vinplusRequestBudget(cursor([bodies(1023)]), pocatello)).toBe(null);
+  const yard = vinplusRequestBudget(cursor([bodies(1024)]), pocatello);
+  expect(yard?.message).toContain(
+    "reached its 1024-request limit before terminal controls",
+  );
+  expect(yard?.message).toContain(
+    "VinPlus is not published this attempt and every VinPlus yard keeps its published inventory",
+  );
+  expect(validationRejectionKind(yard)).toBe("transient");
+  const source = vinplusRequestBudget(
+    cursor([bodies(1024), bodies(1024)]),
+    ryans,
+  );
+  expect(source?.message).toContain(
+    "cumulative 2048-request limit at Ryan's Pick-A-Part (ryan_s_pick_a_part)",
+  );
+  expect(source?.message).toContain(
+    "u_pull_auto_parts_pocatello: 1024, ryan_s_pick_a_part: 1024 requests",
+  );
+  expect(validationRejectionKind(source)).toBe("transient");
+});

@@ -635,6 +635,63 @@ describe("US Auto Supply year distribution lagging live search", () => {
     expect(validationRejectionKind(error)).toBe("transient");
     expect(searches.some((search) => search.includes("MAKE"))).toBe(false);
   });
+
+  test("the capped-year request check counts directory reads by large years that never reconcile", () => {
+    const capped = [1995, 1996, 1997];
+    const large = [2001, 2002];
+    const years = [...capped, ...large];
+    /** Distinct six-digit stocks per year, so years never share a stock. */
+    const rows = (year: number, count: number) =>
+      extra(count, { year }).map(
+        (record, index): Record<string, unknown> => ({
+          ...record,
+          stock: `STK${String(year).slice(2)}${String(index).padStart(4, "0")}`,
+        }),
+      );
+    const records = [
+      ...liveRecords().filter((record) => !years.includes(Number(record.year))),
+      ...capped.flatMap((year) => rows(year, 105)),
+      ...large.flatMap((year) => rows(year, 150)),
+    ];
+    const directory = [
+      ...new Set(records.map((record) => String(record.make))),
+      ...Array.from({ length: 100 }, (_, index) => `MAKE${index}`),
+    ].sort();
+    // A frozen distribution: the large years still count 10 departed
+    // vehicles each, so their directory reads never stop early.
+    const { error, searches } = drive(
+      distribution(
+        records,
+        new Map([
+          ...capped.map((year) => [year, 95] as const),
+          ...large.map((year) => [year, 160] as const),
+        ]),
+      ),
+      records,
+      directory,
+    );
+    const message = error instanceof Error ? error.message : "";
+    expect(message).toContain(
+      "us_auto_supply years 1995, 1996, 1997: each search reached the 100-record cap",
+    );
+    expect(message).toMatch(
+      /\(1995: \d+ makes, 1996: \d+ makes, 1997: \d+ makes\)/,
+    );
+    expect(message).toContain("above its 1024-request limit");
+    expect(message).toContain(
+      "No directory-make search was made for these years",
+    );
+    expect(validationRejectionKind(error)).toBe("transient");
+    // The large years read the directory first; the capped years never did.
+    expect(searches).toContain("2001-2001 MAKE0");
+    expect(
+      searches.some(
+        (search) =>
+          capped.some((year) => search.startsWith(`${year}-${year} `)) &&
+          search.includes("MAKE"),
+      ),
+    ).toBe(false);
+  }, 30_000);
 });
 
 test("saved API cap reports 100 matching records while its published year range is larger", () => {
