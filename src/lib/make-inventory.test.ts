@@ -114,6 +114,56 @@ describe("MakeInventory.models", () => {
     ]);
   });
 
+  test("folds trim spellings into their base model and names it plainly", () => {
+    const [honda] = MakeInventory.makes([{ make: "Honda", count: 10 }]);
+    if (!honda) throw new Error("expected Honda");
+    const models = MakeInventory.models(honda, [
+      row({ make: "Honda", model: "Odyssey SW.", count: 1 }),
+      row({ make: "Honda", model: "ODYSSEY", code: "2", count: 5 }),
+      row({ make: "Honda", model: "Accord EX", count: 2 }),
+      row({ make: "Honda", model: "MOTORCYCLE", count: 8 }),
+    ]);
+    expect(
+      models.map(({ name, count, rawModels }) => ({ name, count, rawModels })),
+    ).toEqual([
+      { name: "Odyssey", count: 6, rawModels: ["ODYSSEY", "Odyssey SW."] },
+      { name: "Accord", count: 2, rawModels: ["Accord EX"] },
+    ]);
+  });
+
+  test("shows the year range most yards agree on, not one yard's typo", () => {
+    const [honda] = MakeInventory.makes([{ make: "Honda", count: 10 }]);
+    if (!honda) throw new Error("expected Honda");
+    const pilot = (code: string, minYear: number, maxYear: number) =>
+      row({ make: "Honda", model: "Pilot", code, minYear, maxYear });
+    const [model] = MakeInventory.models(honda, [
+      pilot("1", 1983, 2015),
+      pilot("2", 2003, 2025),
+      pilot("3", 2004, 2019),
+      pilot("4", 2005, 2022),
+    ]);
+    expect(model).toMatchObject({ minYear: 2003, maxYear: 2025 });
+    // Each yard keeps its own range.
+    expect(model?.yards.map((yard) => yard.minYear).sort()).toEqual([
+      1983, 2003, 2004, 2005,
+    ]);
+
+    // A wide gap held by several yards is real history, and two yards
+    // cannot outvote each other.
+    const [civic] = MakeInventory.models(honda, [
+      row({ make: "Honda", model: "Civic", code: "1", minYear: 1975 }),
+      row({ make: "Honda", model: "Civic", code: "2", minYear: 1976 }),
+      row({ make: "Honda", model: "Civic", code: "3", minYear: 1999 }),
+      row({ make: "Honda", model: "Civic", code: "4", minYear: 2001 }),
+    ]);
+    expect(civic?.minYear).toBe(1975);
+    const [fit] = MakeInventory.models(honda, [
+      row({ make: "Honda", model: "Fit", code: "1", minYear: 1990 }),
+      row({ make: "Honda", model: "Fit", code: "2", minYear: 2007 }),
+    ]);
+    expect(fit?.minYear).toBe(1990);
+  });
+
   test("only models with enough vehicles are indexable", () => {
     expect(MakeInventory.indexable({ count: 19 })).toBe(false);
     expect(MakeInventory.indexable({ count: 20 })).toBe(true);

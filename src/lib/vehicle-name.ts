@@ -54,6 +54,57 @@ const PICKUP_MODELS: Readonly<
   TOYOTA: { T100: "T100" },
 };
 
+// Values providers put in the model field that name no model.
+const NOT_MODELS = new Set([
+  "MOTORCYCLE",
+  "UNKNOWN",
+  "OTHER",
+  "MISC",
+  "NA",
+  "NONE",
+]);
+
+// Trim, body, and drive labels yards append to a model ("Accord EX",
+// "CIVIC4DR.SDN.", "ELEMENT SW. 4WD."). Only common, unambiguous labels:
+// words that also finish model names ("Sport" in "Range Rover Sport",
+// "Coupe" in "Genesis Coupe", "Van" in "Ram Van", "Hybrid", "Si") are kept.
+const MODEL_LABELS = new Set([
+  ...["DX", "LX", "EX", "EXL", "SE", "LE", "XLE", "SR5", "LT", "LS", "XLT"],
+  ...["SLE", "SLT", "GLS", "SEL", "XSE", "XLS", "HSE", "CE", "TOURING"],
+  ...["ELITE", "BASE"],
+  ...["2DR", "3DR", "4DR", "5DR", "SDN", "SEDAN", "CP", "SW", "WGN"],
+  ...["WAGON", "HB", "HATCHBACK", "CONV"],
+  ...["2WD", "4WD", "AWD", "FWD", "RWD", "4X4", "4X2"],
+]);
+
+/** A model year a yard appended to a model name ("Civic 2009"). */
+function isModelYear(word: string): boolean {
+  return /^\d{4}$/.test(word) && Number(word) >= 1981 && Number(word) <= 2100;
+}
+
+/**
+ * The model without the labels yards append ("Accord 4DR. LX" is "Accord").
+ * Labels are only dropped from the end, never the first word, and never
+ * down to a bare number ("300 SE" stays), so the rest still names a model.
+ */
+function withoutLabels(model: string): string {
+  const words = model
+    .trim()
+    .split(/[\s.]+/)
+    .filter(Boolean);
+  let end = words.length;
+  while (end > 1) {
+    const word = (words[end - 1] ?? "").toUpperCase().replace(/-/g, "");
+    if (!MODEL_LABELS.has(word) && !isModelYear(word)) break;
+    if (/^\d+$/.test(words.slice(0, end - 1).join(""))) break;
+    end--;
+  }
+  // A door count glued to the model ("CIVIC4DR").
+  const last = (words[end - 1] ?? "").replace(/(?<=[A-Za-z])[2-5]DR$/i, "");
+  if (end === words.length && last === words[end - 1]) return model.trim();
+  return [...words.slice(0, end - 1), last].join(" ");
+}
+
 // A mixed-case spelling must be this common, relative to the most common
 // spelling, to be shown instead of it: one "Rx 300" doesn't outvote 154 "RX 300".
 const MIXED_CASE_SHARE = 0.1;
@@ -144,18 +195,29 @@ export const VehicleName = {
   modelName,
 
   /**
+   * `modelName` without the trim, body, drive, and year labels yards append:
+   * "CIVIC4DR.SDN." is "CIVIC" and "FORD F150 XLT" is "F-150".
+   */
+  baseModelName(make: string, model: string): string {
+    return modelName(make, withoutLabels(model));
+  },
+
+  /**
    * The model's identity across spellings: case, punctuation, "&" and "and",
-   * a repeated make ("BMW 328I" is "328I"), and bare numbers, which take the
-   * make ("3", "Mazda3", and "MAZDA 3" are all "MAZDA3"). Null when nothing is
-   * left or the model only repeats the make ("Dodge" for a Dodge).
+   * a repeated make ("BMW 328I" is "328I"), appended labels ("Accord EX" is
+   * "ACCORD"), and bare numbers, which take the make ("3", "Mazda3", and
+   * "MAZDA 3" are all "MAZDA3"). Null when nothing is left, the model only
+   * repeats the make ("Dodge" for a Dodge), or it is a placeholder
+   * ("Motorcycle").
    */
   modelKey(make: string, model: string): string | null {
     const makeKey = VehicleName.makeKey(make);
-    const base = key(modelName(make, model));
-    if (!base || !makeKey) return null;
+    const stripped = withoutLabels(model);
+    const base = key(modelName(make, stripped));
+    if (!base || !makeKey || NOT_MODELS.has(key(model))) return null;
     if (
-      !MODEL_MAKE_ALIASES.has(key(model)) &&
-      VehicleName.makeKey(model) === makeKey
+      !MODEL_MAKE_ALIASES.has(key(stripped)) &&
+      VehicleName.makeKey(stripped) === makeKey
     )
       return null;
     if (/^\d+$/.test(base)) return `${makeKey}${base}`;

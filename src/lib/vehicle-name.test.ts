@@ -51,6 +51,60 @@ describe("VehicleName.modelKey", () => {
     expect(VehicleName.modelKey("Dodge", "Dodge")).toBeNull();
     expect(VehicleName.modelKey("Chevrolet", "CHEVY")).toBeNull();
   });
+
+  test("returns null for placeholders that name no model", () => {
+    expect(VehicleName.modelKey("Honda", "MOTORCYCLE")).toBeNull();
+    expect(VehicleName.modelKey("Dodge", "Unknown")).toBeNull();
+    expect(VehicleName.modelKey("Other", "OTHER")).toBeNull();
+    // A pickup is a real model name for these makes.
+    expect(VehicleName.modelKey("Nissan", "Pickup")).toBe("PICKUP");
+  });
+
+  test("drops the trim, body, drive and year labels yards append", () => {
+    for (const model of [
+      "Accord EX",
+      "Accord EX-L",
+      "Accord   CP.",
+      "Accord  4DR. LX",
+      "ACCORD SDN",
+    ])
+      expect(VehicleName.modelKey("Honda", model)).toBe("ACCORD");
+    for (const model of ["CIVIC4DR.SDN.", "Civic EX 4DR.  SDN.", "Civic 2009"])
+      expect(VehicleName.modelKey("Honda", model)).toBe("CIVIC");
+    expect(VehicleName.modelKey("Honda", "ODYSSEY SW.")).toBe("ODYSSEY");
+    expect(VehicleName.modelKey("Honda", "ELEMENT SW. 4WD.")).toBe("ELEMENT");
+    expect(VehicleName.modelKey("Ford", "F150 XLT")).toBe("F150");
+    expect(VehicleName.modelKey("Chevrolet", "Silverado 1500 LT")).toBe(
+      "SILVERADO1500",
+    );
+  });
+
+  test("keeps labels that name a different model", () => {
+    expect(VehicleName.modelKey("Honda", "Accord Crosstour")).toBe(
+      "ACCORDCROSSTOUR",
+    );
+    expect(VehicleName.modelKey("Honda", "Civic Hybrid EX-L")).toBe(
+      "CIVICHYBRID",
+    );
+    expect(VehicleName.modelKey("Honda", "Civic Si")).toBe("CIVICSI");
+    expect(VehicleName.modelKey("Chevrolet", "Silverado 2500")).toBe(
+      "SILVERADO2500",
+    );
+    // Nothing but a model code would remain.
+    expect(VehicleName.modelKey("Mercedes-Benz", "300 SE")).toBe("300SE");
+    expect(VehicleName.modelKey("Lincoln", "LS")).toBe("LS");
+  });
+});
+
+describe("VehicleName.baseModelName", () => {
+  test("spells the model without appended labels", () => {
+    expect(VehicleName.baseModelName("Honda", "CIVIC4DR.SDN.")).toBe("CIVIC");
+    expect(VehicleName.baseModelName("Honda", "Accord  4DR. LX")).toBe(
+      "Accord",
+    );
+    expect(VehicleName.baseModelName("Ford", "FORD F150 XLT")).toBe("F-150");
+    expect(VehicleName.baseModelName("Honda", "Pilot")).toBe("Pilot");
+  });
 });
 
 describe("VehicleName.modelName", () => {

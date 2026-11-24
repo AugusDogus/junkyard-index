@@ -57,6 +57,27 @@ function byCount<Entry extends { count: number; name: string }>(
   return b.count - a.count || a.name.localeCompare(b.name);
 }
 
+/** Yards' oldest (or newest) years this close count as agreeing. */
+const YEAR_AGREEMENT = 3;
+
+/**
+ * The oldest (or newest) year another yard comes close to, so one yard's
+ * mistyped year ("Pilot 1983") does not stretch a model's range. With no
+ * agreement at all, such as a model at two yards, every year counts.
+ */
+function agreedYear(
+  years: readonly number[],
+  pick: (...values: number[]) => number,
+): number {
+  const agreed = years.filter((year, index) =>
+    years.some(
+      (other, otherIndex) =>
+        otherIndex !== index && Math.abs(other - year) <= YEAR_AGREEMENT,
+    ),
+  );
+  return pick(...(agreed.length > 0 ? agreed : years));
+}
+
 export const MakeInventory = {
   makeHref,
 
@@ -108,8 +129,8 @@ export const MakeInventory = {
         raw: new Set(),
         yards: new Map(),
       };
-      // Names and URLs use the spelling without a repeated make.
-      const name = VehicleName.modelName(row.make, row.model);
+      // Names and URLs use the spelling without a repeated make or labels.
+      const name = VehicleName.baseModelName(row.make, row.model);
       group.spellings.set(name, (group.spellings.get(name) ?? 0) + row.count);
       group.raw.add(row.model);
       const yardKey = `${row.source}:${row.code}`;
@@ -149,8 +170,14 @@ export const MakeInventory = {
             href: `${make.href}/${slug}`,
             rawModels: [...group.raw].sort(),
             count: yards.reduce((sum, yard) => sum + yard.count, 0),
-            minYear: Math.min(...yards.map((yard) => yard.minYear)),
-            maxYear: Math.max(...yards.map((yard) => yard.maxYear)),
+            minYear: agreedYear(
+              yards.map((yard) => yard.minYear),
+              Math.min,
+            ),
+            maxYear: agreedYear(
+              yards.map((yard) => yard.maxYear),
+              Math.max,
+            ),
             yards,
           },
         ];
