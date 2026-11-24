@@ -6,6 +6,13 @@ import { z } from "zod";
  * turns "degraded" whenever one yard's crawl is late. Visitors can still
  * search then, so the public badge reads only the page's first section,
  * which holds the site's own monitors.
+ *
+ * This depends on the status page's layout. As of Nov 2026, section 0 is
+ * "Current status by service" (the site's monitor) and section 1 is
+ * "Providers" (one resource per ingestion source). If the provider section
+ * moves first, late crawls mark the badge again; if the first section is
+ * emptied, the badge reads "unknown" and shows plain "System status" even
+ * during an outage. Keep the site's monitors in the top section.
  */
 export type SiteStatus = "operational" | "degraded" | "downtime" | "unknown";
 
