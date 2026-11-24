@@ -8,7 +8,14 @@ import {
   get,
   put,
 } from "@vercel/blob";
-import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
+import {
+  IngestionSnapshotStore,
+  SnapshotDeleteDeadlineError,
+  type SnapshotDeletePolicy,
+} from "./ingestion-snapshot-store";
+
+/** Cleanup with an hour left on the fake clock. */
+const PACED: SnapshotDeletePolicy = { kind: "paced", deadline: 3_600_000 };
 
 /** A clock that only moves when the store sleeps. */
 function fakeClock() {
@@ -24,8 +31,9 @@ function fakeClock() {
   };
 }
 
-/** A Blob SDK whose deletes fail with these errors, in order, before succeeding. */
-function deletingBlobStore(failures: readonly Error[] = []) {
+/** A Blob SDK whose deletes fail with these errors, in order (null: that
+ * call succeeds), before succeeding. */
+function deletingBlobStore(failures: readonly (Error | null)[] = []) {
   const remaining = [...failures];
   const calls: { batch: string[]; at: number }[] = [];
   const clock = fakeClock();
@@ -36,6 +44,7 @@ function deletingBlobStore(failures: readonly Error[] = []) {
       put,
       async del(urls, options) {
         expect(options?.token).toBe("local-test-token");
+        expect(options?.abortSignal).toBeInstanceOf(AbortSignal);
         const batch = typeof urls === "string" ? [urls] : urls;
         if (batch.length > 1_000)
           throw new Error(
@@ -62,7 +71,7 @@ test("Blob delete splits a large run's chunks under the 1,000 URL limit", async 
   const blob = deletingBlobStore();
   const pathnames = runPathnames(2_213);
 
-  await blob.store.delete(pathnames);
+  await blob.store.delete(pathnames, PACED);
 
   expect(blob.calls.every(({ batch }) => batch.length <= 1_000)).toBe(true);
   expect(blob.calls.flatMap(({ batch }) => batch)).toEqual(pathnames);
@@ -71,7 +80,7 @@ test("Blob delete splits a large run's chunks under the 1,000 URL limit", async 
 test("Blob delete paces batches to 1,000 deletes a minute", async () => {
   const blob = deletingBlobStore();
 
-  await blob.store.delete(runPathnames(600));
+  await blob.store.delete(runPathnames(600), PACED);
 
   // 250 deletes earn 15 s before the next batch starts.
   expect(
@@ -86,8 +95,8 @@ test("Blob delete paces batches to 1,000 deletes a minute", async () => {
 test("Blob delete paces separate calls on the same store", async () => {
   const blob = deletingBlobStore();
 
-  await blob.store.delete(runPathnames(250));
-  await blob.store.delete(["ingestion-runs/run/urgiis/state.json.gz"]);
+  await blob.store.delete(runPathnames(250), PACED);
+  await blob.store.delete(["ingestion-runs/run/urgiis/state.json.gz"], PACED);
 
   expect(blob.calls.map(({ at }) => at)).toEqual([0, 15_000]);
 });
@@ -96,21 +105,97 @@ test("Blob delete waits out a rate limit for as long as the store asks", async (
   const blob = deletingBlobStore([new BlobServiceRateLimited(60)]);
   const pathnames = runPathnames(10);
 
-  await blob.store.delete(pathnames);
+  await blob.store.delete(pathnames, PACED);
 
   expect(blob.calls).toEqual([{ batch: pathnames, at: 60_000 }]);
 });
 
-test("Blob delete backs off and retries when the store is unavailable", async () => {
-  const blob = deletingBlobStore([
-    new BlobServiceNotAvailable(),
-    new BlobServiceNotAvailable(),
+test("Blob delete leaves retrying an unavailable store to the SDK, which already retried it", async () => {
+  const blob = deletingBlobStore([new BlobServiceNotAvailable()]);
+
+  await expect(blob.store.delete(runPathnames(1), PACED)).rejects.toThrow(
+    BlobServiceNotAvailable,
+  );
+  expect(blob.clock.sleeps).toEqual([]);
+});
+
+test("Blob delete waits the backoff floor when a rate limit's retry-after is unusable, and clamps a huge one", async () => {
+  // The SDK parses Retry-After with parseInt, so an HTTP date becomes NaN.
+  const unusable = deletingBlobStore([new BlobServiceRateLimited(Number.NaN)]);
+  await unusable.store.delete(runPathnames(1), PACED);
+  expect(unusable.clock.sleeps).toEqual([5_000]);
+
+  const huge = deletingBlobStore([new BlobServiceRateLimited(86_400)]);
+  await huge.store.delete(runPathnames(1), PACED);
+  expect(huge.clock.sleeps).toEqual([120_000]);
+});
+
+test("a best-effort delete makes one unpaced attempt and gives up on a rate limit without sleeping", async () => {
+  const blob = deletingBlobStore([null, null, new BlobServiceRateLimited(60)]);
+  // Cleanup just used the pace, so a paced delete would wait 15 s.
+  await blob.store.delete(runPathnames(250), PACED);
+
+  await expect(
+    blob.store.delete(runPathnames(1), { kind: "best-effort" }),
+  ).resolves.toBeUndefined();
+  await expect(
+    blob.store.delete(runPathnames(1), { kind: "best-effort" }),
+  ).rejects.toThrow(BlobServiceRateLimited);
+
+  expect(blob.calls.map(({ at }) => at)).toEqual([0, 0]);
+  expect(blob.clock.sleeps).toEqual([]);
+});
+
+test("a paced delete stops at its deadline instead of waiting past it", async () => {
+  const blob = deletingBlobStore([null, new BlobServiceRateLimited(60)]);
+  const pathnames = runPathnames(300);
+
+  const stopped = await blob.store
+    .delete(pathnames, { kind: "paced", deadline: 30_000 })
+    .catch((error: unknown) => error);
+
+  // The first batch went through; the second needs a 15 s pace, then a
+  // 60 s rate limit wait that would end past the deadline.
+  expect(stopped).toBeInstanceOf(SnapshotDeleteDeadlineError);
+  expect(stopped).toMatchObject({ deleted: 250, remaining: 50 });
+  expect(String(stopped)).toMatch(
+    /250 of 300 were deleted; the other 50 are still registered/,
+  );
+  expect(blob.clock.sleeps).toEqual([15_000]);
+});
+
+test("a paced delete abandons a request still in flight at its deadline", async () => {
+  let signal: AbortSignal | undefined;
+  const store = IngestionSnapshotStore.vercelBlob(
+    "local-test-token",
+    {
+      get,
+      put,
+      // An SDK still sleeping between its own retries never settles.
+      del: (_urls, options) => {
+        signal = options?.abortSignal;
+        return new Promise(() => {});
+      },
+    },
+    async () => {},
+    () => 0,
+  );
+
+  await expect(
+    store.delete(runPathnames(1), { kind: "paced", deadline: 20 }),
+  ).rejects.toBeInstanceOf(SnapshotDeleteDeadlineError);
+  expect(signal?.aborted).toBe(true);
+});
+
+test("concurrent paced deletes in one process queue behind each other", async () => {
+  const blob = deletingBlobStore();
+
+  await Promise.all([
+    blob.store.delete(runPathnames(250), PACED),
+    blob.store.delete(["ingestion-runs/run/urgiis/state.json.gz"], PACED),
   ]);
 
-  await blob.store.delete(runPathnames(1));
-
-  expect(blob.clock.sleeps).toEqual([5_000, 15_000]);
-  expect(blob.calls).toHaveLength(1);
+  expect(blob.calls.map(({ at }) => at)).toEqual([0, 15_000]);
 });
 
 test("Blob delete gives up after its retry budget and says what was deleted", async () => {
@@ -133,8 +218,8 @@ test("Blob delete gives up after its retry budget and says what was deleted", as
     clock.now,
   );
 
-  await expect(store.delete(runPathnames(300))).rejects.toThrow(
-    /Could not delete 50 staged snapshot blobs.*rate limited.*after 6 attempts.*250 of 300 were deleted; the other 50 are still in Blob storage/,
+  await expect(store.delete(runPathnames(300), PACED)).rejects.toThrow(
+    /Could not delete 50 staged snapshot blobs: Vercel Blob was still rate limiting after 6 attempts.*250 of 300 were deleted; the other 50 are still in Blob storage/,
   );
   expect(deleted.map((batch) => batch.length)).toEqual([250]);
   expect(attempts).toBe(7);
@@ -143,7 +228,7 @@ test("Blob delete gives up after its retry budget and says what was deleted", as
 test("Blob delete does not retry a request the store rejects", async () => {
   const blob = deletingBlobStore([new BlobError("Access denied")]);
 
-  await expect(blob.store.delete(runPathnames(1))).rejects.toThrow(
+  await expect(blob.store.delete(runPathnames(1), PACED)).rejects.toThrow(
     "Access denied",
   );
   expect(blob.clock.sleeps).toEqual([]);
@@ -159,7 +244,7 @@ test("Blob delete makes no request for no chunks", async () => {
     },
   });
 
-  await store.delete([]);
+  await store.delete([], PACED);
 
   expect(requests).toBe(0);
 });
@@ -411,7 +496,7 @@ test("a deleted chunk is not served from the process cache", async () => {
     state: { census: [] },
   });
 
-  await store.delete([state]);
+  await store.delete([state], { kind: "best-effort" });
 
   await expect(store.load(state)).rejects.toThrow(
     /newer checkpoint of the same source run replaced it/,

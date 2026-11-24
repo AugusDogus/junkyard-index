@@ -1,13 +1,33 @@
 import { and, asc, eq, isNull, ne } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { ingestionRun, ingestionSourceRun } from "~/schema";
-import type { IngestionSnapshotStore } from "./ingestion-snapshot-store";
+import {
+  SnapshotDeleteDeadlineError,
+  type IngestionSnapshotStore,
+} from "./ingestion-snapshot-store";
 import { urgiisPublishedStatePath } from "./urgiis-history";
 
 const STALE_SNAPSHOT_RUN_BATCH_SIZE = 50;
 // Each slice's deletion is recorded before the next starts, so a failure or
 // a stop keeps what was deleted and the next cleanup resumes after it.
 const DELETE_SLICE_SIZE = 250;
+/**
+ * How long one cleanup step spends deleting blobs. Workflow runs steps
+ * inline and starts one up to 5 min into an 800 s invocation, after earlier
+ * steps (outbox retention and run pruning come before stale snapshots), so
+ * cleanup gets 3 min and no Blob wait or request runs past them. What is
+ * left resumes in the next step or tick.
+ */
+export const SNAPSHOT_CLEANUP_BUDGET_MS = 3 * 60 * 1_000;
+
+/** When cleanup stops, by its clock. */
+export type SnapshotCleanupBudget = { deadline: number; now: () => number };
+
+/** What a cleanup deleted, and whether it stopped at its budget first. */
+export type RunSnapshotDeletion = {
+  deleted: number;
+  status: "complete" | "stopped";
+};
 
 /** A cleanup that failed after deleting some chunks, which stay recorded. */
 export class SnapshotCleanupError extends Error {
@@ -35,12 +55,14 @@ export function parseSnapshotChunks(json: string): string[] {
   return parsed;
 }
 
-/** One batch of stale snapshot cleanup. Complete: no stale run is left; a
- * batch that stopped early is never complete. */
+/**
+ * One batch of stale snapshot cleanup. complete: no stale run is left; more:
+ * the batch was full, so more may be; stopped: it reached its budget.
+ */
 export type StaleSnapshotCleanup = {
   runs: number;
   chunksDeleted: number;
-  complete: boolean;
+  status: "complete" | "more" | "stopped";
 };
 
 /**
@@ -49,33 +71,37 @@ export type StaleSnapshotCleanup = {
  * published census, which seeds its next run.
  */
 export const IngestionSnapshotCleanup = {
+  /** A cleanup budget of {@link SNAPSHOT_CLEANUP_BUDGET_MS} from now. */
+  budget(now: () => number = Date.now): SnapshotCleanupBudget {
+    return { deadline: now() + SNAPSHOT_CLEANUP_BUDGET_MS, now };
+  },
+
   /**
-   * Deletes these source runs' chunks and returns how many it deleted,
-   * recording each slice as it goes. Stops between slices once `shouldStop`
-   * says so; a failure throws {@link SnapshotCleanupError} with the count.
+   * Deletes these source runs' chunks, recording each slice as it goes.
+   * Stops between slices, or inside a delete, at the budget's deadline and
+   * reports it; a failure throws {@link SnapshotCleanupError} with the count.
    */
   async deleteRunSnapshots(
     database: LibSQLDatabase,
     snapshotStore: IngestionSnapshotStore,
     rows: readonly { id: string; snapshotChunks: string }[],
-    shouldStop: () => boolean = () => false,
-  ): Promise<number> {
+    budget: SnapshotCleanupBudget,
+  ): Promise<RunSnapshotDeletion> {
     let deleted = 0;
     const retainedCensus = rows.length
       ? await urgiisPublishedStatePath(database)
       : null;
+    const policy = { kind: "paced", deadline: budget.deadline } as const;
     try {
       for (const row of rows) {
-        const kept = parseSnapshotChunks(row.snapshotChunks).filter(
-          (path) => path === retainedCensus,
-        );
-        let remaining = parseSnapshotChunks(row.snapshotChunks).filter(
-          (path) => path !== retainedCensus,
-        );
+        const chunks = parseSnapshotChunks(row.snapshotChunks);
+        const kept = chunks.filter((path) => path === retainedCensus);
+        let remaining = chunks.filter((path) => path !== retainedCensus);
         while (remaining.length > 0) {
-          if (shouldStop()) return deleted;
+          if (budget.now() >= budget.deadline)
+            return { deleted, status: "stopped" };
           const slice = remaining.slice(0, DELETE_SLICE_SIZE);
-          await snapshotStore.delete(slice);
+          await snapshotStore.delete(slice, policy);
           remaining = remaining.slice(slice.length);
           await database
             .update(ingestionSourceRun)
@@ -85,16 +111,19 @@ export const IngestionSnapshotCleanup = {
         }
       }
     } catch (error) {
+      // The slice in flight stays registered, so the next cleanup retries it.
+      if (error instanceof SnapshotDeleteDeadlineError)
+        return { deleted, status: "stopped" };
       throw new SnapshotCleanupError(deleted, error);
     }
-    return deleted;
+    return { deleted, status: "complete" };
   },
 
   /** Deletes one batch of chunks left by runs no longer active. */
   async staleBatch(
     database: LibSQLDatabase,
     snapshotStore: IngestionSnapshotStore,
-    shouldStop: () => boolean = () => false,
+    budget: SnapshotCleanupBudget,
   ): Promise<StaleSnapshotCleanup> {
     const retainedCensus = await urgiisPublishedStatePath(database);
     const rows = await database
@@ -120,16 +149,21 @@ export const IngestionSnapshotCleanup = {
       )
       .orderBy(asc(ingestionSourceRun.id))
       .limit(STALE_SNAPSHOT_RUN_BATCH_SIZE);
-    const chunksDeleted = await IngestionSnapshotCleanup.deleteRunSnapshots(
+    const deletion = await IngestionSnapshotCleanup.deleteRunSnapshots(
       database,
       snapshotStore,
       rows,
-      shouldStop,
+      budget,
     );
     return {
       runs: rows.length,
-      chunksDeleted,
-      complete: rows.length < STALE_SNAPSHOT_RUN_BATCH_SIZE && !shouldStop(),
+      chunksDeleted: deletion.deleted,
+      status:
+        deletion.status === "stopped"
+          ? "stopped"
+          : rows.length < STALE_SNAPSHOT_RUN_BATCH_SIZE
+            ? "complete"
+            : "more",
     };
   },
 } as const;

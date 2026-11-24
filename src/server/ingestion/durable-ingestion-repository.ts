@@ -2,7 +2,7 @@ import { loadIngestionSourceDays } from "./ingestion-source-days";
 import { createDurableWorkflowCursorStore } from "./durable-workflow-cursor-store";
 import { IngestionDay } from "./ingestion-day";
 import type { Client, InStatement } from "@libsql/client";
-import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { Yard } from "~/lib/yard";
 import { yardUpsertStatement } from "./yard-checkpoint";
@@ -27,6 +27,7 @@ import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import {
   IngestionSnapshotCleanup,
   parseSnapshotChunks,
+  SNAPSHOT_CLEANUP_BUDGET_MS,
   type StaleSnapshotCleanup,
 } from "./ingestion-snapshot-cleanup";
 import { IngestionSchedule } from "./ingestion-schedule";
@@ -180,10 +181,6 @@ export function createDurableIngestionRepository(
     database,
     snapshotStore,
   );
-  const deleteRunSnapshots = (
-    rows: readonly { id: string; snapshotChunks: string }[],
-  ) =>
-    IngestionSnapshotCleanup.deleteRunSnapshots(database, snapshotStore, rows);
 
   /**
    * Whether a checkpoint batch whose outcome is unknown registered these
@@ -794,7 +791,8 @@ export function createDurableIngestionRepository(
       const unstage = async () => {
         if (staged.length === 0) return;
         try {
-          await snapshotStore.delete(staged);
+          // Best effort: a checkpoint never waits on Blob pacing or retries.
+          await snapshotStore.delete(staged, { kind: "best-effort" });
         } catch (error) {
           console.error(
             `Could not delete unrecorded snapshot blobs ${staged.join(", ")} of source run ${id}. No checkpoint references them and the previous checkpoint is intact, but snapshot cleanup will not find them; delete them from private Blob storage by hand.`,
@@ -860,7 +858,9 @@ export function createDurableIngestionRepository(
       const deleteSuperseded = async () => {
         if (supersededState === null) return;
         try {
-          await snapshotStore.delete([supersededState]);
+          await snapshotStore.delete([supersededState], {
+            kind: "best-effort",
+          });
         } catch (error) {
           console.error(
             `Could not delete superseded checkpoint state ${supersededState} of source run ${id}. The new checkpoint is saved and inventory is unaffected, but the blob is no longer registered, so snapshot cleanup will not remove it; delete it from private Blob storage by hand.`,
@@ -1226,15 +1226,22 @@ export function createDurableIngestionRepository(
       );
     },
 
-    async cleanupBatch(runId: string) {
+    /**
+     * One batch of a released run's cleanup. Snapshot deletes stop at the
+     * cleanup budget and report not done, so the next batch, in a fresh
+     * step, resumes from the chunks still registered.
+     */
+    async cleanupBatch(runId: string, now: () => number = Date.now) {
       const [run] = await database
         .select({ activeSlot: ingestionRun.activeSlot })
         .from(ingestionRun)
         .where(eq(ingestionRun.id, runId))
         .limit(1);
-      const snapshotsDeleted =
+      const snapshots =
         run && run.activeSlot === null
-          ? await deleteRunSnapshots(
+          ? await IngestionSnapshotCleanup.deleteRunSnapshots(
+              database,
+              snapshotStore,
               await database
                 .select({
                   id: ingestionSourceRun.id,
@@ -1246,9 +1253,17 @@ export function createDurableIngestionRepository(
                     eq(ingestionSourceRun.runId, runId),
                     ne(ingestionSourceRun.snapshotChunks, "[]"),
                   ),
-                ),
+                )
+                .orderBy(asc(ingestionSourceRun.id)),
+              IngestionSnapshotCleanup.budget(now),
             )
-          : 0;
+          : { deleted: 0, status: "complete" as const };
+      // A stop with no progress would make the next batch stop the same way,
+      // and drainDurableCleanup would loop without end.
+      if (snapshots.status === "stopped" && snapshots.deleted === 0)
+        throw new Error(
+          `Cleanup of ingestion run ${runId} deleted no snapshot blobs within its ${SNAPSHOT_CLEANUP_BUDGET_MS / 1_000} s budget: Vercel Blob kept rate limiting or did not answer. Its chunks are still registered, so the daily stale-snapshot cleanup deletes them later; published inventory is unaffected.`,
+        );
       const results = await batchClient.batch(
         [
           {
@@ -1268,19 +1283,23 @@ export function createDurableIngestionRepository(
       );
       const deleted = results.reduce(
         (total, result) => total + result.rowsAffected,
-        snapshotsDeleted,
+        snapshots.deleted,
       );
       return {
         deleted,
-        done: results.every(
-          (result) => result.rowsAffected < CLEANUP_BATCH_SIZE,
-        ),
+        done:
+          snapshots.status === "complete" &&
+          results.every((result) => result.rowsAffected < CLEANUP_BATCH_SIZE),
       };
     },
 
     /** One batch of chunks left by runs no longer active. */
     cleanupStaleSnapshots(): Promise<StaleSnapshotCleanup> {
-      return IngestionSnapshotCleanup.staleBatch(database, snapshotStore);
+      return IngestionSnapshotCleanup.staleBatch(
+        database,
+        snapshotStore,
+        IngestionSnapshotCleanup.budget(),
+      );
     },
   };
 }

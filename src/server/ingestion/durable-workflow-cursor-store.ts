@@ -49,7 +49,7 @@ export function createDurableWorkflowCursorStore(
             `Cannot register Workflow cursor for ${runId}:${cursor.source}: checkpoint changed. Retry from its latest checkpoint; published inventory is preserved.`,
           );
       } catch (error) {
-        await snapshotStore.delete([path]);
+        await snapshotStore.delete([path], { kind: "best-effort" });
         throw error;
       }
       const reference: DurableCursorReference<Source> = {
