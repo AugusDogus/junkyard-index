@@ -80,18 +80,12 @@ export function YardRows({
           <Link
             href={row.href}
             prefetch={false}
-            className={cn(
-              "board-step flex items-center justify-between gap-4 px-2 py-3 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid",
-              colours.link,
-            )}
+            // The row classes are in globals.css: a model page lists
+            // hundreds of yards.
+            className={cn("yard-rows-link", colours.link)}
           >
             <span className="min-w-0">
-              <span
-                className={cn(
-                  "block text-[0.9375rem] leading-snug font-medium text-pretty",
-                  colours.name,
-                )}
-              >
+              <span className={cn("yard-rows-name", colours.name)}>
                 {row.name}
               </span>
               <span className={cn("block truncate text-sm", colours.meta)}>
@@ -100,7 +94,7 @@ export function YardRows({
             </span>
             <span
               className={cn(
-                "shrink-0 text-right font-extrabold tabular-nums",
+                "yard-rows-figure",
                 colours.figure,
                 "leading-tight",
               )}

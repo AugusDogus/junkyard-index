@@ -146,3 +146,32 @@ for (const width of [320, 390, 1440]) {
     }
   });
 }
+
+test("yard listing links draw their arrow from CSS, not an SVG per row", async () => {
+  const page = await createPage(browser);
+  try {
+    await openFixture(page);
+    const link = page.getByRole("link", { name: /Yard listing/ });
+    await link.waitFor();
+    expect(await page.locator("main li svg").count()).toBe(0);
+    const icon = await link
+      .locator('[aria-hidden="true"]')
+      .evaluate((element) => {
+        const style = getComputedStyle(element);
+        const bounds = element.getBoundingClientRect();
+        return {
+          width: bounds.width,
+          height: bounds.height,
+          mask: style.maskImage,
+          color: style.backgroundColor,
+          text: getComputedStyle(element.parentElement ?? element).color,
+        };
+      });
+    expect(icon.width).toBe(14);
+    expect(icon.height).toBe(14);
+    expect(icon.mask).toContain("data:image/svg+xml");
+    expect(icon.color).toBe(icon.text);
+  } finally {
+    await closePage(page);
+  }
+});

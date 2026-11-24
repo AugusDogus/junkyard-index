@@ -167,6 +167,70 @@
   transition-timing-function: steps(1);
 }
 
+/*
+ * Lucide's arrow-up-right as a mask in the text colour. Inventory lists show
+ * it on every row, where one class is far lighter than an inline SVG each.
+ */
+@utility icon-arrow-up-right {
+  display: inline-block;
+  flex-shrink: 0;
+  background-color: currentColor;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 7h10v10'/%3E%3Cpath d='M7 17 17 7'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+
+  @media (forced-colors: active) {
+    background-color: LinkText;
+    forced-color-adjust: none;
+  }
+}
+
+/*
+ * Rows of the long yard lists (YardList, YardRows). /junkyards lists every
+ * yard, and each row's classes are sent twice, in the HTML and in the page's
+ * RSC payload, so their shared classes live here; tone colours stay inline.
+ */
+@layer components {
+  .yard-list-tracks {
+    @apply sm:grid-cols-[minmax(0,3fr)_minmax(0,2fr)_7rem] lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)_8rem];
+  }
+
+  .yard-list-link {
+    @apply board-step grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-6 gap-y-0.5 px-2 py-3.5 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid sm:grid-cols-[minmax(0,3fr)_minmax(0,2fr)_7rem] lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)_8rem];
+  }
+
+  .yard-list-name {
+    @apply board-step col-start-1 row-start-1 text-[0.9375rem] leading-snug font-extrabold;
+  }
+
+  .yard-list-service {
+    @apply mt-1 block text-xs font-normal;
+  }
+
+  .yard-list-place {
+    @apply col-start-1 row-start-2 truncate text-sm sm:col-start-2 sm:row-start-1;
+  }
+
+  .yard-list-figure {
+    @apply col-start-2 row-span-2 row-start-1 text-right text-lg leading-tight font-extrabold tabular-nums sm:col-start-3 sm:row-span-1;
+  }
+
+  .yard-list-unit {
+    @apply block text-sm font-normal sm:sr-only;
+  }
+
+  .yard-rows-link {
+    @apply board-step flex items-center justify-between gap-4 px-2 py-3 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid;
+  }
+
+  .yard-rows-name {
+    @apply block text-[0.9375rem] leading-snug font-medium text-pretty;
+  }
+
+  .yard-rows-figure {
+    @apply shrink-0 text-right font-extrabold tabular-nums;
+  }
+}
+
 .yard-map {
   cursor: grab;
   z-index: 0;

@@ -50,7 +50,11 @@ function Fixture() {
           hiddenSources={HiddenSources.none}
         />
         <VehicleRow
-          vehicle={{ ...vehicle, imageUrl: null }}
+          vehicle={{
+            ...vehicle,
+            imageUrl: null,
+            detailsUrl: "https://inventory-row.test/listing/123",
+          }}
           source="allied"
           publishedAt={null}
           layout="columns"
