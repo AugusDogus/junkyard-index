@@ -64,7 +64,12 @@ retired sources; no live source is configured to use them.
 3. Soak it locally with the provider's key, count only:
    `bun run soak:sources -- --sources=<source>`. The soak refuses to start
    without the key its sources need. Delete any browser a stopped soak leaves
-   (below).
+   (below). The generic Vander Haags soak starts with no previous census, so
+   it is a cold census (about 177 browsers, about 3.9 browser-hours at 79 seconds each); to match a
+   production day, pass the last accepted terminal cursor as `previousCursor`
+   to the first checkpoint, with `source: "vanderhaags"` added as
+   `loadVanderHaagsPublishedCursor` does, and start it after 00:00 UTC, since
+   a run stops at the UTC day boundary.
 
 ## Kernel sessions
 
@@ -117,16 +122,23 @@ All with `Authorization: Bearer $KERNEL_API_KEY`:
 
 ### Measured cost
 
-Count-only soaks from a workstation on November 23, 2026, with direct egress,
-using Kernel's own `usage.uptime_ms` for every browser (all deleted):
+Count-only soaks from a workstation on November 23 and 24, 2026, with direct
+egress, using Kernel's own `usage.uptime_ms` for every browser (all deleted):
 
-| Source    | Result                          | Browsers | Browser-seconds | Cost at $0.0000166667/s |
-| --------- | ------------------------------- | -------: | --------------: | ----------------------: |
-| Big D     | complete, 4 pages, 299 vehicles |        1 |            24.5 |                $0.00041 |
-| Northwest | complete, 380 pages, 6,690 cars |       48 |         1,289.3 |                $0.02149 |
+| Source          | Result                                     | Browsers | Browser-seconds | Cost at $0.0000166667/s |
+| --------------- | ------------------------------------------ | -------: | --------------: | ----------------------: |
+| Big D           | complete, 4 pages, 299 vehicles            |        1 |            24.5 |                $0.00041 |
+| Northwest       | complete, 380 pages, 6,690 cars            |       48 |         1,289.3 |                $0.02149 |
+| Vander Haags    | complete, warm, 77 details, 1,995 vehicles |        7 |           555.9 |                $0.00926 |
+| U Pull It Davie | complete, 120 pages, 1,436 vehicles        |        1 |             4.9 |                $0.00008 |
 
-Both match their last accepted production runs (299 and 6,690). Northwest's
-cold read is the full 380-request census, about 22 minutes and one browser per
-eight-request chunk; its incremental days read about 100 pages. One cold read
-of both sources a day would be about $0.66 a month, inside the Developer
-plan's $5 credit.
+Big D and Northwest match their last accepted production runs (299 and
+6,690). Vander Haags read the same 77 details as its last accepted run
+(November 23: 1,989 vehicles, 2,108 donors; the soak saw 2,115 donors, 7
+new). U Pull It Davie's last accepted run, 16 hours earlier, had 121 pages
+and 1,446 vehicles; its catalog moved between 1,414 and 1,446 that week.
+Northwest's cold read is the full 380-request census, about 22 minutes and
+one browser per eight-request chunk; its incremental days read about 100
+pages. A day of all four (Northwest cold, Vander Haags warm, the others in
+full) is about 1,875 browser-seconds, about $0.94 a month, inside the
+Developer plan's $5 credit.

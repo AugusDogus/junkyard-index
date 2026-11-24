@@ -104,8 +104,8 @@ JavaScript cookie. Since November 23, 2026 the browser is a Kernel browser
 (`BROWSER_PROVIDERS`; stealth, headless, direct egress), as for Big D and
 Northwest ([browser providers](browser-providers.md)). Kernel's `stealth`
 also enables its CAPTCHA solver, which Hyperbrowser had explicitly disabled
-for this host; the WAF served no CAPTCHA in the go-live soak, which passed
-with a plain navigation. Hyperbrowser (stealth, accepted cookies, `us-west`,
+for this host; the go-live soak passed the WAF with a plain navigation and
+no 403 or 429. Hyperbrowser (stealth, accepted cookies, `us-west`,
 no CAPTCHA solving) remains the one-line fallback. A 403 or 429 stops the
 session's host requests. The first rendered catalog is reused; later
 documents use same-origin browser fetch. Requests are serial with a
@@ -168,6 +168,20 @@ The [receipt](vanderhaags-qualification.json) preserves the measurement and
 projections. These are measured-pace estimates, not invoice totals. Provider
 billing-rounding, failed attempts, retries, catalog drift and longer WAF waits
 can add cost. Failed or unpublished attempts do not supply carry history.
+
+### Kernel go-live soak
+
+On November 24, 2026 (00:25 UTC) a count-only soak ran the production path on
+Kernel from a workstation, warm like production: its first checkpoint took
+the last accepted terminal cursor (run `b651343e`, November 23) as its
+previous census. It completed in 7 checkpoints with 77 detail reads, 2,115
+donors processed, 120 rejected and 1,995 vehicles, against that run's 77
+reads, 2,108 processed, 119 rejected and 1,989 vehicles. Kernel reported
+**555.9 browser-seconds** for its 7 browsers (79 seconds each), **$0.0093**
+at $0.0000166667 a second: about $0.28 a month at one such run a day. The
+same catalog read through Kernel produced the same catalog identities as the
+Hyperbrowser census for all 2,108 carried donors, so moving providers does
+not force detail rereads.
 
 ## Reconciliation safeguards
 
