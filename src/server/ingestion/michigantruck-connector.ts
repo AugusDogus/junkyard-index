@@ -297,8 +297,8 @@ export function streamMichigantruckInventoryWithRequestGate<E, R>(
   );
 }
 /** At most one browser session per chunk, opened by the first request under
- * the Hyperbrowser session lease and stopped when the chunk ends. `sessions`
- * defaults to Hyperbrowser. */
+ * its provider's session lease and stopped when the chunk ends. `sessions`
+ * defaults to Michigan Truck's provider in `BROWSER_PROVIDERS`. */
 export function streamMichigantruckInventory<E, R>(
   options: MichigantruckOptions<E, R>,
   sessions?: BrowserSessions,
@@ -307,9 +307,9 @@ export function streamMichigantruckInventory<E, R>(
     Effect.gen(function* () {
       const transport = yield* acquireMichigantruckBrowser(
         sessions ??
-          DocumentTransport.hyperbrowser(
-            (yield* Config).hyperbrowserApiKey,
+          DocumentTransport.sourceSessions(
             "michigantruck",
+            yield* Config,
             "page",
           ),
       );

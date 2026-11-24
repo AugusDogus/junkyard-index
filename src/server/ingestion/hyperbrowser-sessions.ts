@@ -18,8 +18,10 @@ import {
  * Free plan, 25 on Startup. Change it with the plan. */
 export const HYPERBROWSER_CONCURRENT_SESSIONS = 1;
 
-/** Every ingestion source that opens Hyperbrowser sessions. A source must be
- * listed to take the session lease. */
+/** Every ingestion source that may open Hyperbrowser sessions when
+ * `BROWSER_PROVIDERS` chooses Hyperbrowser for it. A source must be listed to
+ * take the session lease, so this stays a superset of the sources set to
+ * Hyperbrowser, keeping the one-line fallback available to every source. */
 export const HYPERBROWSER_SOURCES = [
   "upullitdavie",
   "vanderhaags",

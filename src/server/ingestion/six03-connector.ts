@@ -359,8 +359,8 @@ export function streamSix03InventoryWithRequestGate<E, R>(
 }
 
 /** At most one browser session per chunk, opened by the first request under
- * the Hyperbrowser session lease and stopped when the chunk ends. `sessions`
- * defaults to Hyperbrowser. */
+ * its provider's session lease and stopped when the chunk ends. `sessions`
+ * defaults to 603's provider in `BROWSER_PROVIDERS`. */
 export function streamSix03Inventory<E, R>(
   options: Six03Options<E, R>,
   sessions?: BrowserSessions,
@@ -369,11 +369,7 @@ export function streamSix03Inventory<E, R>(
     Effect.gen(function* () {
       const transport = yield* acquireSix03Browser(
         sessions ??
-          DocumentTransport.hyperbrowser(
-            (yield* Config).hyperbrowserApiKey,
-            "six03",
-            "page",
-          ),
+          DocumentTransport.sourceSessions("six03", yield* Config, "page"),
       );
       const limit = yield* RateLimiter.make({
         limit: 1,

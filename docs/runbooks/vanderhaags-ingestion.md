@@ -110,8 +110,10 @@ no CAPTCHA solving) remains the one-line fallback. A 403 or 429 stops the
 session's host requests. The first rendered catalog is reused; later
 documents use same-origin browser fetch. Requests are serial with a
 1.6-second gap. Each checkpoint opens its browser under the provider's
-cross-source [session lease](hyperbrowser-sessions.md#session-lease); a busy
-lease, a full plan or a Kernel spending cap defers it.
+cross-source session lease (the [lease](hyperbrowser-sessions.md#session-lease)
+works the same for both providers; Kernel's limits are in
+[Kernel sessions](browser-providers.md#kernel-sessions)); a busy lease, a full
+plan or a Kernel spending cap defers it.
 
 Each checkpoint permits 12 detail requests by default (maximum 24), plus a fresh
 five-page national catalog enumeration, within four minutes. Carried records do
