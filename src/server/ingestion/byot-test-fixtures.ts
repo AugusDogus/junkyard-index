@@ -1,5 +1,5 @@
 import { ByotCursor, byotQueryKey, type ByotCache } from "./byot-cursor";
-import { BYOT_DAILY_QUERIES, BYOT_QUERIES } from "./byot-directory";
+import { BYOT_QUERIES } from "./byot-directory";
 import { ByotRecordSchema } from "./byot-record";
 import { readFileSync } from "node:fs";
 import { brotliDecompressSync } from "node:zlib";
@@ -48,17 +48,23 @@ if (!missingF150)
   throw new Error("Saved BYOT Waco F150 response lost STK044158");
 export const byotMissingF150 = missingF150;
 
+/** Queries one daily slice of the retired weekly sweep searched. */
+export const byotLegacySliceQueries = Math.ceil(BYOT_QUERIES.length / 7);
+/** A published terminal cursor whose run searched `width` queries from
+ * `offset`. Pass `byotLegacySliceQueries` for a cursor published by the
+ * weekly sweep that preceded daily full sweeps. */
 export function byotTerminal(
   offset: number,
   at = Date.UTC(2026, 10, 15),
   oldCache: ByotCache = BYOT_YARDS.map(() => []),
+  width = BYOT_QUERIES.length,
 ) {
   const initial = ByotCursor.initial();
   const cache = oldCache.map((yard) => [...yard]);
   for (const [yardIndex] of BYOT_YARDS.entries()) {
     const yard = cache[yardIndex];
     if (!yard) throw new Error("Missing fixture yard");
-    for (let i = 0; i < BYOT_DAILY_QUERIES; i++) {
+    for (let i = 0; i < width; i++) {
       const index = (offset + i) % BYOT_QUERIES.length;
       const query = byotQueryKey(index);
       const existing = yard.findIndex((bucket) => bucket.query === query);
@@ -74,7 +80,7 @@ export function byotTerminal(
       directory: initial.directory,
       phase: "complete",
       completedAt: at,
-      nextOffset: (offset + BYOT_DAILY_QUERIES) % BYOT_QUERIES.length,
+      nextOffset: (offset + width) % BYOT_QUERIES.length,
       cache,
       yardCounts: [1200, 960, 1080, 1030, 970],
     }),

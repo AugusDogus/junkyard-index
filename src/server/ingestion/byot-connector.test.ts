@@ -7,19 +7,19 @@ import { Effect } from "effect";
 import { streamByotInventory } from "./byot-connector";
 import {
   ByotCursor,
+  BYOT_CHUNK_REQUESTS,
+  BYOT_MAX_RUN_MS,
   BYOT_RUN_REQUESTS,
   byotHash,
   byotQueryKey,
   BYOT_RETIRED_QUERY_MAX_AGE_MS,
+  type ByotCache,
 } from "./byot-cursor";
-import {
-  BYOT_DAILY_QUERIES,
-  BYOT_QUERIES,
-  BYOT_ARRIVALS_URL,
-} from "./byot-directory";
+import { BYOT_QUERIES, BYOT_ARRIVALS_URL } from "./byot-directory";
 import { BYOT_YARDS } from "./byot-configuration";
 import {
   byotFixtureFeeds,
+  byotLegacySliceQueries,
   byotValue,
   byotMissingF150,
   byotTerminal as terminal,
@@ -29,8 +29,8 @@ import { ByotResult } from "./byot-result";
 import type { CanonicalVehicle } from "./types";
 const now = Date.UTC(2026, 10, 15);
 
-describe("BYOT bounded durable daily slice", () => {
-  test("reads every yard feed once, resumes wire checkpoints, and finishes exactly one daily slice", async () => {
+describe("BYOT bounded durable daily sweep", () => {
+  test("reads every yard feed once, resumes wire checkpoints, and finishes exactly one daily sweep", async () => {
     const requests: { url: string; code: string }[] = [];
     const emitted: CanonicalVehicle[] = [];
     let cursor = ByotCursor.initial();
@@ -54,7 +54,7 @@ describe("BYOT bounded durable daily slice", () => {
             Effect.sync(() => emitted.push(...batch)).pipe(Effect.asVoid),
         }),
       );
-      expect(result.pagesProcessed).toBeLessThanOrEqual(8);
+      expect(result.pagesProcessed).toBeLessThanOrEqual(BYOT_CHUNK_REQUESTS);
       total += result.pagesProcessed;
       cursor = byotValue(
         ByotCursor.fromWire(byotValue(ByotCursor.serialize(result.cursor))),
@@ -66,7 +66,7 @@ describe("BYOT bounded durable daily slice", () => {
         .filter((request) => request.url === BYOT_ARRIVALS_URL)
         .map((request) => request.code),
     ).toEqual(BYOT_YARDS.map((yard) => yard.code));
-    expect(cursor.nextOffset).toBe(BYOT_DAILY_QUERIES);
+    expect(cursor.nextOffset).toBe(0);
     expect(
       isDurableSourceCursorTerminal(
         "byot",
@@ -75,35 +75,19 @@ describe("BYOT bounded durable daily slice", () => {
     ).toBe(true);
     expect(emitted.length).toBeGreaterThan(5000);
     for (const yard of cursor.cache)
-      expect(yard).toHaveLength(BYOT_DAILY_QUERIES);
-    // Replays a full day for five yards (about 120 checkpoint round trips),
-    // which takes about 18 seconds on CI runners.
+      expect(yard).toHaveLength(BYOT_QUERIES.length);
+    // Replays a full day for five yards (about 105 checkpoint round trips).
   }, 180_000);
-  test("seven daily published cursors cover every query and preserve unrevisited unphotographed vehicles", () => {
-    let previous: ByotCursor | null = null;
-    const indexes = new Set<number>();
-    for (let day = 0; day < 7; day++) {
-      const begin = byotValue(ByotCursor.begin(previous, now + day * 86400000));
-      if (begin.phase !== "arrivals") throw new Error("Missing daily start");
-      const completed = terminal(
-        begin.sweepStart,
-        begin.startedAt,
-        begin.cache,
-      );
-      if (completed.phase !== "complete")
-        throw new Error("Missing terminal fixture");
-      for (let i = 0; i < BYOT_DAILY_QUERIES; i++)
-        indexes.add((begin.sweepStart + i) % BYOT_QUERIES.length);
-      previous = completed;
-    }
-    expect(indexes.size).toBe(BYOT_QUERIES.length);
-    const begin = byotValue(ByotCursor.begin(terminal(0), now + 86400000));
-    expect(begin).toMatchObject({
+  test("the next daily sweep starts where the published one ended, including a weekly-slice cursor", () => {
+    const legacy = terminal(0, now, undefined, byotLegacySliceQueries);
+    expect(byotValue(ByotCursor.begin(legacy, now + 86400000))).toMatchObject({
       phase: "arrivals",
-      sweepStart: BYOT_DAILY_QUERIES,
+      sweepStart: byotLegacySliceQueries,
     });
+    const begin = byotValue(ByotCursor.begin(terminal(0), now + 86400000));
+    expect(begin).toMatchObject({ phase: "arrivals", sweepStart: 0 });
     if (begin.phase !== "arrivals") throw new Error("Missing daily cursor");
-    expect(begin.cache[0]).toHaveLength(BYOT_DAILY_QUERIES);
+    expect(begin.cache[0]).toHaveLength(BYOT_QUERIES.length);
   });
   test("active queries survive long outages, failed evidence never seeds progress, tampering and forged completion fail", () => {
     const previous = terminal(0);
@@ -112,7 +96,7 @@ describe("BYOT bounded durable daily slice", () => {
       throw new Error("Missing sweep fixture");
     expect(begin.cache).toEqual(previous.cache);
     expect(ByotCursor.begin(begin, now).ok).toBe(false);
-    expect(ByotCursor.parse({ ...previous, nextOffset: 0 }).ok).toBe(false);
+    expect(ByotCursor.parse({ ...previous, nextOffset: 1 }).ok).toBe(false);
     const forged = {
       ...previous,
       phase: "complete",
@@ -155,18 +139,14 @@ describe("BYOT bounded durable daily slice", () => {
     expect(emitted).toBe(false);
     expect(initial).toEqual(ByotCursor.initial());
   });
-  test("a ready checkpoint retains an unphotographed donor found on an earlier day", async () => {
-    const prior = terminal(0);
-    if (prior.phase !== "complete") throw new Error("Missing terminal cursor");
-    const first = prior.cache[0]?.[0];
-    if (!first) throw new Error("Missing bucket");
-    first.records = [byotMissingF150];
-    const begin = byotValue(
-      ByotCursor.begin(byotValue(ByotCursor.checkpoint(prior)), now + 86400000),
-    );
+  test("a resumed ready checkpoint publishes today's unphotographed donor without requests", async () => {
+    const begin = byotValue(ByotCursor.begin(terminal(0), now + 86400000));
     if (begin.phase !== "arrivals") throw new Error("Missing daily cursor");
     const current = terminal(begin.sweepStart, begin.startedAt, begin.cache);
     if (current.phase !== "complete") throw new Error("Missing current cursor");
+    const first = current.cache[0]?.[0];
+    if (!first) throw new Error("Missing bucket");
+    first.records = [byotMissingF150];
     const ready = byotValue(
       ByotCursor.checkpoint({
         ...begin,
@@ -201,7 +181,7 @@ test("BYOT stops an overdue resumed daily run before dispatch or emission", asyn
     Effect.either(
       streamByotInventory({
         startCursor: start,
-        now: now + 2 * 60 * 60 * 1000 + 1,
+        now: now + BYOT_MAX_RUN_MS + 1,
         readPage: () => {
           calls++;
           return Effect.succeed("[]");
@@ -215,7 +195,7 @@ test("BYOT stops an overdue resumed daily run before dispatch or emission", asyn
   expect(calls).toBe(0);
 });
 
-test("a three-day outage retains unphotographed stock until its own sweep slice re-runs", () => {
+test("missed days keep unphotographed stock until the next daily sweep re-checks it", () => {
   let previous = terminal(0);
   if (previous.phase !== "complete") throw new Error("Missing terminal cursor");
   const seeded = previous.cache[0]?.find(
@@ -224,30 +204,17 @@ test("a three-day outage retains unphotographed stock until its own sweep slice 
   if (!seeded) throw new Error("Missing bucket");
   seeded.records = [byotMissingF150];
   previous = byotValue(ByotCursor.checkpoint(previous));
-  for (const day of [1, 2, 3, 4, 5, 9, 10]) {
-    const begin = byotValue(ByotCursor.begin(previous, now + day * 86400000));
-    if (begin.phase !== "arrivals") throw new Error("Missing daily cursor");
-    expect(
-      byotSnapshot(
-        BYOT_YARDS.map((yard) => byotFixtureFeeds[yard.code] ?? []),
-        begin.cache,
-      ).vehicles.some((row) => row.stockNumber === byotMissingF150.StockId),
-    ).toBe(true);
-    previous = terminal(begin.sweepStart, begin.startedAt, begin.cache);
-    if (previous.phase !== "complete")
-      throw new Error("Missing terminal cursor");
-    const snapshot = byotSnapshot(
-      BYOT_YARDS.map((yard) => byotFixtureFeeds[yard.code] ?? []),
-      previous.cache,
-      previous.yardCounts,
+  const feeds = BYOT_YARDS.map((yard) => byotFixtureFeeds[yard.code] ?? []);
+  const listed = (cache: ByotCache) =>
+    byotSnapshot(feeds, cache).vehicles.some(
+      (row) => row.stockNumber === byotMissingF150.StockId,
     );
-    expect(snapshot.validation.ok).toBe(true);
-    expect(
-      snapshot.vehicles.some(
-        (row) => row.stockNumber === byotMissingF150.StockId,
-      ),
-    ).toBe(day !== 10);
-  }
+  const begin = byotValue(ByotCursor.begin(previous, now + 4 * 86400000));
+  if (begin.phase !== "arrivals") throw new Error("Missing daily cursor");
+  expect(listed(begin.cache)).toBe(true);
+  const swept = terminal(begin.sweepStart, begin.startedAt, begin.cache);
+  if (swept.phase !== "complete") throw new Error("Missing terminal cursor");
+  expect(listed(swept.cache)).toBe(false);
 });
 
 test("only retired queries expire after 21 days, while directory changes preserve matching buckets", () => {

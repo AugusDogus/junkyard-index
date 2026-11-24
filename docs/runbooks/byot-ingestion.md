@@ -20,9 +20,15 @@ location schema explicitly identifies 908 S Roach St and Jackson, MS. Its donor
 destination is `/locations/jackson-ms/inventory/`, taken from the native links.
 The coordinate source's retail-page canonical URL is not a donor destination.
 
-## Daily arrivals and weekly search
+## Daily arrivals and daily search
 
-The arrivals API only lists photographed vehicles. Each daily run reads
+The arrivals API only lists photographed vehicles. No public endpoint lists a
+whole yard: checked again on November 24, 2026, the inventory page's script
+calls only arrivals, makes, models, parts and make/model search, and
+`/inventory/yard/vehicles` still returns HTTP 401. Search needs one location
+code (a list or `all` returns a server error), a make and an exact directory
+model; a make alone, `%` or a donor model spelling returns an empty list.
+Each daily run reads
 `https://api.byotautoparts.com/inventory/yard/vehicles/recent-arrivals?limit=5000`
 once per yard with a `Location: <yard code>` header. A response reaching 5,000
 rows fails closed. A missing list, HTTP error or unexpected response cannot
@@ -38,12 +44,16 @@ Compass and Renegade. `JEEP TRUCK` finds the 1955 CJ5. The saved native controls
 reproduce the directory offline. Native listing year/make/model remain the
 vehicle's identity; the query labels never substitute for them.
 
-Each run searches 192 controls per yard, so seven daily publications cover
-all 1,338 queries. That is 965 requests per daily run, including the five feeds.
-All requests are serial with a two-second pause after body completion, even
-on failure. Typical source runtime is about 40-50 minutes. Chunks allow eight
-requests and four minutes; a resumed daily run older than two hours fails and
-must restart from its preceding publication. Each response has a combined
+Each daily run searches all 1,338 controls at every yard, so arrivals and
+departures of cars without photos appear the same day. That is 6,695 requests
+per run, including the five feeds. All requests are serial with a two-second
+pause after body completion, even on failure. At the measured 0.6-0.7 s per
+response, source runtime is about five hours. A chunk sends at most 64
+requests, stops starting new ones once a request at its full deadline plus
+pause and the snapshot could overrun its four minutes (usually after about 60
+requests), and validates its checkpoint once rather than after each request.
+A resumed daily run older than eight hours fails and must restart from its
+preceding publication. Each response has a combined
 45-second request/body deadline and a 2 MiB cap, with no automatic retries.
 HTTP 429, redirects, partial responses, wrong MIME types and unowned URLs stop
 the run. Resume only after the provider's Retry-After interval has elapsed.
@@ -52,19 +62,18 @@ Today's arrivals feed is authoritative for photographed stock, including any
 corrected VIN or model. A photographed car leaves search the day it leaves the
 feed, even if an older search bucket still lists it. Its old VIN is not kept as
 preservation evidence. Only cars without photos can be added from search alone.
-An unphotographed car leaves within a week, when its sweep slice re-checks it,
-assuming daily runs succeed. Search-only additions can also take up to a week.
+An unphotographed car is added or removed by the first daily run that succeeds
+after it arrives or leaves.
 
-Query buckets persist until their own slice replaces them, including when that
-slice returns an explicit empty response. Missed days delay the sweep but do
-not expire buckets for queries still in the directory. A bucket whose query has
-been removed from the site's make/model list expires after 21 days without a
-refresh. A first publication has current photographed inventory plus its first
-search slice; the search cache fills over the first seven daily publications.
+Every run replaces every query bucket, including with an explicit empty
+response. A failed or missed day publishes nothing, so the previous publication
+stays in place until the next run succeeds. A bucket whose query has been
+removed from the site's make/model list expires after 21 days without a
+refresh. Published cursors from the earlier weekly sweep (a seventh of the
+directory per run) still seed the next daily run.
 
 The durable adapter loads only the latest accepted, search-published BYOT
-terminal cursor. Failed, partial or unpublished runs cannot advance its weekly
-offset. Checkpoints bind the qualified directory and yard metadata, validate
+terminal cursor. Failed, partial or unpublished runs cannot seed the next run. Checkpoints bind the qualified directory and yard metadata, validate
 the contiguous per-yard search prefix, carry previous published yard counts,
 and have a 16 MiB cap. Snapshot cleanup preserves terminal source cursors.
 Provider imports stay inside step-side ingestion modules, outside Workflow
@@ -90,7 +99,7 @@ than benign duplicates. Rejects remain inside the 10% rejection guard with no in
 Each yard must retain at least 50% of its previous published count and meet its
 floor: Waco 428, Bryan 322, Beaumont 357, Port Allen 345 and Jackson 323.
 The source floor is 1,775, and durable validation also checks source-wide drift.
-No vehicle or yard callback occurs until the complete daily slice validates.
+No vehicle or yard callback occurs until the complete daily sweep validates.
 
 The November 15, 2026 feeds contain Waco 1,220, Bryan 967, Beaumont 1,083,
 Port Allen 1,038 and Jackson 973 observations, or 5,281 total. Strict feed-only
@@ -120,7 +129,7 @@ The source runs by default. The `ingestion-source-byot` flag pauses it when it s
 Count-only daily soak:
 
 ```sh
-bun run soak:sources -- --sources=byot --max-pages=965
+bun run soak:sources -- --sources=byot --max-pages=6695
 ```
 
 The standalone soak never reads production cursor history or writes canonical
@@ -148,4 +157,4 @@ silently drop native controls to retain an old cursor.
 On a request, parser, checkpoint or guard failure, the previous published
 inventory remains intact. Inspect the named operation and saved response,
 respect Retry-After, and resume the last validated checkpoint only within its
-daily deadline. Do not force reconciliation from an incomplete daily slice.
+daily deadline. Do not force reconciliation from an incomplete daily sweep.

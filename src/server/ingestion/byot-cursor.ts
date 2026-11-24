@@ -1,13 +1,24 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { BYOT_YARDS } from "./byot-configuration";
-import { BYOT_DAILY_QUERIES, BYOT_QUERIES } from "./byot-directory";
+import { BYOT_QUERIES } from "./byot-directory";
 import { ByotResult } from "./byot-result";
 
 export const BYOT_MAX_CURSOR_BYTES = 16 * 1024 * 1024;
 export const BYOT_RETIRED_QUERY_MAX_AGE_MS = 21 * 24 * 60 * 60 * 1000;
-export const BYOT_MAX_RUN_MS = 2 * 60 * 60 * 1000;
-export const BYOT_RUN_REQUESTS = BYOT_YARDS.length * (1 + BYOT_DAILY_QUERIES);
+/** Each daily run reads every yard's feed and searches every query at every
+ * yard: 6,695 serial requests, about five hours at the qualified two-second
+ * pacing. A resumed run older than this fails instead of publishing stale
+ * search evidence, and restarts from its preceding publication. */
+export const BYOT_MAX_RUN_MS = 8 * 60 * 60 * 1000;
+export const BYOT_RUN_REQUESTS = BYOT_YARDS.length * (1 + BYOT_QUERIES.length);
+/** Request cap per chunk. The connector also stops starting requests once one
+ * more could overrun the chunk deadline, which usually ends a chunk first. */
+export const BYOT_CHUNK_REQUESTS = 64;
+/** Published cursors from the retired weekly sweep searched a seventh of
+ * their directory. They still seed the next daily run. */
+const legacySliceQueries = (directoryLength: number) =>
+  Math.ceil(directoryLength / 7);
 export const byotHash = (value: unknown): string =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
 export function byotQueryKey(index: number): string {
@@ -70,7 +81,7 @@ const schema = z.discriminatedUnion("phase", [
         .number()
         .int()
         .min(0)
-        .max(BYOT_DAILY_QUERIES * BYOT_YARDS.length - 1),
+        .max(BYOT_QUERIES.length * BYOT_YARDS.length - 1),
     })
     .strict(),
   z
@@ -98,6 +109,8 @@ export type ByotCache = z.infer<typeof cache>;
 type Unsigned<C = ByotCursor> = C extends { checksum: string }
   ? Omit<C, "checksum">
   : never;
+/** A cursor before `ByotCursor.checkpoint` seals and validates it. */
+export type ByotCursorState = Unsigned;
 const checksum = (cursor: ByotCursor | Unsigned) =>
   byotHash({ ...cursor, checksum: undefined });
 function validate(input: unknown): ByotCursor {
@@ -143,19 +156,22 @@ function validate(input: unknown): ByotCursor {
       throw new Error("Search evidence is expired or dated in the future");
   }
   // Prove this run's complete contiguous search prefix before accepting a checkpoint.
+  // A complete cursor only has to prove a weekly slice, which every daily
+  // sweep also proves, so cursors published before daily sweeps still load.
   if (
     cursor.phase === "search" ||
     cursor.phase === "ready" ||
     cursor.phase === "complete"
   ) {
-    const dailyQueries = Math.ceil(cursor.directory.length / 7);
+    const queries =
+      cursor.phase === "complete"
+        ? legacySliceQueries(cursor.directory.length)
+        : cursor.directory.length;
     const progress =
-      cursor.phase === "search"
-        ? cursor.progress
-        : dailyQueries * BYOT_YARDS.length;
+      cursor.phase === "search" ? cursor.progress : queries * BYOT_YARDS.length;
     const start =
       cursor.phase === "complete"
-        ? (cursor.nextOffset - dailyQueries + cursor.directory.length) %
+        ? (cursor.nextOffset - queries + cursor.directory.length) %
           cursor.directory.length
         : cursor.sweepStart;
     for (let i = 0; i < progress; i++) {

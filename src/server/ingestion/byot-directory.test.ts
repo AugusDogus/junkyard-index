@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { brotliDecompressSync } from "node:zlib";
 import { buildByotDirectory } from "./byot-directory-builder";
-import { BYOT_QUERIES, BYOT_DAILY_QUERIES } from "./byot-directory";
+import { BYOT_QUERIES } from "./byot-directory";
 import { BYOT_YARDS } from "./byot-configuration";
 import locations from "./byot-test-fixtures/locations.json";
 
@@ -16,7 +16,6 @@ test("qualified search controls reproduce from the site's own saved make/model m
   );
   const rebuilt = buildByotDirectory(controls);
   expect(rebuilt).toEqual(BYOT_QUERIES);
-  expect(BYOT_DAILY_QUERIES * 7).toBeGreaterThanOrEqual(BYOT_QUERIES.length);
   expect(new Set(BYOT_QUERIES.map((query) => JSON.stringify(query))).size).toBe(
     BYOT_QUERIES.length,
   );

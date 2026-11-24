@@ -1,9 +1,14 @@
-import { Effect } from "effect";
+import { Clock, Effect } from "effect";
 import { BYOT_YARDS } from "./byot-configuration";
-import { ByotCursor, byotQueryKey, BYOT_MAX_RUN_MS } from "./byot-cursor";
+import {
+  BYOT_CHUNK_REQUESTS,
+  ByotCursor,
+  byotQueryKey,
+  BYOT_MAX_RUN_MS,
+  type ByotCursorState,
+} from "./byot-cursor";
 import {
   BYOT_ARRIVALS_URL,
-  BYOT_DAILY_QUERIES,
   BYOT_QUERIES,
   byotSearchUrl,
 } from "./byot-directory";
@@ -14,13 +19,28 @@ import {
 } from "./byot-result";
 import { parseByotResponse } from "./byot-parser";
 import { byotSnapshot } from "./byot-snapshot";
-import { readByotPage } from "./byot-client";
+import {
+  BYOT_REQUEST_GAP_MS,
+  BYOT_REQUEST_TIMEOUT_MS,
+  readByotPage,
+} from "./byot-client";
 import type { CanonicalVehicle } from "./types";
 import type { Yard } from "~/lib/yard";
 import type { ConnectorChunkResult } from "./connector-chunk";
 
 const unwrap = <T>(result: Result<T>) =>
   result.ok ? Effect.succeed(result.value) : Effect.fail(result.error);
+export const BYOT_CHUNK_WORK_MS = 4 * 60_000;
+/** Time the final chunk keeps for building, validating and emitting the
+ * day's snapshot after its last search. */
+const SNAPSHOT_RESERVE_MS = 20_000;
+/** A chunk starts another request only while that request, at its full
+ * deadline plus pacing gap, and the snapshot still fit in the chunk. */
+const REQUEST_START_WINDOW_MS =
+  BYOT_CHUNK_WORK_MS -
+  BYOT_REQUEST_TIMEOUT_MS -
+  BYOT_REQUEST_GAP_MS -
+  SNAPSHOT_RESERVE_MS;
 export interface ByotOptions<E, R> {
   startCursor?: unknown;
   /** Only the prior accepted, search-published terminal cursor can seed a new run. */
@@ -42,11 +62,15 @@ export function streamByotInventory<E, R>(
   options: ByotOptions<E, R>,
 ): Effect.Effect<ByotStreamResult, ByotError | E, R> {
   return Effect.gen(function* () {
-    const budget = options.maxPages ?? 8;
-    if (!Number.isInteger(budget) || budget < 1 || budget > 8)
+    const budget = options.maxPages ?? BYOT_CHUNK_REQUESTS;
+    if (!Number.isInteger(budget) || budget < 1 || budget > BYOT_CHUNK_REQUESTS)
       return yield* Effect.fail(
-        ByotResult.error("request budget", "Use an integer from 1 to 8"),
+        ByotResult.error(
+          "request budget",
+          `Use an integer from 1 to ${BYOT_CHUNK_REQUESTS}`,
+        ),
       );
+    const chunkStartedAt = yield* Clock.currentTimeMillis;
     let cursor = yield* unwrap(
       ByotCursor.parse(options.startCursor ?? ByotCursor.initial()),
     );
@@ -65,21 +89,30 @@ export function streamByotInventory<E, R>(
       return yield* Effect.fail(
         ByotResult.error(
           "daily run deadline",
-          "Two-hour limit exceeded; restart from the prior published sweep checkpoint",
+          `${BYOT_MAX_RUN_MS / 3_600_000}-hour limit exceeded; restart from the prior published sweep checkpoint`,
         ),
       );
+    // A failed request discards the whole chunk, so requests advance one
+    // working state and the chunk seals and validates it once at the end.
+    let state: ByotCursorState = cursor;
     let pagesProcessed = 0;
     while (
-      cursor.phase !== "ready" &&
-      cursor.phase !== "complete" &&
+      state.phase !== "ready" &&
+      state.phase !== "complete" &&
       pagesProcessed < budget
     ) {
-      if (cursor.phase === "initial")
+      if (
+        pagesProcessed > 0 &&
+        (yield* Clock.currentTimeMillis) - chunkStartedAt >
+          REQUEST_START_WINDOW_MS
+      )
+        break;
+      if (state.phase === "initial")
         return yield* Effect.fail(
           ByotResult.error("checkpoint", "Run did not initialize"),
         );
-      if (cursor.phase === "arrivals") {
-        const yard = BYOT_YARDS[cursor.feeds.length];
+      if (state.phase === "arrivals") {
+        const yard = BYOT_YARDS[state.feeds.length];
         if (!yard)
           return yield* Effect.fail(
             ByotResult.error(
@@ -91,16 +124,13 @@ export function streamByotInventory<E, R>(
         const records = yield* unwrap(
           parseByotResponse(raw, "arrivals", yard.code),
         );
-        const feeds = [...cursor.feeds, records];
-        cursor = yield* unwrap(
-          ByotCursor.checkpoint(
-            feeds.length === BYOT_YARDS.length
-              ? { ...cursor, phase: "search", feeds, progress: 0 }
-              : { ...cursor, feeds },
-          ),
-        );
+        const feeds = [...state.feeds, records];
+        state =
+          feeds.length === BYOT_YARDS.length
+            ? { ...state, phase: "search", feeds, progress: 0 }
+            : { ...state, feeds };
       } else {
-        const yardIndex = cursor.progress % BYOT_YARDS.length;
+        const yardIndex = state.progress % BYOT_YARDS.length;
         const yard = BYOT_YARDS[yardIndex];
         if (!yard)
           return yield* Effect.fail(
@@ -110,8 +140,7 @@ export function streamByotInventory<E, R>(
             ),
           );
         const index =
-          (cursor.sweepStart +
-            Math.floor(cursor.progress / BYOT_YARDS.length)) %
+          (state.sweepStart + Math.floor(state.progress / BYOT_YARDS.length)) %
           BYOT_QUERIES.length;
         const raw = yield* options.readPage(
           byotSearchUrl(yard.code, index),
@@ -120,9 +149,9 @@ export function streamByotInventory<E, R>(
         const records = yield* unwrap(
           parseByotResponse(raw, "search", `${yard.code} query ${index}`),
         );
-        const startedAt = cursor.startedAt;
+        const startedAt = state.startedAt;
         const query = byotQueryKey(index);
-        const cache = cursor.cache.map((entries, i) =>
+        const cache = state.cache.map((entries, i) =>
           i === yardIndex
             ? [
                 ...entries.filter((entry) => entry.query !== query),
@@ -130,18 +159,17 @@ export function streamByotInventory<E, R>(
               ]
             : entries,
         );
-        const { progress: priorProgress, ...state } = cursor;
+        const { progress: priorProgress, ...rest } = state;
         const progress = priorProgress + 1;
-        cursor = yield* unwrap(
-          ByotCursor.checkpoint(
-            progress === BYOT_DAILY_QUERIES * BYOT_YARDS.length
-              ? { ...state, phase: "ready", cache }
-              : { ...state, phase: "search", cache, progress },
-          ),
-        );
+        state =
+          progress === BYOT_QUERIES.length * BYOT_YARDS.length
+            ? { ...rest, phase: "ready", cache }
+            : { ...rest, phase: "search", cache, progress };
       }
       pagesProcessed++;
     }
+    if (pagesProcessed > 0)
+      cursor = yield* unwrap(ByotCursor.checkpoint(state));
     if (cursor.phase !== "ready")
       return {
         source: "byot",
@@ -172,8 +200,8 @@ export function streamByotInventory<E, R>(
         phase: "complete",
         // Evidence uses a stable run observation epoch, including resumed chunks.
         completedAt: cursor.startedAt,
-        nextOffset:
-          (cursor.sweepStart + BYOT_DAILY_QUERIES) % BYOT_QUERIES.length,
+        // A full sweep ends where it began.
+        nextOffset: cursor.sweepStart,
         cache: cursor.cache,
         yardCounts: snapshot.yardCounts,
       }),
@@ -193,7 +221,7 @@ export function streamByotInventory<E, R>(
     } satisfies ConnectorChunkResult<"byot", ByotCursor>;
   }).pipe(
     Effect.timeoutFail({
-      duration: "4 minutes",
+      duration: BYOT_CHUNK_WORK_MS,
       onTimeout: () =>
         ByotResult.error("chunk deadline", "Four-minute limit exceeded"),
     }),

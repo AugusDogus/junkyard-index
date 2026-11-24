@@ -11,12 +11,13 @@ import { ByotResult } from "./byot-result";
 
 export const BYOT_REQUEST_TIMEOUT_MS = 45_000;
 export const BYOT_MAX_BODY_BYTES = 2 * 1024 * 1024;
+export const BYOT_REQUEST_GAP_MS = 2_000;
 const serial = Effect.runSync(Effect.makeSemaphore(1));
 /** Hold the permit through body completion and padding, including failures.
  * Module scope preserves the gap across consecutive connector chunks. */
 export const byotRequestGate: ProviderRequestGate = (request) =>
   serial.withPermits(1)(
-    request.pipe(Effect.ensuring(Effect.sleep("2000 millis"))),
+    request.pipe(Effect.ensuring(Effect.sleep(BYOT_REQUEST_GAP_MS))),
   );
 
 async function document(

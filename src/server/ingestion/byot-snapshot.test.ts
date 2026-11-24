@@ -5,7 +5,7 @@ import { BYOT_YARDS } from "./byot-configuration";
 import { byotFeeds, byotMissingF150 } from "./byot-test-fixtures";
 const empty = () => BYOT_YARDS.map(() => []);
 const now = Date.UTC(2026, 10, 15);
-describe("BYOT arrivals and weekly search union", () => {
+describe("BYOT arrivals and daily search union", () => {
   test("validates all five feeds and adds unphotographed search inventory without counting corroboration as duplicates", () => {
     const cache = empty();
     const snapshot = byotSnapshot(byotFeeds, cache);
