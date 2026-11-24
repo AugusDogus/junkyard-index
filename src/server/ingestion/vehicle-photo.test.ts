@@ -12,6 +12,7 @@ import { parseHollanderstoresPage } from "./hollanderstores-parser";
 import { hollanderstoresFixture } from "./hollanderstores-test-fixtures";
 import { HOLLANDERSTORES_YARDS } from "./hollanderstores-yard-metadata";
 import { hollanderstoresSnapshot } from "./hollanderstores-snapshot";
+import { hollanderstoresSeed } from "./hollanderstores-client";
 import { parseMidwayCatalog } from "./midway-parser";
 import { transformMidwayRecord } from "./midway-transform";
 import { parseBeaversCatalog, parseBeaversDetail } from "./beavers-parser";
@@ -37,10 +38,12 @@ test("AA Auto Salvage's reported Volvo photo survives roster parsing and canonic
   const row = page.rows.find((row) => row.vin === "YV1LS56D6X2572228");
   expect(row?.stock).toBe("240419");
   expect(row?.imageUrl).toBe(hollanderImage);
-  expect(
-    hollanderstoresSnapshot([page], {}).vehicles.find((v) => v.vin === row?.vin)
-      ?.imageUrl,
-  ).toBe(hollanderImage);
+  // The saved make decodes let the yard pass its own guards and publish.
+  const snapshot = hollanderstoresSnapshot([page], hollanderstoresSeed);
+  expect(snapshot.rejectedYards).toEqual([]);
+  expect(snapshot.vehicles.find((v) => v.vin === row?.vin)?.imageUrl).toBe(
+    hollanderImage,
+  );
 });
 
 test.each([

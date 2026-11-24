@@ -210,8 +210,12 @@ export function hollanderstoresSnapshot(
     accounting.recordsRejected += tally.rejected;
     accounting.duplicateVehicles += tally.duplicates;
   }
+  // The count covers every yard, so it only bounds a census in which every
+  // yard publishes; shared validation scopes the baseline otherwise.
   if (
     previousAcceptedCount !== null &&
+    preserved.size === 0 &&
+    rejectedYards.length === 0 &&
     vehicles.size <
       Math.floor(
         previousAcceptedCount * SourceValidationPolicy.minimumPreviousRunRatio,

@@ -175,25 +175,30 @@ export async function validateDurableSourceRuns(params: {
         parseDurableSourceCursor("hollanderstores", row.nextCursor ?? ""),
       );
       // Preserved yards keep their previous inventory, so they count toward
-      // neither this run's floor nor its drift baseline.
-      if (preserved.size > 0) {
-        const [baseline] = await params.database
-          .select({ count: count() })
-          .from(vehicle)
-          .where(
-            and(
-              eq(vehicle.source, "hollanderstores"),
-              isNull(vehicle.missingSinceAt),
-              notInArray(vehicle.locationCode, [...preserved]),
-            ),
-          );
-        scopedLimits.set(row.source, {
-          minimum: HOLLANDERSTORES_YARDS.filter(
-            (yard) => !preserved.has(yard.code),
-          ).reduce((sum, yard) => sum + yard.minimum, 0),
-          previous: baseline?.count ?? 0,
-        });
-      }
+      // neither this run's floor nor its drift baseline. The baseline is the
+      // publishing yards' live inventory, never a run that preserved yards.
+      const [baseline] = await params.database
+        .select({ count: count() })
+        .from(vehicle)
+        .where(
+          and(
+            eq(vehicle.source, "hollanderstores"),
+            isNull(vehicle.missingSinceAt),
+            preserved.size > 0
+              ? notInArray(vehicle.locationCode, [...preserved])
+              : undefined,
+          ),
+        );
+      scopedLimits.set(row.source, {
+        minimum: HOLLANDERSTORES_YARDS.filter(
+          (yard) => !preserved.has(yard.code),
+        ).reduce((sum, yard) => sum + yard.minimum, 0),
+        previous: baseline?.count ?? 0,
+      });
+      if (HOLLANDERSTORES_YARDS.every((yard) => preserved.has(yard.code)))
+        yardErrorsBySource.set(row.source, [
+          "Hollander Stores preserved every yard, so nothing publishes and all previously published inventory is preserved. Inspect the run's preserved-yard warnings before the next crawl.",
+        ]);
     }
     if (
       row.source === "urgiis" &&
