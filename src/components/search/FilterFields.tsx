@@ -229,19 +229,24 @@ export function YearRangeFilter({
   // The slider also commits each arrow-key step, and each applied range is
   // a search. Apply keyboard steps once they pause, or when focus leaves.
   // Pointer releases still apply at once.
+  // A range applied meanwhile (such as by Back) wins over pending steps.
   const keyboardStep = useRef(false);
   const pendingKeyboardRange = useRef<{
+    from: string;
     range: [number, number];
     timer: ReturnType<typeof setTimeout>;
   } | null>(null);
-  const applyRange = useRef(onYearRangeChange);
-  applyRange.current = onYearRangeChange;
+  const applied = useRef({ key: appliedKey, apply: onYearRangeChange });
+  useEffect(() => {
+    applied.current = { key: appliedKey, apply: onYearRangeChange };
+  });
   const flushKeyboardRange = () => {
     const pending = pendingKeyboardRange.current;
     if (!pending) return;
     clearTimeout(pending.timer);
     pendingKeyboardRange.current = null;
-    applyRange.current(pending.range);
+    if (pending.from === applied.current.key)
+      applied.current.apply(pending.range);
   };
   useEffect(() => flushKeyboardRange, []);
   return (
@@ -273,6 +278,7 @@ export function YearRangeFilter({
           const pending = pendingKeyboardRange.current;
           if (pending) clearTimeout(pending.timer);
           pendingKeyboardRange.current = {
+            from: pending?.from ?? appliedKey,
             range,
             timer: setTimeout(flushKeyboardRange, YEAR_KEYBOARD_APPLY_DELAY_MS),
           };

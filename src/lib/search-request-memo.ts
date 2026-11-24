@@ -108,11 +108,12 @@ function create(
       if (!body.success) return base.send(request);
       const { requests, ...rest } = body.data;
       const scope = `${scopeOf(request)}\n${stableJson(rest)}\n`;
-      const keys = requests.map((inner) => scope + stableJson(inner));
-      const reused = keys.map(known);
-      const missing = requests.flatMap((inner, index) =>
-        reused[index] ? [] : [{ inner, key: keys[index] ?? "" }],
-      );
+      const searches = requests.map((inner) => {
+        const key = scope + stableJson(inner);
+        return { inner, key, reused: known(key) };
+      });
+      const reused = searches.map((search) => search.reused);
+      const missing = searches.filter((search) => !search.reused);
 
       let sent: Promise<Response> | null = null;
       if (missing.length > 0) {

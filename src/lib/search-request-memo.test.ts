@@ -102,4 +102,55 @@ describe("SearchRequestMemo", () => {
     await expect(client.search({ requests: [hits] })).rejects.toThrow();
     expect(send).toHaveBeenCalledTimes(2);
   });
+
+  test("a search whose shared call was refused sends its own body", async () => {
+    const answer = fakeAlgolia();
+    let calls = 0;
+    const send = mock(async (request: EndRequest) => {
+      calls += 1;
+      if (calls === 1)
+        return {
+          status: 400,
+          isTimedOut: false,
+          content: JSON.stringify({ message: "Bad request", status: 400 }),
+        };
+      return answer(request);
+    });
+    const client = liteClient("APP", "key-a", {
+      requester: SearchRequestMemo.create({ send }),
+    });
+    const [withCount, alone] = await Promise.allSettled([
+      client.search({ requests: [hits, count] }),
+      client.search({ requests: [hits] }),
+    ]);
+    expect(withCount.status).toBe("rejected");
+    expect(alone.status).toBe("fulfilled");
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(
+      sentBody.parse(JSON.parse(send.mock.calls[1]?.[0].data ?? "{}")).requests,
+    ).toEqual([hits]);
+  });
+
+  test("a partial call that fails is retried by the client, still without the answered search", async () => {
+    const answer = fakeAlgolia();
+    let calls = 0;
+    const send = mock(async (request: EndRequest) => {
+      calls += 1;
+      if (calls === 2) return { status: 500, isTimedOut: false, content: "{}" };
+      return answer(request);
+    });
+    const client = liteClient("APP", "key-a", {
+      requester: SearchRequestMemo.create({ send }),
+    });
+    await client.search({ requests: [hits] });
+    const next = await client.search({
+      requests: [hits, { ...hits, page: 1 }],
+    });
+    expect(next.results).toHaveLength(2);
+    expect(send).toHaveBeenCalledTimes(3);
+    for (const call of send.mock.calls.slice(1))
+      expect(sentBody.parse(JSON.parse(call[0].data ?? "{}")).requests).toEqual(
+        [{ ...hits, page: 1 }],
+      );
+  });
 });

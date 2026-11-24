@@ -1166,3 +1166,19 @@ test("a radius chosen before any location is set does not search", async () => {
     await closePage(page);
   }
 }, 30_000);
+
+test("Clear all with a radius but no location still searches the cleared filters", async () => {
+  const { page } = await open("q=volvo&yardTypes=all&minYear=2005&radius=50");
+  try {
+    const clear = await searchCallsDuring(page, () =>
+      page
+        .getByRole("button", { name: "Clear all", exact: true })
+        .first()
+        .click(),
+    );
+    expect(new URL(page.url()).searchParams.get("radius")).toBeNull();
+    expect(clear.calls).toBe(1);
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
