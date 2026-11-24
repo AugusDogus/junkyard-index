@@ -8,7 +8,7 @@ import {
   makeUpullRPartsTokenSearch,
   streamUpullRPartsInventoryWithSearch,
   UPULLRPARTS_CHUNK_SEARCHES,
-  UPULLRPARTS_MAKE_START_BUDGET_MS,
+  type UpullRPartsChunkDeps,
 } from "./upullrparts-connector";
 import {
   UPULLRPARTS_BLOCK_RETRY_MS,
@@ -17,10 +17,17 @@ import {
   UpullRPartsCursorSchema,
 } from "./upullrparts-cursor";
 import {
-  UPULLRPARTS_MAX_STEP_SEARCHES,
   UPULLRPARTS_SEARCH_LIMIT,
+  UpullRPartsDay,
+  type UpullRPartsLocation,
   type UpullRPartsSearch,
-} from "./upullrparts-make-crawl";
+  type UpullRPartsSearchParams,
+} from "./upullrparts-date-crawl";
+import {
+  UpullRPartsHistory,
+  type UpullRPartsKnownVehicle,
+} from "./upullrparts-history";
+import type { UpullRPartsDirectory } from "./upullrparts-makes";
 import type { UpullRPartsTokens } from "./upullrparts-turnstile";
 import type { UpullRPartsCanonicalVehicle } from "./upullrparts-transform";
 import type { UpullRPartsYard } from "./upullrparts-yard-metadata";
@@ -40,6 +47,7 @@ function mockDirectory(
   } = {},
 ) {
   const actions: string[] = [];
+  const photoStocks: string[] = [];
   globalThis.fetch = Object.assign(
     async (_input: RequestInfo | URL, init?: RequestInit) => {
       const params = new URLSearchParams(
@@ -51,8 +59,8 @@ function mockDirectory(
         return Response.json(options.makes ?? ["FORD", "Kia"]);
       if (action === "getModels")
         return Response.json(options.models?.[params.get("Make") ?? ""] ?? []);
-      if (action === "getYears") return Response.json([]);
-      if (action === "getVehicleImages")
+      if (action === "getVehicleImages") {
+        photoStocks.push(params.get("stockID") ?? "");
         return (
           options.photos?.(params) ??
           Response.json(
@@ -64,45 +72,144 @@ function mockDirectory(
             ),
           )
         );
+      }
       if (action === "getVehicles" && options.vehicles)
         return options.vehicles(params);
       return new Response("unexpected action", { status: 500 });
     },
     { preconnect: originalFetch.preconnect },
   );
-  return actions;
+  return { actions, photoStocks };
 }
 
-/** Answers searches by make and location; Ford is the canary make. */
-function stockedSearch(
-  stock: Record<string, Record<string, readonly unknown[]>>,
+const TODAY = "2026-11-24";
+const NOW = Date.parse(`${TODAY}T12:00:00.000Z`);
+const DIRECTORY: UpullRPartsDirectory = {
+  version: 1,
+  makes: ["FORD", "Kia", "SHELBY"],
+  models: { FORD: ["FOCUS", "MUSTANG"], Kia: ["SOUL"], SHELBY: ["MUSTANG"] },
+};
+const STATE_PATH = "ingestion/run/upullrparts/directory.json";
+const loadState = async (path: string) =>
+  path === STATE_PATH ? DIRECTORY : undefined;
+
+function crawlAt(
+  location: UpullRPartsLocation,
+  fields: Partial<Extract<UpullRPartsCursor, { phase: "crawl" }>> = {},
+): UpullRPartsCursor {
+  return {
+    source: "upullrparts",
+    phase: "crawl",
+    location,
+    today: TODAY,
+    end: TODAY,
+    statePath: STATE_PATH,
+    storesSeen: [],
+    ...fields,
+  };
+}
+
+let serial = 0;
+/** A site row and the make it is listed under; rows carry no make. */
+function car(
+  store: number,
+  day: string,
+  fields: {
+    make?: string;
+    Model?: string;
+    VIN?: string;
+    StockNumber?: string;
+    Year?: number | null;
+  } = {},
 ) {
-  const searches: string[] = [];
+  serial += 1;
+  const id = String(serial).padStart(6, "0");
+  return {
+    make: fields.make ?? "FORD",
+    row: {
+      ...fixture,
+      Year: fields.Year === undefined ? fixture.Year : fields.Year,
+      Store: store,
+      DateSetData: day,
+      Model: fields.Model ?? "FOCUS",
+      VIN: fields.VIN ?? `1FADP3F20FL${id}`,
+      StockNumber: fields.StockNumber ?? `UG${id}`,
+    },
+  };
+}
+type Car = ReturnType<typeof car>;
+
+/** Answers like getVehicles at each location: dates and make with AND, the
+ * newest 100 by date when more match. */
+function site(inventory: readonly Car[]) {
+  const sent: UpullRPartsSearchParams[] = [];
   const search: UpullRPartsSearch = (params) =>
     Effect.sync(() => {
-      searches.push(`${params.site}:${params.makes}`);
-      const make = params.makes === "Ford" ? "FORD" : params.makes;
-      return stock[params.site]?.[make] ?? [];
+      sent.push(params);
+      const location = (store: number) => (store === 3 ? "3" : "1");
+      return inventory
+        .filter(
+          ({ make, row }) =>
+            location(row.Store) === params.site &&
+            (params.beginDate === "" || row.DateSetData >= params.beginDate) &&
+            (params.endDate === "" || row.DateSetData <= params.endDate) &&
+            (params.makes === "" ||
+              params.makes.toUpperCase() === make.toUpperCase()),
+        )
+        .map(({ row }) => row)
+        .sort((a, b) => (a.DateSetData < b.DateSetData ? 1 : -1))
+        .slice(0, UPULLRPARTS_SEARCH_LIMIT);
     });
-  return { search, searches };
+  return { search, sent };
 }
 
-const minnesota = {
-  FORD: [
-    fixture,
-    { ...fixture, Store: 2, StockNumber: "UG072547", VIN: "5NMSH73E08H227458" },
-  ],
-};
-const toledo = {
-  FORD: [
-    { ...fixture, Store: 3, StockNumber: "CP000001", VIN: "1FMCU9DG6AKC85849" },
-  ],
-};
+function history(
+  fields: {
+    counts?: Partial<Record<UpullRPartsLocation, Record<string, number>>>;
+    publishedDay?: string | null;
+    known?: Record<string, UpullRPartsKnownVehicle>;
+  } = {},
+): UpullRPartsHistory {
+  return {
+    counts: {
+      "1": new Map(Object.entries(fields.counts?.["1"] ?? {})),
+      "3": new Map(Object.entries(fields.counts?.["3"] ?? {})),
+    },
+    publishedDay: fields.publishedDay ?? null,
+    known: new Map(Object.entries(fields.known ?? {})),
+  };
+}
 
-function collect() {
+function deps(
+  search: UpullRPartsSearch,
+  fields: Partial<UpullRPartsChunkDeps<never>> & {
+    history?: UpullRPartsHistory;
+  } = {},
+) {
+  const opened: number[] = [];
+  const value: UpullRPartsChunkDeps<
+    Effect.Effect.Error<ReturnType<UpullRPartsSearch>>
+  > = {
+    requestGate: (request) => request,
+    openSearch: (tokens) =>
+      Effect.sync(() => {
+        opened.push(tokens);
+        return search;
+      }),
+    loadHistory: Effect.succeed(fields.history ?? UpullRPartsHistory.empty),
+    decodeVins: () => Effect.succeed(new Map()),
+    now: () => NOW,
+    ...fields,
+  };
+  return { deps: value, opened };
+}
+
+function collect(startCursor?: UpullRPartsCursor) {
   const vehicles: UpullRPartsCanonicalVehicle[] = [];
   const yards: UpullRPartsYard[] = [];
   return {
+    startCursor,
+    loadState,
     vehicles,
     yards,
     onBatch: (batch: UpullRPartsCanonicalVehicle[]) =>
@@ -116,102 +223,212 @@ function collect() {
   };
 }
 
-describe("U Pull R Parts make crawl", () => {
-  test("crawls each location in turn and completes once every yard reported", async () => {
-    mockDirectory();
-    const { search } = stockedSearch({ "1": minnesota, "3": toledo });
-    const first = collect();
-    const minnesotaChunk = await Effect.runPromise(
-      streamUpullRPartsInventoryWithSearch(first, (request) => request, search),
+/** `count` vehicles a day on the business days before `end`, newest first. */
+function businessDays(end: string, count: number): string[] {
+  const days: string[] = [];
+  for (let day = end; days.length < count; day = UpullRPartsDay.add(day, -1))
+    if (UpullRPartsDay.isBusinessDay(day)) days.push(day);
+  return days;
+}
+
+describe("U Pull R Parts date crawl", () => {
+  test("loads the make directory once in its own chunk, dates the run and opens no browser", async () => {
+    const { actions } = mockDirectory({
+      makes: ["FORD", "Kia"],
+      models: { FORD: ["FOCUS"], Kia: ["SOUL"] },
+    });
+    const { deps: chunkDeps, opened } = deps(site([]).search);
+    const sink = collect();
+    const result = await Effect.runPromise(
+      streamUpullRPartsInventoryWithSearch(sink, chunkDeps),
     );
-    expect(minnesotaChunk).toMatchObject({
+    expect(result).toMatchObject({
       status: "paused",
-      count: 2,
+      count: 0,
       cursor: {
         phase: "crawl",
-        location: "3",
-        afterMake: null,
-        storesSeen: [1, 2],
+        location: "1",
+        today: TODAY,
+        end: TODAY,
+        statePath: null,
+      },
+      checkpointState: {
+        version: 1,
+        makes: ["FORD", "Kia"],
+        models: { FORD: ["FOCUS"], Kia: ["SOUL"] },
       },
     });
-    expect(first.yards.map((yard) => yard.code)).toEqual([
+    expect(actions).toEqual(["getMakes", "getModels", "getModels"]);
+    expect(opened).toEqual([]);
+    expect(sink.yards.map((yard) => yard.code)).toEqual([
       "UPRRP-1",
       "UPRRP-2",
       "UPRRP-3",
     ]);
+  });
+
+  test("crawls each location's windows up to today and completes once every yard reported", async () => {
+    const { actions } = mockDirectory();
+    const { search, sent } = site([
+      car(1, "2026-11-23"),
+      car(2, "2026-11-20"),
+      car(3, "2026-11-23"),
+    ]);
+    const first = collect(crawlAt("1"));
+    const minnesota = await Effect.runPromise(
+      streamUpullRPartsInventoryWithSearch(first, deps(search).deps),
+    );
+    expect(minnesota).toMatchObject({
+      status: "paused",
+      count: 2,
+      cursor: { phase: "crawl", location: "3", end: TODAY, storesSeen: [1, 2] },
+    });
     expect(first.vehicles.map((vehicle) => vehicle.make)).toEqual([
       "Ford",
       "Ford",
     ]);
-    expect(first.vehicles[0]?.imageUrl).toBe(
-      "https://api.aaaparts.com/staticImages/UG072546_6_Facebook_1789479328434.jpg",
-    );
+    // The window's end is today, explicitly; the canaries leave dates open.
+    expect(sent.filter((params) => params.makes === "")).toEqual([
+      { site: "1", beginDate: "2000-01-01", endDate: TODAY, makes: "" },
+    ]);
+    expect(actions).not.toContain("getMakes");
+    expect(actions).not.toContain("getModels");
 
-    const second = collect();
-    const toledoChunk = await Effect.runPromise(
+    const toledo = await Effect.runPromise(
       streamUpullRPartsInventoryWithSearch(
-        { ...second, startCursor: minnesotaChunk.cursor },
-        (request) => request,
-        search,
+        collect(minnesota.cursor),
+        deps(search).deps,
       ),
     );
-    expect(toledoChunk).toMatchObject({
+    expect(toledo).toMatchObject({
       status: "complete",
       count: 1,
       cursor: { phase: "complete", storesSeen: [1, 2, 3] },
     });
-    expect(second.yards).toEqual([]);
   });
 
-  test("pauses after the makes it started once the chunk budget is spent", async () => {
-    mockDirectory({ makes: ["FORD", "Kia", "Mazda"] });
-    const { search } = stockedSearch({ "1": minnesota });
-    let clock = 0;
-    const result = await Effect.runPromise(
+  test("mints tokens for the chunk's planned windows, not a fixed count", async () => {
+    mockDirectory();
+    const days = businessDays("2026-11-23", 5);
+    const { search } = site(days.map((day) => car(1, day)));
+    const { deps: chunkDeps, opened } = deps(search, {
+      history: history({
+        counts: { "1": Object.fromEntries(days.map((day) => [day, 80])) },
+        publishedDay: TODAY,
+      }),
+    });
+    await Effect.runPromise(
+      streamUpullRPartsInventoryWithSearch(collect(crawlAt("1")), chunkDeps),
+    );
+    // Today plus five 80-vehicle days, in 6 windows, the canaries, an empty
+    // window's re-check, make and split searches, and transit retries.
+    expect(opened).toEqual([6 + 2 + 2 + 3 + 3 + 2]);
+    expect(opened[0]).toBeLessThan(UPULLRPARTS_CHUNK_SEARCHES + 2);
+  });
+
+  test("reuses known VINs' makes and photos, looking up only new stock and known stock without a photo", async () => {
+    const { photoStocks } = mockDirectory();
+    const { search } = site([
+      car(1, "2026-11-23", { VIN: "1MEFM50U01A000001", StockNumber: "KNOWN1" }),
+      car(1, "2026-11-23", {
+        VIN: "1FAFP34N05W000002",
+        StockNumber: "NOPHOTO",
+      }),
+      car(1, "2026-11-23", { VIN: "1FAFP34N05W000003", StockNumber: "MOVED" }),
+      car(2, "2026-11-23", { VIN: "1FAFP34N05W000004", StockNumber: "NEW1" }),
+    ]);
+    const sink = collect(crawlAt("1"));
+    await Effect.runPromise(
       streamUpullRPartsInventoryWithSearch(
-        collect(),
-        (request) => request,
-        (params) =>
-          search(params).pipe(
-            Effect.tap(() =>
-              Effect.sync(() => {
-                clock += UPULLRPARTS_MAKE_START_BUDGET_MS;
-              }),
-            ),
-          ),
-        () => clock,
+        sink,
+        deps(search, {
+          history: history({
+            known: {
+              "1MEFM50U01A000001": {
+                make: "Mercury",
+                stockNumber: "KNOWN1",
+                imageUrl:
+                  "https://api.aaaparts.com/staticImages/KNOWN1_6_x.jpg",
+              },
+              "1FAFP34N05W000002": {
+                make: "Ford",
+                stockNumber: "NOPHOTO",
+                imageUrl: null,
+              },
+              "1FAFP34N05W000003": {
+                make: "Ford",
+                stockNumber: "OLDSTOCK",
+                imageUrl:
+                  "https://api.aaaparts.com/staticImages/OLDSTOCK_6_x.jpg",
+              },
+            },
+          }),
+        }).deps,
       ),
     );
-    expect(result).toMatchObject({
-      status: "paused",
-      cursor: { phase: "crawl", location: "1", afterMake: "FORD" },
+    expect(photoStocks.sort()).toEqual(["MOVED", "NEW1", "NOPHOTO"]);
+    const byStock = new Map(
+      sink.vehicles.map((vehicle) => [vehicle.stockNumber, vehicle]),
+    );
+    expect(byStock.get("KNOWN1")).toMatchObject({
+      make: "Mercury",
+      imageUrl: "https://api.aaaparts.com/staticImages/KNOWN1_6_x.jpg",
     });
+    expect(byStock.get("NEW1")?.imageUrl).toContain("NEW1_6_");
+    expect(byStock.get("NEW1")?.make).toBe("Ford");
   });
 
-  test("starts fewer steps when the session took part of the chunk's work limit to open", async () => {
-    const makes = Array.from({ length: 20 }, (_, i) => `Make${10 + i}`);
-    mockDirectory({ makes });
-    const { search } = stockedSearch({ "1": minnesota });
-    let at = 0;
-    let opened = false;
-    // Each search is paced 7.5 s; the first one also waits for a slow
-    // session open that leaves 150 s of the five-minute work limit.
+  test("resolves a new vehicle of a model two makes list with one search of its day and each make", async () => {
+    mockDirectory();
+    const { search, sent } = site([
+      car(1, "2026-11-23", { make: "SHELBY", Model: "MUSTANG" }),
+      // Every location stocks Fords, which the canaries look for.
+      car(2, "2026-11-20"),
+    ]);
+    const sink = collect(crawlAt("1"));
+    await Effect.runPromise(
+      streamUpullRPartsInventoryWithSearch(sink, deps(search).deps),
+    );
+    expect(sink.vehicles.map((vehicle) => vehicle.make)).toEqual([
+      "Shelby",
+      "Ford",
+    ]);
+    expect(
+      sent
+        .filter((params) => params.beginDate === "2026-11-23")
+        .map((params) => params.makes),
+    ).toEqual(["FORD", "SHELBY"]);
+  });
+
+  test("a chunk of new VINs stays within its work limit: no directory requests, and windows stop in time for the tail", async () => {
+    const { actions } = mockDirectory();
+    const days = businessDays("2026-11-23", 40);
+    const inventory = days.map((day) => car(1, day));
+    const { search: answer } = site(inventory);
+    let at = NOW;
+    let sent = 0;
+    // Each search is paced 7.5 s, as in production.
     const paced: UpullRPartsSearch = (params) =>
       Effect.gen(function* () {
-        yield* Effect.sleep(opened ? "7500 millis" : "150 seconds");
-        opened = true;
-        at = yield* Clock.currentTimeMillis;
-        return yield* search(params);
+        yield* Effect.sleep("7500 millis");
+        sent += 1;
+        at = NOW + (yield* Clock.currentTimeMillis);
+        return yield* answer(params);
       });
-    const result = await Effect.runPromise(
+    const { deps: chunkDeps } = deps(paced, {
+      now: () => at,
+      history: history({
+        counts: { "1": Object.fromEntries(days.map((day) => [day, 85])) },
+        publishedDay: TODAY,
+      }),
+    });
+    const outcome = await Effect.runPromise(
       Effect.gen(function* () {
         const fiber = yield* Effect.fork(
           Effect.either(
             streamUpullRPartsInventoryWithSearch(
-              collect(),
-              (request) => request,
-              paced,
-              () => at,
+              collect(crawlAt("1")),
+              chunkDeps,
             ),
           ),
         );
@@ -221,38 +438,75 @@ describe("U Pull R Parts make crawl", () => {
             () => new Promise((resolve) => setTimeout(resolve, 0)),
           );
         }
-        return yield* Fiber.join(fiber);
+        const result = yield* Fiber.join(fiber);
+        return { result, elapsed: yield* Clock.currentTimeMillis };
       }).pipe(Effect.provide(TestContext.TestContext)),
     );
-    expect(result).toMatchObject({
+    expect(outcome.result).toMatchObject({
       _tag: "Right",
       right: { status: "paused", cursor: { phase: "crawl", location: "1" } },
     });
+    expect(outcome.elapsed).toBeLessThan(Duration.toMillis("5 minutes"));
+    expect(sent).toBeLessThanOrEqual(UPULLRPARTS_CHUNK_SEARCHES);
+    expect(actions).not.toContain("getMakes");
+    expect(actions).not.toContain("getModels");
+  });
+
+  test("splits a day that alone fills a search by make in its own chunk, then crawls on from the day before", async () => {
+    mockDirectory();
+    const day = "2026-11-23";
+    const inventory = [
+      ...Array.from({ length: 60 }, () => car(1, day)),
+      ...Array.from({ length: 50 }, () =>
+        car(2, day, { make: "Kia", Model: "SOUL" }),
+      ),
+    ];
+    const { search } = site(inventory);
+    const first = collect(crawlAt("1"));
+    const paused = await Effect.runPromise(
+      streamUpullRPartsInventoryWithSearch(
+        first,
+        deps(search, {
+          history: history({
+            counts: { "1": { [day]: 95 } },
+            publishedDay: TODAY,
+          }),
+        }).deps,
+      ),
+    );
+    expect(paused.cursor).toMatchObject({
+      phase: "split",
+      location: "1",
+      day,
+      afterMake: null,
+    });
+    expect(
+      paused.cursor.phase === "split" ? paused.cursor.missing : [],
+    ).toHaveLength(UPULLRPARTS_SEARCH_LIMIT);
+    const second = collect(paused.cursor);
+    const { deps: splitDeps, opened } = deps(search);
+    const split = await Effect.runPromise(
+      streamUpullRPartsInventoryWithSearch(second, splitDeps),
+    );
+    expect(opened).toEqual([DIRECTORY.makes.length + 2 + 2]);
+    expect(split.cursor).toMatchObject({
+      phase: "crawl",
+      location: "1",
+      end: "2026-11-22",
+    });
+    const makes = new Map<string, number>();
+    for (const vehicle of second.vehicles)
+      makes.set(vehicle.make, (makes.get(vehicle.make) ?? 0) + 1);
+    expect(Object.fromEntries(makes)).toEqual({ Ford: 60, Kia: 50 });
   });
 
   test("rejects a crawl that never saw a known yard and emits nothing", async () => {
     mockDirectory();
-    const { search } = stockedSearch({
-      "1": minnesota,
-      "3": { FORD: [{ ...fixture, Store: 3, Year: null }] },
-    });
-    const sink = collect();
+    const { search } = site([car(3, "2026-11-23", { Year: null })]);
+    const sink = collect(crawlAt("3", { storesSeen: [1, 2] }));
     const result = await Effect.runPromise(
       Effect.either(
-        streamUpullRPartsInventoryWithSearch(
-          {
-            ...sink,
-            startCursor: {
-              source: "upullrparts",
-              phase: "crawl",
-              location: "3",
-              afterMake: null,
-              storesSeen: [1, 2],
-            },
-          },
-          (request) => request,
-          search,
-        ),
+        streamUpullRPartsInventoryWithSearch(sink, deps(search).deps),
       ),
     );
     expect(result._tag).toBe("Left");
@@ -261,16 +515,13 @@ describe("U Pull R Parts make crawl", () => {
     expect(sink.vehicles).toEqual([]);
   });
 
-  test("pauses until a later retry on an empty canary, a blocked IP, before trusting empty makes", async () => {
-    const actions = mockDirectory();
-    const sink = collect();
-    const at = 1_000_000;
+  test("pauses until a later retry on an empty canary, a blocked IP, before trusting empty windows", async () => {
+    const { actions } = mockDirectory();
+    const sink = collect(crawlAt("1"));
     const result = await Effect.runPromise(
       streamUpullRPartsInventoryWithSearch(
         sink,
-        (request) => request,
-        () => Effect.succeed([]),
-        () => at,
+        deps(() => Effect.succeed([]), { now: () => NOW }).deps,
       ),
     );
     // The workflow sleeps until retryAt, so a block costs one browser
@@ -279,59 +530,52 @@ describe("U Pull R Parts make crawl", () => {
       status: "paused",
       count: 0,
       cursor: {
-        ...UpullRPartsCursor.initial,
-        blockedSince: at,
-        retryAt: at + UPULLRPARTS_BLOCK_RETRY_MS,
+        ...crawlAt("1"),
+        blockedSince: NOW,
+        retryAt: NOW + UPULLRPARTS_BLOCK_RETRY_MS,
       },
     });
     expect(result.warnings?.[0]).toContain("blocking this IP");
     expect(actions).not.toContain("getVehicleImages");
     expect(sink.vehicles).toEqual([]);
-    expect(sink.yards).toEqual([]);
     expect(UpullRPartsCursorSchema.safeParse(result.cursor).success).toBe(true);
   });
 
-  test("pauses at the same cursor when the IP is blocked partway through", async () => {
+  test("pauses at the same cursor when the closing canary finds the IP blocked", async () => {
     mockDirectory();
+    const { search } = site([car(1, "2026-11-23")]);
     let searches = 0;
-    const { search } = stockedSearch({ "1": minnesota });
-    const sink = collect();
+    const sink = collect(crawlAt("1"));
     const result = await Effect.runPromise(
       streamUpullRPartsInventoryWithSearch(
         sink,
-        (request) => request,
-        (params) =>
+        deps((params) =>
           Effect.suspend(() =>
             searches++ < 2 ? search(params) : Effect.succeed([]),
           ),
-        () => 0,
+        ).deps,
       ),
     );
     expect(result).toMatchObject({
       status: "paused",
       count: 0,
-      cursor: {
-        ...UpullRPartsCursor.initial,
-        blockedSince: 0,
-        retryAt: UPULLRPARTS_BLOCK_RETRY_MS,
-      },
+      cursor: { ...crawlAt("1"), blockedSince: NOW },
     });
     expect(sink.vehicles).toEqual([]);
   });
 
   test("keeps the first block time and stops once the next retry passes the block limit", async () => {
     mockDirectory();
-    const blocked = {
-      ...UpullRPartsCursor.initial,
+    const blocked = crawlAt("1", {
       blockedSince: 0,
       retryAt: UPULLRPARTS_BLOCK_RETRY_MS,
-    };
+    });
     const again = await Effect.runPromise(
       streamUpullRPartsInventoryWithSearch(
-        { ...collect(), startCursor: blocked },
-        (request) => request,
-        () => Effect.succeed([]),
-        () => UPULLRPARTS_BLOCK_RETRY_MS,
+        collect(blocked),
+        deps(() => Effect.succeed([]), {
+          now: () => UPULLRPARTS_BLOCK_RETRY_MS,
+        }).deps,
       ),
     );
     expect(again.cursor).toMatchObject({
@@ -342,10 +586,8 @@ describe("U Pull R Parts make crawl", () => {
     const stopped = await Effect.runPromise(
       Effect.either(
         streamUpullRPartsInventoryWithSearch(
-          { ...collect(), startCursor: { ...blocked, retryAt: late } },
-          (request) => request,
-          () => Effect.succeed([]),
-          () => late,
+          collect(crawlAt("1", { blockedSince: 0, retryAt: late })),
+          deps(() => Effect.succeed([]), { now: () => late }).deps,
         ),
       ),
     );
@@ -359,20 +601,16 @@ describe("U Pull R Parts make crawl", () => {
 
   test("clears the block once a chunk's canaries pass", async () => {
     mockDirectory();
-    const { search } = stockedSearch({ "1": minnesota, "3": toledo });
+    const { search } = site([car(1, "2026-11-23"), car(2, "2026-11-23")]);
     const result = await Effect.runPromise(
       streamUpullRPartsInventoryWithSearch(
-        {
-          ...collect(),
-          startCursor: {
-            ...UpullRPartsCursor.initial,
+        collect(
+          crawlAt("1", {
             blockedSince: 0,
             retryAt: UPULLRPARTS_BLOCK_RETRY_MS,
-          },
-        },
-        (request) => request,
-        search,
-        () => UPULLRPARTS_BLOCK_RETRY_MS,
+          }),
+        ),
+        deps(search).deps,
       ),
     );
     expect(result.status).toBe("paused");
@@ -380,8 +618,22 @@ describe("U Pull R Parts make crawl", () => {
     expect(result.cursor).not.toHaveProperty("retryAt");
   });
 
+  test("fails clearly, emitting nothing, when the checkpoint names no stored directory", async () => {
+    mockDirectory();
+    const sink = collect(crawlAt("1", { statePath: null }));
+    const result = await Effect.runPromise(
+      Effect.either(
+        streamUpullRPartsInventoryWithSearch(sink, deps(site([]).search).deps),
+      ),
+    );
+    expect(result._tag).toBe("Left");
+    if (result._tag === "Left")
+      expect(result.left.message).toContain("restart the run");
+    expect(sink.vehicles).toEqual([]);
+  });
+
   test.each(partialImages)(
-    "partial empty photos fail before yard or vehicle callbacks: %j",
+    "partial empty photos fail before vehicle callbacks: %j",
     async (responseInit) => {
       mockDirectory({
         photos: () =>
@@ -395,84 +647,97 @@ describe("U Pull R Parts make crawl", () => {
             },
           ),
       });
-      const sink = collect();
+      const sink = collect(crawlAt("1"));
       const result = await Effect.runPromise(
         Effect.either(
           streamUpullRPartsInventoryWithSearch(
             sink,
-            (request) => request,
-            stockedSearch({ "1": minnesota }).search,
+            deps(site([car(1, "2026-11-23")]).search).deps,
           ),
         ),
       );
       expect(result._tag).toBe("Left");
       expect(sink.vehicles).toEqual([]);
-      expect(sink.yards).toEqual([]);
     },
   );
 
   test("accounts rejected, duplicate and unknown-yard rows", async () => {
     mockDirectory();
-    const { search } = stockedSearch({
-      "1": {
-        FORD: [
-          ...minnesota.FORD,
-          { ...fixture, StockNumber: "UG072548", VIN: null },
-          { Store: "bad" },
-          { ...fixture, Store: 99, StockNumber: "X1", VIN: " observed-vin " },
-        ],
+    const kept = car(1, "2026-11-23");
+    const rows = [
+      kept,
+      car(2, "2026-11-23"),
+      { ...kept, row: { ...kept.row, StockNumber: "UGDUP" } },
+      car(1, "2026-11-23", { VIN: "" }),
+      {
+        make: "FORD",
+        row: {
+          ...kept.row,
+          Store: 99,
+          VIN: " observed-vin ",
+          StockNumber: "X1",
+        },
       },
-    });
+    ];
+    const answer = site(rows.filter((entry) => entry.row.Store !== 99)).search;
+    const search: UpullRPartsSearch = (params) =>
+      answer(params).pipe(
+        Effect.map((found) =>
+          params.makes === "" && params.beginDate !== ""
+            ? [...found, { Store: "bad" }, rows[4]?.row]
+            : found,
+        ),
+      );
     const result = await Effect.runPromise(
       streamUpullRPartsInventoryWithSearch(
-        collect(),
-        (request) => request,
-        search,
+        collect(crawlAt("1")),
+        deps(search).deps,
       ),
     );
     expect(result.count).toBe(2);
     expect(result.accounting).toEqual({
-      recordsProcessed: 5,
+      recordsProcessed: 6,
       recordsExcluded: 1,
       recordsRejected: 2,
-      duplicateVehicles: 0,
+      duplicateVehicles: 1,
     });
     expect(result.observedVins).toEqual(["OBSERVED-VIN"]);
-    expect(result.warnings?.[0]).toContain("yard 99: skipped 1 vehicles");
+    expect(result.warnings).toContainEqual(
+      expect.stringContaining("yard 99: skipped 1 vehicles"),
+    );
   });
 
   test("bounds callback batches", async () => {
-    const makes = ["FORD", "Kia", "Mazda", "Saab", "Volvo", "Jeep"];
-    mockDirectory({ makes });
-    const stock = Object.fromEntries(
-      makes.map((make, m) => [
-        make,
-        Array.from({ length: 84 }, (_, i) => ({
-          ...fixture,
-          StockNumber: `S${m}-${i}`,
-          VIN: `${m}`.padStart(3, "0") + String(i).padStart(14, "0"),
-        })),
-      ]),
+    mockDirectory();
+    const days = businessDays("2026-11-23", 6);
+    const inventory = days.flatMap((day) =>
+      Array.from({ length: 84 }, () => car(1, day)),
     );
     const sizes: number[] = [];
     await Effect.runPromise(
       streamUpullRPartsInventoryWithSearch(
         {
+          startCursor: crawlAt("1"),
+          loadState,
           onBatch: (batch) =>
             Effect.sync(() => {
               sizes.push(batch.length);
             }),
         },
-        (request) => request,
-        stockedSearch({ "1": stock }).search,
+        deps(site(inventory).search, {
+          history: history({
+            counts: { "1": Object.fromEntries(days.map((day) => [day, 84])) },
+            publishedDay: TODAY,
+          }),
+        }).deps,
       ),
     );
     expect(sizes).toEqual([250, 250, 4]);
   });
 
   test("replays the complete cursor without searching or emitting", async () => {
-    const actions = mockDirectory();
-    const { search, searches } = stockedSearch({});
+    const { actions } = mockDirectory();
+    const { search, sent } = site([]);
     const result = await Effect.runPromise(
       streamUpullRPartsInventoryWithSearch(
         {
@@ -481,78 +746,18 @@ describe("U Pull R Parts make crawl", () => {
             phase: "complete",
             storesSeen: [1, 2, 3],
           },
+          loadState,
           onBatch: () => Effect.die("must not emit"),
         },
-        (request) => request,
-        search,
+        deps(search).deps,
       ),
     );
     expect(result).toMatchObject({ status: "complete", count: 0 });
     expect(actions).toEqual([]);
-    expect(searches).toEqual([]);
+    expect(sent).toEqual([]);
   });
 
-  test("pauses inside a split make at the chunk's search budget and resumes there", async () => {
-    // 40 models of 3 vehicles: the make fills a page and splits by model.
-    const models = Array.from(
-      { length: 40 },
-      (_, i) => `M${String(i).padStart(2, "0")}`,
-    );
-    const stock = models.flatMap((model, m) =>
-      Array.from({ length: 3 }, (_, i) => ({
-        ...fixture,
-        Model: model,
-        StockNumber: `S${m}-${i}`,
-        VIN: `1FMCU9DG6A${String(m * 3 + i).padStart(7, "0")}`,
-      })),
-    );
-    mockDirectory({ makes: ["FORD"], models: { FORD: models } });
-    let searches = 0;
-    const search: UpullRPartsSearch = (params) =>
-      Effect.sync(() => {
-        searches += 1;
-        return stock
-          .filter((row) => params.models === "0" || row.Model === params.models)
-          .slice(0, UPULLRPARTS_SEARCH_LIMIT);
-      });
-    const first = collect();
-    const paused = await Effect.runPromise(
-      streamUpullRPartsInventoryWithSearch(first, (request) => request, search),
-    );
-    // Canary and make search, then one model per step while a whole step
-    // and the closing canary still fit in the budget.
-    const searchedModels =
-      UPULLRPARTS_CHUNK_SEARCHES - UPULLRPARTS_MAX_STEP_SEARCHES - 2;
-    expect(paused).toMatchObject({
-      status: "paused",
-      cursor: {
-        phase: "split",
-        location: "1",
-        make: "FORD",
-        model: models[searchedModels - 1],
-        year: null,
-      },
-    });
-    expect(searches).toBeLessThanOrEqual(UPULLRPARTS_CHUNK_SEARCHES);
-    expect(first.vehicles).toHaveLength(searchedModels * 3);
-
-    const second = collect();
-    const resumed = await Effect.runPromise(
-      streamUpullRPartsInventoryWithSearch(
-        { ...second, startCursor: paused.cursor },
-        (request) => request,
-        search,
-      ),
-    );
-    expect(resumed.cursor).toMatchObject({ phase: "crawl", location: "3" });
-    const vins = [...first.vehicles, ...second.vehicles].map(
-      (vehicle) => vehicle.vin,
-    );
-    expect(vins).toHaveLength(120);
-    expect(new Set(vins).size).toBe(120);
-  });
-
-  test("spends one fresh token per search and retries a failed request with another", async () => {
+  test("spends one fresh token per search, sends its dates and make, and retries a failed request with another token", async () => {
     const sent: URLSearchParams[] = [];
     let failures = 1;
     mockDirectory({
@@ -571,7 +776,12 @@ describe("U Pull R Parts make crawl", () => {
       makeUpullRPartsTokenSearch(
         tokens,
         (request) => request,
-      )({ site: "1", makes: "Ford", models: "0", years: "0" }),
+      )({
+        site: "3",
+        beginDate: "2026-11-19",
+        endDate: TODAY,
+        makes: "",
+      }),
     );
     expect(rows).toEqual([fixture]);
     expect(sent.map((params) => params.get("turnstileToken"))).toEqual([
@@ -581,12 +791,12 @@ describe("U Pull R Parts make crawl", () => {
     expect(Object.fromEntries(sent[1] ?? [])).toEqual({
       action: "doAaaApiCall",
       apiAction: "getVehicles",
-      site: "1",
-      makes: "Ford",
+      site: "3",
+      makes: "",
       models: "0",
       years: "0",
-      beginDate: "",
-      endDate: "",
+      beginDate: "2026-11-19",
+      endDate: TODAY,
       turnstileToken: "token-2",
     });
   });
@@ -621,9 +831,9 @@ describe("U Pull R Parts make crawl", () => {
           );
           const params = {
             site: "1",
+            beginDate: "",
+            endDate: "",
             makes: "Ford",
-            models: "0",
-            years: "0",
           } as const;
           const fiber = yield* Effect.fork(
             Effect.zipRight(search(params), search(params)),
@@ -651,10 +861,7 @@ describe("U Pull R Parts make crawl", () => {
 
   test("accepts a block wait only with its start time and inside the block limit", () => {
     const parse = (fields: object) =>
-      UpullRPartsCursorSchema.safeParse({
-        ...UpullRPartsCursor.initial,
-        ...fields,
-      }).success;
+      UpullRPartsCursorSchema.safeParse({ ...crawlAt("1"), ...fields }).success;
     expect(parse({ blockedSince: 10, retryAt: 20 })).toBe(true);
     expect(parse({ retryAt: 20 })).toBe(false);
     expect(parse({ blockedSince: 10 })).toBe(false);
@@ -664,12 +871,10 @@ describe("U Pull R Parts make crawl", () => {
     ).toBe(false);
   });
 
-  test("starts from the first location by default", () => {
+  test("starts each run by loading the directory", () => {
     expect(UpullRPartsCursor.initial).toEqual({
       source: "upullrparts",
-      phase: "crawl",
-      location: "1",
-      afterMake: null,
+      phase: "directory",
       storesSeen: [],
     });
   });

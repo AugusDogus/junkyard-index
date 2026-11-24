@@ -50,7 +50,7 @@ export const UpullRPartsModelsSchema = Schema.Array(providerLabel).pipe(
 );
 
 function fetchUpullRPartsJson<A, I>(
-  apiAction: "getMakes" | "getModels" | "getYears" | "getVehicles",
+  apiAction: "getMakes" | "getModels" | "getVehicles",
   params: Record<string, string>,
   schema: Schema.Schema<A, I>,
   requestGate?: ProviderRequestGate,
@@ -93,17 +93,34 @@ function fetchUpullRPartsJson<A, I>(
 }
 
 /**
- * One getVehicles search with a Turnstile token from a browser. Any IP may
- * spend a token, but each verifies once: a repeated token returns an empty
- * list, so the request is never retried with it.
+ * One getVehicles search with a Turnstile token from a browser: arrivals
+ * (`DateSetData`) from `beginDate` to `endDate`, inclusive `YYYY-MM-DD` ("" is
+ * open), at one location, of `makes` when given ("" or "0" is any make); the
+ * dates and make combine with AND, and model and year are any. Any IP may
+ * spend a token, but each verifies once: a repeated or rejected token, like a
+ * blocked IP, returns an empty list with HTTP 200, so the request is never
+ * retried with it.
  */
 export function fetchUpullRPartsVehicles(
-  params: Readonly<Record<"site" | "makes" | "models" | "years", string>>,
+  params: Readonly<{
+    site: string;
+    beginDate: string;
+    endDate: string;
+    makes?: string;
+  }>,
   turnstileToken: string,
 ) {
   return fetchUpullRPartsJson(
     "getVehicles",
-    { ...params, beginDate: "", endDate: "", turnstileToken },
+    {
+      site: params.site,
+      makes: params.makes ?? "",
+      models: "0",
+      years: "0",
+      beginDate: params.beginDate,
+      endDate: params.endDate,
+      turnstileToken,
+    },
     Schema.Array(Schema.Unknown),
     undefined,
     0,
@@ -115,23 +132,6 @@ export function fetchUpullRPartsMakes(requestGate: ProviderRequestGate) {
     "getMakes",
     {},
     UpullRPartsMakesSchema,
-    requestGate,
-  );
-}
-
-export const UpullRPartsYearsSchema = Schema.Array(
-  Schema.String.pipe(Schema.pattern(/^\d{4}$/)),
-).pipe(Schema.maxItems(200));
-
-export function fetchUpullRPartsYears(
-  make: string,
-  model: string,
-  requestGate: ProviderRequestGate,
-) {
-  return fetchUpullRPartsJson(
-    "getYears",
-    { Make: make, Model: model },
-    UpullRPartsYearsSchema,
     requestGate,
   );
 }

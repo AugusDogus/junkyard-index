@@ -66,7 +66,11 @@ import { TEARAPART_SITE_CONFIG } from "../src/server/ingestion/tap-sites";
 import { streamPullNSaveInventory } from "../src/server/ingestion/pullnsave-connector";
 import { streamWrenchApartInventory } from "../src/server/ingestion/wrenchapart-connector";
 import { streamUpullRPartsInventory } from "../src/server/ingestion/upullrparts-connector";
-import { soakUpullRPartsInventory } from "./soak-upullrparts";
+import { KERNEL_USD_PER_SECOND } from "../src/server/ingestion/kernel-usage";
+import {
+  soakUpullRPartsInventory,
+  upullRPartsSoakHistory,
+} from "./soak-upullrparts";
 import { streamIPullUPullInventory } from "../src/server/ingestion/ipullupull-connector";
 import { streamUpullitwaInventory } from "../src/server/ingestion/upullitwa-connector";
 import { streamPartsGaloreInventory } from "../src/server/ingestion/partsgalore-connector";
@@ -1360,9 +1364,27 @@ async function main(): Promise<void> {
               }),
             );
           case "upullrparts":
-            return soakUpullRPartsInventory((startCursor) =>
-              runProgram(streamUpullRPartsInventory({ startCursor, onBatch })),
-            );
+            return soakUpullRPartsInventory((startCursor, loadState) =>
+              runProgram(
+                streamUpullRPartsInventory({
+                  startCursor,
+                  onBatch,
+                  loadState,
+                  loadHistory: upullRPartsSoakHistory,
+                }),
+              ),
+            ).then(async (result) => {
+              // Every browser this soak opened, metered in its local table.
+              const usage = await localClient.execute(
+                "select count(*) browsers, coalesce(sum(ended_at - started_at), 0) ms, sum(ended_at is null) open from kernel_browser_usage where source = 'upullrparts'",
+              );
+              const row = usage.rows[0];
+              const seconds = Number(row?.ms ?? 0) / 1000;
+              console.log(
+                `[upullrparts] kernel browsers=${String(row?.browsers ?? 0)} unclosed=${String(row?.open ?? 0)} headful-seconds=${seconds.toFixed(1)} cost-usd=${(seconds * KERNEL_USD_PER_SECOND.headful).toFixed(4)}`,
+              );
+              return result;
+            });
           case "pullnsave":
             return runProgram(
               streamPullNSaveInventory({

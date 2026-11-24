@@ -1,9 +1,12 @@
 import { z } from "zod";
-import { UPULLRPARTS_LOCATIONS } from "./upullrparts-make-crawl";
+import {
+  UPULLRPARTS_LOCATIONS,
+  UPULLRPARTS_SEARCH_LIMIT,
+} from "./upullrparts-date-crawl";
 
 const source = z.literal("upullrparts");
 const StoreIdsSchema = z.array(z.number().int().positive()).max(16);
-
+const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const label = z.string().min(1).max(100);
 
 /** A chunk whose canary finds getVehicles blocking the function's IP pauses
@@ -19,39 +22,44 @@ const block = {
   blockedSince: timestamp.optional(),
   retryAt: timestamp.optional(),
 };
+/** Shared by every searching chunk: the run's end date (`today`, the UTC
+ * day its directory was loaded), the directory's snapshot path (set by the
+ * repository's checkpoint, null only until then) and the stores that have
+ * reported vehicles, so the final chunk can reject a crawl that silently
+ * missed a yard. */
+const crawling = {
+  source,
+  location: z.enum(UPULLRPARTS_LOCATIONS),
+  today: day,
+  statePath: z.string().min(1).max(256).nullable(),
+  storesSeen: StoreIdsSchema,
+  ...block,
+};
 
 /**
- * Crawl: resume `location` after the last fully crawled make (null before
- * the first). Split: resume `make` at `location` after its models up to
- * `model`, in label order, and of `model` only after the years up to `year`
- * when it is not null. `storesSeen` accumulates stores that reported
- * vehicles, so the final chunk can reject a crawl that silently missed a yard.
+ * Directory: load getMakes and getModels for the run. Crawl: search
+ * `location`'s arrivals from `end` back to the first day, every later
+ * arrival up to `today` having been accepted. Split: `day` alone filled a
+ * search at `location`, so it is searched make by make after `afterMake`;
+ * `missing` are that full search's rows no make has returned yet.
  */
 export const UpullRPartsCursorSchema = z
   .discriminatedUnion("phase", [
     z
       .object({
         source,
-        phase: z.literal("crawl"),
-        location: z.enum(UPULLRPARTS_LOCATIONS),
-        afterMake: label.nullable(),
+        phase: z.literal("directory"),
         storesSeen: StoreIdsSchema,
-        ...block,
       })
       .strict(),
+    z.object({ ...crawling, phase: z.literal("crawl"), end: day }).strict(),
     z
       .object({
-        source,
+        ...crawling,
         phase: z.literal("split"),
-        location: z.enum(UPULLRPARTS_LOCATIONS),
-        make: label,
-        model: label,
-        year: z
-          .string()
-          .regex(/^\d{4}$/)
-          .nullable(),
-        storesSeen: StoreIdsSchema,
-        ...block,
+        day,
+        afterMake: label.nullable(),
+        missing: z.array(label).max(UPULLRPARTS_SEARCH_LIMIT),
       })
       .strict(),
     z
@@ -63,7 +71,7 @@ export const UpullRPartsCursorSchema = z
       .strict(),
   ])
   .superRefine((cursor, context) => {
-    if (cursor.phase === "complete") return;
+    if (cursor.phase === "complete" || cursor.phase === "directory") return;
     const { blockedSince, retryAt } = cursor;
     if (blockedSince === undefined && retryAt === undefined) return;
     if (
@@ -81,11 +89,5 @@ export const UpullRPartsCursorSchema = z
 export type UpullRPartsCursor = z.infer<typeof UpullRPartsCursorSchema>;
 
 export const UpullRPartsCursor = {
-  initial: {
-    source: "upullrparts",
-    phase: "crawl",
-    location: "1",
-    afterMake: null,
-    storesSeen: [],
-  },
+  initial: { source: "upullrparts", phase: "directory", storesSeen: [] },
 } as const satisfies { initial: UpullRPartsCursor };
