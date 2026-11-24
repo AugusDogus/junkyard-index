@@ -1,8 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
-import { Skeleton } from "~/components/ui/skeleton";
+import { useProxiedPhoto } from "~/hooks/use-proxied-photo";
+import { ProxiedPhoto } from "~/lib/proxied-photo";
 import wsrvLoader from "~/lib/wsrvLoader";
 
 type VehicleImageProps = {
@@ -12,31 +12,40 @@ type VehicleImageProps = {
   priority?: boolean;
 };
 
-export function VehicleImage({
-  src,
-  alt,
-  sizes,
-  priority = false,
-}: VehicleImageProps) {
-  const [useWsrvImage, setUseWsrvImage] = useState(true);
-  const [isPrimaryImageLoading, setIsPrimaryImageLoading] = useState(true);
-  const [isFallbackImageLoading, setIsFallbackImageLoading] = useState(false);
-  const [isFallbackImageFailed, setIsFallbackImageFailed] = useState(false);
+export function VehicleImage(props: VehicleImageProps) {
+  return <Photo key={props.src} {...props} />;
+}
 
-  useEffect(() => {
-    setUseWsrvImage(true);
-    setIsPrimaryImageLoading(true);
-    setIsFallbackImageLoading(false);
-    setIsFallbackImageFailed(false);
-  }, [src]);
+function Photo({ src, alt, sizes, priority = false }: VehicleImageProps) {
+  const { photo, ref, onLoad, onError } = useProxiedPhoto({
+    // The loader returns a bypassed host's URL unchanged.
+    proxied: wsrvLoader({ src, width: 1 }) !== src,
+    eager: priority,
+  });
 
-  if (useWsrvImage) {
+  if (photo.kind === "failed") {
     return (
-      <>
-        {isPrimaryImageLoading && !priority && (
-          <Skeleton className="absolute inset-0" aria-hidden="true" />
-        )}
+      <div className="bg-muted flex h-full items-center justify-center">
+        <div className="text-muted-foreground text-center">
+          <p className="text-sm">No Image Available</p>
+        </div>
+      </div>
+    );
+  }
+
+  // The shimmer sits behind the photo, which covers it once it paints.
+  return (
+    <>
+      {ProxiedPhoto.loading(photo) && (
+        <span
+          aria-hidden="true"
+          data-photo-loading
+          className="bg-muted absolute inset-0 animate-pulse"
+        />
+      )}
+      {photo.kind === "proxy" ? (
         <Image
+          ref={ref}
           priority={priority}
           loading={priority ? "eager" : "lazy"}
           fetchPriority={priority ? "high" : "auto"}
@@ -44,52 +53,23 @@ export function VehicleImage({
           src={src}
           alt={alt}
           fill
-          className={`object-cover transition-opacity duration-200 ${
-            isPrimaryImageLoading && !priority ? "opacity-0" : "opacity-100"
-          }`}
+          className="object-cover"
           sizes={sizes}
-          onLoad={() => {
-            setIsPrimaryImageLoading(false);
-          }}
-          onError={() => {
-            setIsPrimaryImageLoading(false);
-            setUseWsrvImage(false);
-            setIsFallbackImageLoading(true);
-          }}
+          onLoad={onLoad}
+          onError={onError}
         />
-      </>
-    );
-  }
-
-  return (
-    <>
-      {isFallbackImageLoading && !priority && (
-        <Skeleton className="absolute inset-0" aria-hidden="true" />
-      )}
-      {isFallbackImageFailed ? (
-        <div className="bg-muted flex h-full items-center justify-center">
-          <div className="text-muted-foreground text-center">
-            <p className="text-sm">No Image Available</p>
-          </div>
-        </div>
       ) : (
         <img
+          ref={ref}
           src={src}
           alt={alt}
-          className={`h-full w-full object-cover transition-opacity duration-200 ${
-            isFallbackImageLoading && !priority ? "opacity-0" : "opacity-100"
-          }`}
+          className="absolute inset-0 h-full w-full object-cover"
           loading={priority ? "eager" : "lazy"}
           fetchPriority={priority ? "high" : "auto"}
           decoding="async"
           referrerPolicy="no-referrer"
-          onLoad={() => {
-            setIsFallbackImageLoading(false);
-          }}
-          onError={() => {
-            setIsFallbackImageLoading(false);
-            setIsFallbackImageFailed(true);
-          }}
+          onLoad={onLoad}
+          onError={onError}
         />
       )}
     </>

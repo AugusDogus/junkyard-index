@@ -1,33 +1,56 @@
 "use client";
 
-import { useState } from "react";
+import { useProxiedPhoto } from "~/hooks/use-proxied-photo";
+import { ProxiedPhoto } from "~/lib/proxied-photo";
 import wsrvLoader from "~/lib/wsrvLoader";
 
 /** Isolates photo failure handling from the server-rendered inventory row. */
 export function VehicleRowPhoto({ src }: { src: string }) {
-  const [failedSrc, setFailedSrc] = useState<string | null>(null);
   return (
     <div className="border-ink bg-paper-2 relative aspect-[4/3] w-24 shrink-0 self-start overflow-hidden border-2 sm:w-[8.25rem]">
-      {failedSrc === src ? (
-        <span className="text-ink-3 absolute inset-0 grid place-items-center px-1 text-center text-xs">
-          No photo
-        </span>
-      ) : (
-        <img
-          ref={(image) => {
-            // A cached image can fail before React hydrates this row.
-            if (image?.complete && image.naturalWidth === 0) setFailedSrc(src);
-          }}
-          src={wsrvLoader({ src, width: 256 })}
-          alt=""
-          width={128}
-          height={96}
-          loading="lazy"
-          decoding="async"
-          className="size-full object-cover"
-          onError={() => setFailedSrc(src)}
+      <Photo key={src} src={src} />
+    </div>
+  );
+}
+
+function Photo({ src }: { src: string }) {
+  const proxyUrl = wsrvLoader({ src, width: 256 });
+  const { photo, ref, onLoad, onError } = useProxiedPhoto({
+    proxied: proxyUrl !== src,
+    eager: false,
+  });
+  if (photo.kind === "failed") {
+    return (
+      <span className="text-ink-3 absolute inset-0 grid place-items-center px-1 text-center text-xs">
+        No photo
+      </span>
+    );
+  }
+  // The shimmer sits behind the photo, which covers it once it paints,
+  // even before hydration.
+  return (
+    <>
+      {ProxiedPhoto.loading(photo) && (
+        <span
+          aria-hidden="true"
+          data-photo-loading
+          className="bg-rule/60 absolute inset-0 animate-pulse"
         />
       )}
-    </div>
+      <img
+        key={photo.kind}
+        ref={ref}
+        src={photo.kind === "proxy" ? proxyUrl : src}
+        alt=""
+        width={128}
+        height={96}
+        loading="lazy"
+        decoding="async"
+        referrerPolicy={photo.kind === "direct" ? "no-referrer" : undefined}
+        className="relative size-full object-cover"
+        onLoad={onLoad}
+        onError={onError}
+      />
+    </>
   );
 }
