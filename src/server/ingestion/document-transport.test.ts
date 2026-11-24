@@ -1233,12 +1233,11 @@ test.each([
   },
 );
 
-test("a session acquired without a page is stopped when its scope closes, before the lease is released", async () => {
+test("a session acquired without a page takes the lease and is stopped when its scope closes, before the lease is released", async () => {
   const { sessions, events } = fakeSessions(servingPage());
   const id = await Effect.runPromise(
     Effect.scoped(
-      sessions.lease.pipe(
-        Effect.zipRight(DocumentTransport.acquireSession(sessions)),
+      DocumentTransport.acquireSession(sessions).pipe(
         Effect.map((session) => session.id),
       ),
     ),

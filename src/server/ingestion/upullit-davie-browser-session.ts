@@ -40,7 +40,6 @@ export function acquireUpullitDavieSession(
   Scope.Scope
 > {
   return Effect.gen(function* () {
-    yield* sessions.lease;
     const session = yield* DocumentTransport.acquireSession(sessions);
     const browser = yield* Effect.acquireRelease(
       Effect.tryPromise({

@@ -21,7 +21,6 @@ export interface VanderHaagsPageSource<E = Error> {
  * before the lease is released. A busy lease or plan defers the chunk. */
 export function acquireVanderHaagsSession(sessions: BrowserSessionLifecycle) {
   return Effect.gen(function* () {
-    yield* sessions.lease;
     const session = yield* DocumentTransport.acquireSession(sessions);
     const browser = yield* Effect.acquireRelease(
       Effect.tryPromise(() =>

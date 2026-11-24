@@ -583,12 +583,26 @@ function acquirePage(
   });
 }
 
-/** One started session for the enclosing scope, stopped when it closes. Take
- * the session lease first in the same scope, so the session stops before the
- * lease is released. A create the provider refused for capacity, credit or
- * plan limits defers the chunk; a stop that fails is logged, since the
- * provider ends the session on its own timeout. */
+/** One started session for the enclosing scope, under the session lease it
+ * takes in the same scope, so the session stops before the lease is
+ * released. A busy lease, or a create the provider refused for capacity,
+ * credit or plan limits, defers the chunk; a stop that fails is logged, since
+ * the provider ends the session on its own timeout. The session id is logged,
+ * so a run can be matched to the provider's usage. */
 function acquireSession(
+  sessions: BrowserSessionLifecycle,
+): Effect.Effect<BrowserSessionHandle, BrowserOpenError, Scope.Scope> {
+  return sessions.lease.pipe(
+    Effect.zipRight(startSession(sessions)),
+    Effect.tap((session) =>
+      Effect.logInfo(`Opened ${sessions.provider} session ${session.id}`),
+    ),
+  );
+}
+
+/** `acquireSession` without the lease, for `openPage`, whose caller
+ * `acquireBrowser` holds the lease for the whole scope already. */
+function startSession(
   sessions: BrowserSessionLifecycle,
 ): Effect.Effect<
   BrowserSessionHandle,
@@ -621,7 +635,7 @@ function openPage(
   Scope.Scope
 > {
   return Effect.gen(function* () {
-    const session = yield* acquireSession(sessions);
+    const session = yield* startSession(sessions);
     const connection = yield* Effect.acquireRelease(
       Effect.tryPromise({
         try: () => sessions.connect(session.wsEndpoint),

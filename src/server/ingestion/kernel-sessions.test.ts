@@ -204,19 +204,12 @@ test("every ingestion module that creates a Kernel browser takes the Kernel leas
       .map(([file]) => file),
   ).toEqual(["kernel-sessions.ts"]);
   // Session modules that drive their own page start a session through
-  // `acquireSession`, which takes no lease, so each takes the lease first.
-  const drivers = sources.filter(([, source]) =>
-    source?.includes("DocumentTransport.acquireSession("),
-  );
-  expect(drivers.map(([file]) => file).sort()).toEqual([
-    "upullit-davie-browser-session.ts",
-    "vanderhaags-browser-session.ts",
-  ]);
-  for (const [file, source] of drivers)
-    expect([
-      file,
-      (source?.indexOf("yield* sessions.lease;") ?? -1) >= 0 &&
-        (source?.indexOf("yield* sessions.lease;") ?? -1) <
-          (source?.indexOf("DocumentTransport.acquireSession(") ?? -1),
-    ]).toEqual([file, true]);
+  // `acquireSession`, which takes the lease itself; only document-transport.ts
+  // calls a session lifecycle's `create` (not the Hyperbrowser SDK's
+  // `client.sessions.create`, which hyperbrowser-sessions.ts guards).
+  expect(
+    sources
+      .filter(([, source]) => /(?<![.\w])sessions\.create\(/.test(source ?? ""))
+      .map(([file]) => file),
+  ).toEqual(["document-transport.ts"]);
 });

@@ -82,7 +82,7 @@ test("every ingestion module that creates a Hyperbrowser session takes the sessi
     source?.includes("HyperbrowserSessions.create("),
   );
   // Vander Haags and U Pull It Davie start theirs through
-  // `DocumentTransport.acquireSession`, guarded in kernel-sessions.test.ts.
+  // `DocumentTransport.acquireSession`, which takes the lease itself.
   expect(creators.map(([file]) => file).sort()).toEqual([
     "document-transport.ts",
   ]);
