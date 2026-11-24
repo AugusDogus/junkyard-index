@@ -6,12 +6,14 @@ export type BrowserProvider = "hyperbrowser" | "kernel";
 
 /** Sources that open one remote browser per chunk and choose its provider as
  * a whole: through a `DocumentTransport` page, or, for Vander Haags and U Pull
- * It Davie, a page their own session module drives over CDP. */
+ * It Davie, a page their own session module drives over CDP, or, for U Pull R
+ * Parts, the Turnstile minter's tabs. */
 export type BrowserSource =
   | "bigd"
   | "northwest"
   | "vanderhaags"
   | "upullitdavie"
+  | "upullrparts"
   | "six03"
   | "michigantruck";
 
@@ -29,6 +31,9 @@ export const BROWSER_PROVIDERS: Readonly<
   northwest: "kernel",
   vanderhaags: "kernel",
   upullitdavie: "kernel",
+  // Kernel browsers are metered against U Pull R Parts' daily and monthly
+  // Kernel caps; on Hyperbrowser they would mint without them.
+  upullrparts: "kernel",
   six03: "hyperbrowser",
   michigantruck: "hyperbrowser",
 };

@@ -6,7 +6,6 @@ import {
   type BrowserSessions,
 } from "../src/server/ingestion/document-transport";
 import { BrowserSessionError } from "../src/server/ingestion/errors";
-import { KernelUsage } from "../src/server/ingestion/kernel-usage";
 import type { ProviderRequestGate } from "../src/server/ingestion/provider-http-client";
 import {
   UPULLRPARTS_INVENTORY_URL,
@@ -18,6 +17,7 @@ import {
   makeUpullRPartsRequestGate,
   makeUpullRPartsSearchGate,
   streamUpullRPartsInventoryWithSearch,
+  upullRPartsBrowsers,
   type UpullRPartsStreamOptions,
 } from "../src/server/ingestion/upullrparts-connector";
 import type { UpullRPartsSearch } from "../src/server/ingestion/upullrparts-date-crawl";
@@ -179,14 +179,7 @@ export function streamUpullRPartsViaBrowser<E, R>(
 ) {
   return Effect.gen(function* () {
     const database = yield* Database;
-    const sessions = KernelUsage.metered(
-      DocumentTransport.kernel(
-        (yield* Config).kernelApiKey,
-        "upullrparts",
-        "page",
-      ),
-      { database, source: "upullrparts" },
-    );
+    const sessions = upullRPartsBrowsers(yield* Config, database);
     const requestGate = yield* makeUpullRPartsRequestGate;
     return yield* streamUpullRPartsInventoryWithSearch(options, {
       requestGate,

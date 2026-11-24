@@ -254,6 +254,7 @@ test("every ingestion module that creates a Kernel browser takes the Kernel leas
   expect(
     sources
       .filter(([, source]) => /(?<![.\w])sessions\.create\(/.test(source ?? ""))
-      .map(([file]) => file),
+      .map(([file]) => file)
+      .sort(),
   ).toEqual(["document-transport.ts", "kernel-usage.ts"]);
 });
