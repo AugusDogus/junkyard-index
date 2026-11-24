@@ -31,9 +31,37 @@ describe("SourceHealth.evaluate", () => {
       status: "healthy",
       staleAfterHours: 36,
       checked: ACTIVE_INGESTION_SOURCES.length,
+      outageAfterStale: Math.ceil(ACTIVE_INGESTION_SOURCES.length * 0.2),
       paused: [],
       stale: [],
     });
+  });
+
+  test("is stale once a fifth of the checked sources are stale", () => {
+    const outageAfterStale = Math.ceil(ACTIVE_INGESTION_SOURCES.length * 0.2);
+    const staleSources = ACTIVE_INGESTION_SOURCES.slice(0, outageAfterStale);
+    const recent = allFresh.map((row) =>
+      staleSources.some((source) => source === row.source)
+        ? published(row.source, hoursAgo(40))
+        : row,
+    );
+    const justBelow = allFresh.map((row) =>
+      staleSources.slice(1).some((source) => source === row.source)
+        ? published(row.source, hoursAgo(40))
+        : row,
+    );
+
+    const outage = SourceHealth.evaluate(recent, ACTIVE_INGESTION_SOURCES, now);
+    const degraded = SourceHealth.evaluate(
+      justBelow,
+      ACTIVE_INGESTION_SOURCES,
+      now,
+    );
+
+    expect(outage.status).toBe("stale");
+    expect(outage.stale).toHaveLength(outageAfterStale);
+    expect(degraded.status).toBe("degraded");
+    expect(degraded.stale).toHaveLength(outageAfterStale - 1);
   });
 
   test("lists each stale source with its last accepted publication", () => {
@@ -53,7 +81,7 @@ describe("SourceHealth.evaluate", () => {
       now,
     );
 
-    expect(health.status).toBe("stale");
+    expect(health.status).toBe("degraded");
     expect(health.stale).toEqual([
       {
         source: "row52",
@@ -98,6 +126,7 @@ describe("SourceHealth.evaluate", () => {
       status: "healthy",
       staleAfterHours: 36,
       checked: 0,
+      outageAfterStale: 1,
       paused: [...ACTIVE_INGESTION_SOURCES],
       stale: [],
     });

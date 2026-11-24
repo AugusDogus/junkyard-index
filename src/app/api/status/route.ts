@@ -2,11 +2,13 @@ import { IngestionPause } from "~/server/source-control/ingestion-pause";
 import { SourceHealth } from "~/server/ingestion/source-health";
 import { getCachedSourceFreshness } from "./source-freshness";
 
-// One Better Stack monitor for every source: 200 while each active, unpaused
-// source has an accepted publication within 36 hours, 503 listing the stale
-// ones otherwise. Paused sources (paused from /admin, or their Vercel flag
-// serving false) are listed, not checked. If the source_control read fails,
-// it is 503 with a body naming that read, since no source can be checked.
+// One Better Stack monitor for the ingestion pipeline: 503 once at least a
+// fifth of the active, unpaused sources lack an accepted publication within
+// 36 hours; 200 otherwise, "degraded" while fewer are stale. Both list the
+// stale sources; single providers alert through their own status rows. Paused
+// sources (paused from /admin, or their Vercel flag serving false) are
+// listed, not checked. If the source_control read fails, it is 503 with a
+// body naming that read, since no source can be checked.
 export async function GET() {
   const [recent, enabled] = await Promise.all([
     getCachedSourceFreshness(),
@@ -31,7 +33,7 @@ export async function GET() {
   }
   const health = SourceHealth.evaluate(recent, enabled.sources, new Date());
   return Response.json(health, {
-    status: health.status === "healthy" ? 200 : 503,
+    status: health.status === "stale" ? 503 : 200,
     headers: { "Cache-Control": "no-store" },
   });
 }

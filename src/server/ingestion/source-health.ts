@@ -16,11 +16,21 @@ export interface StaleSource {
   lastPublishedAt: Date | null;
 }
 
+/**
+ * The share of checked sources that must be stale at once before ingestion
+ * as a whole counts as down. Fewer stale sources are individual provider
+ * failures: the response still lists them, but they do not fail the check.
+ */
+const OUTAGE_STALE_SHARE = 0.2;
+
 export interface SourceHealth {
-  status: "healthy" | "stale";
+  /** "degraded": some sources are stale, fewer than `outageAfterStale`. */
+  status: "healthy" | "degraded" | "stale";
   staleAfterHours: number;
   /** Active sources that are not paused, so are expected to publish. */
   checked: number;
+  /** How many stale sources make the status "stale". */
+  outageAfterStale: number;
   /** Active sources paused by their Vercel flag; not checked. */
   paused: IngestionSource[];
   stale: StaleSource[];
@@ -28,8 +38,9 @@ export interface SourceHealth {
 
 export const SourceHealth = {
   /**
-   * Whether every active, unpaused source has an accepted publication within
-   * `SOURCE_STALE_AFTER_HOURS`. Retired sources are never checked.
+   * Which active, unpaused sources lack an accepted publication within
+   * `SOURCE_STALE_AFTER_HOURS`, and whether enough are stale to count as an
+   * ingestion outage. Retired sources are never checked.
    */
   evaluate(
     recent: readonly IngestionSourceFreshness[],
@@ -54,10 +65,20 @@ export const SourceHealth = {
         },
       ];
     });
+    const outageAfterStale = Math.max(
+      1,
+      Math.ceil(checked.length * OUTAGE_STALE_SHARE),
+    );
     return {
-      status: stale.length === 0 ? "healthy" : "stale",
+      status:
+        stale.length === 0
+          ? "healthy"
+          : stale.length >= outageAfterStale
+            ? "stale"
+            : "degraded",
       staleAfterHours: SOURCE_STALE_AFTER_HOURS,
       checked: checked.length,
+      outageAfterStale,
       paused: ACTIVE_INGESTION_SOURCES.filter(
         (source) => !enabled.includes(source),
       ),
