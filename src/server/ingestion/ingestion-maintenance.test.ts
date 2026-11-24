@@ -266,6 +266,115 @@ describe("ingestion-maintenance consumer", () => {
     });
   });
 
+  /** A released run whose 600 staged chunks were never cleaned up. */
+  async function largeStaleRun(
+    database: LibSQLDatabase,
+    store: IngestionSnapshotStore,
+  ) {
+    const chunks: string[] = [];
+    for (let index = 0; index < 600; index += 1)
+      chunks.push(
+        await store.put({
+          runId: "stale",
+          source: "urgiis",
+          chunk: { vehicles: [], observedVins: [`VIN${index}`] },
+        }),
+      );
+    await database.insert(ingestionSourceRun).values({
+      id: "stale:urgiis",
+      runId: "stale",
+      source: "urgiis",
+      status: "success",
+      snapshotChunks: JSON.stringify(chunks),
+      startedAt: now,
+    });
+    return chunks;
+  }
+
+  async function registered(client: Client, id: string) {
+    const result = await client.execute({
+      sql: "select snapshot_chunks from ingestion_source_run where id = ?",
+      args: [id],
+    });
+    return JSON.parse(String(result.rows[0]?.snapshot_chunks)) as string[];
+  }
+
+  test("stale snapshot cleanup keeps what it deleted before a Blob failure, and the next tick resumes", async () => {
+    const { client, database, store } = await setup();
+    const chunks = await largeStaleRun(database, store);
+    let deletes = 0;
+    const limited: IngestionSnapshotStore = {
+      ...store,
+      async delete(pathnames) {
+        deletes += 1;
+        // The small pyp run goes first, then one slice of the URG run.
+        if (deletes > 2)
+          throw new Error(
+            "Vercel Blob: Too many requests please lower the number of concurrent requests - try again in 60 seconds.",
+          );
+        await store.delete(pathnames);
+      },
+    };
+
+    const failed = await IngestionMaintenanceTasks.staleSnapshots(
+      database,
+      limited,
+    );
+
+    expect(failed).toMatchObject({
+      task: "stale-snapshots",
+      status: "failed",
+      deleted: 251,
+    });
+    expect(await registered(client, "stale:urgiis")).toEqual(chunks.slice(250));
+
+    expect(
+      await IngestionMaintenanceTasks.staleSnapshots(database, store),
+    ).toEqual({
+      task: "stale-snapshots",
+      status: "done",
+      deleted: 350,
+      complete: true,
+    });
+    expect(store.pathnames()).toEqual([]);
+  });
+
+  test("stale snapshot cleanup stops at its time budget and the next tick resumes", async () => {
+    const { client, database, store } = await setup();
+    const chunks = await largeStaleRun(database, store);
+    let clock = 0;
+    const slow: IngestionSnapshotStore = {
+      ...store,
+      async delete(pathnames) {
+        clock += 5 * 60_000;
+        await store.delete(pathnames);
+      },
+    };
+
+    expect(
+      await IngestionMaintenanceTasks.staleSnapshots(
+        database,
+        slow,
+        () => clock,
+      ),
+    ).toEqual({
+      task: "stale-snapshots",
+      status: "done",
+      deleted: 251,
+      complete: false,
+    });
+    expect(await registered(client, "stale:urgiis")).toEqual(chunks.slice(250));
+
+    expect(
+      await IngestionMaintenanceTasks.staleSnapshots(database, store),
+    ).toEqual({
+      task: "stale-snapshots",
+      status: "done",
+      deleted: 350,
+      complete: true,
+    });
+  });
+
   test("outbox retention deletes only projected changes the live generation covers or that aged out", async () => {
     const { client, database } = await setup();
     const day = 24 * 60 * 60 * 1000;

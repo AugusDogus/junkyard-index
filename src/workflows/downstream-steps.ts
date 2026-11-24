@@ -49,7 +49,11 @@ export async function refreshInventoryCachesStep(): Promise<
       database: db,
       source: {
         projectedThrough: () => InventorySnapshot.projectedThrough(db),
-        project: () => InventorySnapshot.project(db, new Date()),
+        // The live deployment's pass: older versions' rows are retired.
+        project: () =>
+          InventorySnapshot.project(db, new Date(), {
+            olderVersions: "retire",
+          }),
       },
       revalidate: () => revalidateTag(INVENTORY_CACHE_TAG, "max"),
     });

@@ -1,5 +1,12 @@
 import { gunzipSync, gzipSync } from "node:zlib";
-import { del, get, put } from "@vercel/blob";
+import {
+  BlobServiceNotAvailable,
+  BlobServiceRateLimited,
+  BlobUnknownError,
+  del,
+  get,
+  put,
+} from "@vercel/blob";
 import { z } from "zod";
 import { INGESTION_SOURCES } from "~/lib/ingestion-source";
 import type { DurableIngestionSource } from "./durable-source";
@@ -83,9 +90,82 @@ const CHECKPOINT_STATE_PATH = new RegExp(
 );
 /** Waits between Blob read attempts; about 31 s in all before giving up. */
 const BLOB_READ_RETRY_DELAYS_MS = [1_000, 2_000, 4_000, 8_000, 16_000] as const;
-// Vercel Blob rejects a delete of more than 1,000 URLs, and a URG run stages
-// more chunks than that.
-const BLOB_DELETE_BATCH_SIZE = 1_000;
+// Vercel Blob rejects a delete of more than 1,000 URLs, and counts each URL
+// toward its operation rate limit. One 1,000-URL delete followed at once by
+// another was rate limited for 60 s, so deletes go in small batches paced to
+// 1,000 a minute, shared by every store in the process.
+const BLOB_DELETE_BATCH_SIZE = 250;
+const BLOB_DELETE_INTERVAL_MS_PER_URL = 60;
+/** Waits between Blob delete attempts; a rate limit waits at least as long as
+ * the store asks. About 3 min in all before giving up. */
+const BLOB_DELETE_RETRY_DELAYS_MS = [
+  5_000, 15_000, 30_000, 60_000, 60_000,
+] as const;
+// Chunks are immutable under unique pathnames, so the process keeps the
+// latest ones it staged or read. A crawl step reads the checkpoint state the
+// previous step staged (Hollander's is about 2.9 MB gzipped), and
+// reconciliation reads what validation read; on a reused instance those
+// reads cost no Blob transfer.
+const CHUNK_CACHE_MAX_BYTES = 64 * 1024 * 1024;
+const CHUNK_CACHE_MAX_ENTRY_BYTES = 16 * 1024 * 1024;
+
+type BlobClient = { del: typeof del; get: typeof get; put: typeof put };
+
+/** Process-wide state of one Blob client: shared by every store using it. */
+type BlobClientState = {
+  /** Gzipped chunks by pathname, least recently used first. */
+  chunks: Map<string, Uint8Array>;
+  chunkBytes: number;
+  /** When the next delete batch may start, by the store's clock. */
+  nextDeleteAt: number;
+};
+
+const DEFAULT_BLOB_CLIENT: BlobClient = { del, get, put };
+const blobClientStates = new WeakMap<BlobClient, BlobClientState>();
+
+function blobClientState(client: BlobClient): BlobClientState {
+  let state = blobClientStates.get(client);
+  if (!state) {
+    state = { chunks: new Map(), chunkBytes: 0, nextDeleteAt: 0 };
+    blobClientStates.set(client, state);
+  }
+  return state;
+}
+
+function cacheChunk(
+  state: BlobClientState,
+  pathname: string,
+  body: Uint8Array,
+): void {
+  uncacheChunk(state, pathname);
+  if (body.byteLength > CHUNK_CACHE_MAX_ENTRY_BYTES) return;
+  state.chunks.set(pathname, body);
+  state.chunkBytes += body.byteLength;
+  for (const [oldest, oldestBody] of state.chunks) {
+    if (state.chunkBytes <= CHUNK_CACHE_MAX_BYTES) break;
+    state.chunks.delete(oldest);
+    state.chunkBytes -= oldestBody.byteLength;
+  }
+}
+
+function cachedChunk(
+  state: BlobClientState,
+  pathname: string,
+): Uint8Array | undefined {
+  const body = state.chunks.get(pathname);
+  if (body === undefined) return undefined;
+  // Most recently used last.
+  state.chunks.delete(pathname);
+  state.chunks.set(pathname, body);
+  return body;
+}
+
+function uncacheChunk(state: BlobClientState, pathname: string): void {
+  const body = state.chunks.get(pathname);
+  if (body === undefined) return;
+  state.chunks.delete(pathname);
+  state.chunkBytes -= body.byteLength;
+}
 
 function encode(chunk: IngestionSnapshotChunk): Buffer {
   return gzipSync(JSON.stringify(chunk));
@@ -102,6 +182,23 @@ function retryableBlobReadStatus(error: unknown): number | null {
   const match = /Failed to fetch blob: (\d{3})\b/.exec(error.message);
   const status = match ? Number(match[1]) : null;
   return status !== null && (status === 429 || status >= 500) ? status : null;
+}
+
+/** Why a Blob delete may succeed later, or null when retrying cannot help. */
+function retryableBlobDelete(
+  error: unknown,
+): { reason: string; retryAfterMs: number } | null {
+  if (error instanceof BlobServiceRateLimited)
+    return {
+      reason: "rate limited (HTTP 429)",
+      retryAfterMs: error.retryAfter * 1_000,
+    };
+  if (
+    error instanceof BlobServiceNotAvailable ||
+    error instanceof BlobUnknownError
+  )
+    return { reason: `unavailable (${error.message})`, retryAfterMs: 0 };
+  return null;
 }
 
 function decode(pathname: string, body: Uint8Array): IngestionSnapshotChunk {
@@ -122,26 +219,59 @@ export const IngestionSnapshotStore = {
     return CHECKPOINT_STATE_PATH.test(pathname);
   },
 
-  /** Private Vercel Blob store, authorized by BLOB_READ_WRITE_TOKEN. */
+  /**
+   * Private Vercel Blob store, authorized by BLOB_READ_WRITE_TOKEN. Stores
+   * on the same client share a process cache of recent chunks and the pace
+   * of deletes.
+   */
   vercelBlob(
     token: string,
-    client: { del: typeof del; get: typeof get; put: typeof put } = {
-      del,
-      get,
-      put,
-    },
+    client: BlobClient = DEFAULT_BLOB_CLIENT,
     sleep: (ms: number) => Promise<void> = (ms) =>
       new Promise((resolve) => setTimeout(resolve, ms)),
+    now: () => number = Date.now,
   ): IngestionSnapshotStore {
-    const putBlob = async (pathname: string, chunk: IngestionSnapshotChunk) =>
-      (
-        await client.put(pathname, encode(chunk), {
+    const shared = blobClientState(client);
+    const cacheKey = (pathname: string) => `${token}\n${pathname}`;
+    const putBlob = async (pathname: string, chunk: IngestionSnapshotChunk) => {
+      const body = encode(chunk);
+      const stored = (
+        await client.put(pathname, body, {
           access: "private",
           addRandomSuffix: true,
           contentType: "application/gzip",
           token,
         })
       ).pathname;
+      cacheChunk(shared, cacheKey(stored), body);
+      return stored;
+    };
+    const deleteBatch = async (
+      batch: string[],
+      deletedBefore: number,
+      total: number,
+    ) => {
+      const wait = shared.nextDeleteAt - now();
+      if (wait > 0) await sleep(wait);
+      for (let attempt = 0; ; attempt += 1) {
+        try {
+          await client.del(batch, { token });
+          shared.nextDeleteAt =
+            now() + batch.length * BLOB_DELETE_INTERVAL_MS_PER_URL;
+          return;
+        } catch (error) {
+          const retry = retryableBlobDelete(error);
+          const delay = BLOB_DELETE_RETRY_DELAYS_MS[attempt];
+          if (retry === null) throw error;
+          if (delay === undefined)
+            throw new Error(
+              `Could not delete ${total - deletedBefore} staged snapshot blobs: Vercel Blob was ${retry.reason} after ${attempt + 1} attempts. ${deletedBefore} of ${total} were deleted; the other ${total - deletedBefore} are still in Blob storage and still registered, so the next cleanup retries them. Published inventory is unaffected.`,
+              { cause: error },
+            );
+          await sleep(Math.max(delay, retry.retryAfterMs));
+        }
+      }
+    };
     // A long reconciliation reads hundreds of chunks in a row, and the store
     // throttles bursts with 429. Back off instead of failing the step.
     const getBlob = async (pathname: string) => {
@@ -174,6 +304,8 @@ export const IngestionSnapshotStore = {
           checkpointStateChunk(state),
         ),
       async load(pathname) {
+        const cached = cachedChunk(shared, cacheKey(pathname));
+        if (cached !== undefined) return decode(pathname, cached);
         const result = await getBlob(pathname);
         if (!result || result.statusCode !== 200) {
           // A duplicate step attempt can still hold the cursor of a state that
@@ -189,17 +321,22 @@ export const IngestionSnapshotStore = {
         const body = new Uint8Array(
           await new Response(result.stream).arrayBuffer(),
         );
-        return decode(pathname, body);
+        const chunk = decode(pathname, body);
+        cacheChunk(shared, cacheKey(pathname), body);
+        return chunk;
       },
       async delete(pathnames) {
+        for (const pathname of pathnames)
+          uncacheChunk(shared, cacheKey(pathname));
         for (
           let start = 0;
           start < pathnames.length;
           start += BLOB_DELETE_BATCH_SIZE
         ) {
-          await client.del(
+          await deleteBatch(
             pathnames.slice(start, start + BLOB_DELETE_BATCH_SIZE),
-            { token },
+            start,
+            pathnames.length,
           );
         }
       },

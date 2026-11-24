@@ -1,33 +1,152 @@
 import { expect, test } from "bun:test";
 import { gzipSync } from "node:zlib";
-import { BlobError, del, get, put } from "@vercel/blob";
+import {
+  BlobError,
+  BlobServiceNotAvailable,
+  BlobServiceRateLimited,
+  del,
+  get,
+  put,
+} from "@vercel/blob";
 import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 
-test("Blob delete splits a large run's chunks under the 1,000 URL limit", async () => {
-  const calls: string[][] = [];
-  const sdk: { del: typeof del; get: typeof get; put: typeof put } = {
-    get,
-    put,
-    async del(urls, options) {
-      expect(options?.token).toBe("local-test-token");
-      const batch = typeof urls === "string" ? [urls] : urls;
-      if (batch.length > 1_000)
-        throw new Error(
-          "Vercel Blob: Cannot delete more than 1,000 urls at once",
-        );
-      calls.push(batch);
+/** A clock that only moves when the store sleeps. */
+function fakeClock() {
+  let now = 0;
+  const sleeps: number[] = [];
+  return {
+    now: () => now,
+    sleep: async (ms: number) => {
+      sleeps.push(ms);
+      now += ms;
     },
+    sleeps,
   };
-  const store = IngestionSnapshotStore.vercelBlob("local-test-token", sdk);
-  const pathnames = Array.from(
-    { length: 2_213 },
+}
+
+/** A Blob SDK whose deletes fail with these errors, in order, before succeeding. */
+function deletingBlobStore(failures: readonly Error[] = []) {
+  const remaining = [...failures];
+  const calls: { batch: string[]; at: number }[] = [];
+  const clock = fakeClock();
+  const store = IngestionSnapshotStore.vercelBlob(
+    "local-test-token",
+    {
+      get,
+      put,
+      async del(urls, options) {
+        expect(options?.token).toBe("local-test-token");
+        const batch = typeof urls === "string" ? [urls] : urls;
+        if (batch.length > 1_000)
+          throw new Error(
+            "Vercel Blob: Cannot delete more than 1,000 urls at once",
+          );
+        const failure = remaining.shift();
+        if (failure) throw failure;
+        calls.push({ batch, at: clock.now() });
+      },
+    },
+    clock.sleep,
+    clock.now,
+  );
+  return { store, calls, clock };
+}
+
+const runPathnames = (count: number) =>
+  Array.from(
+    { length: count },
     (_, index) => `ingestion-runs/run/urgiis/${index}.json.gz`,
   );
 
-  await store.delete(pathnames);
+test("Blob delete splits a large run's chunks under the 1,000 URL limit", async () => {
+  const blob = deletingBlobStore();
+  const pathnames = runPathnames(2_213);
 
-  expect(calls.map((batch) => batch.length)).toEqual([1_000, 1_000, 213]);
-  expect(calls.flat()).toEqual(pathnames);
+  await blob.store.delete(pathnames);
+
+  expect(blob.calls.every(({ batch }) => batch.length <= 1_000)).toBe(true);
+  expect(blob.calls.flatMap(({ batch }) => batch)).toEqual(pathnames);
+});
+
+test("Blob delete paces batches to 1,000 deletes a minute", async () => {
+  const blob = deletingBlobStore();
+
+  await blob.store.delete(runPathnames(600));
+
+  // 250 deletes earn 15 s before the next batch starts.
+  expect(
+    blob.calls.map(({ batch, at }) => ({ size: batch.length, at })),
+  ).toEqual([
+    { size: 250, at: 0 },
+    { size: 250, at: 15_000 },
+    { size: 100, at: 30_000 },
+  ]);
+});
+
+test("Blob delete paces separate calls on the same store", async () => {
+  const blob = deletingBlobStore();
+
+  await blob.store.delete(runPathnames(250));
+  await blob.store.delete(["ingestion-runs/run/urgiis/state.json.gz"]);
+
+  expect(blob.calls.map(({ at }) => at)).toEqual([0, 15_000]);
+});
+
+test("Blob delete waits out a rate limit for as long as the store asks", async () => {
+  const blob = deletingBlobStore([new BlobServiceRateLimited(60)]);
+  const pathnames = runPathnames(10);
+
+  await blob.store.delete(pathnames);
+
+  expect(blob.calls).toEqual([{ batch: pathnames, at: 60_000 }]);
+});
+
+test("Blob delete backs off and retries when the store is unavailable", async () => {
+  const blob = deletingBlobStore([
+    new BlobServiceNotAvailable(),
+    new BlobServiceNotAvailable(),
+  ]);
+
+  await blob.store.delete(runPathnames(1));
+
+  expect(blob.clock.sleeps).toEqual([5_000, 15_000]);
+  expect(blob.calls).toHaveLength(1);
+});
+
+test("Blob delete gives up after its retry budget and says what was deleted", async () => {
+  const clock = fakeClock();
+  let attempts = 0;
+  const deleted: string[][] = [];
+  const store = IngestionSnapshotStore.vercelBlob(
+    "local-test-token",
+    {
+      get,
+      put,
+      async del(urls) {
+        attempts += 1;
+        // The first batch goes through; the store then keeps rate limiting.
+        if (attempts > 1) throw new BlobServiceRateLimited(60);
+        deleted.push(typeof urls === "string" ? [urls] : urls);
+      },
+    },
+    clock.sleep,
+    clock.now,
+  );
+
+  await expect(store.delete(runPathnames(300))).rejects.toThrow(
+    /Could not delete 50 staged snapshot blobs.*rate limited.*after 6 attempts.*250 of 300 were deleted; the other 50 are still in Blob storage/,
+  );
+  expect(deleted.map((batch) => batch.length)).toEqual([250]);
+  expect(attempts).toBe(7);
+});
+
+test("Blob delete does not retry a request the store rejects", async () => {
+  const blob = deletingBlobStore([new BlobError("Access denied")]);
+
+  await expect(blob.store.delete(runPathnames(1))).rejects.toThrow(
+    "Access denied",
+  );
+  expect(blob.clock.sleeps).toEqual([]);
 });
 
 test("Blob delete makes no request for no chunks", async () => {
@@ -198,4 +317,104 @@ test("a missing checkpoint state says a newer checkpoint may have replaced it", 
   ).rejects.toThrow(
     "is missing from Blob storage. The run cannot be reconciled",
   );
+});
+
+/** A Blob SDK backed by a map that counts reads. */
+function countingBlobStore() {
+  const blobs = new Map<string, Uint8Array<ArrayBuffer>>();
+  let reads = 0;
+  let suffix = 0;
+  const client: { del: typeof del; get: typeof get; put: typeof put } = {
+    async put(pathname, body) {
+      if (!(body instanceof Uint8Array)) throw new Error("expected bytes");
+      suffix += 1;
+      const stored = pathname.replace(".json.gz", `-${suffix}.json.gz`);
+      blobs.set(stored, new Uint8Array(body));
+      return {
+        pathname: stored,
+        url: "",
+        downloadUrl: "",
+        contentType: "application/gzip",
+        contentDisposition: "",
+        etag: "etag",
+      };
+    },
+    async get(pathname) {
+      reads += 1;
+      const body = blobs.get(pathname);
+      return body ? blobResponse(pathname, body) : null;
+    },
+    async del(urls) {
+      for (const url of typeof urls === "string" ? [urls] : urls)
+        blobs.delete(url);
+    },
+  };
+  return { client, reads: () => reads };
+}
+
+test("a chunk or state this process staged or read loads again without a Blob read", async () => {
+  const blob = countingBlobStore();
+  const writer = IngestionSnapshotStore.vercelBlob(
+    "local-test-token",
+    blob.client,
+  );
+  // Provider fetchers open their own store; they share the process cache.
+  const reader = IngestionSnapshotStore.vercelBlob(
+    "local-test-token",
+    blob.client,
+  );
+  const state = await writer.putCheckpointState({
+    runId: "run",
+    source: "hollanderstores",
+    state: { census: ["VIN1"] },
+  });
+  const chunk = await writer.put({
+    runId: "run",
+    source: "hollanderstores",
+    chunk: { vehicles: [], observedVins: ["VIN1"] },
+  });
+
+  expect((await reader.load(state)).checkpointState).toEqual({
+    census: ["VIN1"],
+  });
+  expect((await reader.load(chunk)).observedVins).toEqual(["VIN1"]);
+  expect((await reader.load(chunk)).observedVins).toEqual(["VIN1"]);
+  expect(blob.reads()).toBe(0);
+});
+
+test("a cached load returns a fresh copy each time", async () => {
+  const blob = countingBlobStore();
+  const store = IngestionSnapshotStore.vercelBlob(
+    "local-test-token",
+    blob.client,
+  );
+  const chunk = await store.put({
+    runId: "run",
+    source: "pyp",
+    chunk: { vehicles: [], observedVins: ["VIN1"] },
+  });
+
+  (await store.load(chunk)).observedVins.push("MUTATED");
+
+  expect((await store.load(chunk)).observedVins).toEqual(["VIN1"]);
+});
+
+test("a deleted chunk is not served from the process cache", async () => {
+  const blob = countingBlobStore();
+  const store = IngestionSnapshotStore.vercelBlob(
+    "local-test-token",
+    blob.client,
+  );
+  const state = await store.putCheckpointState({
+    runId: "run",
+    source: "hollanderstores",
+    state: { census: [] },
+  });
+
+  await store.delete([state]);
+
+  await expect(store.load(state)).rejects.toThrow(
+    /newer checkpoint of the same source run replaced it/,
+  );
+  expect(blob.reads()).toBe(1);
 });
