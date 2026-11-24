@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
+import { HiddenSources } from "~/lib/hidden-source";
 import { ACTIVE_INGESTION_SOURCES } from "~/lib/ingestion-source";
+import { InventoryStaleness } from "~/lib/inventory-staleness";
 import { createAdminTestDatabase } from "~/server/admin/admin-test-database";
 import { loadHiddenSources } from "./hidden-sources";
 
@@ -89,5 +91,29 @@ describe("loadHiddenSources", () => {
       "delete from ingestion_source_run where source = 'pyp'",
     );
     expect((await loadHiddenSources(db, now)).list).toContain("pyp");
+  });
+
+  test("skips the 7-day hide during an ingestion outage, so the site keeps stale vehicles with their labels, and keeps the owner's hides", async () => {
+    const { client, db, publish } = await database();
+    const outage = ACTIVE_INGESTION_SOURCES.slice(
+      0,
+      InventoryStaleness.outageAfterStale(ACTIVE_INGESTION_SOURCES.length),
+    );
+    for (const source of outage) {
+      await client.execute({
+        sql: "delete from ingestion_source_run where source = ?",
+        args: [source],
+      });
+      await publish(source, now.getTime() - 8 * DAY);
+    }
+    expect((await loadHiddenSources(db, now)).list).toEqual(["meeks"]);
+
+    // One source recovering ends the outage, and the rest hide.
+    const [recovered, ...stillStale] = outage;
+    if (recovered === undefined) throw new Error("No outage fixture source.");
+    await publish(recovered, now.getTime() - HOUR);
+    expect((await loadHiddenSources(db, now)).list).toEqual(
+      HiddenSources.of([...stillStale, "meeks"]).list,
+    );
   });
 });

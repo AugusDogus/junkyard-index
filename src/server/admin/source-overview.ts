@@ -122,10 +122,23 @@ function flagFor(source: IngestionSource, flags: SourceFlagsReading) {
   return flags.enabled.has(source) ? "on" : "off";
 }
 
+/** Each source's newest accepted publication among `runs`. */
+function lastPublished(runs: readonly SourceRun[]): Map<string, number | null> {
+  const published = new Map<string, number | null>();
+  for (const run of runs) {
+    const outcome = SourceRun.outcome(run);
+    if (outcome.kind !== "accepted") continue;
+    const at = outcome.publishedAt.getTime();
+    published.set(run.source, Math.max(published.get(run.source) ?? at, at));
+  }
+  return published;
+}
+
 function summarize(
   source: IngestionSource,
   runs: readonly SourceRun[],
   input: SourceOverviewInput,
+  staleHidden: ReadonlySet<IngestionSource>,
 ): SourceSummary {
   const newestFirst = runs
     .map((run) => ({ run, outcome: SourceRun.outcome(run) }))
@@ -161,15 +174,7 @@ function summarize(
     !retired &&
     pausedBy === null &&
     !isFreshPublication(lastAcceptedAt?.getTime() ?? null, input.now);
-  // The rule loadHiddenSources applies; the admin window is its lookback.
-  const staleHide =
-    !retired &&
-    InventoryStaleness.of(
-      lastAcceptedAt?.getTime() ?? null,
-      input.now.getTime(),
-    ).kind === "hidden"
-      ? { lastAcceptedAt }
-      : null;
+  const staleHide = staleHidden.has(source) ? { lastAcceptedAt } : null;
   const state: SourceState = retired
     ? "retired"
     : pausedBy !== null
@@ -226,8 +231,16 @@ export const SourceOverview = {
       runs.push(run);
       bySource.set(run.source, runs);
     }
+    // The rule loadHiddenSources applies, outage skip included; the admin
+    // window is its lookback (see admin-data.test.ts).
+    const staleHidden = new Set(
+      InventoryStaleness.hiddenSources(
+        lastPublished(input.runs),
+        input.now.getTime(),
+      ),
+    );
     return INGESTION_SOURCES.map((source) =>
-      summarize(source, bySource.get(source) ?? [], input),
+      summarize(source, bySource.get(source) ?? [], input, staleHidden),
     ).sort(compare);
   },
 

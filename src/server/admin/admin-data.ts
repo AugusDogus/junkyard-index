@@ -10,7 +10,6 @@ import {
   type SearchAlertsMode,
 } from "~/server/alerts/search-alerts-flag";
 import { ConsumerFlags } from "~/server/ingestion/consumer-flags";
-import { SOURCE_FRESHNESS_LOOKBACK_DAYS } from "~/server/ingestion/durable-health";
 import { IngestionDay } from "~/server/ingestion/ingestion-day";
 import { IngestionSourceFlags } from "~/server/ingestion/ingestion-source-flags";
 import { PublicationModeFlag } from "~/server/ingestion/publication-mode-flag";
@@ -39,13 +38,10 @@ import {
 } from "./source-overview";
 import type { SourceRunErrors } from "./source-run";
 import { SourceRunRepository } from "./source-run-repository";
+import { ADMIN_WINDOW_DAYS } from "./admin-window";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-/**
- * Days of runs and alert checks the dashboard reads. The public freshness
- * lookback, so admin's "Hidden (stale)" matches what the site hides.
- */
-export const ADMIN_WINDOW_DAYS = SOURCE_FRESHNESS_LOOKBACK_DAYS;
+export { ADMIN_WINDOW_DAYS };
 function windowStart(now: Date): Date {
   return new Date(now.getTime() - ADMIN_WINDOW_DAYS * DAY_MS);
 }

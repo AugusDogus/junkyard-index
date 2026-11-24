@@ -1,30 +1,101 @@
+import { eq } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
-import type { IngestionSource } from "~/lib/ingestion-source";
-import { InventoryStaleness } from "~/lib/inventory-staleness";
+import {
+  isIngestionSource,
+  type IngestionSource,
+} from "~/lib/ingestion-source";
+import {
+  InventoryStaleness,
+  type StalenessClasses,
+} from "~/lib/inventory-staleness";
+import { ingestionProjectorCheckpoint } from "~/schema";
 import { loadSourceFreshness } from "./durable-health";
 
-/**
- * How far back each hourly check looks for a crossed threshold: an hour,
- * plus slack for a late cron tick. A crossing seen by two ticks expires the
- * caches twice, which only costs one extra rebuild.
- */
-export const STALENESS_CHECK_WINDOW_MS = 70 * 60 * 1000;
+// Holds the classification (StalenessClasses, as JSON) the inventory caches
+// were last expired for.
+const CHECKPOINT_NAME = "inventory-staleness";
 
 /**
- * The active sources that passed 36 hours or 7 days without an accepted
- * publication in the last STALENESS_CHECK_WINDOW_MS. Publications expire
- * the inventory caches themselves; a source going stale publishes nothing,
- * so the hourly inventory-downstream cron expires them when this is not
- * empty, and labels and hides apply within the hour.
+ * One hourly check. Unchanged: every source is in the class the caches were
+ * last expired for. Expired: the caches were expired because `changed`
+ * sources moved class, or because no readable classification was stored
+ * ("unknown").
  */
-export async function sourcesPastStalenessBoundary(
-  database: LibSQLDatabase,
-  now: Date,
-): Promise<IngestionSource[]> {
-  const freshness = await loadSourceFreshness(database, now);
-  return InventoryStaleness.changedBetween(
-    new Map(freshness.map((row) => [row.source, row.lastPublishedAt])),
-    now.getTime() - STALENESS_CHECK_WINDOW_MS,
-    now.getTime(),
-  );
+export type StalenessBoundaryCheck =
+  | { status: "unchanged" }
+  | { status: "expired"; changed: IngestionSource[] | "unknown" };
+
+/** The stored classification, or null when none is stored or it is unreadable. */
+function parse(cursor: string | null): StalenessClasses | null {
+  if (cursor === null) return null;
+  let value: unknown;
+  try {
+    value = JSON.parse(cursor);
+  } catch {
+    return null;
+  }
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    return null;
+  const classes: StalenessClasses = {};
+  for (const [source, kind] of Object.entries(value)) {
+    if (!isIngestionSource(source) || (kind !== "stale" && kind !== "hidden"))
+      return null;
+    classes[source] = kind;
+  }
+  return classes;
 }
+
+export const StalenessBoundary = {
+  checkpointName: CHECKPOINT_NAME,
+
+  /**
+   * Expires the inventory caches (`revalidate`) when a source passed 36
+   * hours (its listings gain "Last checked") or 7 days (it hides), or when
+   * an ingestion outage began or ended (held sources show or hide), since
+   * the classification stored last time. A source going stale publishes
+   * nothing, so no publication expires them then. Compares with the stored
+   * classification, not a time window, so a late or missed tick still
+   * catches every change. When `revalidate` throws, nothing is stored and
+   * the error propagates, so the next tick tries again.
+   */
+  async check(params: {
+    database: LibSQLDatabase;
+    now: Date;
+    revalidate: () => void;
+  }): Promise<StalenessBoundaryCheck> {
+    const [freshness, [stored]] = await Promise.all([
+      loadSourceFreshness(params.database, params.now),
+      params.database
+        .select({ cursor: ingestionProjectorCheckpoint.jobCursor })
+        .from(ingestionProjectorCheckpoint)
+        .where(eq(ingestionProjectorCheckpoint.name, CHECKPOINT_NAME))
+        .limit(1),
+    ]);
+    const classes = InventoryStaleness.classes(
+      new Map(freshness.map((row) => [row.source, row.lastPublishedAt])),
+      params.now.getTime(),
+    );
+    const previous = parse(stored?.cursor ?? null);
+    const changed =
+      previous === null
+        ? "unknown"
+        : InventoryStaleness.changedClasses(previous, classes);
+    if (changed !== "unknown" && changed.length === 0)
+      return { status: "unchanged" };
+    params.revalidate();
+    const state = {
+      kind: "staleness",
+      jobCursor: JSON.stringify(classes),
+      lastSuccessAt: params.now,
+      updatedAt: params.now,
+    };
+    await params.database
+      .insert(ingestionProjectorCheckpoint)
+      .values({ name: CHECKPOINT_NAME, ...state })
+      .onConflictDoUpdate({
+        target: ingestionProjectorCheckpoint.name,
+        set: state,
+      });
+    return { status: "expired", changed };
+  },
+} as const;
