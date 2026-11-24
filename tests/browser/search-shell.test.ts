@@ -211,6 +211,30 @@ test("a person on the default page gets results after hydration without a server
   }
 }, 30_000);
 
+test("a crawler's /search render has one H1 and an intro before hydration", async () => {
+  const userAgent =
+    "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
+  const { page, html } = await open(
+    `fixtureGuest=1&fixtureUserAgent=${encodeURIComponent(userAgent)}`,
+  );
+  try {
+    expect(html).toContain('<meta name="fixture-server-searches" content="0">');
+    const body = html.slice(html.indexOf('<div id="root">'));
+    expect(body.match(/<h1[\s>]/g)).toHaveLength(1);
+    expect(body).toMatch(/<h1[^>]*>Search salvage yard inventory<\/h1>/);
+    expect(body).toContain(
+      "Search live donor vehicles across salvage yard networks",
+    );
+    // Hydrated, the page keeps exactly one H1 with the same name.
+    await page.getByRole("heading", { name: "2011 Toyota Venza" }).waitFor();
+    expect(await page.locator("h1").allTextContents()).toEqual([
+      "Search salvage yard inventory",
+    ]);
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
+
 test("a server-rendered person search is not repeated by the browser after hydration", async () => {
   const userAgent =
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";

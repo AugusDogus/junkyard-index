@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { PublicPageShell } from "~/components/junkyards/PublicPageShell";
 import { auth } from "~/lib/auth";
 import { ReturnTo } from "~/lib/return-to";
+import { sitePageUrl } from "~/lib/site-metadata";
 import { AuthCard } from "~/components/auth/AuthCard";
 import { ForgotPasswordForm } from "~/components/auth/ForgotPasswordForm";
 import { ResetPasswordForm } from "~/components/auth/ResetPasswordForm";
@@ -61,7 +62,7 @@ export async function generateMetadata({
     "forgot-password": "Forgot password",
     "reset-password": "Reset password",
   };
-  return { title: titles[route] };
+  return { title: titles[route], ...sitePageUrl(`/auth/${route}`) };
 }
 
 export default async function AuthPage({

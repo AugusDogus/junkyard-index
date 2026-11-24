@@ -30,15 +30,20 @@ test("yard pagination descriptions include the displayed page and range", () => 
   expect(last.description).not.toContain("Updated");
 });
 
-test("yard make and model metadata share the five-vehicle indexing threshold", () => {
+test("yard make pages index from five vehicles; yard model pages never index", () => {
   const make = { name: "Honda", slug: "honda" };
   const model = { ...make, model: { name: "Civic", slug: "civic" } };
-  for (const filter of [make, model]) {
-    expect(yardMakeMetadata(yard, filter, 4, null).robots).toEqual({
+  expect(yardMakeMetadata(yard, make, 4, null).robots).toEqual({
+    index: false,
+    follow: true,
+  });
+  expect(yardMakeMetadata(yard, make, 5, null).robots).toBeUndefined();
+  // The yard's make page and the national model page cover these queries.
+  for (const total of [4, 5, 500]) {
+    expect(yardMakeMetadata(yard, model, total, null).robots).toEqual({
       index: false,
       follow: true,
     });
-    expect(yardMakeMetadata(yard, filter, 5, null).robots).toBeUndefined();
   }
   const metadata = yardMakeMetadata(yard, model, 71, null);
   expect(metadata.title).toContain("Honda Civic");

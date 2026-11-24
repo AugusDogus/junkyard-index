@@ -5,13 +5,12 @@ import { PublicHeader } from "~/components/PublicHeader";
 import { PricingPlansSection } from "~/components/marketing/PricingPlansSection";
 import { TrackedPricingButton } from "~/components/marketing/TrackedPricingButton";
 import { PLANS } from "~/lib/plans";
+import { sitePageUrl } from "~/lib/site-metadata";
 
 export const metadata: Metadata = {
   title: "Pricing",
   description: `Search salvage yard inventory free with year range and distance radius filters, upgrade to Lite ($${PLANS.lite.monthlyPrice}/mo) for state, yard and power filters and saved searches, or Full ($${PLANS.full.monthlyPrice}/mo) for email and Discord alerts on new matches.`,
-  alternates: {
-    canonical: "/pricing",
-  },
+  ...sitePageUrl("/pricing"),
 };
 
 export default function PricingPage() {

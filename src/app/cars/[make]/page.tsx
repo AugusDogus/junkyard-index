@@ -16,7 +16,7 @@ import {
   MakeInventory,
   type ModelEntry,
 } from "~/lib/make-inventory";
-import { SITE_OPEN_GRAPH } from "~/lib/site-metadata";
+import { SITE_OPEN_GRAPH, SITE_TWITTER } from "~/lib/site-metadata";
 import { StructuredData } from "~/lib/structured-data";
 import { VehicleName } from "~/lib/vehicle-name";
 import { getMakePageData } from "~/server/vehicle-models";
@@ -91,7 +91,7 @@ export async function generateMetadata({
       title,
       description,
     },
-    twitter: { card: "summary", title, description },
+    twitter: { ...SITE_TWITTER, title, description },
     ...(!MakeInventory.indexable(make) && {
       robots: { index: false, follow: true },
     }),

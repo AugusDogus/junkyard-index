@@ -20,7 +20,6 @@ export function SearchExpressionFeedback({
   const returnTo = `/search?${params.toString()}`;
   return (
     <main className="shell space-y-4 py-6">
-      <h1 className="sr-only">Search inventory</h1>
       <Alert>
         <AlertTitle>Search could not run</AlertTitle>
         <AlertDescription id="search-expression-error">

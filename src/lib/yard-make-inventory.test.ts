@@ -41,16 +41,26 @@ test("yard-make sitemap counts every raw model and only includes routed yards", 
       href: "/junkyards/pennsylvania/other",
     },
   };
-  const entries = YardSitemap.entries(
+  const publications = {
+    "pyp:1": "2026-10-01",
+    "pyp:2": "2026-11-01",
+    "upullitne:1": "2026-11-18",
+  };
+  const hubs = YardSitemap.hubs(
     "https://example.com",
     [yard, other],
-    {
-      "pyp:1": "2026-10-01",
-      "pyp:2": "2026-11-01",
-      "upullitne:1": "2026-11-18",
-    },
+    publications,
+  );
+  const makes = YardSitemap.makes(
+    "https://example.com",
+    [yard, other],
+    publications,
     pages,
   );
+  // Hubs and yard-make pages live in separate sitemaps.
+  expect(hubs.some((entry) => entry.url.includes("/make/"))).toBe(false);
+  expect(makes.every((entry) => entry.url.includes("/make/"))).toBe(true);
+  const entries = [...hubs, ...makes];
   expect(
     entries.find((entry) => entry.url.endsWith("/yard/make/honda"))
       ?.lastModified,
@@ -77,20 +87,61 @@ test("sitemap omits unknown publication dates and retains known dates even when 
     path: { region, slug: "yard", href: "/junkyards/pennsylvania/yard" },
   };
   const makes = [{ source: "pyp", code: "1", slug: "honda", count: 5 }];
-  const before = YardSitemap.entries("https://example.com", [yard], {}, makes);
+  const entries = (publications: Readonly<Record<string, string>>) => [
+    ...YardSitemap.hubs("https://example.com", [yard], publications),
+    ...YardSitemap.makes("https://example.com", [yard], publications, makes),
+  ];
+  const before = entries({});
   expect(before).toHaveLength(3);
   expect(before.every((entry) => !("lastModified" in entry))).toBe(true);
 
   const publishedAt = "2026-10-01T12:00:00.000Z";
-  const after = YardSitemap.entries(
-    "https://example.com",
-    [yard],
-    { "pyp:1": publishedAt },
-    makes,
-  );
+  const after = entries({ "pyp:1": publishedAt });
   expect(after.map((entry) => entry.lastModified)).toEqual([
     publishedAt,
     publishedAt,
     publishedAt,
   ]);
+});
+
+test("a chain without a recent source publication dates from its newest yard", () => {
+  const yards = [
+    { source: "paulsauto", code: "gary" },
+    { source: "paulsauto", code: "hammond" },
+    { source: "paulsauto", code: "never" },
+  ];
+  const publications = {
+    "paulsauto:gary": "2026-11-21T08:00:00.000Z",
+    "paulsauto:hammond": "2026-11-22T08:00:00.000Z",
+  };
+  expect(YardSitemap.chainLastModified(null, yards, publications)).toBe(
+    "2026-11-22T08:00:00.000Z",
+  );
+  // A source that published inside the freshness window still wins.
+  expect(
+    YardSitemap.chainLastModified(
+      "2026-11-24T08:00:00.000Z",
+      yards,
+      publications,
+    ),
+  ).toBe("2026-11-24T08:00:00.000Z");
+  expect(YardSitemap.chainLastModified(null, yards, {})).toBeUndefined();
+});
+
+test("yard-make sitemap XML escapes URLs and keeps lastmod", () => {
+  expect(
+    YardSitemap.xml([
+      { url: "https://example.com/a?b=1&c=2" },
+      {
+        url: "https://example.com/d",
+        lastModified: "2026-11-01T00:00:00.000Z",
+      },
+    ]),
+  ).toBe(
+    '<?xml version="1.0" encoding="UTF-8"?>\n' +
+      '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+      "<url>\n<loc>https://example.com/a?b=1&amp;c=2</loc>\n</url>\n" +
+      "<url>\n<loc>https://example.com/d</loc>\n<lastmod>2026-11-01T00:00:00.000Z</lastmod>\n</url>\n" +
+      "</urlset>\n",
+  );
 });

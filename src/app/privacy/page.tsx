@@ -1,12 +1,13 @@
 import { type Metadata } from "next";
 import Link from "next/link";
 import { PageShell } from "~/components/PageShell";
+import { sitePageUrl } from "~/lib/site-metadata";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description:
     "Privacy Policy for Junkyard Index - Learn how we collect, use, and protect your data.",
-  alternates: { canonical: "/privacy" },
+  ...sitePageUrl("/privacy"),
 };
 
 export default function PrivacyPage() {

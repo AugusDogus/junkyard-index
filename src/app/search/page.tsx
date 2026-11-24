@@ -7,6 +7,7 @@ import { ErrorBoundary } from "~/components/ErrorBoundary";
 import { Footer } from "~/components/Footer";
 import { Header } from "~/components/Header";
 import { ScrollToTop } from "~/components/ScrollToTop";
+import { SearchHeading } from "~/components/search/SearchHeading";
 import { SearchPageSkeleton } from "~/components/search/SearchPageSkeleton";
 import { SearchErrorFallback } from "~/components/search/SearchErrorFallback";
 import { SearchPageContent } from "~/components/search/SearchPageContent";
@@ -80,6 +81,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     <div className="bg-background flex min-h-svh flex-col">
       <Header />
       <div className="min-h-screen flex-1">
+        <SearchHeading />
         <ErrorBoundary fallback={SearchErrorFallback}>
           <Suspense fallback={<SearchPageSkeleton />}>
             <HydrateClient>

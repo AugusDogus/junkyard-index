@@ -19,6 +19,19 @@ test("bare /search stays indexable", () => {
   const metadata = searchPageMetadata({});
   expect(metadata.robots).toBeUndefined();
   expect(metadata.alternates?.canonical).toBe("/search");
+  expect(metadata.openGraph).toMatchObject({ url: "/search" });
+});
+
+test("robots.txt lists the hub sitemaps, then the yard-make sitemap", () => {
+  expect(
+    [robots().sitemap ?? []].flat().map((url) => new URL(url).pathname),
+  ).toEqual([
+    "/sitemap.xml",
+    "/junkyards/sitemap.xml",
+    "/chains/sitemap.xml",
+    "/cars/sitemap.xml",
+    "/junkyards/sitemap-makes.xml",
+  ]);
 });
 
 test.each([
