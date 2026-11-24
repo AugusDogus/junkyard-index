@@ -24,6 +24,7 @@ import {
   type PickapartvaRecord,
 } from "./pickapartva-parser";
 import { buildPickapartvaSnapshot } from "./pickapartva-snapshot";
+import { validationRejectionKind } from "./ingestion-validation";
 import {
   pickapartvaTestCard,
   pickapartvaTestRecord,
@@ -410,19 +411,27 @@ test.each<[string, (body: string) => string, string]>([
   ],
 ])(
   "Pick-A-Part VA fails closed when a set-date search has %s",
-  async (_kind, change, message) => {
+  async (kind, change, message) => {
     serve((url, body) =>
       url === searchUrl("2026-10-16") ? change(body) : body,
     );
     let callbacks = 0;
-    await expect(
-      run(() =>
-        Effect.sync(() => {
-          callbacks++;
-        }),
-      ),
-    ).rejects.toThrow(message);
+    const rejection: unknown = await run(() =>
+      Effect.sync(() => {
+        callbacks++;
+      }),
+    ).catch((error: unknown) => error);
+    expect(() => {
+      throw rejection;
+    }).toThrow(message);
     expect(callbacks).toBe(0);
+    // Donors that differ between the catalog and its search mean the
+    // inventory changed while it was read, so a crawl later today can pass.
+    expect(validationRejectionKind(rejection)).toBe(
+      kind === "a hidden donor missing" || kind === "an extra unseen donor"
+        ? "transient"
+        : "deterministic",
+    );
   },
   60_000,
 );

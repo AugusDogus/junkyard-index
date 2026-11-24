@@ -5,6 +5,7 @@ import {
   type CentralStreamResult,
 } from "./central-connector";
 import { CentralCursor, type CentralCensus } from "./central-cursor";
+import { validationRejectionKind } from "./ingestion-validation";
 import {
   centralHash,
   type CentralControl,
@@ -775,9 +776,14 @@ test("Central fails a closing re-read that gains cards but stays at or below its
     const listed = donors(short, "M" + short);
     native.once.set(short, listed.slice(0, 150));
     native.rows.set(short, listed.slice(0, closing));
-    await expect(census(native, 600, null)).rejects.toThrow(
-      "Closing Central model cards changed",
+    const drift: unknown = await census(native, 600, null).catch(
+      (error: unknown) => error,
     );
+    expect(() => {
+      throw drift;
+    }).toThrow("Closing Central model cards changed");
+    // The yard changed while it was read, so a crawl later today can pass.
+    expect(validationRejectionKind(drift)).toBe("transient");
   }
 });
 

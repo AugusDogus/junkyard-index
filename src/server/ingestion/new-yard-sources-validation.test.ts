@@ -389,8 +389,8 @@ for (const { source, minimum, initial, complete } of sources) {
           batchClient: client,
           snapshotStore,
         });
-        expect(result.status).toBe("ready");
-        if (result.status !== "ready")
+        expect(result.status).toBe(accepted ? "ready" : "released");
+        if (result.status === "stopped")
           throw new Error("Validation was skipped");
         expect(result.acceptedSources).toEqual(accepted ? [source] : []);
         expect(result.rejectedSources).toEqual(
@@ -492,8 +492,9 @@ test.each([
         batchClient: client,
         snapshotStore,
       });
-      expect(result.status).toBe("ready");
-      if (result.status !== "ready") throw new Error("Validation was skipped");
+      expect(result.status).toBe(accepted ? "ready" : "released");
+      if (result.status === "stopped")
+        throw new Error("Validation was skipped");
       expect(result.acceptedSources).toEqual(accepted ? ["cars4parts"] : []);
       expect(result.rejectedSources).toEqual(
         accepted
@@ -552,8 +553,8 @@ test("Harry's preserves inventory when a physical yard disappears from a source-
       batchClient: client,
       snapshotStore,
     });
-    expect(result.status).toBe("ready");
-    if (result.status !== "ready") throw new Error("Validation was skipped");
+    expect(result.status).toBe("released");
+    if (result.status !== "released") throw new Error("Validation was skipped");
     expect(result.acceptedSources).toEqual([]);
     expect(result.rejectedSources).toMatchObject([
       {

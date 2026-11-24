@@ -243,7 +243,9 @@ async function runSourceIngestion(runId: string) {
     markRunFailed,
     waitForPublicationMode,
   };
-  // Each source's run fetches and stages in parallel with the others.
+  // Each source's run fetches and stages in parallel with the others. A run
+  // with no accepted source released at validation and never waits for the
+  // commit, so its source can retry while another run holds it.
   const staging = await stageDurableIngestion({ runId, operations });
   if (staging.status !== "staged") return staging;
 

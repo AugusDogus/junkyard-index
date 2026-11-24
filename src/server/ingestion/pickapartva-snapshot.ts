@@ -1,5 +1,6 @@
 import type { ConnectorChunkAccounting } from "./connector-chunk";
 import { inventoryVin } from "./inventory-vin";
+import { transientRejection } from "./ingestion-validation";
 import {
   pickapartvaHash,
   type PickapartvaPage,
@@ -242,8 +243,12 @@ export function buildPickapartvaSnapshot(
       );
     const hidden = found.filter(({ record }) => !shown.has(cardKey(record)));
     if (hidden.length !== slots.length)
-      throw new Error(
-        `Pick-A-Part VA set-date search for ${date} adds ${hidden.length} donors, but the catalog repeated ${slots.length} cards of that date; the inventory changed between reads, so completeness is unproven`,
+      // The catalog changed while it was read, so a fresh crawl later in the
+      // day can pass.
+      throw transientRejection(
+        new Error(
+          `Pick-A-Part VA set-date search for ${date} adds ${hidden.length} donors, but the catalog repeated ${slots.length} cards of that date; the inventory changed between reads, so completeness is unproven`,
+        ),
       );
     slots.forEach((slot, index) => {
       const entry = hidden[index];

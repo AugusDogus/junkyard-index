@@ -22,6 +22,7 @@ import {
 } from "./pipes-parser";
 import { classifyPipesInventory } from "./pipes-transform";
 import { inventoryVin } from "./inventory-vin";
+import { transientRejection } from "./ingestion-validation";
 import { SourceValidationPolicy } from "./source-validation";
 import {
   PIPES_CONFIG_URL,
@@ -279,10 +280,12 @@ export function inspectPipesCursor(state: State) {
     throw new Error(
       "Pipes checkpoint union exceeds its bounded stock capacity",
     );
+  // Closing drift: the yard changed while it was read, so a fresh crawl
+  // later in the day can pass.
   for (const [index, page] of state.closingNative.entries()) {
     if (page.hash !== state.native[index]?.hash)
-      throw new Error(
-        "Pipes complete closing native census differs from opening",
+      throw transientRejection(
+        new Error("Pipes complete closing native census differs from opening"),
       );
   }
   const bookendIndexes = pairs.length ? [0, pairs.length - 1] : [];
@@ -297,7 +300,9 @@ export function inspectPipesCursor(state: State) {
       !pair ||
       pipesQueryHash(original.raw, pair) !== pipesQueryHash(receipt.raw, pair)
     )
-      throw new Error("Pipes query bookend records changed");
+      throw transientRejection(
+        new Error("Pipes query bookend records changed"),
+      );
   }
   for (const [index, receipt] of state.closingContext.entries()) {
     verifyRaw(receipt);

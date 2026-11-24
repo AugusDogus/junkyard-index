@@ -31,9 +31,16 @@ same VIN, reconciliation transfers ownership and preserves `firstSeenAt`.
   saved-search check time and every daily alert check's `checked_through`, so
   its vehicles never fall inside a window already matched. It is never delayed
   for spacing.
-- Every claim attempt releases waiters staged more than 24 hours ago. Their
-  accepted sources become `expired`, nothing is reconciled, the prior inventory
-  stays live, and each source re-crawls within its daily attempts.
+- A run with no accepted source (every source failed or was rejected) never
+  joins the queue. Validation ends it and frees its source's slot, so the
+  source retries on schedule while another run holds the commit.
+- Every claim attempt and every hourly pass releases waiters staged more than
+  24 hours ago. Their accepted sources become `expired`, nothing is reconciled,
+  the prior inventory stays live, and each source re-crawls within its daily
+  attempts.
+- The pass also releases waiters from an earlier ingestion day the same way,
+  so the new day's crawl of that source starts on time. A released snapshot
+  was a complete crawl, not a failure, so it starts no retry cooldown.
 - `GET /api/admin/ingestion/lease` (cron secret) reports the holder and the
   oldest waiter. The oldest waiter's `waitingMs` is the starvation signal.
 
@@ -54,7 +61,10 @@ Source runs never match saved searches. One daily alert check
 each alert-enabled saved search once against the vehicles first seen since its
 last check. It starts when the day's pass ends (every registered source has
 published, hit a deterministic validation rejection, or exhausted its three
-transient attempts). From 18:00 UTC an hourly cron (at :40) starts it anyway, so a stuck
+attempts). A provider marks a rejection transient (`transientRejection` in
+[`ingestion-validation.ts`](../../src/server/ingestion/ingestion-validation.ts))
+when a later crawl can pass, such as a host that kept rate-limiting or a
+catalog that changed during the crawl; it retries after the usual delay. From 18:00 UTC an hourly cron (at :40) starts it anyway, so a stuck
 or abandoned source cannot hold back everyone's alerts.
 
 The check fixes a bound when it starts: the second before any commit still in

@@ -28,12 +28,25 @@ import {
   validateSourceSnapshot,
 } from "./source-validation";
 
+type RejectedSources = Array<{ source: IngestionSource; errors: string[] }>;
+
+/**
+ * ready: the run joined the commit queue with its accepted sources.
+ * released: no source was accepted, so the run had nothing to commit and
+ * released its sources' slots at validation, without queueing for the
+ * commit. Its sources retry within their daily attempts.
+ */
 export type DurableSourceValidationSummary =
   | { status: "stopped" }
   | {
       status: "ready";
       acceptedSources: IngestionSource[];
-      rejectedSources: Array<{ source: IngestionSource; errors: string[] }>;
+      rejectedSources: RejectedSources;
+    }
+  | {
+      status: "released";
+      acceptedSources: [];
+      rejectedSources: RejectedSources;
     };
 
 export async function validateDurableSourceRuns(params: {
@@ -41,6 +54,8 @@ export async function validateDurableSourceRuns(params: {
   database: LibSQLDatabase;
   batchClient: Pick<Client, "batch">;
   snapshotStore: IngestionSnapshotStore;
+  /** Defaults to the current time. */
+  now?: Date;
 }): Promise<DurableSourceValidationSummary> {
   const [run] = await params.database
     .select()
@@ -291,26 +306,32 @@ export async function validateDurableSourceRuns(params: {
     ],
   }));
   const errors = [...parseIngestionErrors(current.errors), ...validationErrors];
+  const errorsJson =
+    errors.length > 0 ? JSON.stringify([...new Set(errors)]) : null;
   const checkpointIndex = statements.length;
-  // The run joins the commit queue (CommitLease) in this order.
-  const readyAt = Date.now();
-  statements.push({
-    sql: `
-      update ingestion_run
-      set stage = 'reconcile_upsert', accepted_sources = ?,
-          reconciliation_cursor = null, errors = ?, last_progress_at = ?,
-          ready_at = ?
-      where id = ? and status = 'running' and active_slot = 1
-        and stage = 'sources'
-    `,
-    args: [
-      JSON.stringify(acceptedSources),
-      errors.length > 0 ? JSON.stringify([...new Set(errors)]) : null,
-      readyAt,
-      readyAt,
-      params.runId,
-    ],
-  });
+  const now = (params.now ?? new Date()).getTime();
+  statements.push(
+    acceptedSources.length === 0
+      ? releaseStatement(params.runId, errorsJson, now)
+      : {
+          // The run joins the commit queue (CommitLease) in this order.
+          sql: `
+            update ingestion_run
+            set stage = 'reconcile_upsert', accepted_sources = ?,
+                reconciliation_cursor = null, errors = ?, last_progress_at = ?,
+                ready_at = ?
+            where id = ? and status = 'running' and active_slot = 1
+              and stage = 'sources'
+          `,
+          args: [
+            JSON.stringify(acceptedSources),
+            errorsJson,
+            now,
+            now,
+            params.runId,
+          ],
+        },
+  );
   const results = await params.batchClient.batch(statements, "write");
   const checkpoint = results[checkpointIndex];
   if (!checkpoint) {
@@ -318,6 +339,39 @@ export async function validateDurableSourceRuns(params: {
   }
   if (checkpoint.rowsAffected === 0) return { status: "stopped" };
 
-  return { status: "ready", acceptedSources, rejectedSources };
+  return acceptedSources.length === 0
+    ? { status: "released", acceptedSources: [], rejectedSources }
+    : { status: "ready", acceptedSources, rejectedSources };
+}
+
+/**
+ * Ends a run whose every source failed or was rejected. It has nothing to
+ * commit: reconciling no accepted source writes no vehicle and refreshes no
+ * yard, and the retired sources it would age are reconciled by the next run
+ * that commits. So it never queues for the commit, whose holder can keep it
+ * for hours, and its source's slot frees at once for the day's retries.
+ *
+ * It never claimed the commit, so any search rebuild it inherited at start
+ * still sits on the finished run it came from, and the next run to claim the
+ * commit takes it on. Clearing it here keeps a release during a rebuild from
+ * ordering another one.
+ */
+function releaseStatement(
+  runId: string,
+  errorsJson: string | null,
+  now: number,
+): InStatement {
+  return {
+    sql: `
+      update ingestion_run
+      set status = 'error', stage = 'released', active_slot = null,
+          accepted_sources = '[]', reconciliation_cursor = null, errors = ?,
+          full_reindex_required = 0, last_progress_at = ?, completed_at = ?,
+          released_at = ?
+      where id = ? and status = 'running' and active_slot = 1
+        and stage = 'sources'
+    `,
+    args: [errorsJson, now, now, now, runId],
+  };
 }
 import type { Client, InStatement } from "@libsql/client";

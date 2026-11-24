@@ -129,6 +129,8 @@ test("large identity turnover with an unchanged count fails once without publish
     }),
   );
   expect(result.status).toBe("failed");
+  // The census drifted while it was read, so a crawl later today can pass.
+  expect(result).toMatchObject({ failureKind: "transient" });
   expect(result.errors.join(" ")).toContain("closing census drift");
   expect(result.cursor).toEqual(cursor);
   expect(result.count).toBe(0);

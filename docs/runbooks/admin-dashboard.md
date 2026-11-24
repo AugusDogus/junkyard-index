@@ -76,7 +76,8 @@ failures count the last 14 days.
 
 A rejected run publishes nothing: the source's previous vehicles stay on the
 site until a run is accepted. A run can also be rejected because it waited
-over 24 hours for its turn to publish.
+over 24 hours for its turn to publish, or because its ingestion day ended
+while it waited and the next day's crawl replaced it.
 
 States, in the order the page checks them (a stuck run is listed first,
 whatever its state):

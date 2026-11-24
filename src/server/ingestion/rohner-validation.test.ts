@@ -46,8 +46,9 @@ test.each([
         batchClient: client,
         snapshotStore,
       });
-      expect(result.status).toBe("ready");
-      if (result.status !== "ready") throw new Error("Validation was skipped");
+      expect(result.status).toBe("released");
+      if (result.status !== "released")
+        throw new Error("Validation was skipped");
       expect(result.acceptedSources).toEqual([]);
       expect(result.rejectedSources).toEqual([
         {

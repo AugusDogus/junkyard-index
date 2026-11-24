@@ -1,4 +1,7 @@
-import { ingestionValidation } from "./ingestion-validation";
+import {
+  ingestionValidation,
+  transientRejection,
+} from "./ingestion-validation";
 import { createHash } from "node:crypto";
 import { Effect, RateLimiter } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
@@ -174,13 +177,16 @@ function rateLimitCooldown(
       const cooldownMs = WHITEBRADSTREET_RATE_LIMIT_COOLDOWNS_MS[deferrals - 1];
       const now = Date.now();
       const since = prior?.since ?? now;
+      // The host may admit the crawl later today, so the day's retries stay.
       const exhausted = (bound: "cooldowns" | "window") =>
-        new WhitebradstreetRateLimitExhaustedError({
-          url: refusal.url,
-          retryAfterMs: refusal.retryAfterMs,
-          bound,
-          since,
-        });
+        transientRejection(
+          new WhitebradstreetRateLimitExhaustedError({
+            url: refusal.url,
+            retryAfterMs: refusal.retryAfterMs,
+            bound,
+            since,
+          }),
+        );
       if (cooldownMs === undefined) throw exhausted("cooldowns");
       const retryAt = now + Math.max(cooldownMs, refusal.retryAfterMs);
       if (

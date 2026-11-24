@@ -172,7 +172,7 @@ describe("ingestion run retention", () => {
       snapshotStore: store,
     });
     expect(result).toMatchObject({
-      status: "ready",
+      status: "released",
       acceptedSources: [],
       rejectedSources: [
         {

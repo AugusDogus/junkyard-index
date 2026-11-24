@@ -1,6 +1,6 @@
 import {
   ingestionValidation,
-  validationRejection,
+  transientRejection,
 } from "./ingestion-validation";
 import { Effect, Option } from "effect";
 import {
@@ -305,14 +305,16 @@ export function streamPipesInventoryWithRequestGate<E, R>(
       }
       if (cursor.restarts >= PIPES_MAX_RESTARTS)
         return yield* Effect.fail(
-          validationRejection(
+          // The source kept changing; a fresh crawl later in the day can
+          // pass once it settles.
+          transientRejection(
             new PipesProviderError({
               operation: "closing source stability",
               cause:
                 step.control +
                 " still differs from the opening crawl after " +
                 PIPES_MAX_RESTARTS +
-                " in-run restarts, so the source kept changing during every attempt. No callbacks ran. The source retries on its next daily run; if this repeats, check whether the nightly VinPlus publish moved past 08:15 UTC",
+                " in-run restarts, so the source kept changing during every attempt. No callbacks ran. The source retries after the usual delay within its daily attempts; if this repeats, check whether the nightly VinPlus publish moved past 08:15 UTC",
             }),
           ),
         );

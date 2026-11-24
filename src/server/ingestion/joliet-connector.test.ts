@@ -4,6 +4,7 @@ import { z } from "zod";
 import { soakJolietInventory } from "../../../scripts/soak-joliet";
 import { fetchJolietContext } from "./joliet-client";
 import { streamJolietInventoryWithRequestGate } from "./joliet-connector";
+import { validationRejectionKind } from "./ingestion-validation";
 import {
   JOLIET_MAX_RESTARTS,
   JolietCursor,
@@ -574,7 +575,12 @@ test("Joliet rejects owner/scope drift on resume after its last restart and at t
     rewrite: (body, kind) =>
       kind === "inventory" ? body.replace("<td>99</td>", "<td>98</td>") : body,
   });
-  await expect(run(exhausted)).rejects.toThrow("changed during the crawl");
+  const drift: unknown = await run(exhausted).catch((error: unknown) => error);
+  expect(() => {
+    throw drift;
+  }).toThrow("changed during the crawl");
+  // The overnight publish settles, so a crawl later today can pass.
+  expect(validationRejectionKind(drift)).toBe("transient");
   mock({
     rewrite: (body, kind, ordinal) =>
       kind === "contact" && ordinal === 2

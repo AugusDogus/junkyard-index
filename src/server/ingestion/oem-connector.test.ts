@@ -6,6 +6,7 @@ import {
   serializeDurableSourceCursor,
 } from "./durable-source";
 import { streamOemInventory } from "./oem-connector";
+import { validationRejectionKind } from "./ingestion-validation";
 import { OemCursor, OemCursorSchema } from "./oem-cursor";
 import { OEM_ARRIVALS, OEM_MAKES } from "./oem-html";
 import {
@@ -202,20 +203,23 @@ describe("OEM resumable native traversal", () => {
     // A short page that does not repeat at closing is never accepted.
     let batches = 0,
       reads = 0;
-    await expect(
-      Effect.runPromise(
-        streamOemInventory({
-          ...options(() => {
-            batches++;
-          }),
-          maxPages: 8,
-          readPage: (url) =>
-            url === oemF150.url && reads++ === 1
-              ? Effect.succeed(oemDonorFixture)
-              : opts.readPage(url),
+    const drift: unknown = await Effect.runPromise(
+      streamOemInventory({
+        ...options(() => {
+          batches++;
         }),
-      ),
-    ).rejects.toThrow("Closing OEM model FORD F150 PICKUP cards changed");
+        maxPages: 8,
+        readPage: (url) =>
+          url === oemF150.url && reads++ === 1
+            ? Effect.succeed(oemDonorFixture)
+            : opts.readPage(url),
+      }),
+    ).catch((error: unknown) => error);
+    expect(() => {
+      throw drift;
+    }).toThrow("Closing OEM model FORD F150 PICKUP cards changed");
+    // The yard changed while it was read, so a crawl later today can pass.
+    expect(validationRejectionKind(drift)).toBe("transient");
     expect(reads).toBe(2);
     expect(batches).toBe(0);
   });

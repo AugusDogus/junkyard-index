@@ -1,4 +1,7 @@
-import { ingestionValidation } from "./ingestion-validation";
+import {
+  ingestionValidation,
+  transientRejection,
+} from "./ingestion-validation";
 import { Effect, Option } from "effect";
 import type {
   ConnectorChunkAccounting,
@@ -67,9 +70,12 @@ const attempt = <A>(operation: string, run: () => A) =>
     try: run,
     catch: (cause) => new CentralProviderError({ operation, cause }),
   });
+/** Closing drift: the yard changed while it was read, so a fresh crawl
+ * later in the day can pass. */
+const drift = (message: string) => transientRejection(new Error(message));
 const same = (expected: unknown, actual: unknown, label: string) => {
   if (centralHash(expected) !== centralHash(actual))
-    throw new Error(
+    throw drift(
       "Closing Central " +
         label +
         " changed; preserve prior inventory and inspect the native graph",
@@ -103,7 +109,7 @@ function closingPage(
     const remaining = listed.get(identity(record)) ?? 0;
     const [vin, , , , destination] = record;
     if (remaining === 0)
-      throw new Error(
+      throw drift(
         closing.records.some(([other]) => other === vin)
           ? `Closing Central model card for VIN ${vin || "(blank)"} changed its year, title or destination (${destination}); preserve prior inventory and inspect the native graph`
           : `Closing Central model cards lost VIN ${vin || "(blank)"} (${destination}) listed at the first read; preserve prior inventory and inspect the native graph`,

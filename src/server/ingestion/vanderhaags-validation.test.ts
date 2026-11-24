@@ -111,7 +111,7 @@ test.each([
         batchClient: client,
         snapshotStore,
       });
-      if (result.status !== "ready")
+      if (result.status === "stopped")
         throw new Error("Source validation did not finish");
       expect(result.acceptedSources).toEqual(accepted ? ["vanderhaags"] : []);
       if (!accepted)

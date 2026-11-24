@@ -10,6 +10,7 @@ import {
   readJimsimportPage,
 } from "./jimsimport-client";
 import { streamJimsimportInventory } from "./jimsimport-connector";
+import { validationRejectionKind } from "./ingestion-validation";
 import {
   JimsimportCursor,
   jimsimportCensus,
@@ -261,27 +262,30 @@ describe("Jim's Import complete census guards", () => {
     // The cold fixture read models whose cards differ from their badge.
     expect(result.cursor.phase).toBe("closing-models");
     let calls = 0;
-    await expect(
-      Effect.runPromise(
-        streamJimsimportInventory({
-          previousUniqueInventory: null,
-          startCursor: JimsimportCursor.checkpoint({
-            ...state,
-            phase: "closing-makes",
-          }),
-          readPage: () => {
-            calls++;
-            return Effect.succeed(
-              jimsimportFixture("catalog").body.replaceAll(
-                '/used-parts/ACURA"',
-                '/used-parts/ACURA_NEW"',
-              ),
-            );
-          },
-          onBatch: () => Effect.die("Early emission"),
+    const drift: unknown = await Effect.runPromise(
+      streamJimsimportInventory({
+        previousUniqueInventory: null,
+        startCursor: JimsimportCursor.checkpoint({
+          ...state,
+          phase: "closing-makes",
         }),
-      ),
-    ).rejects.toThrow("membership");
+        readPage: () => {
+          calls++;
+          return Effect.succeed(
+            jimsimportFixture("catalog").body.replaceAll(
+              '/used-parts/ACURA"',
+              '/used-parts/ACURA_NEW"',
+            ),
+          );
+        },
+        onBatch: () => Effect.die("Early emission"),
+      }),
+    ).catch((error: unknown) => error);
+    expect(() => {
+      throw drift;
+    }).toThrow("membership");
+    // The yard changed while it was read, so a crawl later today can pass.
+    expect(validationRejectionKind(drift)).toBe("transient");
     expect(calls).toBe(1);
   });
   test("a short model page that repeats at closing completes the run", async () => {

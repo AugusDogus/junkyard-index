@@ -4,6 +4,7 @@ import {
   commitDurableIngestion,
   executeDurableIngestion,
   ingestDurableSource,
+  stageDurableIngestion,
   type DurableIngestionOperations,
 } from "./durable-ingestion-orchestrator";
 import type { DurableIngestionResult } from "./durable-ingestion-types";
@@ -495,6 +496,33 @@ describe("durable ingestion lifecycle", () => {
     });
 
     expect(execution).toEqual({ status: "stopped" });
+    expect(reconciled).toBe(false);
+  });
+
+  test("ends a run with no accepted source at validation, without committing", async () => {
+    let reconciled = false;
+    const operations = makeOperations({
+      validateSources: async () => ({
+        status: "released",
+        acceptedSources: [],
+        rejectedSources: [{ source: "pyp", errors: ["HTTP 503"] }],
+      }),
+      reconcile: async () => {
+        reconciled = true;
+        return {
+          status: "complete",
+          result: COMPLETED_INGESTION,
+          search: "pending",
+        };
+      },
+    });
+
+    expect(
+      await stageDurableIngestion({ runId: "run-rejected", operations }),
+    ).toEqual({ status: "released" });
+    expect(
+      await executeDurableIngestion({ runId: "run-rejected", operations }),
+    ).toEqual({ status: "released" });
     expect(reconciled).toBe(false);
   });
 

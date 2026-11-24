@@ -3,8 +3,12 @@ import { Effect } from "effect";
 import {
   ingestionValidation,
   isValidationRejection,
+  transientRejection,
   validationRejection,
+  validationRejectionKind,
 } from "./ingestion-validation";
+import { IngestionSchedule } from "./ingestion-schedule";
+import { parseDurableSourceCursor } from "./durable-source";
 import { AutorecyclerProviderError } from "./errors";
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
@@ -49,6 +53,94 @@ test("HTTP/body and Redis errors remain transient even when their text mentions 
   expect(validationRejection(error)).toBe(error);
   expect(isValidationRejection(error)).toBe(true);
 });
+
+test("a transient rejection stays transient through deterministic provider and Effect wrappers", async () => {
+  const drift = transientRejection(new Error("closing census drifted"));
+  const failure = await Effect.runPromise(
+    ingestionValidation({
+      try: () => {
+        throw drift;
+      },
+      catch: (cause) => new AutorecyclerProviderError({ from: 0, cause }),
+    }),
+  ).catch((error: unknown) => error);
+  expect(validationRejectionKind(failure)).toBe("transient");
+  expect(validationRejectionKind(new Error("outer", { cause: failure }))).toBe(
+    "transient",
+  );
+  // The provider wrapper can return the marked error itself; a later
+  // deterministic mark does not downgrade it.
+  const rateLimited = await Effect.runPromise(
+    ingestionValidation({
+      try: () => {
+        throw drift;
+      },
+      catch: (cause) => cause,
+    }),
+  ).catch((error: unknown) => error);
+  expect(validationRejectionKind(rateLimited)).toBe("transient");
+  expect(validationRejectionKind(new Error("HTTP 503"))).toBeNull();
+});
+
+test.each(["deterministic", "transient"] as const)(
+  "a %s rejection checkpointed by the provider decides whether the source retries today",
+  async (kind) => {
+    const { client, cleanup } = createTestClient();
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const database = drizzle(client),
+        snapshotStore = IngestionSnapshotStore.memory();
+      const repository = createDurableIngestionRepository(
+        database,
+        client,
+        snapshotStore,
+      );
+      const now = new Date("2026-11-22T09:00:00Z");
+      const plan = await repository.prepareWakeup(now, ["pyp"]);
+      if (plan.status !== "active" || !plan.runs[0])
+        throw new Error("Expected run");
+      const runId = plan.runs[0].runId;
+      const [sourceRun] = await repository.getSourceRuns(runId);
+      if (!sourceRun?.startCursor) throw new Error("Expected source run");
+      const cursor = parseDurableSourceCursor("pyp", sourceRun.startCursor);
+      await repository.checkpointChunk({
+        runId,
+        requestedCursor: cursor,
+        fetched: {
+          cursor,
+          status: "failed",
+          failureKind: kind,
+          vehiclesProcessed: 0,
+          uniqueVehicles: 0,
+          duplicateVehicles: 0,
+          rejectedVehicles: 0,
+          pagesProcessed: 1,
+          errors: ["closing census changed surviving vehicle fields"],
+          vehicles: [],
+          yards: [],
+        },
+      });
+      expect(
+        (
+          await validateDurableSourceRuns({
+            runId,
+            database,
+            batchClient: client,
+            snapshotStore,
+            now,
+          })
+        ).status,
+      ).toBe("released");
+      const retry = new Date(now.getTime() + IngestionSchedule.retryDelayMs);
+      const next = await repository.prepareWakeup(retry, ["pyp"]);
+      expect(next.status).toBe(
+        kind === "deterministic" ? "complete" : "active",
+      );
+    } finally {
+      cleanup();
+    }
+  },
+);
 
 test.each([false, true])(
   "validation records distinguish transient failures from deterministic rejection (%s)",
@@ -178,8 +270,7 @@ for (const guard of [
         snapshotStore: store,
       });
       expect(validation).toMatchObject({
-        status: "ready",
-        acceptedSources: [],
+        status: "released",
         rejectedSources: [{ source: "pyp" }],
       });
       const persisted = (
@@ -269,8 +360,7 @@ test.each([
         outcome === "accepted"
           ? { status: "ready", acceptedSources: ["pyp"], rejectedSources: [] }
           : {
-              status: "ready",
-              acceptedSources: [],
+              status: "released",
               rejectedSources: [
                 {
                   source: "pyp",

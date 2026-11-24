@@ -384,8 +384,8 @@ describe("bounded durable reconciliation", () => {
           batchClient: client,
           snapshotStore,
         });
-        expect(validation.status).toBe("ready");
-        if (validation.status !== "ready")
+        expect(validation.status).toBe("released");
+        if (validation.status !== "released")
           throw new Error("Expected completed source validation");
         expect(validation.acceptedSources).toEqual([]);
         expect(validation.rejectedSources).toHaveLength(1);

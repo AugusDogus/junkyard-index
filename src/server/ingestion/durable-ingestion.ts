@@ -4,7 +4,7 @@ import {
   canonicalizeBackfilledVinVehicles,
   canonicalizeVinVehicles,
 } from "./vin-canonicalization";
-import { isValidationRejection } from "./ingestion-validation";
+import { validationRejectionKind } from "./ingestion-validation";
 import type { DurableWorkflowCursor } from "./durable-workflow-cursor";
 import { ALGOLIA_INDEX_NAME, getAlgoliaAdminClient } from "~/lib/algolia";
 import {
@@ -163,7 +163,8 @@ export async function runDurableSourceChunk<
           cursor: params.cursor,
           message: `${params.cursor.source}: ${deferral.message}`,
         };
-      if (!isValidationRejection(error)) throw error;
+      const rejection = validationRejectionKind(error);
+      if (rejection === null) throw error;
       return repository.markSourceFailed({
         runId: params.runId,
         source: params.cursor.source,
@@ -176,7 +177,9 @@ export async function runDurableSourceChunk<
                 typeof error.message === "string"
               ? error.message
               : "Provider validation rejected the frozen crawl; inspect the saved source evidence before retrying.",
-        validationRejected: true,
+        // A transient rejection fails the source like any failure, so it
+        // retries after the usual delay; a deterministic one ends its day.
+        validationRejected: rejection === "deterministic",
       });
     },
   );

@@ -1,4 +1,7 @@
-import { ingestionValidation } from "./ingestion-validation";
+import {
+  ingestionValidation,
+  transientRejection,
+} from "./ingestion-validation";
 import { Effect, Option } from "effect";
 import { OemProviderError, readOemPage } from "./oem-client";
 import { OEM_ARRIVALS, OEM_MAKES } from "./oem-html";
@@ -53,12 +56,16 @@ const attempt = <A>(operation: string, run: () => A) =>
     try: run,
     catch: (cause) => new OemProviderError({ operation, cause }),
   });
+/** Closing drift: the yard changed while it was read, so a fresh crawl
+ * later in the day can pass. */
 const same = (expected: unknown, actual: unknown, subject: string) => {
   if (oemHash(expected) !== oemHash(actual))
-    throw new Error(
-      "Closing OEM " +
-        subject +
-        " changed; restart a complete capture after reviewing drift",
+    throw transientRejection(
+      new Error(
+        "Closing OEM " +
+          subject +
+          " changed; restart a complete capture after reviewing drift",
+      ),
     );
 };
 /** Card identity of a model page: which VIN-bearing donors it lists, in any

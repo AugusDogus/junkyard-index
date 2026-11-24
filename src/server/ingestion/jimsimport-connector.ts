@@ -1,4 +1,7 @@
-import { ingestionValidation } from "./ingestion-validation";
+import {
+  ingestionValidation,
+  transientRejection,
+} from "./ingestion-validation";
 import { Effect, Option } from "effect";
 import type { ConnectorChunkAccounting } from "./connector-chunk";
 import {
@@ -296,8 +299,12 @@ export function streamJimsimportInventory<E, R>(
                 jimsimportDirectoryMembership(parseJimsimportDirectory(raw)),
               ) !== jimsimportHash(jimsimportDirectoryMembership(current.makes))
             )
-              throw new Error(
-                "Native make membership, labels, order or multiplicity changed",
+              // The yard changed while it was read, so a fresh crawl later
+              // in the day can pass.
+              throw transientRejection(
+                new Error(
+                  "Native make membership, labels, order or multiplicity changed",
+                ),
               );
             return jimsimportClosingModels(current).length
               ? JimsimportCursor.checkpoint({
@@ -323,8 +330,10 @@ export function streamJimsimportInventory<E, R>(
               closingModel.model,
             );
             if (!opened || requiredDonors(opened) !== requiredDonors(closing))
-              throw new Error(
-                `Native required donors on ${closingModel.model.path} changed during closing (opening ${opened?.records.length ?? "missing"} cards, closing ${closing.records.length}, badge ${closingModel.model.count}); its short opening page was not confirmed`,
+              throw transientRejection(
+                new Error(
+                  `Native required donors on ${closingModel.model.path} changed during closing (opening ${opened?.records.length ?? "missing"} cards, closing ${closing.records.length}, badge ${closingModel.model.count}); its short opening page was not confirmed`,
+                ),
               );
             const { closed, ...state } = stateOf(current);
             return closed + 1 === jimsimportClosingModels(current).length
