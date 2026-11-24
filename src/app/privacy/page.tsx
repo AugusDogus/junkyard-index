@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 export default function PrivacyPage() {
   return (
-    <PageShell width="wide">
+    <PageShell width="wide" rendering="static">
       <h1 className="mb-8 text-4xl font-bold tracking-tight">Privacy Policy</h1>
 
       <p className="text-muted-foreground mb-8">

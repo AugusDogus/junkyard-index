@@ -1,7 +1,7 @@
 import { type Metadata } from "next";
 import Link from "next/link";
 import { Footer } from "~/components/Footer";
-import { Header } from "~/components/Header";
+import { PublicHeader } from "~/components/PublicHeader";
 import { TERMS_METADATA } from "~/lib/legal";
 
 export const metadata: Metadata = {
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 export default function TermsPage() {
   return (
     <div className="bg-background min-h-screen">
-      <Header />
+      <PublicHeader />
 
       <main className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
         <h1 className="mb-8 text-4xl font-bold tracking-tight">
@@ -377,7 +377,7 @@ export default function TermsPage() {
         </div>
       </main>
 
-      <Footer />
+      <Footer status="link" />
     </div>
   );
 }

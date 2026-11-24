@@ -1,9 +1,7 @@
-import { getSessionCookie } from "better-auth/cookies";
 import { type Metadata } from "next";
-import { headers } from "next/headers";
 import { Suspense } from "react";
 import { Footer } from "~/components/Footer";
-import { Header } from "~/components/Header";
+import { PublicHeader } from "~/components/PublicHeader";
 import { PricingPlansSection } from "~/components/marketing/PricingPlansSection";
 import { TrackedPricingButton } from "~/components/marketing/TrackedPricingButton";
 import { PLANS } from "~/lib/plans";
@@ -16,16 +14,10 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function PricingPage() {
-  // This is an optimistic first-render hint. The client session remains
-  // authoritative after hydration.
-  const initialIsRegistered = Boolean(
-    getSessionCookie(new Headers(await headers())),
-  );
-
+export default function PricingPage() {
   return (
     <div className="bg-background flex min-h-dvh flex-col">
-      <Header />
+      <PublicHeader />
 
       <main className="shell flex-1 py-16 sm:py-24">
         <div>
@@ -41,7 +33,9 @@ export default async function PricingPage() {
 
           <div className="mt-10 sm:mt-12">
             <Suspense>
-              <PricingPlansSection initialIsRegistered={initialIsRegistered} />
+              {/* Served from the CDN, so it starts as a guest until the
+              client session loads. */}
+              <PricingPlansSection initialIsRegistered={false} />
             </Suspense>
           </div>
 
@@ -74,7 +68,7 @@ export default async function PricingPage() {
         </div>
       </main>
 
-      <Footer />
+      <Footer status="link" />
     </div>
   );
 }

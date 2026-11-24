@@ -27,12 +27,10 @@ import {
 
 const YardMapCanvas = memo(function YardMapCanvas({
   yards,
-  compact,
   selected,
   onSelect,
 }: {
   yards: MapYard[];
-  compact: boolean;
   selected: MapYard | null;
   onSelect: (yard: MapYard | null) => void;
 }) {
@@ -46,9 +44,10 @@ const YardMapCanvas = memo(function YardMapCanvas({
       ? YardPath.key(pins[0])
       : null;
   const mapRef = useRef<Map>(null);
-  const [size, setSize] = useState(
-    compact ? { width: 360, height: 240 } : { width: 900, height: 400 },
-  );
+  // An estimate until the layout effect measures the canvas. The page is
+  // served from the CDN, so it can't depend on the visitor's device; the fit
+  // scale below frames the same bounds on a phone until then.
+  const [size, setSize] = useState({ width: 900, height: 400 });
   const [tileError, setTileError] = useState(false);
   const [tilesReady, setTilesReady] = useState(false);
 

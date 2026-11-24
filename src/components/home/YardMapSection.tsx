@@ -1,37 +1,20 @@
-import { geolocation } from "@vercel/functions";
-import { headers } from "next/headers";
-import { userAgent } from "next/server";
 import { Suspense } from "react";
 import { YardMap } from "~/components/home/YardMap";
 import { getHomepageInventory } from "~/lib/homepage-inventory";
-import { hasFiniteCoordinates } from "~/lib/location-preferences";
-import type { YardLocation } from "~/lib/yard-directory";
 import { MapYard } from "./yard-map-data";
 
 export type YardMapSectionProps = {
   yards: MapYard[];
   vehicleCount: number;
-  approximateLocation: YardLocation | null;
-  compactMap: boolean;
 };
 
 /**
- * The yard map's inputs for this request: the cached homepage inventory,
- * the visitor's approximate location, and whether a phone gets the compact
- * map. The landing page and /map both render the map from these.
+ * The yard map's inputs: the cached homepage inventory. The landing page and
+ * /map both render the map from these. Nothing here reads the request, so
+ * both pages are served from the CDN; the map asks for the visitor's
+ * approximate location after it loads.
  */
 export async function loadYardMapSection() {
-  const requestHeaders = await headers();
-  const geo = geolocation({ headers: requestHeaders });
-  const compactMap =
-    userAgent({ headers: requestHeaders }).device.type === "mobile";
-  const coordinates = {
-    lat: geo.latitude ? Number(geo.latitude) : null,
-    lng: geo.longitude ? Number(geo.longitude) : null,
-  };
-  const approximateLocation = hasFiniteCoordinates(coordinates)
-    ? coordinates
-    : null;
   const inventory = await getHomepageInventory();
   const vehicleCount = inventory.yards.reduce(
     (total, yard) => total + yard.vehicleCount,
@@ -40,19 +23,12 @@ export async function loadYardMapSection() {
   const section: YardMapSectionProps = {
     yards: inventory.yards.map(MapYard.from),
     vehicleCount,
-    approximateLocation,
-    compactMap,
   };
   return { inventory, section };
 }
 
 /** The yard map with its loading frame and the confirm-first note. */
-export function YardMapSection({
-  yards,
-  vehicleCount,
-  approximateLocation,
-  compactMap,
-}: YardMapSectionProps) {
+export function YardMapSection({ yards, vehicleCount }: YardMapSectionProps) {
   return (
     <>
       <Suspense
@@ -66,12 +42,7 @@ export function YardMapSection({
           </div>
         }
       >
-        <YardMap
-          compactMap={compactMap}
-          yards={yards}
-          vehicleCount={vehicleCount}
-          approximateLocation={approximateLocation}
-        />
+        <YardMap yards={yards} vehicleCount={vehicleCount} />
       </Suspense>
       <p className="text-ink-2 mt-3 text-sm text-pretty">
         Confirm vehicle availability with the yard before visiting.
