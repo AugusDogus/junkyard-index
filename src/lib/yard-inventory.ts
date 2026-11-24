@@ -430,7 +430,8 @@ export const YardInventory = {
     vehicle: Pick<YardVehicle, "row" | "section" | "space">,
   ): string | null {
     const parts = [
-      vehicle.row && `Row ${vehicle.row}`,
+      // Yards without row numbers export row 0; it is not a place to look.
+      vehicle.row && !/^0+$/.test(vehicle.row) && `Row ${vehicle.row}`,
       vehicle.section && `Section ${vehicle.section}`,
       vehicle.space && `Space ${vehicle.space}`,
     ].filter(Boolean);

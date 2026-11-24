@@ -15,6 +15,8 @@ function position(
   ]
     .flatMap(([label, value]) => {
       const detail = text(value);
+      // Yards without row numbers export row 0; it is not a place to look.
+      if (label === "Row" && detail && /^0+$/.test(detail)) return [];
       return detail ? [`${label} ${detail}`] : [];
     })
     .join(" · ");

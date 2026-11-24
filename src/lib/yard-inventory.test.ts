@@ -189,6 +189,15 @@ describe("YardInventory.location", () => {
       YardInventory.location({ row: null, section: null, space: null }),
     ).toBeNull();
   });
+
+  test("leaves out a row the yard lists as 0", () => {
+    expect(
+      YardInventory.location({ row: "0", section: null, space: null }),
+    ).toBeNull();
+    expect(
+      YardInventory.location({ row: "00", section: "B", space: null }),
+    ).toBe("Section B");
+  });
 });
 
 test("model-scoped yard inventory preserves make and model identities", () => {
