@@ -8,7 +8,7 @@ import { ConsumerFlags } from "~/server/ingestion/consumer-flags";
 import { reportConsumerTickNow } from "~/server/ingestion/consumer-report-runtime";
 import { InventoryDownstream } from "~/server/ingestion/inventory-downstream";
 import { inventoryDownstreamTickOutcome } from "~/server/ingestion/inventory-downstream-consumer";
-import { sourcesPastStalenessBoundary } from "~/server/ingestion/staleness-boundary";
+import { StalenessBoundary } from "~/server/ingestion/staleness-boundary";
 import { hasValidCronAuthorization } from "~/server/workflows/cron-authorization";
 import { workflowStartRetryOptions } from "~/server/workflows/start-retry";
 import { inventoryDownstreamWorkflow } from "~/workflows/downstream-consumers";
@@ -60,22 +60,27 @@ export async function GET(request: Request) {
 
 /**
  * Expires the inventory caches when a source passed 36 hours (its listings
- * gain "Last checked") or 7 days (it hides) since the last tick, which no
- * publication does. A failure here leaves the consumer to run as usual;
- * those labels and hides then wait for the next publication or the caches'
- * daily expiry.
+ * gain "Last checked") or 7 days (it hides), or an ingestion outage began or
+ * ended, since the last classification stored; no publication does then. A
+ * failure here leaves the consumer to run as usual; those labels and hides
+ * then wait for the next tick, publication or the caches' daily expiry.
  */
 async function expireAtStalenessBoundary(): Promise<void> {
   try {
-    const crossed = await sourcesPastStalenessBoundary(db, new Date());
-    if (crossed.length === 0) return;
-    revalidateTag(INVENTORY_CACHE_TAG, "max");
+    const check = await StalenessBoundary.check({
+      database: db,
+      now: new Date(),
+      revalidate: () => revalidateTag(INVENTORY_CACHE_TAG, "max"),
+    });
+    if (check.status === "unchanged") return;
     console.info(
-      `Expired the "${INVENTORY_CACHE_TAG}" cache tag because ${crossed.join(", ")} passed a staleness threshold (36 hours or 7 days without an accepted publication).`,
+      check.changed === "unknown"
+        ? `Expired the "${INVENTORY_CACHE_TAG}" cache tag because no readable staleness classification was stored (checkpoint "${StalenessBoundary.checkpointName}"); it is stored now.`
+        : `Expired the "${INVENTORY_CACHE_TAG}" cache tag because ${check.changed.join(", ")} changed staleness class (current, "Last checked" or hidden) since the last check.`,
     );
   } catch (error) {
     console.error(
-      `Could not check whether any source passed a staleness threshold; the inventory caches were not expired for it, so new "Last checked" labels and 7-day hides wait for the next publication or the caches' daily expiry. The inventory-downstream consumer still runs. The next hourly tick checks again.`,
+      `Could not check whether any source changed staleness class (checkpoint "${StalenessBoundary.checkpointName}"); the inventory caches were not expired for it, so new "Last checked" labels and 7-day hides wait for the next tick, publication or the caches' daily expiry. Stored data is unchanged and the inventory-downstream consumer still runs; the next hourly tick checks again.`,
       error,
     );
   }

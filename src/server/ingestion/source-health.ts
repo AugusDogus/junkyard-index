@@ -3,6 +3,7 @@ import {
   INGESTION_SOURCE_DISPLAY_NAMES,
   type IngestionSource,
 } from "~/lib/ingestion-source";
+import { InventoryStaleness } from "~/lib/inventory-staleness";
 import {
   isFreshPublication,
   SOURCE_STALE_AFTER_HOURS,
@@ -15,13 +16,6 @@ export interface StaleSource {
   /** Null when no accepted publication falls in the freshness query's lookback. */
   lastPublishedAt: Date | null;
 }
-
-/**
- * The share of checked sources that must be stale at once before ingestion
- * as a whole counts as down. Fewer stale sources are individual provider
- * failures: the response still lists them, but they do not fail the check.
- */
-const OUTAGE_STALE_SHARE = 0.2;
 
 export interface SourceHealth {
   /** "degraded": some sources are stale, fewer than `outageAfterStale`. */
@@ -65,9 +59,11 @@ export const SourceHealth = {
         },
       ];
     });
-    const outageAfterStale = Math.max(
-      1,
-      Math.ceil(checked.length * OUTAGE_STALE_SHARE),
+    // OUTAGE_STALE_SHARE of them: fewer stale sources are individual
+    // provider failures, listed but not failing the check. The automatic
+    // 7-day hide stops at the same share.
+    const outageAfterStale = InventoryStaleness.outageAfterStale(
+      checked.length,
     );
     return {
       status:

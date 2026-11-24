@@ -30,12 +30,10 @@ export async function HomeLandingPage() {
   const now = Date.now();
   const recentVehicles = inventory.recentVehicles.map((vehicle) => ({
     ...vehicle,
-    lastChecked: InventoryStaleness.label(
-      InventoryStaleness.checkedAt(
-        checkDates,
-        vehicle.source,
-        vehicle.locationCode,
-      ),
+    lastChecked: InventoryStaleness.labelFor(
+      checkDates,
+      vehicle.source,
+      vehicle.locationCode,
       now,
     ),
   }));

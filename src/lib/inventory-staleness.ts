@@ -19,6 +19,20 @@ export const INVENTORY_STALE_AFTER_HOURS = 36;
  */
 export const INVENTORY_HIDDEN_AFTER_DAYS = 7;
 
+/**
+ * The share of active sources that must be stale (past
+ * INVENTORY_STALE_AFTER_HOURS) at once before ingestion as a whole counts as
+ * down. Status checks fail on it, and the automatic 7-day hide stops while it
+ * holds, so an ingestion outage leaves "Last checked" labels on the site
+ * instead of emptying it (owner decision, November 24, 2026).
+ */
+export const OUTAGE_STALE_SHARE = 0.2;
+
+/** How many of `checked` sources must be stale at once to count as an outage. */
+function outageAfterStale(checked: number): number {
+  return Math.max(1, Math.ceil(checked * OUTAGE_STALE_SHARE));
+}
+
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 const STALE_AFTER_MS = INVENTORY_STALE_AFTER_HOURS * HOUR_MS;
@@ -37,6 +51,33 @@ export type InventoryStaleness =
   | { kind: "hidden"; checkedAt: number | null };
 
 /**
+ * What the automatic 7-day hide does at a moment. Applied: `sources` (maybe
+ * none) have no accepted publication within INVENTORY_HIDDEN_AFTER_DAYS and
+ * leave the public site. Outage: `stale` of the `checked` active sources are
+ * stale, at least OUTAGE_STALE_SHARE of them, so the hide is skipped and
+ * `held`, the sources it would hide, stay listed with "Last checked" labels.
+ */
+export type AutoHide =
+  | { status: "applied"; sources: IngestionSource[] }
+  | {
+      status: "outage";
+      stale: number;
+      checked: number;
+      held: IngestionSource[];
+    };
+
+/**
+ * The active sources that are not current, by what the public site does
+ * with them: "stale" lists them with "Last checked", "hidden" leaves them
+ * out (a source held during an outage is "stale"). A source absent from it
+ * is current. The hourly check compares two of these to tell when the
+ * cached pages must rebuild.
+ */
+export type StalenessClasses = Partial<
+  Record<IngestionSource, "stale" | "hidden">
+>;
+
+/**
  * When each source and yard last had an accepted publication, as ISO
  * strings. `yards` is keyed `source:code` and holds only yards with a date
  * of their own; the rest take their source's date.
@@ -53,6 +94,30 @@ function of(lastPublishedAt: number | null, now: number): InventoryStaleness {
   if (age <= HIDDEN_AFTER_MS)
     return { kind: "stale", checkedAt: lastPublishedAt };
   return { kind: "hidden", checkedAt: lastPublishedAt };
+}
+
+function autoHide(
+  published: ReadonlyMap<string, number | null>,
+  now: number,
+): AutoHide {
+  const kinds = ACTIVE_INGESTION_SOURCES.map(
+    (source) => [source, of(published.get(source) ?? null, now).kind] as const,
+  );
+  const due = kinds.flatMap(([source, kind]) =>
+    kind === "hidden" ? [source] : [],
+  );
+  const stale = kinds.filter(([, kind]) => kind !== "current").length;
+  return stale >= outageAfterStale(kinds.length)
+    ? { status: "outage", stale, checked: kinds.length, held: due }
+    : { status: "applied", sources: due };
+}
+
+function hiddenSources(
+  published: ReadonlyMap<string, number | null>,
+  now: number,
+): IngestionSource[] {
+  const hide = autoHide(published, now);
+  return hide.status === "applied" ? hide.sources : [];
 }
 
 function isStale(checkedAt: string | undefined, now: number): boolean {
@@ -81,6 +146,8 @@ export type InventoryFreshness = {
 export const InventoryStaleness = {
   of,
 
+  outageAfterStale,
+
   /** Whether inventory last published then is still current at `now`. */
   isCurrent(lastPublishedAt: number | null, now: number): boolean {
     return of(lastPublishedAt, now).kind === "current";
@@ -97,19 +164,55 @@ export const InventoryStaleness = {
   },
 
   /**
-   * The active sources whose vehicles leave the public site now: those with
-   * no accepted publication within INVENTORY_HIDDEN_AFTER_DAYS. `published`
-   * maps sources to their newest accepted publication in a lookback longer
-   * than that window; a missing source has none. Retired sources stay on
-   * their own list.
+   * What the automatic hide does at `now`. `published` maps sources to their
+   * newest accepted publication in a lookback longer than the hide window; a
+   * missing source has none. Retired sources stay on their own list.
    */
-  hiddenSources(
+  autoHide,
+
+  /**
+   * The active sources whose vehicles leave the public site at `now`: those
+   * with no accepted publication within INVENTORY_HIDDEN_AFTER_DAYS, unless
+   * so many sources are stale that ingestion as a whole is down (see
+   * OUTAGE_STALE_SHARE), when none are.
+   */
+  hiddenSources,
+
+  /** Each active source that is not current, by what the site does with it. */
+  classes(
     published: ReadonlyMap<string, number | null>,
     now: number,
+  ): StalenessClasses {
+    const hidden = new Set(hiddenSources(published, now));
+    const classes: StalenessClasses = {};
+    for (const source of ACTIVE_INGESTION_SOURCES) {
+      if (hidden.has(source)) classes[source] = "hidden";
+      else if (of(published.get(source) ?? null, now).kind !== "current")
+        classes[source] = "stale";
+    }
+    return classes;
+  },
+
+  /** The active sources whose class differs between two classifications. */
+  changedClasses(
+    before: StalenessClasses,
+    after: StalenessClasses,
   ): IngestionSource[] {
     return ACTIVE_INGESTION_SOURCES.filter(
-      (source) => of(published.get(source) ?? null, now).kind === "hidden",
+      (source) => before[source] !== after[source],
     );
+  },
+
+  /**
+   * The reference time for a vehicle's "New" label: none next to "Last
+   * checked", since a stale yard's newest cars are only new as of its last
+   * check.
+   */
+  newBadgeReference(
+    publishedAt: string | null,
+    lastChecked: string | null,
+  ): string | null {
+    return lastChecked === null ? publishedAt : null;
   },
 
   /**
@@ -133,25 +236,22 @@ export const InventoryStaleness = {
     return { latest, current, total: yards.length };
   },
 
-  /**
-   * The active sources whose staleness changed between `since` and `now`
-   * without a new publication: they passed 36 hours (labels appear) or 7
-   * days (the source hides). Nothing else expires the cached pages then,
-   * so the hourly check expires them when this is not empty.
-   */
-  changedBetween(
-    published: ReadonlyMap<string, number | null>,
-    since: number,
-    now: number,
-  ): IngestionSource[] {
-    return ACTIVE_INGESTION_SOURCES.filter((source) => {
-      const at = published.get(source) ?? null;
-      return of(at, since).kind !== of(at, now).kind;
-    });
-  },
-
   /** When a yard was last checked: its own date, else its source's. */
   checkedAt,
+
+  /**
+   * "Last checked N days ago" for a yard at `now`, by its own date else its
+   * source's, or null while it is current. Pass the server's clock so a
+   * client component renders the same label the server did.
+   */
+  labelFor(
+    dates: InventoryCheckDates,
+    source: string,
+    code: string,
+    now: number,
+  ): string | null {
+    return InventoryStaleness.label(checkedAt(dates, source, code), now);
+  },
 
   /**
    * Only the dates past the stale threshold, which is all a browser needs to

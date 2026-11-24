@@ -6,6 +6,8 @@ import {
   type SourceOverviewInput,
   type SourceSummary,
 } from "./source-overview";
+import { ACTIVE_INGESTION_SOURCES } from "~/lib/ingestion-source";
+import { InventoryStaleness } from "~/lib/inventory-staleness";
 import { SourceControl } from "~/server/source-control/source-control";
 
 const HOUR = 60 * 60 * 1000;
@@ -58,6 +60,12 @@ function run(
     rejectedVehicles: 0,
   };
 }
+
+/** An accepted run today for every active source but `except`. */
+const healthyRuns = (...except: string[]): SourceRun[] =>
+  ACTIVE_INGESTION_SOURCES.filter((source) => !except.includes(source)).map(
+    (source) => run(source, today, { kind: "accepted", vehicles: 1 }),
+  );
 
 const input = (
   overrides: Partial<SourceOverviewInput> = {},
@@ -329,6 +337,7 @@ describe("SourceOverview.build", () => {
       SourceOverview.build(
         input({
           runs: [
+            ...healthyRuns("pyp"),
             run("pyp", eightDaysAgo, { kind: "accepted", vehicles: 1 }),
             run("pyp", today, { kind: "rejected" }),
           ],
@@ -345,6 +354,7 @@ describe("SourceOverview.build", () => {
       SourceOverview.build(
         input({
           runs: [
+            ...healthyRuns("pyp"),
             run("pyp", eightDaysAgo, { kind: "accepted", vehicles: 1 }),
             run("pyp", today, { kind: "accepted", vehicles: 1 }),
           ],
@@ -358,7 +368,10 @@ describe("SourceOverview.build", () => {
   test("a source stale for under 7 days stays shown, and a retired one is never hidden automatically", () => {
     const summaries = SourceOverview.build(
       input({
-        runs: [run("pyp", twoDaysAgo, { kind: "accepted", vehicles: 1 })],
+        runs: [
+          ...healthyRuns("pyp", "row52"),
+          run("pyp", twoDaysAgo, { kind: "accepted", vehicles: 1 }),
+        ],
       }),
     );
     expect(summaryFor(summaries, "pyp")).toMatchObject({
@@ -370,6 +383,31 @@ describe("SourceOverview.build", () => {
     expect(summaryFor(summaries, "row52").staleHide).toEqual({
       lastAcceptedAt: null,
     });
+  });
+
+  test("hides nothing automatically during an ingestion outage, as the public site does", () => {
+    const down = ACTIVE_INGESTION_SOURCES.slice(
+      0,
+      InventoryStaleness.outageAfterStale(ACTIVE_INGESTION_SOURCES.length),
+    );
+    const eightDaysAgo = new Date(now.getTime() - 8 * 24 * HOUR);
+    const summaries = SourceOverview.build(
+      input({
+        flags: { status: "read", enabled: new Set(ACTIVE_INGESTION_SOURCES) },
+        runs: [
+          ...healthyRuns(...down),
+          ...down.map((source) =>
+            run(source, eightDaysAgo, { kind: "accepted", vehicles: 1 }),
+          ),
+        ],
+      }),
+    );
+    for (const source of down)
+      expect(summaryFor(summaries, source)).toMatchObject({
+        stale: true,
+        staleHide: null,
+      });
+    expect(SourceOverview.counts(summaries).staleHidden).toBe(0);
   });
 
   test("orders problems first", () => {
@@ -434,17 +472,12 @@ describe("SourceOverview.counts", () => {
 
   test("counts sources hidden for staleness apart from the owner's hides", () => {
     const counts = SourceOverview.counts(
-      SourceOverview.build(
-        input({
-          runs: [run("pyp", today, { kind: "accepted", vehicles: 1 })],
-        }),
-      ),
+      SourceOverview.build(input({ runs: healthyRuns("pyp", "row52") })),
     );
-    // Every active source but pyp has no accepted run in the window.
-    expect(counts.staleHidden).toBe(
-      SourceOverview.build(input()).filter((entry) => !entry.retired).length -
-        1,
-    );
+    // Neither has an accepted run in the window; the owner's hide of Meeks
+    // counts apart.
+    expect(counts.staleHidden).toBe(2);
+    expect(counts.hidden).toBe(1);
   });
 });
 

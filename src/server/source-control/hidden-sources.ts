@@ -7,8 +7,9 @@ import { SourceControlRepository } from "./source-control-repository";
 /**
  * The sources hidden from the public site at `now`: those the owner hid from
  * /admin, and those with no accepted publication within
- * INVENTORY_HIDDEN_AFTER_DAYS. The automatic hide is never stored, so a
- * source's next accepted publication shows it again without anyone acting.
+ * INVENTORY_HIDDEN_AFTER_DAYS, unless an ingestion outage (OUTAGE_STALE_SHARE)
+ * holds them on the site. The automatic hide is never stored, so a source's
+ * next accepted publication shows it again without anyone acting.
  * Read without a cache; pages and routes use `getHiddenSources`.
  */
 export async function loadHiddenSources(

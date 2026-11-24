@@ -138,10 +138,7 @@ export function ModelInventoryView({
   const shown = siblings.slice(0, SIBLINGS);
   const now = Date.now();
   const lastChecked = (source: string, code: string) =>
-    InventoryStaleness.label(
-      InventoryStaleness.checkedAt(checkDates, source, code),
-      now,
-    );
+    InventoryStaleness.labelFor(checkDates, source, code, now);
 
   return (
     <>
@@ -247,13 +244,10 @@ export function ModelInventoryView({
                   key={vehicle.vin}
                   vehicle={vehicle}
                   source={vehicle.source}
-                  // No "New" next to "Last checked": a stale yard's newest
-                  // cars are only new as of its last check.
-                  publishedAt={
-                    checked === null
-                      ? (checkDates.sources[vehicle.source] ?? null)
-                      : null
-                  }
+                  publishedAt={InventoryStaleness.newBadgeReference(
+                    checkDates.sources[vehicle.source] ?? null,
+                    checked,
+                  )}
                   lastChecked={checked}
                   layout="stacked"
                   hiddenSources={hiddenSources}
