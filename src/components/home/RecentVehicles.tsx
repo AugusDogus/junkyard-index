@@ -129,7 +129,7 @@ export function RecentVehicles({ vehicles }: { vehicles: RecentVehicle[] }) {
           >
             <div className="flex touch-pan-y touch-pinch-zoom">
               {vehicles.map((vehicle, index) => {
-                const title = `${vehicle.year} ${VehicleName.display(vehicle.make)} ${VehicleName.display(vehicle.model)}`;
+                const title = `${vehicle.year} ${VehicleName.displayWhole(vehicle.make)} ${VehicleName.displayWhole(vehicle.model)}`;
                 return (
                   <Link
                     key={index}

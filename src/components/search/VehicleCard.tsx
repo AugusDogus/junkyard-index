@@ -32,7 +32,7 @@ function VehicleCardComponent({
   const engine = VehicleCardDetails.text(vehicle.engine);
   const transmission = VehicleCardDetails.text(vehicle.transmission);
   // Yards often send all-caps models ("SPECTRA"); codes keep their caps.
-  const model = VehicleName.display(vehicle.model);
+  const model = VehicleName.displayWhole(vehicle.model);
   const title = `${vehicle.year} ${vehicle.make} ${model}`;
   const geoLabel =
     vehicle.locationCity && vehicle.locationCity !== "Unknown"
