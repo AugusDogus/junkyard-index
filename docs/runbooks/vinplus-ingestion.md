@@ -97,16 +97,35 @@ to obtain literal make selectors. Complete year/make reads must remain below 100
 if necessary, the app's published make directory. Discovery rows supply selectors
 only and never add donors. Null make/model values are explicit public API year
 controls, not wildcard strings. A missing selector or saturated make partition
-still fails the source. After exhausting applicable controls, unreachable rows
-may total at most 1% of that physical yard's advertised inventory. Exactly 1%
-passes with a warning; above 1% fails. Complete yards cannot mask another yard's
-deficit. The year distribution lags live search by up to about a day: on
-November 18 and 19, 2026 US Auto Supply's searchable 1999 arrivals and a real 1976
-Cadillac Eldorado (added November 18) were missing from it. Year overcounts and
-unadvertised years are therefore kept and reported as a warning. They never
-offset another year's deficit, because unreachable rows sum per-year shortfalls.
-A null-make range that returns 100 rows above its advertised total fails as a
-possible silent cap truncation.
+still fails the source.
+
+The year distribution is a cache that lags live search by days in both
+directions. On November 18 and 19, 2026 US Auto Supply's searchable 1999 arrivals
+and a real 1976 Cadillac Eldorado (added November 18) were missing from it. From
+November 22 to 24 it kept one unchanged distribution while the yard turned over,
+so it still counted 27 of 1,081 vehicles (2.5%) that complete live year searches
+no longer returned, and on November 21 Ryan's 2008 search reached the cap above
+its 95 advertised rows. Coverage therefore separates three cases:
+
+- Year overcounts and unadvertised years are kept and reported as a warning.
+- A shortfall in a year that an uncapped null-make search answered is lag: the
+  search is the inventory authority, so those vehicles are treated as gone and
+  not published. Lag is reported and may total at most 10% of that physical
+  yard's advertised inventory. Above 10% the distribution is too stale to vouch
+  for the yard, and the crawl is rejected as transient, so it retries later the
+  same day.
+- A shortfall in a make-partitioned year is unreachable: a vehicle may sit behind
+  a make the controls never reached. Unreachable rows may total at most 1% of
+  that physical yard's advertised inventory. Exactly 1% passes with a warning;
+  above 1% fails.
+
+Surpluses never offset either shortfall, and complete yards cannot mask another
+yard's. A null-make response at the 100-record cap may be silently truncated
+whatever the distribution advertises, so it is discovery only and never
+admitted or replayed. Its range is bisected by year until each half is below the
+cap, and a capped single year is read by its literal makes, observed makes and
+the make directory, exactly like a large year. A make partition at the cap still
+fails the source.
 
 Make searches can return a different published make, as Killeen's Chrysler
 query does for an Oldsmobile record. Response criteria must match the request;
