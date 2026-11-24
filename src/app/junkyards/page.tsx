@@ -6,6 +6,7 @@ import { Breadcrumbs } from "~/components/junkyards/Breadcrumbs";
 import { PublicPageShell } from "~/components/junkyards/PublicPageShell";
 import { YardList } from "~/components/junkyards/YardList";
 import { JsonLd } from "~/components/JsonLd";
+import { KeepHyphenated } from "~/components/KeepHyphenated";
 import { env } from "~/env";
 import { SITE_OPEN_GRAPH, SITE_TWITTER } from "~/lib/site-metadata";
 import { StructuredData } from "~/lib/structured-data";
@@ -158,24 +159,28 @@ export default async function JunkyardsPage() {
       {/* Chains on the board: the one ink band on the page. */}
       <section
         aria-labelledby="chains-title"
-        className="bg-board text-board-ink border-ink mt-(--section-gap-s) grid gap-y-(--space-xl) border-2 px-4 py-8 sm:p-8 lg:grid-cols-12 lg:gap-x-8 lg:p-10"
+        className="bg-board text-board-ink border-ink mt-(--section-gap-s) border-2 px-4 py-8 sm:p-8 lg:p-10"
       >
         <h2
           id="chains-title"
-          className="text-section leading-[1.02] font-extrabold lg:col-span-4"
+          className="text-section leading-[1.02] font-extrabold"
         >
           By chain
         </h2>
-        <ul className="border-board-ink border-t-2 lg:col-span-8">
+        {/* Read down each column, like the states above. */}
+        <ul className="border-board-ink mt-(--space-xl) gap-x-10 border-t-2 sm:columns-2 lg:columns-3">
           {chains.map((chain) => (
-            <li key={chain.slug} className="border-board-rule border-b">
+            <li
+              key={chain.slug}
+              className="border-board-rule break-inside-avoid border-b"
+            >
               <Link
                 href={chain.href}
                 prefetch={false}
                 className="board-step hover:bg-board-2 active:bg-board-2 focus-visible:outline-figure flex items-baseline justify-between gap-6 px-2 py-4 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid"
               >
                 <span className="min-w-0 text-[1.0625rem] leading-snug font-extrabold">
-                  {chain.name}
+                  <KeepHyphenated text={chain.name} />
                 </span>
                 <span className="text-board-muted shrink-0 text-sm whitespace-nowrap">
                   <span className="text-figure text-title font-extrabold tabular-nums">
@@ -189,17 +194,20 @@ export default async function JunkyardsPage() {
         </ul>
       </section>
 
-      <section
-        aria-labelledby="all-title"
-        className="mt-(--section-gap) grid gap-y-(--space-xl) lg:grid-cols-12 lg:gap-x-8"
-      >
-        <h2
-          id="all-title"
-          className="text-section leading-[1.02] font-extrabold lg:sticky lg:top-28 lg:col-span-4 lg:self-start"
-        >
-          Every yard
-        </h2>
-        <div className="border-ink border-t-2 lg:col-span-8">
+      <section aria-labelledby="all-title" className="mt-(--section-gap)">
+        <div className="grid gap-y-3 lg:grid-cols-12 lg:items-baseline lg:gap-x-8">
+          <h2
+            id="all-title"
+            className="text-section leading-[1.02] font-extrabold lg:col-span-5"
+          >
+            Every yard
+          </h2>
+          <p className="text-lead text-ink-2 leading-[1.45] lg:col-span-7">
+            Open a state to list its yards with their city and vehicle count.
+          </p>
+        </div>
+        {/* Two states a row on wide screens. */}
+        <div className="border-ink mt-(--space-xl) border-t-2 lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-10">
           {groups.map(({ region, yards: regionYards }) => (
             <details key={region.slug} className="group border-rule border-b">
               <summary className="board-step hover:bg-paper-2 active:bg-paper-2 focus-visible:outline-focus flex list-none items-center justify-between gap-4 px-2 py-3 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid [&::-webkit-details-marker]:hidden">
