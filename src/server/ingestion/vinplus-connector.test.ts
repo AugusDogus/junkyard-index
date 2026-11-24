@@ -393,6 +393,6 @@ test("a year distribution too stale to vouch for a yard rejects the crawl as tra
     ),
   );
   if (Either.isRight(result)) throw new Error("Stale distribution passed");
-  expect(result.left.message).toContain("exceeds the 10% lag limit");
+  expect(result.left.message).toContain("This exceeds the 1% lag limit");
   expect(validationRejectionKind(result.left)).toBe("transient");
 }, 30_000);

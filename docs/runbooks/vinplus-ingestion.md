@@ -110,34 +110,53 @@ its 95 advertised rows. Coverage therefore separates three cases:
 - Year overcounts and unadvertised years are kept and reported as a warning.
 - A shortfall in a year that an uncapped null-make search answered is lag: the
   search is the inventory authority, so those vehicles are treated as gone and
-  not published. Lag is reported and may total at most 10% of that physical
-  yard's advertised inventory. Above 10% the distribution is too stale to vouch
-  for the yard, and the crawl is rejected as transient, so it retries later the
-  same day.
+  not published, with a warning.
+  - Confirmed lag: the same yard also has searchable vehicles the distribution
+    does not count yet, so this run has shown it is stale. Confirmed lag may
+    total at most 50% of that physical yard's advertised inventory. That is
+    tighter than the per-yard floors, which sit near a third of each yard; the
+    50% drift guard is source-wide.
+  - Unconfirmed lag: nothing shows the distribution is stale, so the shortfall
+    could instead be a search that silently returned fewer rows. It keeps the
+    1% bound every shortfall had before lag was separated, which allows no
+    unconfirmed lag at a yard under 100 vehicles.
+  - Above either bound the crawl is rejected as transient, so it retries later
+    the same day.
 - A shortfall in a make-partitioned year is unreachable: a vehicle may sit behind
   a make the controls never reached. Unreachable rows may total at most 1% of
   that physical yard's advertised inventory. Exactly 1% passes with a warning;
-  above 1% fails.
+  above 1% fails deterministically, even when the same yard's lag would only
+  have been a transient rejection.
 
 Surpluses never offset either shortfall, and complete yards cannot mask another
 yard's. A null-make response at the 100-record cap may be silently truncated
 whatever the distribution advertises, so it is discovery only and never
 admitted or replayed. Its range is bisected by year until each half is below the
-cap, and a capped single year is read by its literal makes, observed makes and
-the make directory, like a large year. Unlike a large year, a capped year usually
-has more live rows than it advertises, so its supplement rarely reconciles and
-reads every directory make (up to 128, replayed at close). Each yard is limited
-to 1,024 controls; a yard with several capped years fails that limit with a
-request budget error. A make partition at the cap still fails the source.
+cap. A capped single year is read by its discovered makes and then, unlike a
+large year, by every other observed and directory make: its advertised count
+comes from the stale distribution, so reaching it proves nothing and the
+supplement never stops early (up to 128 more makes, each replayed at close).
+Before those reads the parser checks the yard's 1,024-control limit against the
+remaining reads of every capped year. A yard that cannot afford them is rejected
+as transient, with no make search made for those years. The connector also
+fails a yard at the limit itself with a request budget error. A make partition
+at the cap still fails the source.
 
-Treating complete-year shortfalls as lag is a deliberate tradeoff. A backend
-that silently dropped rows below the cap, identically at opening and closing,
-would look like lag, so up to 10% of a yard could be delisted with only a
-warning. The search has only ever been seen truncating at the 100-record cap,
-and the per-yard floor and the 50% drift guard still catch larger losses. A
-distribution frozen for days, as from November 22 to 24, fails every same-day
-retry once its lag passes 10%, and that holds back every VinPlus yard, because
-the source publishes as one unit.
+Separating lag is a deliberate tradeoff. A backend that silently dropped rows
+below the cap, identically at opening and closing, while the same yard also had
+arrivals the distribution missed, would look like confirmed lag, so up to 50% of
+that yard could be delisted with only a warning. The search has only ever been
+seen truncating at the 100-record cap. The alternative, one tight bound for all
+lag, meant a distribution frozen for days, as from November 22 to 24, failed
+every same-day retry and held back every VinPlus yard, because the source
+publishes as one unit.
+
+Workflow runs stay pinned to the deployment that started them, so a cursor saved
+by an older traversal is only resumed by that traversal. A cursor from before
+capped null-make ranges were bisected diverges at its first null-make range of
+exactly 100 rows (Ryan's 2008 on November 22 to 24) and fails on a newer
+deployment with a search criteria mismatch. The cursor version was not bumped
+because the shape is unchanged and no VinPlus cursor is reused across runs.
 
 Make searches can return a different published make, as Killeen's Chrysler
 query does for an Oldsmobile record. Response criteria must match the request;

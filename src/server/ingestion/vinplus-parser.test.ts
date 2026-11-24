@@ -172,14 +172,14 @@ describe("frozen public VinPlus protocol", () => {
       .object({ matches: z.array(z.unknown()), match_count: z.number() })
       .passthrough()
       .parse(JSON.parse(evidence[3] ?? ""));
-    page.matches.splice(-8);
-    page.match_count -= 8;
+    page.matches.splice(-7);
+    page.match_count -= 7;
     evidence[3] = evidence[closingIndex] = JSON.stringify(page);
     const result = inspectVinplusEvidence(first(), evidence);
     if (result.kind !== "complete") throw new Error("Pending evidence");
-    expect(result.records).toHaveLength(712);
+    expect(result.records).toHaveLength(713);
     expect(result.warnings.join(" ")).toContain(
-      "8 advertised vehicles / 720 (1.111111%) are absent from complete live searches",
+      "7 advertised vehicles / 720 (0.972222%) are absent from complete live searches",
     );
   });
   test("rejects wrong tenant, stock repeats, out-of-range years and unknown fields", () => {
@@ -373,30 +373,42 @@ describe("US Auto Supply year distribution lagging live search", () => {
   const drive = (
     analytics: string,
     live: readonly Record<string, unknown>[],
+    directory: readonly string[] = [
+      ...new Set(live.map((record) => String(record.make))),
+    ],
+  ) => {
+    const searches: string[] = [];
+    try {
+      return { result: answer(analytics, live, directory, searches), searches };
+    } catch (error) {
+      return { error, searches };
+    }
+  };
+  const answer = (
+    analytics: string,
+    live: readonly Record<string, unknown>[],
+    directory: readonly string[],
+    searches: string[],
   ) => {
     const [app, config] = vinplusCensus()[2] ?? [];
     if (!app || !config) throw new Error("Missing US Auto Supply app/config");
     const bodies: string[] = [];
-    const searches: string[] = [];
     for (;;) {
       const step = inspectVinplusEvidence(tenant(), bodies);
-      if (step.kind === "complete") return { result: step, searches };
+      if (step.kind === "complete") return step;
       const { url, body } = step.control;
       if (url.endsWith("/parts/us-auto-supply")) bodies.push(app);
       else if (url.includes("/api/yard-info/")) bodies.push(config);
       else if (url.includes("/year-distribution")) bodies.push(analytics);
-      else if (url.endsWith("/api/vehicle-groups"))
+      else if (url.endsWith("/api/vehicle-groups")) {
+        searches.push("directory");
         bodies.push(
           JSON.stringify({
             success: true,
-            data: Object.fromEntries(
-              [...new Set(live.map((record) => String(record.make)))].map(
-                (make) => [make, []],
-              ),
-            ),
+            data: Object.fromEntries(directory.map((make) => [make, []])),
           }),
         );
-      else {
+      } else {
         const criteria = z
           .object({
             yard_id: z.string(),
@@ -450,20 +462,33 @@ describe("US Auto Supply year distribution lagging live search", () => {
     });
   };
 
-  test("lag above 10% of the yard is a transient rejection", () => {
-    let caught: unknown = null;
-    try {
-      drive(evidence(() => undefined)[2] ?? "", liveRecords().slice(9));
-    } catch (error) {
-      caught = error;
-    }
-    expect(caught instanceof Error ? caught.message : "").toContain(
+  test("lag the distribution has not confirmed is a transient rejection above 1%", () => {
+    const { error } = drive(
+      evidence(() => undefined)[2] ?? "",
+      liveRecords().slice(9),
+    );
+    const message = error instanceof Error ? error.message : "";
+    expect(message).toContain(
       "9 advertised vehicles / 81 (11.111111%) are absent from complete live searches",
     );
-    expect(caught instanceof Error ? caught.message : "").toContain(
-      "exceeds the 10% lag limit",
+    expect(message).toContain("This exceeds the 1% lag limit");
+    expect(validationRejectionKind(error)).toBe("transient");
+  });
+
+  test("a frozen distribution's lag is published when the same yard shows arrivals", () => {
+    // 2026-11-22 to 2026-11-24: one distribution while the yard turned over.
+    const { result } = drive(evidence(() => undefined)[2] ?? "", [
+      ...liveRecords().slice(9),
+      ...extra(1, { year: 1976 }),
+    ]);
+    if (result?.kind !== "complete") throw new Error("Pending evidence");
+    expect(result.records).toHaveLength(73);
+    expect(result.warnings.join(" ")).toContain(
+      "9 advertised vehicles / 81 (11.111111%) are absent from complete live searches",
     );
-    expect(validationRejectionKind(caught)).toBe("transient");
+    expect(result.warnings.join(" ")).toContain(
+      "The same searches found 1 vehicles the distribution does not count yet",
+    );
   });
 
   test("a stale range that hits the silent 100-record cap is bisected by year instead of rejected", () => {
@@ -471,7 +496,7 @@ describe("US Auto Supply year distribution lagging live search", () => {
       ...liveRecords(),
       ...extra(19, {}),
     ]);
-    if (result.kind !== "complete") throw new Error("Pending evidence");
+    if (result?.kind !== "complete") throw new Error("Pending evidence");
     expect(searches.slice(0, 3)).toEqual([
       "1960-1999 *",
       "1960-1979 *",
@@ -483,36 +508,51 @@ describe("US Auto Supply year distribution lagging live search", () => {
     );
   });
 
-  test("a capped single year below its stale advertised count is read by make", () => {
-    const records = [
-      ...liveRecords(),
-      ...extra(80, { year: 1999 }),
-      // A make only past the cap, reached through the public make directory.
-      ...extra(85, { year: 1999, make: "SAAB", model: "9-3" }).slice(80),
-    ];
+  /** Serves `records` behind a distribution that advertises each year as
+   * counted, except the overrides. */
+  const distribution = (
+    records: readonly Record<string, unknown>[],
+    overrides: ReadonlyMap<number, number>,
+  ) => {
     const advertised = new Map<number, number>();
     for (const record of records)
       advertised.set(
         Number(record.year),
         (advertised.get(Number(record.year)) ?? 0) + 1,
       );
-    // The cached distribution trails the yard's 1999 arrivals.
-    advertised.set(1999, 95);
+    for (const [year, count] of overrides) advertised.set(year, count);
     const by_year = [...advertised].map(([year, count]) => ({
       year: String(year),
       count,
     }));
+    return JSON.stringify({
+      success: true,
+      data: {
+        current_count: by_year.reduce((sum, row) => sum + row.count, 0),
+        by_year,
+      },
+    });
+  };
+  /** Live 1999 rows past the cap: discovery sees only the first 100, so
+   * SAAB is reachable only through the make directory. */
+  const capped1999 = (discoverable: number) => [
+    ...liveRecords(),
+    ...extra(discoverable, { year: 1999 }),
+    ...extra(discoverable + 5, {
+      year: 1999,
+      make: "SAAB",
+      model: "9-3",
+    }).slice(discoverable),
+  ];
+
+  test("a capped single year below its stale advertised count is read by make", () => {
+    const records = capped1999(80);
+    // The cached distribution trails the yard's 1999 arrivals.
     const { result, searches } = drive(
-      JSON.stringify({
-        success: true,
-        data: {
-          current_count: by_year.reduce((sum, row) => sum + row.count, 0),
-          by_year,
-        },
-      }),
+      distribution(records, new Map([[1999, 95]])),
       records,
     );
-    if (result.kind !== "complete") throw new Error("Pending evidence");
+    if (result?.kind !== "complete") throw new Error("Pending evidence");
     expect(searches).toContain("1999-1999 *");
     expect(searches).toContain("1999-1999 SAAB");
     expect(
@@ -520,6 +560,80 @@ describe("US Auto Supply year distribution lagging live search", () => {
     ).toHaveLength(records.filter((record) => record.year === 1999).length);
     expect(result.records).toHaveLength(records.length);
     expect(result.warnings.join(" ")).not.toContain("unreachable");
+  });
+
+  test("a capped year whose discovered makes match its advertised 100 still reads the directory", () => {
+    // 1999 already has 20 rows; 80 more fill discovery to exactly 100.
+    const records = capped1999(80);
+    const { result, searches } = drive(
+      distribution(records, new Map([[1999, 100]])),
+      records,
+    );
+    if (result?.kind !== "complete") throw new Error("Pending evidence");
+    expect(searches).toContain("1999-1999 SAAB");
+    expect(result.records).toHaveLength(records.length);
+  });
+
+  test("a capped year reads each remaining directory make once, without an observed-make pass, and replays it at close", () => {
+    const records = capped1999(80);
+    const directory = [
+      ...new Set(records.map((record) => String(record.make))),
+      ...Array.from({ length: 20 }, (_, index) => `MAKE${index}`),
+    ].sort();
+    const { result, searches } = drive(
+      distribution(records, new Map([[1999, 95]])),
+      records,
+      directory,
+    );
+    if (result?.kind !== "complete") throw new Error("Pending evidence");
+    const year = searches.filter((search) => search.startsWith("1999-1999 "));
+    // One capped discovery, then every directory make at opening and close.
+    expect(year.filter((search) => search === "1999-1999 *")).toHaveLength(1);
+    expect(year).toHaveLength(1 + 2 * directory.length);
+    expect(new Set(year).size).toBe(1 + directory.length);
+    // Discovery saw only the first 100 rows; every other make waits for the
+    // directory, so the request limit is checked before any of them.
+    const discovered = new Set(
+      records
+        .filter((record) => record.year === 1999)
+        .slice(0, 100)
+        .map((record) => `1999-1999 ${String(record.make)}`),
+    );
+    const firstUndiscovered = searches.findIndex(
+      (search) =>
+        search.startsWith("1999-1999 ") &&
+        search !== "1999-1999 *" &&
+        !discovered.has(search),
+    );
+    expect(searches.indexOf("directory")).toBeGreaterThan(-1);
+    expect(searches.indexOf("directory")).toBeLessThan(firstUndiscovered);
+  });
+
+  test("capped years that would exceed the per-yard request limit are rejected before their directory reads", () => {
+    const years = [1995, 1996, 1997, 1998, 1999];
+    const records = [
+      ...liveRecords().filter((record) => !years.includes(Number(record.year))),
+      ...years.flatMap((year) => extra(105, { year })),
+    ];
+    const directory = [
+      ...new Set(records.map((record) => String(record.make))),
+      ...Array.from({ length: 100 }, (_, index) => `MAKE${index}`),
+    ].sort();
+    const { error, searches } = drive(
+      distribution(records, new Map(years.map((year) => [year, 95]))),
+      records,
+      directory,
+    );
+    const message = error instanceof Error ? error.message : "";
+    expect(message).toContain(
+      "us_auto_supply years 1995, 1996, 1997, 1998, 1999: each search reached the 100-record cap",
+    );
+    expect(message).toContain("above its 1024-request limit");
+    expect(message).toContain(
+      "VinPlus is not published this attempt and every VinPlus yard keeps its published inventory",
+    );
+    expect(validationRejectionKind(error)).toBe("transient");
+    expect(searches.some((search) => search.includes("MAKE"))).toBe(false);
   });
 });
 
