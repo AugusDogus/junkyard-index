@@ -131,37 +131,24 @@ describe("MakeInventory.models", () => {
     ]);
   });
 
-  test("shows the year range most yards agree on, not one yard's typo", () => {
+  test("spans every yard's own range, even one yard's lone oldest year", () => {
     const [honda] = MakeInventory.makes([{ make: "Honda", count: 10 }]);
     if (!honda) throw new Error("expected Honda");
-    const pilot = (code: string, minYear: number, maxYear: number) =>
-      row({ make: "Honda", model: "Pilot", code, minYear, maxYear });
+    const civic = (code: string, minYear: number, maxYear: number) =>
+      row({ make: "Honda", model: "Civic", code, minYear, maxYear });
     const [model] = MakeInventory.models(honda, [
-      pilot("1", 1983, 2015),
-      pilot("2", 2003, 2025),
-      pilot("3", 2004, 2019),
-      pilot("4", 2005, 2022),
+      civic("1", 1975, 2015),
+      civic("2", 1999, 2025),
+      civic("3", 2001, 2019),
+      civic("4", 2003, 2022),
     ]);
-    expect(model).toMatchObject({ minYear: 2003, maxYear: 2025 });
-    // Each yard keeps its own range.
-    expect(model?.yards.map((yard) => yard.minYear).sort()).toEqual([
-      1983, 2003, 2004, 2005,
-    ]);
-
-    // A wide gap held by several yards is real history, and two yards
-    // cannot outvote each other.
-    const [civic] = MakeInventory.models(honda, [
-      row({ make: "Honda", model: "Civic", code: "1", minYear: 1975 }),
-      row({ make: "Honda", model: "Civic", code: "2", minYear: 1976 }),
-      row({ make: "Honda", model: "Civic", code: "3", minYear: 1999 }),
-      row({ make: "Honda", model: "Civic", code: "4", minYear: 2001 }),
-    ]);
-    expect(civic?.minYear).toBe(1975);
-    const [fit] = MakeInventory.models(honda, [
-      row({ make: "Honda", model: "Fit", code: "1", minYear: 1990 }),
-      row({ make: "Honda", model: "Fit", code: "2", minYear: 2007 }),
-    ]);
-    expect(fit?.minYear).toBe(1990);
+    // The model page lists each yard's range under the model's, so the
+    // model's must contain them all.
+    expect(model).toMatchObject({ minYear: 1975, maxYear: 2025 });
+    for (const yard of model?.yards ?? []) {
+      expect(yard.minYear).toBeGreaterThanOrEqual(model?.minYear ?? 0);
+      expect(yard.maxYear).toBeLessThanOrEqual(model?.maxYear ?? 0);
+    }
   });
 
   test("only models with enough vehicles are indexable", () => {
