@@ -83,7 +83,6 @@ export default async function YardMakePage({
         makeSlugs={await getMakeSlugs()}
         hiddenSources={await getHiddenSources()}
         publishedAt={data.publishedAt}
-        staleAfterMs={data.staleAfterMs}
         nearby={data.nearby}
         chain={data.chain}
         filter={{ name: make.name, slug: make.slug }}

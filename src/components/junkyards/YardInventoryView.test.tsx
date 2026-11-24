@@ -106,7 +106,6 @@ function props(vehicles: YardVehicle[]): Props {
     makes: YardInventory.makeCounts(vehicles),
     makeSlugs: new Map([["honda", "honda"]]),
     publishedAt,
-    staleAfterMs: 3 * 24 * 60 * 60 * 1000,
     nearby: [],
     chain: null,
     filter: null,

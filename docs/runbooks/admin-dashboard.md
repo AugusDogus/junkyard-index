@@ -53,8 +53,7 @@ error" opens the exact text the system stored.
   an hour (with how many runs wait behind it and for how long) and runs that
   run code from another deployment; each has a **Stop this run** button (see
   [Stop a run](#stop-a-run)). Then sources that failed their last 2 or more
-  runs or have not been updated for over 36 hours (their cadence plus 12
-  hours for a source crawled less often than daily; the same rule
+  runs or have not been updated for over 36 hours (the same rule
   `/api/status` uses), a run that has made no progress for over 3 hours (it
   blocks that source's next run; left out when the run is already listed
   above with a stop), search falling behind, and late saved-search alerts.
@@ -89,9 +88,8 @@ whatever its state):
 | Paused                | Paused from its page here, or its `ingestion-source-<source>` Vercel flag serves false. |
 | Running               | A run is in progress. "Stuck" marks one with no progress for 3 hours.                   |
 | Failing               | Its latest finished run was rejected.                                                   |
-| Out of date           | No run accepted for over 36 hours (cadence + 12 h if not daily), though none failed.    |
+| Out of date           | No run accepted for over 36 hours, though none failed (none may have run).              |
 | Updated today         | A run was accepted since 07:00 UTC, when the ingestion day starts.                      |
-| Resting, next crawl … | Fresh, and not due today by its cadence (U Pull R Parts: every third day).              |
 | Not updated yet today | Its last run was fine, but none has been accepted today yet.                            |
 
 "Hidden" and "Paused" badges show beside the name: a hidden source keeps

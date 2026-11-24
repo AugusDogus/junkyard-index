@@ -125,8 +125,7 @@ upper bounds. A cold census has a three-day deadline with the usual final-chunk
 reserve and no model carry or deferral. Incremental runs keep their one-day
 limit and unchanged carry/sweep rules.
 
-Repository freshness lasts a source's cadence plus 12 hours (36 hours for a daily
-source) after the last accepted inventory publication
+Repository freshness lasts 36 hours after the last accepted inventory publication
 ([`durable-health.ts`](../../src/server/ingestion/durable-health.ts)); starting or
 progressing a crawl does not refresh inventory freshness. A source with no
 accepted publication remains stale immediately. Its `/api/status/<source>`

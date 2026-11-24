@@ -77,7 +77,6 @@ export default async function YardInventoryPage({
         )}
         filter={null}
         publishedAt={data.publishedAt}
-        staleAfterMs={data.staleAfterMs}
         nearby={data.nearby}
         chain={data.chain}
       />
