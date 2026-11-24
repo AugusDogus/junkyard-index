@@ -750,7 +750,7 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
               : null,
           failedAttemptCursor:
             cursor.phase === "initial"
-              ? await loadByotFailedAttemptCursor(db)
+              ? await loadByotFailedAttemptCursor(db, Date.now())
               : null,
           maxPages: context.maxPages,
           onBatch: context.onBatch,
