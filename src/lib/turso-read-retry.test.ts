@@ -135,6 +135,22 @@ describe("retryTursoRead", () => {
     expect(delays).toEqual([]);
   });
 
+  test("the retry warning names the libsql error under nested wrappers", async () => {
+    const nested = new Error("render failed", {
+      cause: new DrizzleQueryError("select 1", [], httpError(504)),
+    });
+    const flaky = flakyRead([nested]);
+    const { sleep } = recordingSleep();
+    const warnings: string[] = [];
+    await retryTursoRead(flaky.read, {
+      sleep,
+      warn: (message) => warnings.push(message),
+    });
+    expect(warnings).toEqual([
+      "Turso read failed with a transient server error (SERVER_ERROR: Server returned HTTP status 504); retrying in 200 ms (attempt 2 of 3).",
+    ]);
+  });
+
   test("each retry is logged as a warning naming the status and attempt", async () => {
     const flaky = flakyRead([httpError(503)]);
     const { sleep } = recordingSleep();
