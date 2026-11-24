@@ -241,13 +241,20 @@ export function ModelInventoryView({
           <ul className="border-ink divide-rule divide-y border-t-2 lg:col-span-8">
             {arrivals.map((vehicle) => {
               const yard = byKey.get(`${vehicle.source}:${vehicle.code}`);
+              const checked = lastChecked(vehicle.source, vehicle.code);
               return (
                 <VehicleRow
                   key={vehicle.vin}
                   vehicle={vehicle}
                   source={vehicle.source}
-                  publishedAt={checkDates.sources[vehicle.source] ?? null}
-                  lastChecked={lastChecked(vehicle.source, vehicle.code)}
+                  // No "New" next to "Last checked": a stale yard's newest
+                  // cars are only new as of its last check.
+                  publishedAt={
+                    checked === null
+                      ? (checkDates.sources[vehicle.source] ?? null)
+                      : null
+                  }
+                  lastChecked={checked}
                   layout="stacked"
                   hiddenSources={hiddenSources}
                   yard={

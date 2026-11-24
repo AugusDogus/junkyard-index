@@ -148,3 +148,18 @@ describe("InventoryStaleness.coverage", () => {
     ).toEqual({ latest: iso(hoursAgo(82)), current: 0, total: 1 });
   });
 });
+
+describe("InventoryStaleness.changedBetween", () => {
+  test("names sources that crossed 36 hours or 7 days since the last check, so pages relabel and hide on time", () => {
+    const published = new Map<string, number | null>([
+      ["pyp", hoursAgo(36.5)],
+      ["upullrparts", hoursAgo(7 * 24 + 0.5)],
+      ["row52", hoursAgo(20)],
+      ["hollanderstores", hoursAgo(82)],
+      ["autorecycler", null],
+    ]);
+    expect(
+      InventoryStaleness.changedBetween(published, hoursAgo(1), now).sort(),
+    ).toEqual(["pyp", "upullrparts"]);
+  });
+});

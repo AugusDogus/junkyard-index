@@ -11,6 +11,8 @@ import { HomePricing } from "~/components/home/HomePricing";
 import { HomeFaq } from "~/components/home/HomeFaq";
 import { HomeClosingCta } from "~/components/home/HomeClosingCta";
 import { getHomepageInventory } from "~/lib/homepage-inventory";
+import { InventoryStaleness } from "~/lib/inventory-staleness";
+import { getInventoryCheckDates } from "~/server/yard-inventory";
 import { JsonLd } from "~/components/JsonLd";
 import { env } from "~/env";
 import { homeMetadata } from "./home-metadata";
@@ -21,7 +23,22 @@ export async function generateHomeMetadata() {
 }
 
 export async function HomeLandingPage() {
-  const { inventory, section } = await loadYardMapSection();
+  const [{ inventory, section }, checkDates] = await Promise.all([
+    loadYardMapSection(),
+    getInventoryCheckDates(),
+  ]);
+  const now = Date.now();
+  const recentVehicles = inventory.recentVehicles.map((vehicle) => ({
+    ...vehicle,
+    lastChecked: InventoryStaleness.label(
+      InventoryStaleness.checkedAt(
+        checkDates,
+        vehicle.source,
+        vehicle.locationCode,
+      ),
+      now,
+    ),
+  }));
 
   return (
     <div className="bg-background flex min-h-dvh flex-col">
@@ -87,7 +104,7 @@ export async function HomeLandingPage() {
             />
           }
         >
-          <RecentVehicles vehicles={inventory.recentVehicles} />
+          <RecentVehicles vehicles={recentVehicles} />
         </Suspense>
         <HomeFaq />
         <HomePricing />

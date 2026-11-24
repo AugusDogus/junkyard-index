@@ -23,6 +23,7 @@ function dependencies(
     logRun: async () => undefined,
     expireHiddenSources: () => undefined,
     prewarmHiddenSources: async () => undefined,
+    staleHidden: async () => false,
     ...overrides,
   };
 }
@@ -66,6 +67,47 @@ describe("SourceControlAction.perform", () => {
     expect(expireHiddenSources).toHaveBeenCalledTimes(1);
     expect(result).toMatchObject({ status: "done" });
     expect(result.message).toContain("15 minutes");
+  });
+
+  test("showing a source that is also stale for 7 days says it stays off the site until its next accepted publication", async () => {
+    const hidden = SourceControl.apply(SourceControl.initial("pratt"), {
+      kind: "hide",
+      reason: "Site redirects to spam",
+    }).control;
+    const showHidden: SourceControlActionDependencies["apply"] = async ({
+      change,
+    }) => SourceControl.apply(hidden, change);
+    const stale = await SourceControlAction.perform(
+      dependencies({ apply: showHidden, staleHidden: async () => true }),
+      "owner",
+      { kind: "show", source: "pratt" },
+      now,
+    );
+    expect(stale.status).toBe("done");
+    expect(stale.message).toContain("stays off the public site");
+    expect(stale.message).not.toContain("returns to the public site");
+
+    const fresh = await SourceControlAction.perform(
+      dependencies({ apply: showHidden }),
+      "owner",
+      { kind: "show", source: "pratt" },
+      now,
+    );
+    expect(fresh.message).toContain("returns to the public site");
+
+    const unknown = await SourceControlAction.perform(
+      dependencies({
+        apply: showHidden,
+        staleHidden: async () => {
+          throw new Error("database unreachable");
+        },
+      }),
+      "owner",
+      { kind: "show", source: "pratt" },
+      now,
+    );
+    expect(unknown.status).toBe("done");
+    expect(unknown.message).toContain("may still be off the site");
   });
 
   test("pausing does not touch the hidden list", async () => {
