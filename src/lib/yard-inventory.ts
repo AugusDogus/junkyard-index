@@ -24,12 +24,32 @@ export type YardVehicle = {
   detailsUrl: string | null;
 };
 
-/** One page of a yard's inventory. `page` is 1-based. */
-export type YardInventoryPage = {
+/** Where a page of a yard's inventory starts. `page` is 1-based. */
+export type YardPageRange = {
   page: number;
   pageCount: number;
   firstIndex: number;
-  vehicles: YardVehicle[];
+};
+
+/** One page of a yard's inventory. */
+export type YardInventoryPage = YardPageRange & { vehicles: YardVehicle[] };
+
+/**
+ * What "new this week" needs of a list of vehicles without the vehicles:
+ * how many there are, and when each known arrival came (ms). Vehicles only
+ * first seen by us have no known arrival.
+ */
+export type YardArrivals = { total: number; knownAt: number[] };
+
+/**
+ * Everything a yard's pages need of its whole inventory, small enough to
+ * cache in one entry: the count, the makes, and each make's known arrivals
+ * (placeholder makes under the empty key).
+ */
+export type YardSummary = {
+  total: number;
+  makes: MakeCount[];
+  arrivals: { key: string; knownAt: number[] }[];
 };
 
 /**
@@ -45,6 +65,13 @@ export type MakeCount = { key: string; make: string; count: number };
 
 export const YARD_PAGE_SIZE = 100;
 
+/**
+ * Vehicles per cached slice of a yard's inventory: whole pages, so a page
+ * reads one slice. 2,000 vehicles serialize to about 0.7 to 0.9 MB, under
+ * the 2 MB Next.js data-cache limit that a whole large yard exceeds.
+ */
+export const YARD_SLICE_SIZE = 20 * YARD_PAGE_SIZE;
+
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 // Above this share of a yard's vehicles, "new" stops meaning anything.
 const MOSTLY_NEW = 0.8;
@@ -56,6 +83,12 @@ function text(value: string | null): string | null {
 
 function pageCount(total: number): number {
   return Math.max(1, Math.ceil(total / YARD_PAGE_SIZE));
+}
+
+function inWeek(at: number, referenceTime: string): boolean {
+  return (
+    at >= Date.parse(referenceTime) - WEEK_MS && at <= Date.parse(referenceTime)
+  );
 }
 
 export const YardInventory = {
@@ -151,10 +184,7 @@ export const YardInventory = {
   ): boolean {
     if (referenceTime === null || vehicle.addedBy === "first-seen")
       return false;
-    return (
-      vehicle.addedAt >= Date.parse(referenceTime) - WEEK_MS &&
-      vehicle.addedAt <= Date.parse(referenceTime)
-    );
+    return inWeek(vehicle.addedAt, referenceTime);
   },
 
   /** How many of `vehicles` are new, as `isNew` counts them. */
@@ -187,17 +217,69 @@ export const YardInventory = {
     yardVehicles: readonly Pick<YardVehicle, "addedAt" | "addedBy">[],
     referenceTime: string,
   ): YardNewArrivals {
-    if (
-      !YardInventory.newIsMeaningful(
-        YardInventory.newCount(yardVehicles, referenceTime),
-        yardVehicles.length,
-      )
-    )
+    return YardInventory.newArrivalsFrom(
+      YardInventory.arrivals(vehicles),
+      YardInventory.arrivals(yardVehicles),
+      referenceTime,
+    );
+  },
+
+  /** `newArrivals` from the vehicles' arrivals instead of the vehicles. */
+  newArrivalsFrom(
+    shown: YardArrivals,
+    yard: YardArrivals,
+    referenceTime: string,
+  ): YardNewArrivals {
+    const newIn = ({ knownAt }: YardArrivals) =>
+      knownAt.filter((at) => inWeek(at, referenceTime)).length;
+    if (!YardInventory.newIsMeaningful(newIn(yard), yard.total))
       return { kind: "quiet" };
+    return { kind: "counted", count: newIn(shown), since: referenceTime };
+  },
+
+  /** The known arrivals among `vehicles`. */
+  arrivals(
+    vehicles: readonly Pick<YardVehicle, "addedAt" | "addedBy">[],
+  ): YardArrivals {
     return {
-      kind: "counted",
-      count: YardInventory.newCount(vehicles, referenceTime),
-      since: referenceTime,
+      total: vehicles.length,
+      knownAt: vehicles.flatMap((vehicle) =>
+        vehicle.addedBy === "first-seen" ? [] : [vehicle.addedAt],
+      ),
+    };
+  },
+
+  /** A yard's summary, from its whole inventory. */
+  summary(vehicles: readonly YardVehicle[]): YardSummary {
+    const arrivals = new Map<string, number[]>();
+    for (const vehicle of vehicles) {
+      if (vehicle.addedBy === "first-seen") continue;
+      const key = VehicleName.makeKey(vehicle.make) ?? "";
+      const knownAt = arrivals.get(key) ?? [];
+      knownAt.push(vehicle.addedAt);
+      arrivals.set(key, knownAt);
+    }
+    return {
+      total: vehicles.length,
+      makes: YardInventory.makeCounts(vehicles),
+      arrivals: [...arrivals].map(([key, knownAt]) => ({ key, knownAt })),
+    };
+  },
+
+  /** The whole yard's arrivals, from its summary. */
+  yardArrivals(summary: YardSummary): YardArrivals {
+    return {
+      total: summary.total,
+      knownAt: summary.arrivals.flatMap(({ knownAt }) => knownAt),
+    };
+  },
+
+  /** One make's arrivals at a yard, by make key, from its summary. */
+  makeArrivals(summary: YardSummary, makeKey: string): YardArrivals {
+    return {
+      total: summary.makes.find((make) => make.key === makeKey)?.count ?? 0,
+      knownAt:
+        summary.arrivals.find((make) => make.key === makeKey)?.knownAt ?? [],
     };
   },
 
@@ -230,19 +312,58 @@ export const YardInventory = {
 
   pageCount,
 
+  /** Where page `page` of `total` vehicles starts, or null past the last. */
+  pageRange(total: number, page: number): YardPageRange | null {
+    const count = pageCount(total);
+    if (!Number.isInteger(page) || page < 1 || page > count) return null;
+    return { page, pageCount: count, firstIndex: (page - 1) * YARD_PAGE_SIZE };
+  },
+
   /** The requested page, or null when it is past the last page. */
   page(
     vehicles: readonly YardVehicle[],
     page: number,
   ): YardInventoryPage | null {
-    const count = pageCount(vehicles.length);
-    if (!Number.isInteger(page) || page < 1 || page > count) return null;
-    const firstIndex = (page - 1) * YARD_PAGE_SIZE;
+    const range = YardInventory.pageRange(vehicles.length, page);
+    return (
+      range && {
+        ...range,
+        vehicles: vehicles.slice(
+          range.firstIndex,
+          range.firstIndex + YARD_PAGE_SIZE,
+        ),
+      }
+    );
+  },
+
+  /** How many slices hold `total` vehicles. */
+  sliceCount(total: number): number {
+    return Math.ceil(total / YARD_SLICE_SIZE);
+  },
+
+  /** Slice `index` of a list of vehicles. */
+  slice(vehicles: readonly YardVehicle[], index: number): YardVehicle[] {
+    return vehicles.slice(
+      index * YARD_SLICE_SIZE,
+      (index + 1) * YARD_SLICE_SIZE,
+    );
+  },
+
+  /** The slice that holds a page. */
+  sliceIndex(range: YardPageRange): number {
+    return Math.floor(range.firstIndex / YARD_SLICE_SIZE);
+  },
+
+  /** A page, from slice `index`, the one `sliceIndex` gives for it. */
+  pageInSlice(
+    slice: readonly YardVehicle[],
+    index: number,
+    range: YardPageRange,
+  ): YardInventoryPage {
+    const offset = range.firstIndex - index * YARD_SLICE_SIZE;
     return {
-      page,
-      pageCount: count,
-      firstIndex,
-      vehicles: vehicles.slice(firstIndex, firstIndex + YARD_PAGE_SIZE),
+      ...range,
+      vehicles: slice.slice(offset, offset + YARD_PAGE_SIZE),
     };
   },
 

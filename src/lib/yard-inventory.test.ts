@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   YARD_PAGE_SIZE,
+  YARD_SLICE_SIZE,
   YardInventory,
   type YardVehicle,
 } from "./yard-inventory";
@@ -284,5 +285,81 @@ describe("YardInventory.newDisplay", () => {
         YardInventory.newArrivals([recent], [recent, recent, recent], now),
       ),
     ).toEqual({ headerCount: null, badgesSince: null });
+  });
+});
+
+describe("YardInventory.summary", () => {
+  const now = "2026-11-19T12:00:00Z";
+  const make = (vin: string, name: string, availableDate: string | null) =>
+    YardInventory.vehicle(
+      row({ vin, make: name, availableDate, observedArrivalAt: null }),
+    );
+  const yard = YardInventory.sort([
+    make("A", "HONDA", "2026-11-18"),
+    make("B", "Honda", "2026-10-01"),
+    make("C", "FORD", null),
+    make("D", "Other", "2026-11-17"),
+    make("E", "FORD", "2026-10-02"),
+  ]);
+
+  test("counts makes and new arrivals as the whole list does", () => {
+    const summary = YardInventory.summary(yard);
+    expect(summary.total).toBe(5);
+    expect(summary.makes).toEqual(YardInventory.makeCounts(yard));
+    expect(
+      YardInventory.newArrivalsFrom(
+        YardInventory.yardArrivals(summary),
+        YardInventory.yardArrivals(summary),
+        now,
+      ),
+    ).toEqual(YardInventory.newArrivals(yard, yard, now));
+  });
+
+  test("counts one make's new arrivals against the whole yard", () => {
+    const summary = YardInventory.summary(yard);
+    const hondas = yard.filter((vehicle) => vehicle.make === "Honda");
+    expect(
+      YardInventory.newArrivalsFrom(
+        YardInventory.makeArrivals(summary, "HONDA"),
+        YardInventory.yardArrivals(summary),
+        now,
+      ),
+    ).toEqual(YardInventory.newArrivals(hondas, yard, now));
+    expect(YardInventory.makeArrivals(summary, "TESLA")).toEqual({
+      total: 0,
+      knownAt: [],
+    });
+  });
+});
+
+describe("YardInventory slices", () => {
+  test("hold whole pages, so a page reads one slice", () => {
+    expect(YARD_SLICE_SIZE % YARD_PAGE_SIZE).toBe(0);
+    const total = YARD_SLICE_SIZE * 2 + 150;
+    const all = vehicles(total);
+    expect(YardInventory.sliceCount(total)).toBe(3);
+    expect(YardInventory.sliceCount(0)).toBe(0);
+    const slices = Array.from({ length: 3 }, (_, index) =>
+      YardInventory.slice(all, index),
+    );
+    expect(slices.flat()).toEqual(all);
+
+    const lastPage = YardInventory.pageCount(total);
+    for (const page of [1, YARD_SLICE_SIZE / YARD_PAGE_SIZE + 1, lastPage]) {
+      const range = YardInventory.pageRange(total, page);
+      if (!range) throw new Error(`page ${page} of ${total} has no range`);
+      const index = YardInventory.sliceIndex(range);
+      const expected = YardInventory.page(all, page);
+      if (!expected) throw new Error(`page ${page} of ${total} is missing`);
+      expect(
+        YardInventory.pageInSlice(slices[index] ?? [], index, range),
+      ).toEqual(expected);
+    }
+    expect(YardInventory.pageRange(total, lastPage + 1)).toBeNull();
+    expect(YardInventory.pageRange(0, 1)).toEqual({
+      page: 1,
+      pageCount: 1,
+      firstIndex: 0,
+    });
   });
 });

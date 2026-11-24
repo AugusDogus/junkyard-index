@@ -10,7 +10,7 @@ import { YardInventory } from "~/lib/yard-inventory";
 import { YardPath } from "~/lib/yard-path";
 import { getMakePageData, getMakeSlugs } from "~/server/vehicle-models";
 import { getHiddenSources } from "~/server/source-control/hidden-sources-loader";
-import { getYardPageData } from "~/server/yard-inventory";
+import { getYardMakeVehicles, getYardPageData } from "~/server/yard-inventory";
 
 // One model at one yard, narrowed from the yard's cached inventory, so it
 // reads nothing new. Rendered on first request and rebuilt with the yard's
@@ -40,7 +40,11 @@ async function load(params: Promise<Params>) {
       VehicleName.sameSlug(candidate.slug, modelSlug),
   );
   if (!model) return null;
-  const vehicles = YardInventory.forModel(data.vehicles, make.key, model.key);
+  const vehicles = YardInventory.forModel(
+    await getYardMakeVehicles(data.yard, data.summary, make.key),
+    make.key,
+    model.key,
+  );
   return { data, make, model, makeSlug, modelSlug, vehicles };
 }
 
@@ -86,12 +90,12 @@ export default async function YardModelPage({
         yard={data.yard}
         inventory={{ page: 1, pageCount: 1, firstIndex: 0, vehicles }}
         total={vehicles.length}
-        newArrivals={YardInventory.newArrivals(
-          vehicles,
-          data.vehicles,
+        newArrivals={YardInventory.newArrivalsFrom(
+          YardInventory.arrivals(vehicles),
+          YardInventory.yardArrivals(data.summary),
           new Date().toISOString(),
         )}
-        makes={data.makes}
+        makes={data.summary.makes}
         makeSlugs={await getMakeSlugs()}
         hiddenSources={await getHiddenSources()}
         publishedAt={data.publishedAt}

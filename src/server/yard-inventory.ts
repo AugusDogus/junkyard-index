@@ -16,7 +16,13 @@ import {
   RETIRED_INGESTION_SOURCES,
   type IngestionSource,
 } from "~/lib/ingestion-source";
-import { YardInventory, type YardVehicle } from "~/lib/yard-inventory";
+import { VehicleName } from "~/lib/vehicle-name";
+import {
+  YardInventory,
+  type YardInventoryPage,
+  type YardSummary,
+  type YardVehicle,
+} from "~/lib/yard-inventory";
 import { getSourceFreshness } from "~/server/ingestion/source-freshness";
 import { StateNewArrivals } from "~/server/state-new-arrivals";
 import { getHiddenSources } from "~/server/source-control/hidden-sources-loader";
@@ -68,10 +74,110 @@ async function loadYardVehicles(
   );
 }
 
-/** A yard's live vehicles, newest first. Refreshed with the daily pass. */
-export const getYardVehicles = cacheInventory(loadYardVehicles, [
-  "yard-vehicles-v3",
-]);
+/**
+ * One read of a yard's live vehicles per render. A whole large yard is over
+ * the 2 MB Next.js data-cache limit (Stricker's 12k vehicles are 5.4 MB), so
+ * the entries below cache it in pieces; on a miss they share this read.
+ */
+const readYardVehicles = cache(loadYardVehicles);
+
+/** A yard's count, makes and arrivals. Refreshed with the daily pass. */
+const getYardSummary = cacheInventory(
+  async (source: string, code: string): Promise<YardSummary> =>
+    YardInventory.summary(await readYardVehicles(source, code)),
+  ["yard-summary-v1"],
+);
+
+/**
+ * Slice `index` of a yard's live vehicles, newest first, or of one make's
+ * (by make key) for its make and model pages. A make's slices come from the
+ * yard's cached slices, so they read nothing new.
+ */
+const getYardSlice = cacheInventory(
+  async (
+    source: string,
+    code: string,
+    makeKey: string | null,
+    index: number,
+  ): Promise<YardVehicle[]> =>
+    YardInventory.slice(
+      makeKey === null
+        ? await readYardVehicles(source, code)
+        : (await getAllYardVehicles(source, code)).filter(
+            (vehicle) => VehicleName.makeKey(vehicle.make) === makeKey,
+          ),
+      index,
+    ),
+  ["yard-vehicle-slice-v1"],
+);
+
+async function getSlices(
+  source: string,
+  code: string,
+  makeKey: string | null,
+  total: number,
+): Promise<YardVehicle[]> {
+  const slices = await Promise.all(
+    Array.from({ length: YardInventory.sliceCount(total) }, (_, index) =>
+      getYardSlice(source, code, makeKey, index),
+    ),
+  );
+  return slices.flat();
+}
+
+const getAllYardVehicles = cache(
+  async (source: string, code: string): Promise<YardVehicle[]> =>
+    getSlices(source, code, null, (await getYardSummary(source, code)).total),
+);
+
+/** Which vehicles of a yard a page lists: all of them, or one make's. */
+export type YardScope = { kind: "yard" } | { kind: "make"; key: string };
+
+function scopeKey(scope: YardScope): string | null {
+  return scope.kind === "make" ? scope.key : null;
+}
+
+/** How many vehicles of a yard are in `scope`, from its summary. */
+function scopeTotal(summary: YardSummary, scope: YardScope): number {
+  return scope.kind === "make"
+    ? YardInventory.makeArrivals(summary, scope.key).total
+    : summary.total;
+}
+
+/**
+ * Page `page` of a yard's vehicles in `scope`, newest first, reading only
+ * the cached slice that holds it; null past the last page.
+ */
+export async function getYardVehiclePage(
+  yard: Pick<RoutedYard, "source" | "code">,
+  summary: YardSummary,
+  scope: YardScope,
+  page: number,
+): Promise<YardInventoryPage | null> {
+  const total = scopeTotal(summary, scope);
+  const range = YardInventory.pageRange(total, page);
+  if (!range) return null;
+  // An empty yard has an empty first page; there is no slice to read.
+  if (total === 0) return { ...range, vehicles: [] };
+  const index = YardInventory.sliceIndex(range);
+  const slice = await getYardSlice(
+    yard.source,
+    yard.code,
+    scopeKey(scope),
+    index,
+  );
+  return YardInventory.pageInSlice(slice, index, range);
+}
+
+/** Every vehicle of one make at a yard, newest first, for its model pages. */
+export async function getYardMakeVehicles(
+  yard: Pick<RoutedYard, "source" | "code">,
+  summary: YardSummary,
+  makeKey: string,
+): Promise<YardVehicle[]> {
+  const scope: YardScope = { kind: "make", key: makeKey };
+  return getSlices(yard.source, yard.code, makeKey, scopeTotal(summary, scope));
+}
 
 async function loadSourcePublishedAt(): Promise<
   Partial<Record<IngestionSource, string>>
@@ -247,8 +353,8 @@ export const getYardPageData = cache(
   async (regionSlug: string, yardSlug: string) => {
     const yard = await findYard(regionSlug, yardSlug);
     if (!yard) return null;
-    const [vehicles, publishedAt, routed, chains] = await Promise.all([
-      getYardVehicles(yard.source, yard.code),
+    const [summary, publishedAt, routed, chains] = await Promise.all([
+      getYardSummary(yard.source, yard.code),
       getYardPublishedAt(),
       getRoutedYards(),
       getChains(),
@@ -266,8 +372,7 @@ export const getYardPageData = cache(
       .slice(0, NEARBY_YARDS);
     return {
       yard,
-      vehicles,
-      makes: YardInventory.makeCounts(vehicles),
+      summary,
       publishedAt: publishedAt[`${yard.source}:${yard.code}`] ?? null,
       nearby,
       chain: chain
