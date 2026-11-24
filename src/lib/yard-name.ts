@@ -1,3 +1,5 @@
+import { Region } from "./region";
+
 type YardNameInput = {
   source: string;
   name: string;
@@ -16,15 +18,34 @@ const BRANDS: Readonly<Record<string, string>> = {
   "pick-n-pull": "PICK-n-PULL",
   "pull-a-part": "Pull-A-Part",
   "u-pull-&-pay": "U-Pull-&-Pay",
+  // Initials that casing turned into words.
+  cfc: "CFC",
+  jdm: "JDM",
+  rtp: "RTP",
+  nwa: "NWA",
+  mst: "MST",
+  oem: "OEM",
+  sw: "SW",
+  nw: "NW",
+  nc: "NC",
 };
 
 function display(name: string): string {
-  return name
-    .trim()
-    .split(/\s+/)
-    .map((word) => {
+  const words = name.trim().split(/\s+/);
+  return words
+    .map((word, index) => {
       const brand = BRANDS[word.toLowerCase()];
       if (brand) return brand;
+      // Initials joined by "&", such as S&W or K&R.
+      if (/^[a-z]&[a-z]$/i.test(word)) return word.toUpperCase();
+      // A state or province after a comma: "Lexington, KY".
+      if (
+        index === words.length - 1 &&
+        words[index - 1]?.endsWith(",") &&
+        /^[a-z]{2}$/i.test(word) &&
+        Region.fromAbbr(word)
+      )
+        return word.toUpperCase();
       // Keep deliberate mixed-case branding, such as AutoZone or eBay.
       if (word !== word.toUpperCase() && word !== word.toLowerCase())
         return word;
@@ -35,6 +56,25 @@ function display(name: string): string {
     .join(" ");
 }
 
+/**
+ * Initials from the operator's own spelling ("NWA U-Pull-It"), which yard
+ * names lose when an all-caps source is cased ("Nwa U-Pull-It").
+ */
+function withOperatorInitials(name: string, operator: string): string {
+  // An all-caps operator says nothing about which words are initials.
+  if (operator === operator.toUpperCase()) return name;
+  const initials = new Map(
+    operator
+      .split(/\s+/)
+      .filter((word) => /[A-Z]/.test(word) && word === word.toUpperCase())
+      .map((word) => [word.toLowerCase(), word]),
+  );
+  return name
+    .split(" ")
+    .map((word) => initials.get(word.toLowerCase()) ?? word)
+    .join(" ");
+}
+
 function resolve({
   source,
   name: rawName,
@@ -42,7 +82,9 @@ function resolve({
   operator,
   inventoryUrl,
 }: YardNameInput): string {
-  const name = display(rawName);
+  const name = operator
+    ? withOperatorInitials(display(rawName), operator)
+    : display(rawName);
   if (source === "pyp") {
     return /pick your part/i.test(name) ? name : `LKQ Pick Your Part - ${name}`;
   }
