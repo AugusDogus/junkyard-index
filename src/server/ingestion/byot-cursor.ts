@@ -12,12 +12,13 @@ export const BYOT_RETIRED_QUERY_MAX_AGE_MS = 21 * 24 * 60 * 60 * 1000;
  * search evidence, and restarts from its preceding publication. */
 export const BYOT_MAX_RUN_MS = 8 * 60 * 60 * 1000;
 export const BYOT_RUN_REQUESTS = BYOT_YARDS.length * (1 + BYOT_QUERIES.length);
-/** Request cap per chunk. The connector also stops starting requests once one
- * more could overrun the chunk deadline, which usually ends a chunk first. */
+/** Request cap per chunk, which normally ends a chunk. When responses are
+ * slow, the connector stops earlier, once one more request could overrun the
+ * chunk deadline. */
 export const BYOT_CHUNK_REQUESTS = 64;
 /** Published cursors from the retired weekly sweep searched a seventh of
  * their directory. They still seed the next daily run. */
-const legacySliceQueries = (directoryLength: number) =>
+export const byotLegacySliceQueries = (directoryLength: number) =>
   Math.ceil(directoryLength / 7);
 export const byotHash = (value: unknown): string =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -165,7 +166,7 @@ function validate(input: unknown): ByotCursor {
   ) {
     const queries =
       cursor.phase === "complete"
-        ? legacySliceQueries(cursor.directory.length)
+        ? byotLegacySliceQueries(cursor.directory.length)
         : cursor.directory.length;
     const progress =
       cursor.phase === "search" ? cursor.progress : queries * BYOT_YARDS.length;
@@ -182,7 +183,7 @@ function validate(input: unknown): ByotCursor {
       );
       if (!entry || entry.checkedAt !== now)
         throw new Error(
-          "Checkpoint lacks this run's contiguous search evidence",
+          `Checkpoint lacks this run's contiguous search evidence for yard ${BYOT_YARDS[i % BYOT_YARDS.length]?.code ?? "unknown"} query ${index}, so it was not resumed. Published inventory is unchanged; discard this checkpoint and restart the run from the latest published cursor`,
         );
     }
   }
