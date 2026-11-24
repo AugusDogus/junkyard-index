@@ -44,9 +44,11 @@ export type YardArrivals = { total: number; knownAt: number[] };
 /**
  * Everything a yard's pages need of its whole inventory, small enough to
  * cache in one entry: the count, the makes, and each make's known arrivals
- * (placeholder makes under the empty key).
+ * (placeholder makes under the empty key). `fingerprint` identifies the read
+ * it came from, so lists cached from other reads can be told apart.
  */
 export type YardSummary = {
+  fingerprint: string;
   total: number;
   makes: MakeCount[];
   arrivals: { key: string; knownAt: number[] }[];
@@ -83,6 +85,22 @@ function text(value: string | null): string | null {
 
 function pageCount(total: number): number {
   return Math.max(1, Math.ceil(total / YARD_PAGE_SIZE));
+}
+
+/** cyrb53, a fast 53-bit string hash; not for security. */
+function hash53(value: string): string {
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let index = 0; index < value.length; index++) {
+    const code = value.charCodeAt(index);
+    h1 = Math.imul(h1 ^ code, 2654435761);
+    h2 = Math.imul(h2 ^ code, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
+  h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
+  h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
 }
 
 function inWeek(at: number, referenceTime: string): boolean {
@@ -249,6 +267,21 @@ export const YardInventory = {
     };
   },
 
+  /**
+   * Identifies a read of a yard's whole inventory: its vehicles in order, and
+   * the make and arrival a summary counts for each.
+   */
+  fingerprint(vehicles: readonly YardVehicle[]): string {
+    return `${vehicles.length}:${hash53(
+      vehicles
+        .map(
+          (vehicle) =>
+            `${vehicle.vin}\u0000${vehicle.make}\u0000${vehicle.addedAt}\u0000${vehicle.addedBy}`,
+        )
+        .join("\u0001"),
+    )}`;
+  },
+
   /** A yard's summary, from its whole inventory. */
   summary(vehicles: readonly YardVehicle[]): YardSummary {
     const arrivals = new Map<string, number[]>();
@@ -260,6 +293,7 @@ export const YardInventory = {
       arrivals.set(key, knownAt);
     }
     return {
+      fingerprint: YardInventory.fingerprint(vehicles),
       total: vehicles.length,
       makes: YardInventory.makeCounts(vehicles),
       arrivals: [...arrivals].map(([key, knownAt]) => ({ key, knownAt })),

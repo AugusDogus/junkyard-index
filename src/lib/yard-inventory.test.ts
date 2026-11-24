@@ -340,6 +340,26 @@ describe("YardInventory.summary", () => {
       knownAt: [],
     });
   });
+
+  test("fingerprints the read, so lists from another read of the same size differ", () => {
+    const summary = YardInventory.summary(yard);
+    expect(summary.fingerprint).toBe(YardInventory.fingerprint([...yard]));
+    const swapped = yard.map((vehicle) =>
+      vehicle.vin === "A" ? make("G", "HONDA", "2026-11-18") : vehicle,
+    );
+    const redated = yard.map((vehicle) =>
+      vehicle.vin === "A"
+        ? { ...vehicle, addedAt: vehicle.addedAt + 1 }
+        : vehicle,
+    );
+    const renamed = yard.map((vehicle) =>
+      vehicle.vin === "A" ? { ...vehicle, make: "Acura" } : vehicle,
+    );
+    for (const other of [swapped, redated, renamed]) {
+      expect(other).toHaveLength(yard.length);
+      expect(YardInventory.fingerprint(other)).not.toBe(summary.fingerprint);
+    }
+  });
 });
 
 describe("YardInventory slices", () => {
