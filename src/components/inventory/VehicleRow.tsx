@@ -1,4 +1,3 @@
-import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { cn } from "~/lib/utils";
 import type { HiddenSources } from "~/lib/hidden-source";
@@ -141,7 +140,10 @@ export function VehicleRow({
               className={`${linkClassName} inline-flex items-center gap-1 font-medium`}
             >
               Yard listing
-              <ArrowUpRight className="size-3.5" aria-hidden="true" />
+              <span
+                className="icon-arrow-up-right size-3.5"
+                aria-hidden="true"
+              />
               <span className="sr-only">
                 {" "}
                 for the {title} (opens in a new tab)

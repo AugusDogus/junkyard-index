@@ -30,10 +30,6 @@ const TONES = {
   },
 } as const satisfies Record<YardListTone, Record<string, string>>;
 
-/** Name, city, count: the same three tracks in the head and every row. */
-const TRACKS =
-  "sm:grid-cols-[minmax(0,3fr)_minmax(0,2fr)_7rem] lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)_8rem]";
-
 /**
  * Links to yards' inventory pages as an index: the yard, its city and its
  * live count in columns, under one head row. Phones stack the city under
@@ -52,8 +48,8 @@ export function YardList({
       <div
         aria-hidden="true"
         className={cn(
-          "hidden gap-x-6 border-b-2 px-2 pb-2 text-sm font-medium sm:grid",
-          TRACKS,
+          // Name, city, count: the same three tracks as every row.
+          "yard-list-tracks hidden gap-x-6 border-b-2 px-2 pb-2 text-sm font-medium sm:grid",
           colours.rule,
           colours.head,
         )}
@@ -68,53 +64,25 @@ export function YardList({
             <Link
               href={yard.path.href}
               prefetch={false}
-              className={cn(
-                "group/row board-step grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-6 gap-y-0.5 px-2 py-3.5 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid",
-                TRACKS,
-                colours.link,
-              )}
+              // The row classes are in globals.css: a list can hold every yard.
+              className={cn("group/row yard-list-link", colours.link)}
             >
-              <span
-                className={cn(
-                  "board-step col-start-1 row-start-1 text-[0.9375rem] leading-snug font-extrabold",
-                  colours.name,
-                )}
-              >
+              <span className={cn("yard-list-name", colours.name)}>
                 {YardName.headline(yard.name, yard.operator)}
                 {isIngestionSource(yard.source) && (
-                  <span
-                    className={cn(
-                      "mt-1 block text-xs font-normal",
-                      colours.meta,
-                    )}
-                  >
+                  <span className={cn("yard-list-service", colours.meta)}>
                     {YardService.label(
                       YardService.resolve(yard.source, yard.code),
                     )}
                   </span>
                 )}
               </span>
-              <span
-                className={cn(
-                  "col-start-1 row-start-2 truncate text-sm sm:col-start-2 sm:row-start-1",
-                  colours.meta,
-                )}
-              >
+              <span className={cn("yard-list-place", colours.meta)}>
                 {yard.city}, {yard.state}
               </span>
-              <span
-                className={cn(
-                  "col-start-2 row-span-2 row-start-1 text-right text-lg leading-tight font-extrabold tabular-nums sm:col-start-3 sm:row-span-1",
-                  colours.figure,
-                )}
-              >
+              <span className={cn("yard-list-figure", colours.figure)}>
                 {InventoryFormat.count(yard.vehicleCount)}
-                <span
-                  className={cn(
-                    "block text-sm font-normal sm:sr-only",
-                    colours.meta,
-                  )}
-                >
+                <span className={cn("yard-list-unit", colours.meta)}>
                   {" "}
                   {yard.vehicleCount === 1 ? "vehicle" : "vehicles"}
                 </span>
