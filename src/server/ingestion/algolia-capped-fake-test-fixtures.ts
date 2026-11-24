@@ -27,9 +27,11 @@ export class FakeAlgoliaApiError extends Error {
 /**
  * How a browse cursor behaves when records before it are deleted: `stable`
  * resumes after the last objectID returned; `shifting` resumes at an offset,
- * so a deletion under it skips records (the sweep must recount).
+ * so a deletion under it skips records (the sweep must recount); `anchored`
+ * resumes after the last objectID returned but, as Algolia does, refuses the
+ * cursor once that record was deleted.
  */
-export type BrowseCursorMode = "stable" | "shifting";
+export type BrowseCursorMode = "stable" | "shifting" | "anchored";
 
 export function cappedAlgolia(params: {
   limit: number;
@@ -162,6 +164,16 @@ export function cappedAlgolia(params: {
         params.browsePageSize ?? 1_000,
       );
       const cursor = request.browseParams.cursor;
+      if (
+        params.cursorMode === "anchored" &&
+        cursor !== undefined &&
+        !target.records.has(cursor)
+      ) {
+        throw new FakeAlgoliaApiError(
+          "cursor is not valid anymore, the last hit of the previous query was deleted",
+          400,
+        );
+      }
       const start =
         cursor === undefined
           ? 0

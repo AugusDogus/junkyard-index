@@ -75,19 +75,49 @@ export type InPlaceRebuildStepResult =
   | { status: "paused"; stage: InPlaceStage; recordsProcessed: number }
   | { status: "complete"; searchPublishedAt: Date };
 
-/** Where a sweep is: its pass, and the Algolia browse cursor within it. */
-type SweepPosition = { pass: number; browse: string | null };
+/**
+ * Where a sweep is: its pass, the Algolia browse cursor within it, and the
+ * previous page's last objectID when that record is stale. Algolia anchors a
+ * browse cursor on the page's last hit and refuses the cursor once that
+ * record is deleted, so the sweep deletes it only after reading the next page.
+ */
+type SweepPosition = {
+  pass: number;
+  browse: string | null;
+  deferred: string | null;
+};
 
 const sweepPositionSchema = z.object({
   pass: z.number().int().positive(),
   browse: z.string().nullable(),
+  // Cursors stored before deferral existed have no deferred record.
+  deferred: z.string().nullable().default(null),
 });
+
+/** A stored sweep position; a position without a deferred record keeps its
+ * original shape, so cursors saved before deferral compare equal. */
+function serializeSweepPosition(position: SweepPosition): string {
+  return JSON.stringify(
+    position.deferred === null
+      ? { pass: position.pass, browse: position.browse }
+      : position,
+  );
+}
+
+/** Algolia refused a browse cursor because the hit it is anchored on was
+ * deleted ("cursor is not valid anymore, the last hit of the previous query
+ * was deleted"). The client exposes no code for it, only the message. */
+function isDeletedAnchorCursor(error: unknown): boolean {
+  return (
+    error instanceof Error && /cursor is not valid anymore/i.test(error.message)
+  );
+}
 
 function parseSweepPosition(
   runId: string,
   stored: string | null,
 ): SweepPosition {
-  if (stored === null) return { pass: 1, browse: null };
+  if (stored === null) return { pass: 1, browse: null, deferred: null };
   let json: unknown;
   try {
     json = JSON.parse(stored);
@@ -215,7 +245,10 @@ async function saveSweepPosition(
 ): Promise<boolean> {
   const updated = await context.database
     .update(ingestionRun)
-    .set({ fullReindexCursor: JSON.stringify(to), lastProgressAt: new Date() })
+    .set({
+      fullReindexCursor: serializeSweepPosition(to),
+      lastProgressAt: new Date(),
+    })
     .where(
       and(
         activeRunAt(context.runId, "full_reindex_inplace_sweep"),
@@ -237,21 +270,51 @@ async function sweep(
   stored: string | null,
 ): Promise<InPlaceRebuildStepResult> {
   const position = parseSweepPosition(context.runId, stored);
-  const page = await context.algolia.browse({
-    indexName: context.indexName,
-    browseParams: {
-      ...(position.browse === null ? {} : { cursor: position.browse }),
-      hitsPerPage: SWEEP_PAGE_SIZE,
-      attributesToRetrieve: ["objectID"],
-    },
-  });
+  let page: Awaited<ReturnType<InPlaceRebuildClient["browse"]>>;
+  try {
+    page = await context.algolia.browse({
+      indexName: context.indexName,
+      browseParams: {
+        ...(position.browse === null ? {} : { cursor: position.browse }),
+        hitsPerPage: SWEEP_PAGE_SIZE,
+        attributesToRetrieve: ["objectID"],
+      },
+    });
+  } catch (error) {
+    if (position.browse === null || !isDeletedAnchorCursor(error)) throw error;
+    // A sweep saved before deferral deleted its page's last hit. Deleted
+    // records stay deleted, so restarting the pass loses nothing.
+    console.warn(
+      `[Algolia] In-place search rebuild ${context.runId}: Algolia refused sweep cursor of pass ${position.pass} because its last hit was deleted; restarting the pass from the first page. Live search and Turso are intact.`,
+    );
+    const saved = await saveSweepPosition(context, stored, {
+      pass: position.pass,
+      browse: null,
+      deferred: position.deferred,
+    });
+    if (!saved) return { status: "stopped" };
+    return {
+      status: "paused",
+      stage: "full_reindex_inplace_sweep",
+      recordsProcessed: 0,
+    };
+  }
   const objectIDs = page.hits.map((hit) => hit.objectID);
-  const present = await presentVins(context.database, objectIDs);
-  const stale = objectIDs.filter((objectID) => !present.has(objectID));
-  if (stale.length > 0) {
+  const candidates =
+    position.deferred === null || objectIDs.includes(position.deferred)
+      ? objectIDs
+      : [position.deferred, ...objectIDs];
+  const present = await presentVins(context.database, candidates);
+  const stale = candidates.filter((objectID) => !present.has(objectID));
+  // The next page's cursor is anchored on this page's last hit, so a stale
+  // last hit is deleted only after that page is read.
+  const anchor = page.cursor === undefined ? null : (objectIDs.at(-1) ?? null);
+  const deferred = anchor !== null && stale.includes(anchor) ? anchor : null;
+  const deleteNow = stale.filter((objectID) => objectID !== deferred);
+  if (deleteNow.length > 0) {
     const deleted = await context.algolia.deleteObjects({
       indexName: context.indexName,
-      objectIDs: stale,
+      objectIDs: deleteNow,
       waitForTasks: false,
     });
     const taskID = lastTask(deleted);
@@ -266,6 +329,7 @@ async function sweep(
     const saved = await saveSweepPosition(context, stored, {
       pass: position.pass,
       browse: page.cursor,
+      deferred,
     });
     if (!saved) return { status: "stopped" };
     return {
@@ -294,6 +358,7 @@ async function sweep(
     const saved = await saveSweepPosition(context, stored, {
       pass: position.pass + 1,
       browse: null,
+      deferred: null,
     });
     if (!saved) return { status: "stopped" };
     return {
