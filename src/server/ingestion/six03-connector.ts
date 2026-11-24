@@ -40,7 +40,7 @@ import {
   type BrowserSessions,
   type LazyDocumentTransport,
 } from "./document-transport";
-import { Config } from "./context";
+import { Config, Database } from "./context";
 import { ProviderChunkClock } from "./provider-chunk-clock";
 
 interface Six03Options<E, R> {
@@ -360,7 +360,8 @@ export function streamSix03InventoryWithRequestGate<E, R>(
 
 /** At most one browser session per chunk, opened by the first request under
  * its provider's session lease and stopped when the chunk ends. `sessions`
- * defaults to 603's provider in `BROWSER_PROVIDERS`. */
+ * defaults to 603's provider in `BROWSER_PROVIDERS`, metered against 603's
+ * Kernel caps in `Database` when that is Kernel. */
 export function streamSix03Inventory<E, R>(
   options: Six03Options<E, R>,
   sessions?: BrowserSessions,
@@ -369,7 +370,12 @@ export function streamSix03Inventory<E, R>(
     Effect.gen(function* () {
       const transport = yield* acquireSix03Browser(
         sessions ??
-          DocumentTransport.sourceSessions("six03", yield* Config, "page"),
+          DocumentTransport.meteredSourceSessions(
+            "six03",
+            yield* Config,
+            yield* Database,
+            "page",
+          ),
       );
       const limit = yield* RateLimiter.make({
         limit: 1,

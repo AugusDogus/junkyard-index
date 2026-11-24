@@ -1,9 +1,10 @@
 # Hyperbrowser sessions
 
-Only the retired 603 Auto Salvage and Michigan Truck Parts still load
-documents through Hyperbrowser sessions, when resumed. Big D, Northwest,
-Vander Haags and U Pull It Davie moved to Kernel on November 23, 2026; Kernel
-is the long-term provider and Hyperbrowser remains a one-line fallback
+Only the retired Michigan Truck Parts still loads documents through
+Hyperbrowser sessions, when resumed. Big D, Northwest, Vander Haags and U Pull
+It Davie moved to Kernel on November 23, 2026, and 603 Auto Salvage on
+November 24; Kernel is the long-term provider and Hyperbrowser remains a
+one-line fallback
 ([browser providers](browser-providers.md)). `HYPERBROWSER_SOURCES` in
 `src/server/ingestion/hyperbrowser-sessions.ts` lists every source that may
 open a Hyperbrowser session. The Hyperbrowser plan caps how many sessions the

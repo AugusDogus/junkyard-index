@@ -94,13 +94,25 @@ lifetime. Interruption, deadline, refusal and body overflow abort/cancel and
 release the reader before returning. There are no retries or redirect follows.
 
 Since 2026-11-18 Cloudflare has refused every native request from Vercel with
-HTTP 403. Production chunks open one Hyperbrowser session (stealth, accepted
-cookies, `us-west`, no proxy, no CAPTCHA solving). The first document of a chunk
+HTTP 403 (a Cloudflare challenge for datacenter IPs; residential IPs get 200).
+Production chunks open one headless Kernel browser (stealth, direct egress), as
+`BROWSER_PROVIDERS` chooses, metered against 603's own Kernel caps: $0.15 a
+UTC day and $0.60 a month ([metered sources](browser-providers.md#metered-sources)).
+A spent cap defers the chunk without opening a browser. A cold census on
+Kernel measured 130 browsers, 2,981 browser-seconds and about $0.05; a warm
+day is about 23 browsers and $0.01. The site answers an occasional request
+with HTTP 502 (2 of about 1,100 on November 24, 2026, while the same page
+loaded at once afterwards); that fails the chunk without advancing its
+cursor, and the workflow step retries it. From November 18 to
+23, 2026 the same reads ran in Hyperbrowser sessions; the source was paused on
+November 23 when Hyperbrowser's free credits were running out, and moved to
+Kernel on November 24. The first document of a chunk
 loads by page navigation; later documents use same-origin in-page `fetch()`
 with manual redirects. The browser response status, headers and exact body bytes
 pass through the same checks. The session opens with the chunk's first request,
-after checkpoint and budget validation, under the cross-source
-[Hyperbrowser session lease](hyperbrowser-sessions.md), and is stopped when the
+after checkpoint and budget validation, under the cross-source Kernel session
+lease ([lease rules](hyperbrowser-sessions.md#session-lease), in the `kernel`
+lane group), and is stopped when the
 chunk ends; a busy lease defers the chunk. The
 page routes every request, which disables the browser HTTP cache, and aborts
 images, media and fonts. The first navigation of a chunk still loads the page's

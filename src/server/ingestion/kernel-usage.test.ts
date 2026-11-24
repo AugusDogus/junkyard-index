@@ -62,12 +62,14 @@ async function insertUsage(
   startedAt: string,
   endedAt: string | null,
   source = "upullrparts",
+  mode: "headless" | "headful" = "headful",
 ) {
   await client.execute({
-    sql: "insert into kernel_browser_usage (id, source, mode, started_at, ended_at) values (?, ?, 'headful', ?, ?)",
+    sql: "insert into kernel_browser_usage (id, source, mode, started_at, ended_at) values (?, ?, ?, ?, ?)",
     args: [
       id,
       source,
+      mode,
       Date.parse(startedAt),
       endedAt === null ? null : Date.parse(endedAt),
     ],
@@ -196,9 +198,9 @@ describe("KernelUsage.metered", () => {
   });
 
   test("opens no browser once the month's spend reaches the budget, until the next month", async () => {
-    // $3.50 at $0.48 an hour is 26,250 headful seconds.
-    expect(KERNEL_MONTHLY_BUDGET_USD.upullrparts).toBe(3.5);
-    await insertUsage("spent", "2026-11-02T00:00:00Z", "2026-11-02T07:17:30Z");
+    // $3.30 at $0.48 an hour is 24,750 headful seconds.
+    expect(KERNEL_MONTHLY_BUDGET_USD.upullrparts).toBe(3.3);
+    await insertUsage("spent", "2026-11-02T00:00:00Z", "2026-11-02T06:52:30Z");
     const { sessions, calls } = fakeSessions();
     let now = at("2026-11-20T07:00:00Z");
     const metered = KernelUsage.metered(sessions, {
@@ -215,7 +217,7 @@ describe("KernelUsage.metered", () => {
     expect(
       String(refused instanceof KernelBudgetSpent && refused.message),
     ).toBe(
-      "U Pull R Parts has spent $3.50 of its $3.50 monthly Kernel budget since 2026-11-01 (kernel_browser_usage), so no browser was opened and Big D and Northwest keep the rest of Kernel's credit. Its chunks defer, opening no browser, until 2026-12-01, and a run still deferred after three hours fails, so the source shows as failing until then; raise KERNEL_MONTHLY_BUDGET_USD in kernel-usage.ts only if the Kernel dashboard shows credit to spare.",
+      "U Pull R Parts has spent $3.30 of its $3.30 monthly Kernel budget since 2026-11-01 (kernel_browser_usage), so no browser was opened and the other Kernel sources keep the rest of Kernel's credit. Its chunks defer, opening no browser, until 2026-12-01, and a run still deferred after three hours fails, so the source shows as failing until then; raise KERNEL_MONTHLY_BUDGET_USD in kernel-usage.ts only if the Kernel dashboard shows credit to spare.",
     );
 
     now = at("2026-12-01T07:00:00Z");
@@ -272,4 +274,143 @@ describe("KernelUsage.metered", () => {
     expect(error).toBeInstanceOf(ProviderCapacityDeferred);
     expect(error?.message).toContain("until 2026-12-01");
   });
+});
+
+describe("603 Kernel caps", () => {
+  test("each metered source spends only its own budgets, which add up to $3.90 of the $5 monthly credit", async () => {
+    expect(KERNEL_MONTHLY_BUDGET_USD).toEqual({
+      upullrparts: 3.3,
+      six03: 0.6,
+    });
+    expect(
+      Object.values(KERNEL_MONTHLY_BUDGET_USD).reduce((a, b) => a + b, 0),
+    ).toBeCloseTo(3.9, 10);
+    expect(KERNEL_DAILY_BUDGET_USD).toEqual({
+      upullrparts: 0.25,
+      six03: 0.15,
+    });
+    // U Pull R Parts has spent its whole daily cap; 603 has spent nothing.
+    await insertUsage("today", "2026-11-24T07:00:00Z", "2026-11-24T07:31:15Z");
+    const { sessions, calls } = fakeSessions();
+    const metered = KernelUsage.metered(sessions, {
+      database: drizzle(client),
+      source: "six03",
+      now: () => at("2026-11-24T09:00:00Z"),
+    });
+    await metered.create();
+    expect(calls).toEqual(["create"]);
+  });
+
+  test("603 opens no browser once its UTC day's headless spend reaches its daily cap", async () => {
+    // $0.15 at $0.06 an hour is 9,000 headless seconds.
+    await insertUsage(
+      "cold-census",
+      "2026-11-24T07:00:00Z",
+      "2026-11-24T09:30:00Z",
+      "six03",
+      "headless",
+    );
+    const { sessions, calls } = fakeSessions();
+    const metered = KernelUsage.metered(sessions, {
+      database: drizzle(client),
+      source: "six03",
+      now: () => at("2026-11-24T10:00:00Z"),
+    });
+    const refused = await metered.create().then(
+      () => null,
+      (error: unknown) => error,
+    );
+    expect(calls).toEqual([]);
+    expect(
+      String(refused instanceof KernelBudgetSpent && refused.message),
+    ).toBe(
+      "603 Auto Salvage has spent $0.15 of its $0.15 daily Kernel cap since 2026-11-24 00:00 UTC (kernel_browser_usage), so no browser was opened; a full day's crawl costs about $0.01, or about $0.05 for a cold census, so its chunks are most likely failing and retrying. Its chunks defer, opening no browser, until the cap resets at 2026-11-25 00:00 UTC; a run still deferred after three hours fails and the next scheduled run tries again, and prior inventory is preserved. Read the run's errors in /admin before raising KERNEL_DAILY_BUDGET_USD in kernel-usage.ts.",
+    );
+  });
+});
+
+describe("DocumentTransport.meteredSourceSessions", () => {
+  const originalFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+  const keys = { hyperbrowserApiKey: "h", kernelApiKey: "k" };
+
+  test.each(["six03"] as const)(
+    "%s's Kernel browsers are recorded headless in kernel_browser_usage",
+    async (source) => {
+      const requests: string[] = [];
+      globalThis.fetch = Object.assign(
+        async (input: RequestInfo | URL, init?: RequestInit) => {
+          requests.push(`${init?.method ?? "GET"} ${String(input)}`);
+          return init?.method === "DELETE"
+            ? new Response(null, { status: 200 })
+            : Response.json({
+                session_id: "kernel-1",
+                cdp_ws_url: "wss://kernel.invalid/cdp",
+              });
+        },
+        { preconnect: originalFetch.preconnect },
+      );
+      const sessions = DocumentTransport.meteredSourceSessions(
+        source,
+        keys,
+        drizzle(client),
+        "page",
+      );
+      expect(sessions.provider).toBe("kernel");
+      const created = await sessions.create();
+      await sessions.stop(created.id);
+      expect(requests).toEqual([
+        "POST https://api.onkernel.com/browsers",
+        "DELETE https://api.onkernel.com/browsers/kernel-1",
+      ]);
+      const rows = await drizzle(client)
+        .select({
+          source: kernelBrowserUsage.source,
+          mode: kernelBrowserUsage.mode,
+          endedAt: kernelBrowserUsage.endedAt,
+        })
+        .from(kernelBrowserUsage);
+      expect(rows).toEqual([
+        { source, mode: "headless", endedAt: expect.any(Number) },
+      ]);
+    },
+  );
+
+  test.each([["six03", 0.6, "603 Auto Salvage"]] as const)(
+    "%s sends nothing to Kernel once its monthly budget is spent",
+    async (source, budgetUsd, name) => {
+      const now = new Date();
+      const monthStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
+      const seconds = Math.ceil(budgetUsd / KERNEL_USD_PER_SECOND.headless);
+      await client.execute({
+        sql: "insert into kernel_browser_usage (id, source, mode, started_at, ended_at) values ('spent', ?, 'headless', ?, ?)",
+        args: [source, monthStart, monthStart + seconds * 1_000],
+      });
+      globalThis.fetch = Object.assign(
+        async () => {
+          throw new Error("sent a request to Kernel");
+        },
+        { preconnect: originalFetch.preconnect },
+      );
+      const refused = await DocumentTransport.meteredSourceSessions(
+        source,
+        keys,
+        drizzle(client),
+        "page",
+      )
+        .create()
+        .then(
+          () => null,
+          (error: unknown) => error,
+        );
+      expect(refused).toBeInstanceOf(KernelBudgetSpent);
+      expect(
+        String(refused instanceof KernelBudgetSpent && refused.message),
+      ).toStartWith(
+        `${name} has spent $${budgetUsd.toFixed(2)} of its $${budgetUsd.toFixed(2)} monthly Kernel budget`,
+      );
+    },
+  );
 });

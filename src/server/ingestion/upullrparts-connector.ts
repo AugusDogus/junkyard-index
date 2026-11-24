@@ -707,14 +707,12 @@ export function upullRPartsBrowsers(
   keys: BrowserProviderKeys,
   database: LibSQLDatabase,
 ): BrowserSessions {
-  const sessions = DocumentTransport.sourceSessions(
+  return DocumentTransport.meteredSourceSessions(
     "upullrparts",
     keys,
+    database,
     "page",
   );
-  return sessions.provider === "kernel"
-    ? KernelUsage.metered(sessions, { database, source: "upullrparts" })
-    : sessions;
 }
 
 /** Defers the chunk, as the metered browser create would, once U Pull R

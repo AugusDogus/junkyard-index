@@ -24,22 +24,36 @@ export const KERNEL_USD_PER_SECOND: Readonly<
 /**
  * Month-to-date Kernel spend at which a source's chunks stop opening
  * browsers, by source. The organization's $5 monthly credit is shared with
- * Big D and Northwest (about $0.66 a month together), so U Pull R Parts may
- * spend at most $3.50 of it, whatever its crawls cost.
+ * the unmetered Big D, Northwest, Vander Haags and U Pull It Davie (about
+ * $0.94 a month together), so the metered budgets stay within about $4: U
+ * Pull R Parts may spend at most $3.30 of it (a healthy month is $0.60 to
+ * $0.95) and 603 $0.60 (a warm month is about $0.30, and each cold census
+ * after a missed or failed run adds about $0.05), whatever their crawls cost.
  */
 export const KERNEL_MONTHLY_BUDGET_USD = {
-  upullrparts: 3.5,
+  upullrparts: 3.3,
+  six03: 0.6,
 } as const satisfies Partial<Record<KernelSource, number>>;
 export type MeteredKernelSource = keyof typeof KERNEL_MONTHLY_BUDGET_USD;
+
+/** What a normal day's crawl of each metered source costs on Kernel, named
+ * in its daily cap's message. */
+const KERNEL_DAY_CRAWL_COST: Readonly<Record<MeteredKernelSource, string>> = {
+  upullrparts: "about $0.03",
+  six03: "about $0.01, or about $0.05 for a cold census",
+};
 
 /**
  * UTC-day Kernel spend at which a source's chunks stop opening browsers. A
  * full U Pull R Parts crawl costs about $0.02 to $0.03, so $0.25 allows every
  * retry a bad day needs, while a crawl stuck failing cannot spend the month's
- * budget in a few days.
+ * budget in a few days. A warm 603 day costs about $0.01 and a cold census
+ * (every donor article) about $0.05, so $0.15 fits a cold census with every
+ * chunk retried.
  */
 export const KERNEL_DAILY_BUDGET_USD = {
   upullrparts: 0.25,
+  six03: 0.15,
 } as const satisfies Record<MeteredKernelSource, number>;
 
 /** The longest a chunk's browser can bill: the chunk ends within its wall
@@ -64,11 +78,11 @@ export class KernelBudgetSpent extends Data.TaggedError("KernelBudgetSpent")<{
     const spent = `$${this.spentUsd.toFixed(2)} of its $${this.budgetUsd.toFixed(2)}`;
     if (this.cap === "monthly") {
       const day = (date: Date) => date.toISOString().slice(0, 10);
-      return `${name} has spent ${spent} monthly Kernel budget since ${day(this.periodStart)} (kernel_browser_usage), so no browser was opened and Big D and Northwest keep the rest of Kernel's credit. Its chunks defer, opening no browser, until ${day(this.nextPeriodStart)}, and a run still deferred after three hours fails, so the source shows as failing until then; raise KERNEL_MONTHLY_BUDGET_USD in kernel-usage.ts only if the Kernel dashboard shows credit to spare.`;
+      return `${name} has spent ${spent} monthly Kernel budget since ${day(this.periodStart)} (kernel_browser_usage), so no browser was opened and the other Kernel sources keep the rest of Kernel's credit. Its chunks defer, opening no browser, until ${day(this.nextPeriodStart)}, and a run still deferred after three hours fails, so the source shows as failing until then; raise KERNEL_MONTHLY_BUDGET_USD in kernel-usage.ts only if the Kernel dashboard shows credit to spare.`;
     }
     const minute = (date: Date) =>
       `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
-    return `${name} has spent ${spent} daily Kernel cap since ${minute(this.periodStart)} (kernel_browser_usage), so no browser was opened; a full day's crawl costs about $0.03, so its chunks are most likely failing and retrying. Its chunks defer, opening no browser, until the cap resets at ${minute(this.nextPeriodStart)}; a run still deferred after three hours fails and the next scheduled run tries again, and prior inventory is preserved. Read the run's errors in /admin before raising KERNEL_DAILY_BUDGET_USD in kernel-usage.ts.`;
+    return `${name} has spent ${spent} daily Kernel cap since ${minute(this.periodStart)} (kernel_browser_usage), so no browser was opened; a full day's crawl costs ${KERNEL_DAY_CRAWL_COST[this.source]}, so its chunks are most likely failing and retrying. Its chunks defer, opening no browser, until the cap resets at ${minute(this.nextPeriodStart)}; a run still deferred after three hours fails and the next scheduled run tries again, and prior inventory is preserved. Read the run's errors in /admin before raising KERNEL_DAILY_BUDGET_USD in kernel-usage.ts.`;
   }
 }
 

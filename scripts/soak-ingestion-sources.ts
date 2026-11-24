@@ -66,7 +66,11 @@ import { TEARAPART_SITE_CONFIG } from "../src/server/ingestion/tap-sites";
 import { streamPullNSaveInventory } from "../src/server/ingestion/pullnsave-connector";
 import { streamWrenchApartInventory } from "../src/server/ingestion/wrenchapart-connector";
 import { streamUpullRPartsInventory } from "../src/server/ingestion/upullrparts-connector";
-import { KERNEL_USD_PER_SECOND } from "../src/server/ingestion/kernel-usage";
+import { KernelSessions } from "../src/server/ingestion/kernel-sessions";
+import {
+  KERNEL_USD_PER_SECOND,
+  type MeteredKernelSource,
+} from "../src/server/ingestion/kernel-usage";
 import { streamUpullRPartsViaBrowser } from "./soak-upullrparts-browser-egress";
 import {
   soakUpullRPartsInventory,
@@ -429,9 +433,9 @@ async function main(): Promise<void> {
       resolution_version integer not null default 0,
       updated_at integer not null
     );
-    -- U Pull R Parts meters its Kernel browsers (kernel-usage.ts). A soak
-    -- counts only its own browsers against the monthly budget, not
-    -- production's.
+    -- U Pull R Parts and 603 meter their Kernel browsers
+    -- (kernel-usage.ts). A soak counts only its own browsers against their
+    -- budgets, not production's.
     create table kernel_browser_usage (
       id text primary key,
       source text not null,
@@ -441,6 +445,21 @@ async function main(): Promise<void> {
     );
   `);
   const localDatabase = drizzle(localClient);
+  /** Logs every Kernel browser a metered source opened in this soak, from
+   * its local kernel_browser_usage rows, whether the soak passed or failed. */
+  const logKernelUsage =
+    (source: MeteredKernelSource) => async (): Promise<void> => {
+      const mode = KernelSessions.browserProfile(source).mode;
+      const usage = await localClient.execute({
+        sql: "select count(*) browsers, coalesce(sum(ended_at - started_at), 0) ms, sum(ended_at is null) open from kernel_browser_usage where source = ?",
+        args: [source],
+      });
+      const row = usage.rows[0];
+      const seconds = Number(row?.ms ?? 0) / 1000;
+      console.log(
+        `[${source}] kernel browsers=${String(row?.browsers ?? 0)} unclosed=${String(row?.open ?? 0)} ${mode}-seconds=${seconds.toFixed(1)} cost-usd=${(seconds * KERNEL_USD_PER_SECOND[mode]).toFixed(4)}`,
+      );
+    };
   const restoreFetch = requestMetrics.installFetchMetrics();
   const allResults: SourceResult[] = [];
   const startedAt = Date.now();
@@ -1141,7 +1160,7 @@ async function main(): Promise<void> {
                   streamSix03Inventory({ startCursor, maxPages, onBatch }),
                 ),
               config.maxPages,
-            );
+            ).finally(logKernelUsage("six03"));
           case "vinplus":
             return soakVinplusInventory(
               (startCursor, maxPages) =>
@@ -1378,18 +1397,7 @@ async function main(): Promise<void> {
                   ? streamUpullRPartsViaBrowser(options)
                   : streamUpullRPartsInventory(options),
               );
-            }).then(async (result) => {
-              // Every browser this soak opened, metered in its local table.
-              const usage = await localClient.execute(
-                "select count(*) browsers, coalesce(sum(ended_at - started_at), 0) ms, sum(ended_at is null) open from kernel_browser_usage where source = 'upullrparts'",
-              );
-              const row = usage.rows[0];
-              const seconds = Number(row?.ms ?? 0) / 1000;
-              console.log(
-                `[upullrparts] kernel browsers=${String(row?.browsers ?? 0)} unclosed=${String(row?.open ?? 0)} headful-seconds=${seconds.toFixed(1)} cost-usd=${(seconds * KERNEL_USD_PER_SECOND.headful).toFixed(4)}`,
-              );
-              return result;
-            });
+            }).finally(logKernelUsage("upullrparts"));
           case "pullnsave":
             return runProgram(
               streamPullNSaveInventory({
