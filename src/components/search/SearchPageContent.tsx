@@ -542,8 +542,15 @@ function AlgoliaSearchInner({
   // A sort switch that changes the location parameters waits for Configure
   // to search with both (see handleSortChange). Until those results arrive,
   // the page already uses the new sort, so Configure gets its parameters.
+  // It ends when those results arrive, or when something else (such as
+  // Back) moved the index on before they did.
   const [switchingSort, setSwitchingSort] = useState<string | null>(null);
-  if (switchingSort !== null && switchingSort === searchedSort)
+  if (
+    switchingSort !== null &&
+    (switchingSort === searchedSort ||
+      instantSearch.mainIndex.getHelper()?.state.index !==
+        getSearchSortIndex(switchingSort))
+  )
     setSwitchingSort(null);
   const sortBy = switchingSort ?? searchedSort;
 
@@ -715,23 +722,26 @@ function AlgoliaSearchInner({
   // without another index; Newest keeps its ranking while geo restricts the
   // candidates. Algolia ignores a radius without an origin, so it is left
   // out until one exists, and a radius change then costs no search.
-  const nearbyParams = (nearby: boolean) => {
-    const aroundLatLng =
-      nearby && resolvedUserLocation
-        ? `${resolvedUserLocation.lat}, ${resolvedUserLocation.lng}`
-        : undefined;
-    const aroundLatLngViaIP =
-      nearby &&
-      effectiveLocationPreference?.mode === "auto" &&
-      !resolvedUserLocation;
-    const hasOrigin = aroundLatLng !== undefined || aroundLatLngViaIP;
-    return {
-      aroundLatLng,
-      aroundLatLngViaIP,
-      getRankingInfo: hasOrigin,
-      aroundRadius: hasOrigin ? SearchRadius.meters(radiusMiles) : undefined,
-    };
-  };
+  const nearbyParams = useCallback(
+    (nearby: boolean) => {
+      const aroundLatLng =
+        nearby && resolvedUserLocation
+          ? `${resolvedUserLocation.lat}, ${resolvedUserLocation.lng}`
+          : undefined;
+      const aroundLatLngViaIP =
+        nearby &&
+        effectiveLocationPreference?.mode === "auto" &&
+        !resolvedUserLocation;
+      const hasOrigin = aroundLatLng !== undefined || aroundLatLngViaIP;
+      return {
+        aroundLatLng,
+        aroundLatLngViaIP,
+        getRankingInfo: hasOrigin,
+        aroundRadius: hasOrigin ? SearchRadius.meters(radiusMiles) : undefined,
+      };
+    },
+    [effectiveLocationPreference?.mode, radiusMiles, resolvedUserLocation],
+  );
   // ── Derived state ──────────────────────────────────────────────────────
 
   // Map Algolia hits to search-display vehicles.
@@ -1243,12 +1253,17 @@ function AlgoliaSearchInner({
           setOriginParams({ lat: null, lng: null }),
         ]),
       );
-      if (!arrivalWindow && radiusMiles === null) helper.search();
+      // Clearing a window, or a radius around an origin, changes Configure,
+      // which then searches. A radius without an origin was never sent.
+      const radiusApplies =
+        radiusMiles !== null && nearbyParams(true).getRankingInfo;
+      if (!arrivalWindow && !radiusApplies) helper.search();
     },
     [
       activeFilterCount,
       instantSearch,
       arrivalWindow,
+      nearbyParams,
       radiusMiles,
       setArrivalParams,
       setOriginParams,
