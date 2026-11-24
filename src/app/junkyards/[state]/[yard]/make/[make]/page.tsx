@@ -1,16 +1,9 @@
 import type { Metadata } from "next";
-import { notFound, permanentRedirect } from "next/navigation";
-import { PublicPageShell } from "~/components/junkyards/PublicPageShell";
 import {
-  YardInventoryView,
-  yardMakeMetadata,
-} from "~/components/junkyards/YardInventoryView";
-import { VehicleName } from "~/lib/vehicle-name";
-import { YardInventory } from "~/lib/yard-inventory";
-import { YardPath } from "~/lib/yard-path";
-import { findMake, getMakeSlugs } from "~/server/vehicle-models";
-import { getHiddenSources } from "~/server/source-control/hidden-sources-loader";
-import { getYardPageData } from "~/server/yard-inventory";
+  YardMakePage,
+  yardMakePageMetadata,
+  type YardMakeParams,
+} from "./yard-make-page";
 
 // One make at one yard, narrowed from the yard's cached inventory, so it
 // reads nothing new. Rendered on first request and rebuilt with the yard's
@@ -18,75 +11,22 @@ import { getYardPageData } from "~/server/yard-inventory";
 export const revalidate = 86400;
 export const dynamicParams = true;
 
-type Params = { state: string; yard: string; make: string };
-
-export function generateStaticParams(): Params[] {
+export function generateStaticParams(): YardMakeParams[] {
   return [];
-}
-
-// getYardPageData and findMake are cached per request by their arguments.
-async function load(params: Promise<Params>) {
-  const { state, yard, make: makeSlug } = await params;
-  const [data, make] = await Promise.all([
-    getYardPageData(state, yard),
-    findMake(makeSlug),
-  ]);
-  if (!data || !make) return null;
-  const vehicles = data.vehicles.filter(
-    (vehicle) => VehicleName.makeKey(vehicle.make) === make.key,
-  );
-  return { data, make, makeSlug, vehicles };
 }
 
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<Params>;
+  params: Promise<YardMakeParams>;
 }): Promise<Metadata> {
-  const loaded = await load(params);
-  if (!loaded || loaded.vehicles.length === 0) return {};
-  const { data, make, vehicles } = loaded;
-  return yardMakeMetadata(
-    data.yard,
-    { name: make.name, slug: make.slug },
-    vehicles.length,
-    data.publishedAt,
-  );
+  return yardMakePageMetadata(await params, 1);
 }
 
-export default async function YardMakePage({
+export default async function YardMakeFirstPage({
   params,
 }: {
-  params: Promise<Params>;
+  params: Promise<YardMakeParams>;
 }) {
-  const loaded = await load(params);
-  if (!loaded) notFound();
-  const { data, make, makeSlug, vehicles } = loaded;
-  // Other spellings and aliases ("chevy") move to the make's own slug.
-  if (makeSlug !== make.slug) {
-    permanentRedirect(YardPath.makeHref(data.yard.path, make.slug));
-  }
-  if (vehicles.length === 0) notFound();
-
-  return (
-    <PublicPageShell>
-      <YardInventoryView
-        yard={data.yard}
-        inventory={{ page: 1, pageCount: 1, firstIndex: 0, vehicles }}
-        total={vehicles.length}
-        newArrivals={YardInventory.newArrivals(
-          vehicles,
-          data.vehicles,
-          new Date().toISOString(),
-        )}
-        makes={data.makes}
-        makeSlugs={await getMakeSlugs()}
-        hiddenSources={await getHiddenSources()}
-        publishedAt={data.publishedAt}
-        nearby={data.nearby}
-        chain={data.chain}
-        filter={{ name: make.name, slug: make.slug }}
-      />
-    </PublicPageShell>
-  );
+  return <YardMakePage params={await params} page={1} />;
 }

@@ -144,3 +144,20 @@ describe("YardInventoryView new arrivals", () => {
     expect(badges(html)).toBe(0);
   });
 });
+
+describe("YardInventoryView pages", () => {
+  test("a make's pages link within the make", async () => {
+    const vehicles = Array.from({ length: 3 }, (_, index) =>
+      vehicle(`VIN0000${index}`, "2026-10-01T00:00:00.000Z"),
+    );
+    const html = await render({
+      ...props(vehicles),
+      inventory: { page: 1, pageCount: 3, firstIndex: 0, vehicles },
+      total: 250,
+      filter: { name: "Honda", slug: "honda" },
+    });
+    expect(html).toContain(`href="${yard.path.href}/make/honda/page/2"`);
+    expect(html).toContain(`href="${yard.path.href}/make/honda/page/3"`);
+    expect(html).not.toContain(`href="${yard.path.href}/page/2"`);
+  });
+});

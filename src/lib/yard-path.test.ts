@@ -146,6 +146,26 @@ describe("YardPath.assign", () => {
     expect(YardPath.pageHref(path, 1)).toBe(path.href);
     expect(YardPath.pageHref(path, 3)).toBe(`${path.href}/page/3`);
   });
+
+  test("a make's pages after the first live under its /page/{n}", () => {
+    const path = YardPath.assign([yard({})]).get("pyp:1");
+    if (!path) throw new Error("expected a path");
+    expect(YardPath.makePageHref(path, "chevrolet", 1)).toBe(
+      `${path.href}/make/chevrolet`,
+    );
+    expect(YardPath.makePageHref(path, "chevrolet", 3)).toBe(
+      `${path.href}/make/chevrolet/page/3`,
+    );
+  });
+
+  test("page segments are canonical decimals", () => {
+    expect(YardPath.pageNumber("2")).toBe(2);
+    expect(YardPath.pageNumber("1")).toBe(1);
+    expect(YardPath.pageNumber("9999")).toBe(9999);
+    for (const segment of ["0", "02", "1.5", "-1", "10000", "two", ""]) {
+      expect(YardPath.pageNumber(segment)).toBeNull();
+    }
+  });
 });
 
 test("yard model links preserve both taxonomy segments", () => {

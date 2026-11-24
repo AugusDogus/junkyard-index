@@ -34,6 +34,13 @@ export function filterHref(
     : YardPath.makeHref(yard.path, filter.slug);
 }
 
+/** " Page 2, vehicles 101 to 200 of 271." after the first page, else "". */
+function pageRange(total: number, page: number): string {
+  return page > 1
+    ? ` Page ${page}, vehicles ${InventoryFormat.count((page - 1) * YARD_PAGE_SIZE + 1)} to ${InventoryFormat.count(Math.min(total, page * YARD_PAGE_SIZE))} of ${InventoryFormat.count(total)}.`
+    : "";
+}
+
 /** Title, description, and canonical URL for page `page` of a yard. */
 export function yardPageMetadata(
   yard: MetadataYard,
@@ -47,10 +54,7 @@ export function yardPageMetadata(
     page === 1
       ? `${headline} Inventory | ${place}`
       : `${headline} Inventory, Page ${page} | ${place}`;
-  const range =
-    page > 1
-      ? ` Page ${page}, vehicles ${InventoryFormat.count((page - 1) * YARD_PAGE_SIZE + 1)} to ${InventoryFormat.count(Math.min(total, page * YARD_PAGE_SIZE))} of ${InventoryFormat.count(total)}.`
-      : "";
+  const range = pageRange(total, page);
   const description = `${InventoryFormat.plural(total, "vehicle", "vehicles")} at ${headline} in ${place}, with the year, make, model, and VIN of each.${range}${
     publishedAt ? ` Updated ${InventoryFormat.date(publishedAt)}.` : ""
   }`;
@@ -67,21 +71,31 @@ export function yardPageMetadata(
 // Fewer vehicles than this and a yard's page for one make stays out of
 // search: too thin to be worth a result of its own.
 
-/** Title, description, and canonical URL for one make at a yard. */
+/**
+ * Title, description, and canonical URL for one make or model at a yard.
+ * A make's list runs to more pages; a model's is one page.
+ */
 export function yardMakeMetadata(
   yard: MetadataYard,
   make: YardMakeFilter | YardModelFilter,
   total: number,
   publishedAt: string | null,
+  page = 1,
 ): Metadata {
   const headline = YardName.headline(yard.name, yard.operator);
   const place = `${yard.city}, ${yard.state}`;
   const name = filterName(make);
-  const title = `${name} at ${headline} | ${place}`;
-  const description = `${InventoryFormat.plural(total, `${name} vehicle`, `${name} vehicles`)} at ${headline} in ${place}, with where each one sits in the yard.${
+  const title =
+    page > 1
+      ? `${name} at ${headline}, Page ${page} | ${place}`
+      : `${name} at ${headline} | ${place}`;
+  const description = `${InventoryFormat.plural(total, `${name} vehicle`, `${name} vehicles`)} at ${headline} in ${place}, with where each one sits in the yard.${pageRange(total, page)}${
     publishedAt ? ` Updated ${InventoryFormat.date(publishedAt)}.` : ""
   }`;
-  const url = filterHref(yard, make);
+  const url =
+    "model" in make
+      ? filterHref(yard, make)
+      : YardPath.makePageHref(yard.path, make.slug, page);
   return {
     title,
     description,
