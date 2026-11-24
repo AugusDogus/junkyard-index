@@ -72,6 +72,8 @@ describe("VehicleName.modelKey", () => {
     for (const model of ["CIVIC4DR.SDN.", "Civic EX 4DR.  SDN.", "Civic 2009"])
       expect(VehicleName.modelKey("Honda", model)).toBe("CIVIC");
     expect(VehicleName.modelKey("Honda", "ODYSSEY SW.")).toBe("ODYSSEY");
+    // An old URL slug splits "EX-L" in two.
+    expect(VehicleName.modelKey("Honda", "accord ex l")).toBe("ACCORD");
     expect(VehicleName.modelKey("Honda", "ELEMENT SW. 4WD.")).toBe("ELEMENT");
     expect(VehicleName.modelKey("Ford", "F150 XLT")).toBe("F150");
     expect(VehicleName.modelKey("Chevrolet", "Silverado 1500 LT")).toBe(
@@ -90,6 +92,10 @@ describe("VehicleName.modelKey", () => {
     expect(VehicleName.modelKey("Chevrolet", "Silverado 2500")).toBe(
       "SILVERADO2500",
     );
+    // A model that is also a trim label, after its make.
+    expect(VehicleName.modelKey("Lexus", "Lexus LS")).toBe("LS");
+    expect(VehicleName.modelKey("Lincoln", "LINCOLN LS")).toBe("LS");
+    expect(VehicleName.modelKey("Lexus", "LEXUS LX")).toBe("LX");
     // Nothing but a model code would remain.
     expect(VehicleName.modelKey("Mercedes-Benz", "300 SE")).toBe("300SE");
     expect(VehicleName.modelKey("Lincoln", "LS")).toBe("LS");
@@ -104,6 +110,11 @@ describe("VehicleName.baseModelName", () => {
     );
     expect(VehicleName.baseModelName("Ford", "FORD F150 XLT")).toBe("F-150");
     expect(VehicleName.baseModelName("Honda", "Pilot")).toBe("Pilot");
+    // Dots inside a model stay.
+    expect(VehicleName.baseModelName("Ford", "Mustang 5.0 LX")).toBe(
+      "Mustang 5.0",
+    );
+    expect(VehicleName.baseModelName("Lexus", "Lexus LS")).toBe("LS");
   });
 });
 
@@ -218,6 +229,15 @@ test("display softens all-caps names and leaves the rest alone", () => {
   expect(VehicleName.display("RIVIERA")).toBe("Riviera");
   expect(VehicleName.display("Focus")).toBe("Focus");
   expect(VehicleName.display("SE Hatch")).toBe("SE Hatch");
+});
+
+test("displayWhole softens a vehicle's name only when no short word stays caps", () => {
+  expect(VehicleName.displayWhole("PASSAT")).toBe("Passat");
+  expect(VehicleName.displayWhole("TOWN & COUNTRY")).toBe("Town & Country");
+  expect(VehicleName.displayWhole("SANTA FE")).toBe("SANTA FE");
+  expect(VehicleName.displayWhole("GRAND AM")).toBe("GRAND AM");
+  expect(VehicleName.displayWhole("CR-V")).toBe("CR-V");
+  expect(VehicleName.displayWhole("Civic")).toBe("Civic");
 });
 
 test("sameSlug ignores hyphens and case", () => {

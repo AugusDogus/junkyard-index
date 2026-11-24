@@ -82,25 +82,42 @@ function isModelYear(word: string): boolean {
   return /^\d{4}$/.test(word) && Number(word) >= 1981 && Number(word) <= 2100;
 }
 
+/** A word as compared with the labels: "SW." is "SW", "EX-L" is "EXL". */
+function labelKey(word: string): string {
+  return word.toUpperCase().replace(/[-.]/g, "");
+}
+
 /**
  * The model without the labels yards append ("Accord 4DR. LX" is "Accord").
  * Labels are only dropped from the end, never the first word, and never
  * down to a bare number ("300 SE" stays), so the rest still names a model.
+ * Dots only separate words between letters ("CIVIC4DR.SDN."), so "5.0" stays.
  */
 function withoutLabels(model: string): string {
   const words = model
     .trim()
-    .split(/[\s.]+/)
-    .filter(Boolean);
+    .split(/\s+/)
+    .flatMap((word) => {
+      const parts = word.split(".").filter(Boolean);
+      return parts.length > 1 && parts.every((part) => /[A-Za-z]/.test(part))
+        ? parts
+        : [word];
+    });
   let end = words.length;
   while (end > 1) {
-    const word = (words[end - 1] ?? "").toUpperCase().replace(/-/g, "");
-    if (!MODEL_LABELS.has(word) && !isModelYear(word)) break;
-    if (/^\d+$/.test(words.slice(0, end - 1).join(""))) break;
-    end--;
+    const rest = (count: number) =>
+      /^\d+$/.test(words.slice(0, end - count).join(""));
+    const last = labelKey(words[end - 1] ?? "");
+    // A label a URL slug split in two ("ex l" for "EX-L").
+    const pair = end > 2 ? labelKey(words[end - 2] ?? "") + last : "";
+    if (pair && MODEL_LABELS.has(pair) && !rest(2)) end -= 2;
+    else if ((MODEL_LABELS.has(last) || isModelYear(last)) && !rest(1)) end--;
+    else break;
   }
   // A door count glued to the model ("CIVIC4DR").
-  const last = (words[end - 1] ?? "").replace(/(?<=[A-Za-z])[2-5]DR$/i, "");
+  const last = (words[end - 1] ?? "")
+    .replace(/\.$/, "")
+    .replace(/(?<=[A-Za-z])[2-5]DR$/i, "");
   if (end === words.length && last === words[end - 1]) return model.trim();
   return [...words.slice(0, end - 1), last].join(" ");
 }
@@ -199,7 +216,8 @@ export const VehicleName = {
    * "CIVIC4DR.SDN." is "CIVIC" and "FORD F150 XLT" is "F-150".
    */
   baseModelName(make: string, model: string): string {
-    return modelName(make, withoutLabels(model));
+    // Drop the make first, so "Lexus LS" keeps its model.
+    return modelName(make, withoutLabels(modelName(make, model)));
   },
 
   /**
@@ -212,7 +230,7 @@ export const VehicleName = {
    */
   modelKey(make: string, model: string): string | null {
     const makeKey = VehicleName.makeKey(make);
-    const stripped = withoutLabels(model);
+    const stripped = withoutLabels(modelName(make, model));
     const base = key(modelName(make, stripped));
     if (!base || !makeKey || NOT_MODELS.has(key(model))) return null;
     if (
@@ -257,6 +275,17 @@ export const VehicleName = {
   /** A raw make, model, or trim as displayed; see `softenCaps`. */
   display(name: string): string {
     return softenCaps(name);
+  },
+
+  /**
+   * `display` for one vehicle's raw name, which has no other spellings to
+   * outvote it: an all-caps name with a short word ("SANTA FE", "GRAND AM")
+   * stays all caps rather than reading "Santa FE".
+   */
+  displayWhole(name: string): string {
+    return /\b[A-Z]{1,3}\b/.test(name) && name === name.toUpperCase()
+      ? name
+      : softenCaps(name);
   },
 
   slug(name: string): string {
