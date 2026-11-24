@@ -2,8 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { isDurableSourceCursorTerminal } from "./durable-source";
 import { readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
-import { Effect } from "effect";
+import { Cause, Effect } from "effect";
 import { z } from "zod";
+import { validationRejectionKind } from "./ingestion-validation";
 import {
   HTP_SUPPLIERS,
   htpCatalogUrl,
@@ -22,6 +23,7 @@ import {
   parseHtpYearFill,
 } from "./heavytruckparts-catalog";
 import {
+  HtpCensusDrift,
   htpRoster,
   htpYearPlan,
   type HtpPage,
@@ -119,6 +121,7 @@ function response(url: string) {
   throw new Error("Unexpected offline URL " + url);
 }
 const first = HTP_SUPPLIERS[0];
+type HtpRow = HtpPage["records"][number];
 
 describe("HeavyTruckParts marketplace", () => {
   test("saved original bytes and serial four-second request receipts remain auditable", () => {
@@ -558,6 +561,83 @@ describe("HeavyTruckParts marketplace", () => {
       }),
     );
     expect(bad._tag).toBe("Failure");
+  });
+  test("2026-11-18 catalog turnover while the census reads is a transient rejection, so the day retries", async () => {
+    const store = read(first.code + "-store");
+    const failure = async (
+      startCursor: HtpCursor,
+      page: (url: string) => string,
+    ) => {
+      const exit = await Effect.runPromiseExit(
+        streamHeavytruckpartsInventory({
+          startCursor,
+          readPage: (url) => Effect.succeed(page(url)),
+          onBatch: () => Effect.die("emitted"),
+        }),
+      );
+      if (exit._tag !== "Failure") throw new Error("census did not fail");
+      const error = Cause.failureOption(exit.cause);
+      if (error._tag !== "Some") throw new Error("census died");
+      return {
+        message: error.value.message,
+        kind: validationRejectionKind(error.value),
+      };
+    };
+    const storeCount = (count: number) => (url: string) =>
+      url === htpStoreUrl(first)
+        ? store.replace("Complete Vehicle - 45", `Complete Vehicle - ${count}`)
+        : response(url);
+    // A store count one higher than its pages hold: West Side's last page was
+    // short on November 18, and a recrawl reads the settled catalog.
+    for (const [count, message] of [
+      [46, "page size changed"],
+      [51, "pagination disagrees"],
+    ] as const) {
+      const drift = await failure(
+        HeavytruckpartsCursor.initial(),
+        storeCount(count),
+      );
+      expect(drift.message).toContain(message);
+      expect(drift.message).toContain("retries with a fresh census");
+      expect(drift.kind).toBe("transient");
+    }
+    let closing = htpAdvance(HeavytruckpartsCursor.initial(), store);
+    while (closing.phase === "catalog")
+      closing = htpAdvance(
+        closing,
+        response(HeavytruckpartsCursor.nextUrl(closing)),
+      );
+    const closed = await failure(closing, storeCount(46));
+    expect(closed.message).toContain("closing store count changed");
+    expect(closed.kind).toBe("transient");
+    // Year counts or item details that differ between the two year orders.
+    const c = census(first),
+      row = c.pages.find((p) => p.direction === "ASC")?.records[0];
+    if (!row) throw new Error("fixture row missing");
+    const asc = (change: (r: HtpRow) => HtpRow) =>
+      c.pages.map((p) =>
+        p.direction === "ASC"
+          ? {
+              ...p,
+              records: p.records.map((r) => (r.id === row.id ? change(r) : r)),
+            }
+          : p,
+      );
+    for (const pages of [
+      asc((r) => ({ ...r, id: "999999999", year: "1901" })),
+      asc((r) => ({ ...r, model: r.model + " CHANGED" })),
+    ])
+      expect(() => htpRoster(first, pages, c.fills, c.total)).toThrow(
+        HtpCensusDrift,
+      );
+    // Ownership and structure changes stay deterministic for the day.
+    const foreign = await failure(HeavytruckpartsCursor.initial(), (url) =>
+      url === htpCatalogUrl(first, "DESC", 1)
+        ? response(url).replaceAll("/4594927/1/", "/4594927/2/")
+        : response(url),
+    );
+    expect(foreign.message).toContain("Inspect saved evidence");
+    expect(foreign.kind).toBe("deterministic");
   });
   test("new source runs unless its flag serves false and HTTP destinations are supplier-bound", async () => {
     expect(IngestionSourceFlags.resolve({})).toContain("heavytruckparts");

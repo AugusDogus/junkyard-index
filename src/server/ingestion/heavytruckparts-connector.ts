@@ -1,4 +1,7 @@
-import { ingestionValidation } from "./ingestion-validation";
+import {
+  ingestionValidation,
+  transientRejection,
+} from "./ingestion-validation";
 import { Effect } from "effect";
 import type { Yard } from "~/lib/yard";
 import type { ProviderRequestGate } from "./provider-http-client";
@@ -26,6 +29,7 @@ import {
   parseHtpYearFill,
 } from "./heavytruckparts-catalog";
 import { htpSnapshot, type HtpVehicle } from "./heavytruckparts-snapshot";
+import { HtpCensusDrift } from "./heavytruckparts-census";
 
 export class HeavytruckpartsProviderError extends Error {
   readonly tag = "HeavytruckpartsProviderError";
@@ -34,7 +38,11 @@ export class HeavytruckpartsProviderError extends Error {
     cause: unknown,
   ) {
     super(
-      `HTP ${operation}: ${cause instanceof Error ? cause.message : String(cause)}. Prior inventory and checkpoint remain preserved. Inspect saved evidence before restarting.`,
+      `HTP ${operation}: ${cause instanceof Error ? cause.message : String(cause)}. ${
+        cause instanceof HtpCensusDrift
+          ? "The catalog changed while it was read. Prior inventory remains published, and the source retries with a fresh census after its usual delay."
+          : "Prior inventory and checkpoint remain preserved. Inspect saved evidence before restarting."
+      }`,
       { cause },
     );
   }
@@ -42,7 +50,12 @@ export class HeavytruckpartsProviderError extends Error {
 const attempt = <A>(operation: string, run: () => A) =>
   ingestionValidation({
     try: run,
-    catch: (cause) => new HeavytruckpartsProviderError(operation, cause),
+    catch: (cause) => {
+      const error = new HeavytruckpartsProviderError(operation, cause);
+      return cause instanceof HtpCensusDrift
+        ? transientRejection(error)
+        : error;
+    },
   });
 const pass: ProviderRequestGate = (request) => request;
 export function fetchHtpPage(url: string, gate: ProviderRequestGate = pass) {
@@ -132,7 +145,7 @@ export function htpAdvance(cursor: HtpCursor, raw: string): HtpCursor {
     }
     case "store-closing": {
       if (parseHtpStore(raw, s) !== cursor.total)
-        throw new Error(`HTP ${s.code} closing store count changed`);
+        throw new HtpCensusDrift(`HTP ${s.code} closing store count changed`);
       const completed = [
         ...cursor.completed,
         {

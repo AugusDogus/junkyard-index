@@ -1,4 +1,5 @@
 import {
+  HtpCensusDrift,
   htpFillMake,
   type HtpPage,
   type HtpYearFill,
@@ -64,7 +65,9 @@ function nativeRecords(
     total = extent === "single-page" ? records.length : extent,
     last = Math.ceil(total / 25);
   if (page > last)
-    throw new Error(`HTP ${s.code} inventory region or page changed`);
+    throw new HtpCensusDrift(
+      `HTP ${s.code} page ${page} is past the last page its ${total} items fill`,
+    );
   for (const [label, expected] of [
     ["Next", page < last ? url(page + 1) : null],
     ["Last", page < last ? url(last) : null],
@@ -79,15 +82,16 @@ function nativeRecords(
         ? links.size !== 0
         : links.size !== 1 || !links.has(expected)
     )
-      throw new Error(
+      throw new HtpCensusDrift(
         `HTP ${s.code} ${label} pagination disagrees with store count`,
       );
   }
-  if (
-    records.length !== Math.min(25, total - (page - 1) * 25) ||
-    new Set(records.map((r) => r.id)).size !== records.length
-  )
-    throw new Error(`HTP ${s.code} page size or item uniqueness changed`);
+  if (records.length !== Math.min(25, total - (page - 1) * 25))
+    throw new HtpCensusDrift(
+      `HTP ${s.code} page size changed: page ${page} lists ${records.length} items, but its ${total} items need ${Math.min(25, total - (page - 1) * 25)}`,
+    );
+  if (new Set(records.map((r) => r.id)).size !== records.length)
+    throw new Error(`HTP ${s.code} page repeats an item`);
   return records;
 }
 export function parseHtpCatalog(
