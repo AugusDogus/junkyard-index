@@ -186,6 +186,36 @@ export function createDurableIngestionRepository(
     IngestionSnapshotCleanup.deleteRunSnapshots(database, snapshotStore, rows);
 
   /**
+   * Whether a checkpoint batch whose outcome is unknown registered these
+   * staged blobs. The batch is atomic, so they are all registered or none.
+   * Unknown when the source run cannot be read back.
+   */
+  async function stagedRegistration(
+    id: string,
+    staged: readonly string[],
+  ): Promise<"registered" | "absent" | "unknown"> {
+    const first = staged[0];
+    if (first === undefined) return "absent";
+    try {
+      const [row] = await database
+        .select({ snapshotChunks: ingestionSourceRun.snapshotChunks })
+        .from(ingestionSourceRun)
+        .where(eq(ingestionSourceRun.id, id))
+        .limit(1);
+      if (!row) return "unknown";
+      return parseSnapshotChunks(row.snapshotChunks).includes(first)
+        ? "registered"
+        : "absent";
+    } catch (error) {
+      console.error(
+        `Could not read source run ${id} back after its checkpoint batch failed.`,
+        error,
+      );
+      return "unknown";
+    }
+  }
+
+  /**
    * Creates a running run for one source unless that source (or an
    * all-source run) already has an active run. Returns the new run's id.
    */
@@ -747,6 +777,8 @@ export function createDurableIngestionRepository(
         }
       };
       let statePathname: string | null = null;
+      let next: DurableCursorFor<Source>;
+      let nextCursor: string;
       try {
         if (
           params.fetched.vehicles.length > 0 ||
@@ -773,6 +805,19 @@ export function createDurableIngestionRepository(
           });
           staged.push(statePathname);
         }
+        // Store provider progress in the same guarded checkpoint as its
+        // resume cursor. A cursor that does not parse leaves nothing staged.
+        next =
+          statePathname === null
+            ? params.fetched.cursor
+            : parseDurableSourceCursor(
+                source,
+                JSON.stringify({
+                  ...params.fetched.cursor,
+                  statePath: statePathname,
+                }),
+              );
+        nextCursor = serializeDurableSourceCursor(next);
       } catch (error) {
         await unstage();
         throw error;
@@ -786,20 +831,17 @@ export function createDurableIngestionRepository(
         statePathname === null
           ? null
           : supersededStatePath(params.requestedCursor, current.snapshotChunks);
-
-      // Store provider progress in the same guarded checkpoint as its resume
-      // cursor. Cleanup and lost-race deletion use the existing snapshot lifecycle.
-      const next =
-        statePathname === null
-          ? params.fetched.cursor
-          : parseDurableSourceCursor(
-              source,
-              JSON.stringify({
-                ...params.fetched.cursor,
-                statePath: statePathname,
-              }),
-            );
-      const nextCursor = serializeDurableSourceCursor(next);
+      const deleteSuperseded = async () => {
+        if (supersededState === null) return;
+        try {
+          await snapshotStore.delete([supersededState]);
+        } catch (error) {
+          console.error(
+            `Could not delete superseded checkpoint state ${supersededState} of source run ${id}. The new checkpoint is saved and inventory is unaffected, but the blob is no longer registered, so snapshot cleanup will not remove it; delete it from private Blob storage by hand.`,
+            error,
+          );
+        }
+      };
 
       for (
         let start = 0;
@@ -890,7 +932,16 @@ export function createDurableIngestionRepository(
       const results = await batchClient
         .batch(statements, "write")
         .catch(async (error: unknown) => {
-          await unstage();
+          // A lost response can hide a commit that landed, and deleting its
+          // blobs would leave the committed cursor without its state. Delete
+          // them only once the row shows they are not registered.
+          const registration = await stagedRegistration(id, staged);
+          if (registration === "absent") await unstage();
+          else if (registration === "registered") await deleteSuperseded();
+          else
+            console.error(
+              `Could not tell whether source run ${id} committed its checkpoint, so its staged blobs ${staged.join(", ")} are kept. A retry resumes from whichever checkpoint is saved; if nothing references them, snapshot cleanup will not find them.`,
+            );
           throw error;
         });
       const checkpointResult = results[checkpointStatementIndex];
@@ -901,16 +952,7 @@ export function createDurableIngestionRepository(
         // The new state is committed, so nothing resumes from the superseded
         // one: a replay of the old cursor gets this checkpoint back from
         // getCheckpoint before it fetches.
-        if (supersededState !== null) {
-          try {
-            await snapshotStore.delete([supersededState]);
-          } catch (error) {
-            console.error(
-              `Could not delete superseded checkpoint state ${supersededState} of source run ${id}. The new checkpoint is saved and inventory is unaffected, but the blob is no longer registered, so snapshot cleanup will not remove it; delete it from private Blob storage by hand.`,
-              error,
-            );
-          }
-        }
+        await deleteSuperseded();
         return {
           cursor: next,
           status: params.fetched.status,

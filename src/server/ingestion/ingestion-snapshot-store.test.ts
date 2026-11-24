@@ -178,3 +178,24 @@ test("Blob checkpoint state goes under its own folder of the run", async () => {
   ]);
   expect(IngestionSnapshotStore.isCheckpointStatePath(state)).toBe(true);
 });
+
+test("a missing checkpoint state says a newer checkpoint may have replaced it", async () => {
+  const store = IngestionSnapshotStore.vercelBlob("local-test-token", {
+    put,
+    del,
+    get: async () => null,
+  });
+
+  await expect(
+    store.load(
+      "ingestion-runs/run/hollanderstores/checkpoint-state/state-AbC123.json.gz",
+    ),
+  ).rejects.toThrow(
+    /newer checkpoint of the same source run replaced it.*retrying the step resumes/,
+  );
+  await expect(
+    store.load("ingestion-runs/run/hollanderstores/chunk-AbC123.json.gz"),
+  ).rejects.toThrow(
+    "is missing from Blob storage. The run cannot be reconciled",
+  );
+});

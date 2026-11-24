@@ -176,6 +176,12 @@ export const IngestionSnapshotStore = {
       async load(pathname) {
         const result = await getBlob(pathname);
         if (!result || result.statusCode !== 200) {
+          // A duplicate step attempt can still hold the cursor of a state that
+          // a newer checkpoint replaced and deleted.
+          if (IngestionSnapshotStore.isCheckpointStatePath(pathname))
+            throw new Error(
+              `Checkpoint state ${pathname} is missing from Blob storage, most likely because a newer checkpoint of the same source run replaced it. Saved checkpoints and published inventory are unaffected; retrying the step resumes from the latest checkpoint. If retries keep failing here, restart the run.`,
+            );
           throw new Error(
             `Ingestion snapshot chunk ${pathname} is missing from Blob storage. The run cannot be reconciled without it; restart the run.`,
           );
