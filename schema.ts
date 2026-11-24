@@ -300,6 +300,21 @@ export const yardInventory = sqliteTable(
 );
 
 /**
+ * Live vehicles per source and state that may count as new this week, grouped
+ * by their raw arrival fields. Ingestion rebuilds a source's rows with its
+ * `yard_inventory` rows, keeping only arrivals from the 8 days before the
+ * rebuild, so state pages count new arrivals from a few thousand rows instead
+ * of every vehicle in the state. Readers apply the exact week.
+ */
+export const stateRecentArrival = sqliteTable("state_recent_arrival", {
+  source: text("source").notNull(),
+  stateAbbr: text("state_abbr").notNull(),
+  availableDate: text("available_date"),
+  observedArrivalAt: integer("observed_arrival_at", { mode: "timestamp_ms" }),
+  vehicleCount: integer("vehicle_count").notNull(),
+});
+
+/**
  * Retains published yard history even after its last vehicle is retired.
  * `establishedAt` is the run timestamp of the yard's first published crawl;
  * yards that already had inventory when this table was added use epoch 0.

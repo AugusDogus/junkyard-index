@@ -225,6 +225,13 @@
       "when": 1795968000000,
       "tag": "0031_kernel_browser_usage",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1796054400000,
+      "tag": "0032_state_recent_arrival",
+      "breakpoints": true
     }
   ]
 }
