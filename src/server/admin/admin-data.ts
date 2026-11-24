@@ -10,6 +10,7 @@ import {
   type SearchAlertsMode,
 } from "~/server/alerts/search-alerts-flag";
 import { ConsumerFlags } from "~/server/ingestion/consumer-flags";
+import { loadSourceFreshness } from "~/server/ingestion/durable-health";
 import { IngestionDay } from "~/server/ingestion/ingestion-day";
 import { IngestionSourceFlags } from "~/server/ingestion/ingestion-source-flags";
 import { PublicationModeFlag } from "~/server/ingestion/publication-mode-flag";
@@ -75,6 +76,17 @@ export async function loadPart<Value>(
       message: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+/**
+ * Each source's newest accepted publication, from the read loadHiddenSources
+ * uses, so admin's "Hidden (stale)" matches what the site hides.
+ */
+async function loadLastPublished(
+  now: Date,
+): Promise<Map<string, number | null>> {
+  const freshness = await loadSourceFreshness(db, now);
+  return new Map(freshness.map((row) => [row.source, row.lastPublishedAt]));
 }
 
 /** Every ingestion-source flag; a failed read pauses nothing, as at runtime. */
@@ -154,9 +166,10 @@ export type SourceDetailData = {
 };
 
 async function loadSources(now: Date): Promise<SourcesData> {
-  const [runs, activeRuns, publishedCounts, flags, controls] =
+  const [runs, published, activeRuns, publishedCounts, flags, controls] =
     await Promise.all([
       SourceRunRepository.recent(db, windowStart(now)),
+      loadLastPublished(now),
       SourceRunRepository.activeRuns(db),
       SourceRunRepository.publishedCounts(db),
       readSourceFlags(),
@@ -165,6 +178,7 @@ async function loadSources(now: Date): Promise<SourcesData> {
   const summaries = SourceOverview.build({
     now,
     runs,
+    published,
     activeRuns,
     publishedCounts,
     flags,
@@ -233,6 +247,7 @@ async function loadSource(
   // agree; the run list shows the newest runs whatever their age.
   const [
     windowRuns,
+    published,
     runs,
     activeRuns,
     publishedCounts,
@@ -241,6 +256,7 @@ async function loadSource(
     actions,
   ] = await Promise.all([
     SourceRunRepository.recentForSource(db, source, windowStart(now)),
+    loadLastPublished(now),
     SourceRunRepository.forSource(db, source, SOURCE_PAGE_RUNS),
     SourceRunRepository.activeRuns(db),
     SourceRunRepository.publishedCounts(db),
@@ -251,6 +267,7 @@ async function loadSource(
   const summary = SourceOverview.build({
     now,
     runs: windowRuns,
+    published,
     activeRuns,
     publishedCounts,
     flags,

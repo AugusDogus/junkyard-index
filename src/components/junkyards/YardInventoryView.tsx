@@ -107,8 +107,15 @@ export function YardInventoryView({
   const shownFrom = inventory.firstIndex + 1;
   const shownTo = inventory.firstIndex + inventory.vehicles.length;
   const showMakes = inventory.page === 1 && makes.length > 1;
-  const { headerCount, badgesSince } = YardInventory.newDisplay(newArrivals);
   const lastChecked = InventoryStaleness.label(checkedAt, Date.now());
+  const newDisplay = YardInventory.newDisplay(newArrivals);
+  // Nothing is "new" next to "Last checked": a stale yard's newest cars are
+  // only new as of its last check.
+  const headerCount = lastChecked === null ? newDisplay.headerCount : null;
+  const badgesSince = InventoryStaleness.newBadgeReference(
+    newDisplay.badgesSince,
+    lastChecked,
+  );
 
   return (
     <>

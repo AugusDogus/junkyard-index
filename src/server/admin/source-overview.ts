@@ -107,8 +107,15 @@ export type SourceSummary = {
 
 export type SourceOverviewInput = {
   now: Date;
-  /** Recent runs of every source, in any order. */
+  /** Recent runs, in any order; a source missing from them has none. */
   runs: readonly SourceRun[];
+  /**
+   * Every source's newest accepted publication in epoch milliseconds, from
+   * loadSourceFreshness, the read loadHiddenSources applies the 7-day hide
+   * to. Separate from `runs` because a source page loads only its own runs,
+   * and the hide's outage skip needs every source.
+   */
+  published: ReadonlyMap<string, number | null>;
   activeRuns: readonly ActiveRun[];
   /** Published vehicles per source. */
   publishedCounts: ReadonlyMap<string, number>;
@@ -120,18 +127,6 @@ export type SourceOverviewInput = {
 function flagFor(source: IngestionSource, flags: SourceFlagsReading) {
   if (flags.status === "unavailable") return "unknown";
   return flags.enabled.has(source) ? "on" : "off";
-}
-
-/** Each source's newest accepted publication among `runs`. */
-function lastPublished(runs: readonly SourceRun[]): Map<string, number | null> {
-  const published = new Map<string, number | null>();
-  for (const run of runs) {
-    const outcome = SourceRun.outcome(run);
-    if (outcome.kind !== "accepted") continue;
-    const at = outcome.publishedAt.getTime();
-    published.set(run.source, Math.max(published.get(run.source) ?? at, at));
-  }
-  return published;
 }
 
 function summarize(
@@ -231,13 +226,10 @@ export const SourceOverview = {
       runs.push(run);
       bySource.set(run.source, runs);
     }
-    // The rule loadHiddenSources applies, outage skip included; the admin
-    // window is its lookback (see admin-data.test.ts).
+    // The rule loadHiddenSources applies to the same read, outage skip
+    // included.
     const staleHidden = new Set(
-      InventoryStaleness.hiddenSources(
-        lastPublished(input.runs),
-        input.now.getTime(),
-      ),
+      InventoryStaleness.hiddenSources(input.published, input.now.getTime()),
     );
     return INGESTION_SOURCES.map((source) =>
       summarize(source, bySource.get(source) ?? [], input, staleHidden),

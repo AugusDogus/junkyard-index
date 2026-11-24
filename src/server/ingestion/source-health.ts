@@ -61,7 +61,8 @@ export const SourceHealth = {
     });
     // OUTAGE_STALE_SHARE of them: fewer stale sources are individual
     // provider failures, listed but not failing the check. The automatic
-    // 7-day hide stops at the same share.
+    // 7-day hide stops at the same share, of every active source, paused
+    // or not (docs/runbooks/hide-source.md).
     const outageAfterStale = InventoryStaleness.outageAfterStale(
       checked.length,
     );
