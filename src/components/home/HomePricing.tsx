@@ -24,7 +24,7 @@ export function HomePricing() {
         <Suspense>
           {/* src/proxy.ts sends signed-in visitors to /search, so the
           landing page starts as a guest; the client session confirms. */}
-          <PricingPlansSection initialIsRegistered={false} sourcePage="home" />
+          <PricingPlansSection initialViewer="guest" sourcePage="home" />
         </Suspense>
       </div>
     </section>
