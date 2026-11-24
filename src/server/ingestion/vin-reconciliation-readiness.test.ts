@@ -114,8 +114,10 @@ mock.module("./src/server/ingestion/search-publication-flag", () => ({
     publication: async () => "skipped",
   },
 }));
+// Keep the real store helpers; only the Blob-backed store is replaced.
+const realSnapshotStore = { ...IngestionSnapshotStore };
 mock.module("./src/server/ingestion/ingestion-snapshot-store", () => ({
-  IngestionSnapshotStore: { vercelBlob: () => store },
+  IngestionSnapshotStore: { ...realSnapshotStore, vercelBlob: () => store },
 }));
 const { reconcileDurableIngestion } =
   await import("./src/server/ingestion/durable-ingestion");
