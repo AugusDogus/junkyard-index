@@ -17,19 +17,21 @@ async function load(failures: number, status: number) {
       import { mock } from "bun:test";
       mock.module("next/cache", () => ({ unstable_cache: (load) => load }));
       const { LibsqlError } = await import("@libsql/client/web");
+      const { DrizzleQueryError } = await import("drizzle-orm");
       const { cacheInventory } = await import(${JSON.stringify(MODULE)});
       let reads = 0;
       const cached = cacheInventory(async (yard) => {
         reads += 1;
         if (reads <= ${failures}) {
           const cause = Object.assign(new Error("Server returned HTTP status ${status}"), { status: ${status} });
-          throw new LibsqlError(cause.message, "SERVER_ERROR", undefined, undefined, cause);
+          // Drizzle wraps every failed query, as in production.
+          throw new DrizzleQueryError("select", [], new LibsqlError(cause.message, "SERVER_ERROR", undefined, undefined, cause));
         }
         return yard + " rows";
       }, ["test"]);
       const result = await cached("modesto").then(
         (value) => ({ value }),
-        (error) => ({ error: error.message }),
+        (error) => ({ error: error.cause.message }),
       );
       console.log(JSON.stringify({ ...result, reads }));
     `,

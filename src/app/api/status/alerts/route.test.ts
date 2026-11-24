@@ -15,6 +15,7 @@ async function check(failures: number) {
       `
       import { mock } from "bun:test";
       const { LibsqlError } = await import("@libsql/client/web");
+      const { DrizzleQueryError } = await import("drizzle-orm");
       let reads = 0;
       mock.module("~/lib/db", () => ({ db: {} }));
       mock.module("~/server/alerts/search-alerts-flag", () => ({
@@ -31,7 +32,8 @@ async function check(failures: number) {
             reads += 1;
             if (reads <= ${failures}) {
               const cause = Object.assign(new Error("Server returned HTTP status 502"), { status: 502 });
-              throw new LibsqlError(cause.message, "SERVER_ERROR", undefined, undefined, cause);
+              // Drizzle wraps every failed query, as in production.
+          throw new DrizzleQueryError("select", [], new LibsqlError(cause.message, "SERVER_ERROR", undefined, undefined, cause));
             }
             return { mode, lastCompletedDay: null, openedChecks: [], oldestDeliverableAt: null };
           },
@@ -40,7 +42,7 @@ async function check(failures: number) {
       const { GET } = await import(${JSON.stringify(ROUTE)});
       const result = await GET().then(
         (response) => ({ status: response.status }),
-        (error) => ({ error: error.message }),
+        (error) => ({ error: error.cause.message }),
       );
       console.log(JSON.stringify({ ...result, reads }));
     `,

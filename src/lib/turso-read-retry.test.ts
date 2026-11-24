@@ -1,5 +1,7 @@
-import { LibsqlError } from "@libsql/client/web";
+import { createClient, LibsqlError } from "@libsql/client/web";
 import { describe, expect, test } from "bun:test";
+import { DrizzleQueryError, sql } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/libsql/web";
 import { isTransientTursoError, retryTursoRead } from "./turso-read-retry";
 
 /** The error the HTTP client raises when Turso answers with `status`. */
@@ -50,6 +52,14 @@ describe("isTransientTursoError", () => {
     expect(isTransientTursoError(httpError(504))).toBe(true);
   });
 
+  test("a gateway status wrapped by Drizzle is transient", () => {
+    expect(
+      isTransientTursoError(
+        new DrizzleQueryError("select 1", [], httpError(502)),
+      ),
+    ).toBe(true);
+  });
+
   test("other statuses, SQL errors, and non-Turso errors are not", () => {
     expect(isTransientTursoError(httpError(400))).toBe(false);
     expect(isTransientTursoError(httpError(500))).toBe(false);
@@ -83,6 +93,34 @@ describe("retryTursoRead", () => {
       retryTursoRead(flaky.read, { sleep, warn: quiet }),
     ).rejects.toBe(outage);
     expect(flaky.calls()).toBe(3);
+    expect(delays).toEqual([200, 400]);
+  });
+
+  test("a Drizzle query against a Turso edge answering 502 is retried", async () => {
+    let requests = 0;
+    const db = drizzle(
+      createClient({
+        url: "https://turso.example",
+        authToken: "test",
+        fetch: async () => {
+          requests += 1;
+          return new Response("Bad Gateway", {
+            status: 502,
+            headers: { "content-type": "text/plain" },
+          });
+        },
+      }),
+    );
+    const { sleep, delays } = recordingSleep();
+    const error = await retryTursoRead(() => db.all(sql`select 1`), {
+      sleep,
+      warn: quiet,
+    }).then(
+      () => null,
+      (cause: unknown) => cause,
+    );
+    expect(error).toBeInstanceOf(DrizzleQueryError);
+    expect(requests).toBe(3);
     expect(delays).toEqual([200, 400]);
   });
 
