@@ -33,8 +33,11 @@ type MakeSourceCount = { make: string; source: string; count: number };
 // and compute them. Each version reads and writes only its own keys, so the
 // build of a new version leaves the old one's rows to the deployment still
 // serving them. Once the new version is live, its ingestion-pass projection
-// retires older versions' rows and checkpoints; a deployment rolled back to
-// one of them finds its checkpoint gone and projects again on its next pass.
+// retires the rows and checkpoints of every version before the previous one.
+// The previous version's rows stay, so an instant rollback to it serves its
+// last snapshot at once and its next pass brings it current. A rollback two
+// versions back finds no rows, and its make and model pages fail until it
+// projects; run `bun run inventory:project` from that build's commit first.
 // v3 regroups the source make aliases introduced with search schema 11.
 // v4 keeps hidden sources in the stored rows and adds per-source make counts,
 // so reads leave hidden sources out and a hide or show applies at once.
@@ -189,20 +192,28 @@ async function compute(database: LibSQLDatabase): Promise<InventorySnapshot> {
 
 /**
  * What a projection does with older versions' rows: a build keeps them for
- * the deployment still serving them; the live deployment retires them.
+ * the deployment still serving them; the live deployment retires all but
+ * the previous version's.
+ *
+ * Retiring also drops those versions' model URLs from `modelUrls(...,
+ * "retained")`, which a search schema migration copies into
+ * `vehicle_model_redirect`. URLs that only a retired version listed are
+ * therefore no longer captured by a later migration; they must already be
+ * in `vehicle_model_redirect` (checked for v1 to v3 before this shipped).
  */
 export type OlderSnapshotVersions = "keep" | "retire";
 
-// Every version before this one, which the live deployment retires.
-const OLDER_VERSIONS = Array.from(
-  { length: SNAPSHOT_VERSION_NUMBER },
+// Every version before the previous one, which the live deployment retires.
+const RETIRED_VERSIONS = Array.from(
+  { length: Math.max(SNAPSHOT_VERSION_NUMBER - 1, 0) },
   (_, version) => `v${version}`,
 );
 
 /**
  * Replaces this version's stored snapshot and its checkpoint in one
- * transaction, writing only rows whose data changed. Retiring deletes older
- * versions' rows and checkpoints in the same transaction, after the writes.
+ * transaction, writing only rows whose data changed. Retiring deletes the
+ * rows and checkpoints of versions before the previous one in the same
+ * transaction, after the writes.
  */
 async function write(
   database: LibSQLDatabase,
@@ -268,13 +279,13 @@ async function write(
         set: { lastProcessedChangeId: publicationSequence, updatedAt: now },
         setWhere: sql`${ingestionProjectorCheckpoint.lastProcessedChangeId} < ${publicationSequence}`,
       }),
-    ...(olderVersions === "retire"
+    ...(olderVersions === "retire" && RETIRED_VERSIONS.length > 0
       ? [
           database
             .delete(inventorySnapshot)
             .where(
               or(
-                ...OLDER_VERSIONS.map((version) =>
+                ...RETIRED_VERSIONS.map((version) =>
                   like(inventorySnapshot.key, `${version}:%`),
                 ),
               ),
@@ -282,7 +293,9 @@ async function write(
           database.delete(ingestionProjectorCheckpoint).where(
             inArray(
               ingestionProjectorCheckpoint.name,
-              OLDER_VERSIONS.map((version) => `${CHECKPOINT_PREFIX}${version}`),
+              RETIRED_VERSIONS.map(
+                (version) => `${CHECKPOINT_PREFIX}${version}`,
+              ),
             ),
           ),
         ]
@@ -293,7 +306,8 @@ async function write(
 /**
  * Computes the aggregates from live inventory and stores them, recording the
  * latest publication as of the start: the vehicles read include at least it.
- * Older versions' rows are kept unless the caller is the live deployment.
+ * Older versions' rows are kept unless the caller is the live deployment,
+ * which keeps only the previous version's.
  */
 async function project(
   database: LibSQLDatabase,

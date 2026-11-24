@@ -49,7 +49,8 @@ export async function refreshInventoryCachesStep(): Promise<
       database: db,
       source: {
         projectedThrough: () => InventorySnapshot.projectedThrough(db),
-        // The live deployment's pass: older versions' rows are retired.
+        // The live deployment's pass: versions before the previous one are
+        // retired; the previous one stays for an instant rollback.
         project: () =>
           InventorySnapshot.project(db, new Date(), {
             olderVersions: "retire",

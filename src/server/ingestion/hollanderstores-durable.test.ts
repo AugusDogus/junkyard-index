@@ -103,7 +103,7 @@ test("Hollander checkpoints keep workflow inputs and results small and resume th
     expect(String(row.rows[0]?.snapshot_chunks)).toContain(
       saved.cursor.statePath,
     );
-    await store.delete(store.pathnames());
+    await store.delete(store.pathnames(), { kind: "best-effort" });
     await expect(
       HollanderstoresDurableCursor.load(
         saved.cursor,

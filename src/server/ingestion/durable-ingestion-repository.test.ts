@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
-import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
+import {
+  IngestionSnapshotStore,
+  SnapshotDeleteDeadlineError,
+  type SnapshotDeletePolicy,
+} from "./ingestion-snapshot-store";
 import { IngestionSchedule } from "./ingestion-schedule";
 import { reconciliationSourcePriority } from "./reconciliation-policy";
 import { createDurableIngestionRepository } from "./durable-ingestion-repository";
@@ -1005,6 +1009,102 @@ describe("durable ingestion repository", () => {
       );
       await repository.abandon(wakeup.runId, true);
       expect((await repository.getRun(wakeup.runId)).status).toBe("abandoned");
+    } finally {
+      testDatabase.cleanup();
+    }
+  });
+
+  test("a released run's snapshot cleanup stops at its time budget, reports not done, and the next batch resumes", async () => {
+    const testDatabase = createTestClient();
+    const { client } = testDatabase;
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const memory = IngestionSnapshotStore.memory();
+      let clock = 0;
+      const policies: SnapshotDeletePolicy[] = [];
+      const slow: IngestionSnapshotStore = {
+        ...memory,
+        async delete(pathnames, policy) {
+          policies.push(policy);
+          clock += 4 * 60_000;
+          await memory.delete(pathnames, policy);
+        },
+      };
+      const repository = createDurableIngestionRepository(
+        drizzle(client),
+        client,
+        slow,
+      );
+      await repository.initialize("run-budget");
+      await client.execute(
+        "update ingestion_run set status = 'success', stage = 'released', active_slot = null where id = 'run-budget'",
+      );
+      const chunks: string[] = [];
+      for (let index = 0; index < 300; index += 1)
+        chunks.push(
+          await memory.put({
+            runId: "run-budget",
+            source: "pyp",
+            chunk: { vehicles: [], observedVins: [`VIN${index}`] },
+          }),
+        );
+      await client.execute({
+        sql: "update ingestion_source_run set snapshot_chunks = ? where id = 'run-budget:pyp'",
+        args: [JSON.stringify(chunks)],
+      });
+
+      expect(await repository.cleanupBatch("run-budget", () => clock)).toEqual({
+        deleted: 250,
+        done: false,
+      });
+      expect(policies).toEqual([{ kind: "paced", deadline: 3 * 60_000 }]);
+      expect(memory.pathnames()).toEqual(chunks.slice(250));
+
+      expect(await repository.cleanupBatch("run-budget", () => clock)).toEqual({
+        deleted: 50,
+        done: true,
+      });
+      expect(memory.pathnames()).toEqual([]);
+    } finally {
+      testDatabase.cleanup();
+    }
+  });
+
+  test("a released run's cleanup that deletes nothing within its budget fails instead of looping", async () => {
+    const testDatabase = createTestClient();
+    const { client } = testDatabase;
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const memory = IngestionSnapshotStore.memory();
+      const limited: IngestionSnapshotStore = {
+        ...memory,
+        async delete(pathnames) {
+          throw new SnapshotDeleteDeadlineError(0, pathnames.length);
+        },
+      };
+      const repository = createDurableIngestionRepository(
+        drizzle(client),
+        client,
+        limited,
+      );
+      await repository.initialize("run-limited");
+      await client.execute(
+        "update ingestion_run set status = 'success', stage = 'released', active_slot = null where id = 'run-limited'",
+      );
+      const chunk = await memory.put({
+        runId: "run-limited",
+        source: "pyp",
+        chunk: { vehicles: [], observedVins: ["VIN"] },
+      });
+      await client.execute({
+        sql: "update ingestion_source_run set snapshot_chunks = json_array(?) where id = 'run-limited:pyp'",
+        args: [chunk],
+      });
+
+      await expect(repository.cleanupBatch("run-limited")).rejects.toThrow(
+        /run-limited deleted no snapshot blobs within its 180 s budget.*still registered/,
+      );
+      expect(memory.pathnames()).toEqual([chunk]);
     } finally {
       testDatabase.cleanup();
     }

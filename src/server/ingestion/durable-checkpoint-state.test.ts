@@ -1,4 +1,5 @@
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
+import { BlobServiceRateLimited } from "@vercel/blob";
 import { isDeepStrictEqual } from "node:util";
 import { drizzle } from "drizzle-orm/libsql";
 import { createDurableIngestionRepository } from "./durable-ingestion-repository";
@@ -456,6 +457,68 @@ test("a checkpoint whose commit landed but whose response was lost keeps its blo
       (await stagedSnapshots(database.client, store, RUN_ID)).vins,
     ).toEqual(["1FAHP2J89EG117592"]);
   } finally {
+    database.cleanup();
+  }
+});
+
+test("a checkpoint whose superseded state delete is rate limited returns at once without sleeping", async () => {
+  const database = createTestClient();
+  const logged = spyOn(console, "error").mockImplementation(() => {});
+  try {
+    await database.client.executeMultiple(TEST_SCHEMA);
+    const sleeps: number[] = [];
+    const deletes: string[][] = [];
+    let suffix = 0;
+    const store = IngestionSnapshotStore.vercelBlob(
+      "local-test-token",
+      {
+        get: async () => null,
+        async put(pathname) {
+          suffix += 1;
+          return {
+            pathname: pathname.replace(".json.gz", `-${suffix}.json.gz`),
+            url: "",
+            downloadUrl: "",
+            contentType: "application/gzip",
+            contentDisposition: "",
+            etag: "etag",
+          };
+        },
+        async del(urls) {
+          deletes.push(typeof urls === "string" ? [urls] : urls);
+          throw new BlobServiceRateLimited(60);
+        },
+      },
+      async (ms) => {
+        sleeps.push(ms);
+      },
+    );
+    const repository = createDurableIngestionRepository(
+      drizzle(database.client),
+      database.client,
+      store,
+    );
+    await repository.initialize(RUN_ID, async () => ["hollanderstores"]);
+    const first = await repository.checkpointChunk({
+      runId: RUN_ID,
+      requestedCursor: HollanderstoresDurableCursor.initial(),
+      fetched: hollanderChunk(1, []),
+    });
+
+    const second = await repository.checkpointChunk({
+      runId: RUN_ID,
+      requestedCursor: first.cursor,
+      fetched: hollanderChunk(2, ["1FAHP2J89EG117592"]),
+    });
+
+    expect(statePathOf(second.cursor)).not.toBe(statePathOf(first.cursor));
+    expect(deletes).toEqual([[statePathOf(first.cursor)]]);
+    expect(sleeps).toEqual([]);
+    expect(String(logged.mock.calls[0]?.[0])).toContain(
+      "Could not delete superseded checkpoint state",
+    );
+  } finally {
+    logged.mockRestore();
     database.cleanup();
   }
 });

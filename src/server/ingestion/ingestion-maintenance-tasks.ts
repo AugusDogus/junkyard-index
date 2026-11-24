@@ -17,10 +17,6 @@ const MAX_BATCHES_PER_RUN = 20;
 const OUTBOX_BATCH_SIZE = 5_000;
 // About 300K changes a day: the cutover's leftovers clear in one run.
 const OUTBOX_MAX_BATCHES_PER_RUN = 60;
-// Blob deletes are paced to 1,000 a minute and may wait out rate limits, so
-// stale snapshot cleanup stops well inside the 800 s step limit, recording
-// what it deleted; the next run resumes from there.
-const STALE_SNAPSHOT_BUDGET_MS = 8 * 60 * 1_000;
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -54,17 +50,18 @@ export const IngestionMaintenanceTasks = {
     now: () => number = Date.now,
   ): Promise<MaintenanceTaskResult> {
     let deleted = 0;
-    const startedAt = now();
-    const outOfTime = () => now() - startedAt >= STALE_SNAPSHOT_BUDGET_MS;
+    // Blob deletes are paced and wait out rate limits, so cleanup stops at
+    // its budget, recording what it deleted; the next run resumes there.
+    const budget = IngestionSnapshotCleanup.budget(now);
     try {
       for (let batch = 1; batch <= MAX_BATCHES_PER_RUN; batch += 1) {
         const cleanup = await IngestionSnapshotCleanup.staleBatch(
           database,
           snapshotStore,
-          outOfTime,
+          budget,
         );
         deleted += cleanup.chunksDeleted;
-        if (cleanup.complete) {
+        if (cleanup.status === "complete") {
           return {
             task: "stale-snapshots",
             status: "done",
@@ -72,7 +69,7 @@ export const IngestionMaintenanceTasks = {
             complete: true,
           };
         }
-        if (outOfTime()) break;
+        if (cleanup.status === "stopped" || now() >= budget.deadline) break;
       }
       return {
         task: "stale-snapshots",

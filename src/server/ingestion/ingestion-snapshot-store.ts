@@ -1,12 +1,5 @@
 import { gunzipSync, gzipSync } from "node:zlib";
-import {
-  BlobServiceNotAvailable,
-  BlobServiceRateLimited,
-  BlobUnknownError,
-  del,
-  get,
-  put,
-} from "@vercel/blob";
+import { BlobServiceRateLimited, del, get, put } from "@vercel/blob";
 import { z } from "zod";
 import { INGESTION_SOURCES } from "~/lib/ingestion-source";
 import type { DurableIngestionSource } from "./durable-source";
@@ -45,7 +38,41 @@ export interface IngestionSnapshotStore {
     state: unknown;
   }): Promise<string>;
   load(pathname: string): Promise<IngestionSnapshotChunk>;
-  delete(pathnames: readonly string[]): Promise<void>;
+  delete(
+    pathnames: readonly string[],
+    policy: SnapshotDeletePolicy,
+  ): Promise<void>;
+}
+
+/**
+ * How a delete spends time.
+ * - best-effort: a checkpoint freeing a blob in the middle of a crawl step.
+ *   One unpaced attempt, abandoned after {@link BEST_EFFORT_DELETE_TIMEOUT_MS};
+ *   a failure is the caller's to log, never a reason to stall the step.
+ * - paced: cleanup. Batches are paced to 1,000 URLs a minute and rate limits
+ *   are waited out, but no wait or request runs past `deadline` (by the
+ *   store's clock); reaching it throws {@link SnapshotDeleteDeadlineError}.
+ */
+export type SnapshotDeletePolicy =
+  | { kind: "best-effort" }
+  | { kind: "paced"; deadline: number };
+
+/**
+ * A paced delete that stopped at its deadline. The batches before it are
+ * deleted; the rest may still be in Blob storage and are still registered.
+ */
+export class SnapshotDeleteDeadlineError extends Error {
+  readonly _tag = "SnapshotDeleteDeadlineError";
+
+  constructor(
+    readonly deleted: number,
+    readonly remaining: number,
+  ) {
+    super(
+      `Stopped deleting staged snapshot blobs at the cleanup deadline: ${deleted} of ${deleted + remaining} were deleted; the other ${remaining} are still registered, so the next cleanup deletes them. Published inventory is unaffected.`,
+    );
+    this.name = "SnapshotDeleteDeadlineError";
+  }
 }
 
 const nullableText = z.string().nullable();
@@ -92,20 +119,34 @@ const CHECKPOINT_STATE_PATH = new RegExp(
 const BLOB_READ_RETRY_DELAYS_MS = [1_000, 2_000, 4_000, 8_000, 16_000] as const;
 // Vercel Blob rejects a delete of more than 1,000 URLs, and counts each URL
 // toward its operation rate limit. One 1,000-URL delete followed at once by
-// another was rate limited for 60 s, so deletes go in small batches paced to
-// 1,000 a minute, shared by every store in the process.
+// another was rate limited for 60 s, so cleanup deletes go in small batches
+// paced to 1,000 a minute. The pace is shared by every store in the process;
+// other instances keep their own, and a rate limit they cause is waited out.
 const BLOB_DELETE_BATCH_SIZE = 250;
 const BLOB_DELETE_INTERVAL_MS_PER_URL = 60;
-/** Waits between Blob delete attempts; a rate limit waits at least as long as
- * the store asks. About 3 min in all before giving up. */
+/** Least waits between attempts of a rate-limited cleanup delete; each waits
+ * at least as long as the store asks. The SDK itself already retries 5xx and
+ * unknown errors 10 times, so only rate limits are retried here. */
 const BLOB_DELETE_RETRY_DELAYS_MS = [
   5_000, 15_000, 30_000, 60_000, 60_000,
 ] as const;
+/** The longest Retry-After a cleanup delete honours; the deadline bounds it. */
+const BLOB_DELETE_MAX_RETRY_AFTER_MS = 120_000;
+/** How long a checkpoint waits for a best-effort delete. The SDK's own 5xx
+ * retries sleep 1, 2, 4 s and on, so this allows a few of them. */
+export const BEST_EFFORT_DELETE_TIMEOUT_MS = 10_000;
+// setTimeout fires at once for anything longer.
+const MAX_TIMER_MS = 2_147_483_647;
 // Chunks are immutable under unique pathnames, so the process keeps the
 // latest ones it staged or read. A crawl step reads the checkpoint state the
 // previous step staged (Hollander's is about 2.9 MB gzipped), and
 // reconciliation reads what validation read; on a reused instance those
-// reads cost no Blob transfer.
+// reads cost no Blob transfer. A delete evicts only this process's copy: an
+// instance that cached a chunk another instance deleted still serves it.
+// That is safe because nothing reads a chunk after deleting it on purpose:
+// cleanup deletes only runs that are no longer active, and a superseded
+// checkpoint state is read again only by a replayed step, which gets the
+// newer checkpoint from getCheckpoint before it loads any state.
 const CHUNK_CACHE_MAX_BYTES = 64 * 1024 * 1024;
 const CHUNK_CACHE_MAX_ENTRY_BYTES = 16 * 1024 * 1024;
 
@@ -184,21 +225,47 @@ function retryableBlobReadStatus(error: unknown): number | null {
   return status !== null && (status === 429 || status >= 500) ? status : null;
 }
 
-/** Why a Blob delete may succeed later, or null when retrying cannot help. */
-function retryableBlobDelete(
-  error: unknown,
-): { reason: string; retryAfterMs: number } | null {
-  if (error instanceof BlobServiceRateLimited)
-    return {
-      reason: "rate limited (HTTP 429)",
-      retryAfterMs: error.retryAfter * 1_000,
-    };
-  if (
-    error instanceof BlobServiceNotAvailable ||
-    error instanceof BlobUnknownError
-  )
-    return { reason: `unavailable (${error.message})`, retryAfterMs: 0 };
-  return null;
+/**
+ * How long a rate-limited delete is asked to wait, or null for any other
+ * error. The SDK parses Retry-After with parseInt, so a missing header gives
+ * 0 and an HTTP date gives NaN; both fall back to the backoff floor.
+ */
+function rateLimitWaitMs(error: unknown): number | null {
+  if (!(error instanceof BlobServiceRateLimited)) return null;
+  const seconds = error.retryAfter;
+  return Number.isFinite(seconds) && seconds > 0
+    ? Math.min(seconds * 1_000, BLOB_DELETE_MAX_RETRY_AFTER_MS)
+    : 0;
+}
+
+/**
+ * Runs one Blob request with an abort signal and settles by `ms` at the
+ * latest. The SDK sleeps between its own retries, which an abort does not
+ * cut short, so the race, not the signal, bounds the wait. A request still
+ * running then is aborted and its outcome ignored.
+ */
+async function withinMs(
+  run: (abortSignal: AbortSignal) => Promise<void>,
+  ms: number,
+): Promise<"done" | "timed-out"> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = new Promise<"timed-out">((resolve) => {
+    timer = setTimeout(
+      () => {
+        controller.abort();
+        resolve("timed-out");
+      },
+      Math.min(Math.max(ms, 0), MAX_TIMER_MS),
+    );
+  });
+  const request = run(controller.signal).then(() => "done" as const);
+  try {
+    return await Promise.race([request, timedOut]);
+  } finally {
+    clearTimeout(timer);
+    request.catch(() => {});
+  }
 }
 
 function decode(pathname: string, body: Uint8Array): IngestionSnapshotChunk {
@@ -246,30 +313,56 @@ export const IngestionSnapshotStore = {
       cacheChunk(shared, cacheKey(stored), body);
       return stored;
     };
-    const deleteBatch = async (
+    const deleteOnce = (batch: string[], ms: number) =>
+      withinMs((abortSignal) => client.del(batch, { token, abortSignal }), ms);
+    const deleteBestEffort = async (batch: string[]) => {
+      // Counts toward the pace, but never waits for it.
+      shared.nextDeleteAt = Math.max(
+        shared.nextDeleteAt,
+        now() + batch.length * BLOB_DELETE_INTERVAL_MS_PER_URL,
+      );
+      if (
+        (await deleteOnce(batch, BEST_EFFORT_DELETE_TIMEOUT_MS)) === "timed-out"
+      )
+        throw new Error(
+          `Vercel Blob did not finish deleting ${batch.length} snapshot blobs within ${BEST_EFFORT_DELETE_TIMEOUT_MS / 1_000} s, so the request was abandoned; they may still be in Blob storage.`,
+        );
+    };
+    const deletePaced = async (
       batch: string[],
+      deadline: number,
       deletedBefore: number,
       total: number,
     ) => {
-      const wait = shared.nextDeleteAt - now();
-      if (wait > 0) await sleep(wait);
+      const stop = () =>
+        new SnapshotDeleteDeadlineError(deletedBefore, total - deletedBefore);
+      // Reserve this batch's slot before waiting, so concurrent deletes in
+      // this process queue behind one another instead of waking together.
+      const startAt = Math.max(shared.nextDeleteAt, now());
+      shared.nextDeleteAt =
+        startAt + batch.length * BLOB_DELETE_INTERVAL_MS_PER_URL;
+      if (startAt >= deadline) throw stop();
+      if (startAt > now()) await sleep(startAt - now());
       for (let attempt = 0; ; attempt += 1) {
+        let outcome: "done" | "timed-out";
         try {
-          await client.del(batch, { token });
-          shared.nextDeleteAt =
-            now() + batch.length * BLOB_DELETE_INTERVAL_MS_PER_URL;
-          return;
+          outcome = await deleteOnce(batch, deadline - now());
         } catch (error) {
-          const retry = retryableBlobDelete(error);
-          const delay = BLOB_DELETE_RETRY_DELAYS_MS[attempt];
-          if (retry === null) throw error;
-          if (delay === undefined)
+          const asked = rateLimitWaitMs(error);
+          if (asked === null) throw error;
+          const floor = BLOB_DELETE_RETRY_DELAYS_MS[attempt];
+          if (floor === undefined)
             throw new Error(
-              `Could not delete ${total - deletedBefore} staged snapshot blobs: Vercel Blob was ${retry.reason} after ${attempt + 1} attempts. ${deletedBefore} of ${total} were deleted; the other ${total - deletedBefore} are still in Blob storage and still registered, so the next cleanup retries them. Published inventory is unaffected.`,
+              `Could not delete ${total - deletedBefore} staged snapshot blobs: Vercel Blob was still rate limiting after ${attempt + 1} attempts. ${deletedBefore} of ${total} were deleted; the other ${total - deletedBefore} are still in Blob storage and still registered, so the next cleanup retries them. Published inventory is unaffected.`,
               { cause: error },
             );
-          await sleep(Math.max(delay, retry.retryAfterMs));
+          const wait = Math.max(floor, asked);
+          if (now() + wait >= deadline) throw stop();
+          await sleep(wait);
+          continue;
         }
+        if (outcome === "timed-out") throw stop();
+        return;
       }
     };
     // A long reconciliation reads hundreds of chunks in a row, and the store
@@ -325,7 +418,7 @@ export const IngestionSnapshotStore = {
         cacheChunk(shared, cacheKey(pathname), body);
         return chunk;
       },
-      async delete(pathnames) {
+      async delete(pathnames, policy) {
         for (const pathname of pathnames)
           uncacheChunk(shared, cacheKey(pathname));
         for (
@@ -333,11 +426,10 @@ export const IngestionSnapshotStore = {
           start < pathnames.length;
           start += BLOB_DELETE_BATCH_SIZE
         ) {
-          await deleteBatch(
-            pathnames.slice(start, start + BLOB_DELETE_BATCH_SIZE),
-            start,
-            pathnames.length,
-          );
+          const batch = pathnames.slice(start, start + BLOB_DELETE_BATCH_SIZE);
+          if (policy.kind === "best-effort") await deleteBestEffort(batch);
+          else
+            await deletePaced(batch, policy.deadline, start, pathnames.length);
         }
       },
     };

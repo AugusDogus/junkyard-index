@@ -14,7 +14,11 @@ import {
   TERMINAL_INTENT_RETENTION_MS,
 } from "./ingestion-maintenance-tasks";
 import { INGESTION_RUN_RETENTION_MS } from "./ingestion-run-retention";
-import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
+import {
+  IngestionSnapshotStore,
+  SnapshotDeleteDeadlineError,
+  type SnapshotDeletePolicy,
+} from "./ingestion-snapshot-store";
 
 const GENERATION_SCHEMA = readFileSync(
   new URL("../../../drizzle/0025_search_projector.sql", import.meta.url),
@@ -305,14 +309,14 @@ describe("ingestion-maintenance consumer", () => {
     let deletes = 0;
     const limited: IngestionSnapshotStore = {
       ...store,
-      async delete(pathnames) {
+      async delete(pathnames, policy) {
         deletes += 1;
         // The small pyp run goes first, then one slice of the URG run.
         if (deletes > 2)
           throw new Error(
             "Vercel Blob: Too many requests please lower the number of concurrent requests - try again in 60 seconds.",
           );
-        await store.delete(pathnames);
+        await store.delete(pathnames, policy);
       },
     };
 
@@ -343,11 +347,13 @@ describe("ingestion-maintenance consumer", () => {
     const { client, database, store } = await setup();
     const chunks = await largeStaleRun(database, store);
     let clock = 0;
+    const policies: SnapshotDeletePolicy[] = [];
     const slow: IngestionSnapshotStore = {
       ...store,
-      async delete(pathnames) {
-        clock += 5 * 60_000;
-        await store.delete(pathnames);
+      async delete(pathnames, policy) {
+        policies.push(policy);
+        clock += 2 * 60_000;
+        await store.delete(pathnames, policy);
       },
     };
 
@@ -364,6 +370,12 @@ describe("ingestion-maintenance consumer", () => {
       complete: false,
     });
     expect(await registered(client, "stale:urgiis")).toEqual(chunks.slice(250));
+    // The step may start 5 min into an 800 s invocation, after the earlier
+    // tasks, so cleanup gets 3 min, and no Blob wait runs past them.
+    expect(policies).toEqual([
+      { kind: "paced", deadline: 3 * 60_000 },
+      { kind: "paced", deadline: 3 * 60_000 },
+    ]);
 
     expect(
       await IngestionMaintenanceTasks.staleSnapshots(database, store),
@@ -373,6 +385,32 @@ describe("ingestion-maintenance consumer", () => {
       deleted: 350,
       complete: true,
     });
+  });
+
+  test("stale snapshot cleanup that reaches its deadline inside a delete stops without failing", async () => {
+    const { client, database, store } = await setup();
+    const chunks = await largeStaleRun(database, store);
+    let deletes = 0;
+    const deadlined: IngestionSnapshotStore = {
+      ...store,
+      async delete(pathnames, policy) {
+        deletes += 1;
+        if (deletes > 2) throw new SnapshotDeleteDeadlineError(0, 250);
+        await store.delete(pathnames, policy);
+      },
+    };
+
+    expect(
+      await IngestionMaintenanceTasks.staleSnapshots(database, deadlined),
+    ).toEqual({
+      task: "stale-snapshots",
+      status: "done",
+      deleted: 251,
+      complete: false,
+    });
+    expect(await registered(client, "stale:urgiis")).toEqual(chunks.slice(250));
+    // It stops there: no further batch retries the stopped delete.
+    expect(deletes).toBe(3);
   });
 
   test("outbox retention deletes only projected changes the live generation covers or that aged out", async () => {
