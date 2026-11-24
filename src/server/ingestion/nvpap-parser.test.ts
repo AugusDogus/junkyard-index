@@ -11,9 +11,9 @@ test("Nevada retains live models absent from the native model directory", () => 
     "1074",
     1981,
   );
-  expect(parsed).toEqual([nvpapTestRecord]);
+  expect(parsed).toEqual({ records: [nvpapTestRecord], contradictions: [] });
   const result = transformNvpapRecord(
-    parsed[0] ?? nvpapTestRecord,
+    parsed.records[0] ?? nvpapTestRecord,
     nvpapTestYard,
   );
   expect(result.status).toBe("available");
@@ -56,12 +56,6 @@ test("Nevada yard links preserve the native loader's raw base64 padding", () => 
 test.each([
   (s: string) => s.slice(1),
   (s: string) => s.slice(0, -1),
-  (s: string) =>
-    s.replace(
-      'data-pt1-vin="2GCEG25H8B4121375"',
-      'data-pt1-vin="1GCEG25H8B4121375"',
-    ),
-  (s: string) => s.replace("1981", "1982"),
   (s: string) => s.replace('id="pt1-row-0"', 'id="pt1-row-1"'),
 ])(
   "Nevada rejects truncated or contradictory dual-format responses",
@@ -79,9 +73,10 @@ test("Nevada validates yard identity and explicit empty results", () => {
   expect(() =>
     parseNvpapPage(nvpapTestResponse([nvpapTestRecord], "1074"), "1075", 1981),
   ).toThrow();
-  expect(parseNvpapPage(nvpapTestResponse([], "1074"), "1074", 1886)).toEqual(
-    [],
-  );
+  expect(parseNvpapPage(nvpapTestResponse([], "1074"), "1074", 1886)).toEqual({
+    records: [],
+    contradictions: [],
+  });
   expect(() =>
     parseNvpapPage('000000\n{"search_results":[]}', "1074", 1886),
   ).toThrow();
@@ -169,7 +164,7 @@ test("Nevada permits omitted optional cells while retaining stock traversal iden
     "1074",
     1981,
   );
-  expect(parsed).toEqual([
+  expect(parsed.records).toEqual([
     { ...nvpapTestRecord, color: "", row: "", date: "" },
   ]);
 });
@@ -195,20 +190,86 @@ function parseFailure(raw: string, year = 1981): string {
 }
 test("Nevada identity rejections name the failed check and the row evidence", () => {
   const message = parseFailure(
-    nvpapTestResponse([nvpapTestRecord], "1074").replace(
-      "CHEVROLET CHEVROLET 10 VAN",
-      "CHEVROLET CHEVROLET 20 VAN",
-    ),
+    nvpapTestResponse([{ ...nvpapTestRecord, stock: "L13342" }], "1074"),
   );
-  expect(message).toContain("row 0 failed the model cell check");
+  expect(message).toContain("row 0 failed the stock format check");
   expect(message).toContain(
-    'JSON {"make":"CHEVROLET","model":"CHEVROLET 10 VAN","year":1981,"vin":"2GCEG25H8B4121375","unlabeled":22,"store":1074}',
-  );
-  expect(message).toContain(
-    'HTML cells stock ["L133425"], year ["1981"], model ["CHEVROLET CHEVROLET 20 VAN"], store ["Las Vegas"], VIN buttons ["2GCEG25H8B4121375"]',
+    'HTML cells stock ["L13342"], year ["1981"], model ["CHEVROLET CHEVROLET 10 VAN"], store ["Las Vegas"], VIN buttons ["2GCEG25H8B4121375"]',
   );
   expect(message).toContain("previously published Nevada inventory");
 });
+function withheld(raw: string, year = 1981, code: "1074" | "1075" = "1074") {
+  const page = parseNvpapPage(raw, code, year);
+  expect(page.records).toEqual([]);
+  const [contradiction, ...rest] = page.contradictions;
+  if (!contradiction || rest.length)
+    throw new Error("Expected one withheld Nevada row");
+  return contradiction;
+}
+test("Nevada withholds one row whose rendered model contradicts its JSON and keeps the page", () => {
+  const response = nvpapTestResponse(
+    [
+      nvpapTestRecord,
+      {
+        ...nvpapTestRecord,
+        stock: "L133426",
+        vin: "1GCEG25H8B4121375",
+        modelCell: "CHEVROLET CHEVROLET 20 VAN",
+      },
+    ],
+    "1074",
+  );
+  const page = parseNvpapPage(response, "1074", 1981);
+  expect(page.records).toEqual([nvpapTestRecord]);
+  expect(page.contradictions).toHaveLength(1);
+  const [contradiction] = page.contradictions;
+  expect(contradiction).toMatchObject({
+    stock: "L133426",
+    key: "L133426:1GCEG25H8B4121375",
+    vin: "1GCEG25H8B4121375",
+    year: 1981,
+  });
+  const message = contradiction?.message ?? "";
+  expect(message).toContain("row 1 failed the model cell check");
+  expect(message).toContain(
+    'JSON {"make":"CHEVROLET","model":"CHEVROLET 10 VAN","year":1981,"vin":"1GCEG25H8B4121375","unlabeled":22,"store":1074}',
+  );
+  expect(message).toContain(
+    'HTML cells stock ["L133426"], year ["1981"], model ["CHEVROLET CHEVROLET 20 VAN"], store ["Las Vegas"], VIN buttons ["1GCEG25H8B4121375"]',
+  );
+  expect(message).toContain("The rest of the page is kept");
+});
+test.each([
+  {
+    check: "VIN button value",
+    mutate: (s: string) =>
+      s.replace(
+        'data-pt1-vin="2GCEG25H8B4121375"',
+        'data-pt1-vin="1GCEG25H8B4121375"',
+      ),
+    vin: null,
+  },
+  {
+    check: "year cell",
+    mutate: (s: string) =>
+      s.replace(
+        '<div class="products-body-search__year">1981</div>',
+        '<div class="products-body-search__year">1982</div>',
+      ),
+    vin: "2GCEG25H8B4121375",
+  },
+])(
+  "Nevada withholds a row failing the $check check, keeping its VIN only when the button agreed",
+  ({ check, mutate, vin }) => {
+    const contradiction = withheld(
+      mutate(nvpapTestResponse([nvpapTestRecord], "1074")),
+    );
+    expect(contradiction.message).toContain(
+      "row 0 failed the " + check + " check",
+    );
+    expect(contradiction.vin).toBe(vin);
+  },
+);
 // Live Henderson row: the JSON model is empty and the model cell holds only the make.
 const nvpapEmptyModelRecord: NvpapRecord = {
   ...nvpapTestRecord,
@@ -224,7 +285,7 @@ function emptyModelResponse(modelCell: string, record = nvpapEmptyModelRecord) {
 }
 test("Nevada parses an empty source model whose cell is only the make, then withholds it as incomplete", () => {
   const parsed = parseNvpapPage(emptyModelResponse("Ford"), "1075", 2016);
-  expect(parsed).toEqual([nvpapEmptyModelRecord]);
+  expect(parsed.records).toEqual([nvpapEmptyModelRecord]);
   const result = transformNvpapRecord(nvpapEmptyModelRecord, {
     ...nvpapTestYard,
     code: "1075",
@@ -237,11 +298,11 @@ test.each([
   { cell: "Ford", record: { ...nvpapEmptyModelRecord, model: "F150" } },
   { cell: "", record: { ...nvpapEmptyModelRecord, make: "" } },
 ])(
-  "Nevada still rejects a model cell of $cell for JSON model '$record.model'",
+  "Nevada still withholds a model cell of $cell for JSON model '$record.model'",
   ({ cell, record }) => {
-    expect(() =>
-      parseNvpapPage(emptyModelResponse(cell, record), "1075", 2016),
-    ).toThrow("row 0 failed the model cell check");
+    expect(
+      withheld(emptyModelResponse(cell, record), 2016, "1075").message,
+    ).toContain("row 0 failed the model cell check");
   },
 );
 test.each([
@@ -262,11 +323,11 @@ test.each([
   },
   {
     raw: nvpapTestResponse([nvpapTestRecord], "1074").replace(
-      'data-pt1-vin="2GCEG25H8B4121375"',
-      'data-pt1-vin="1GCEG25H8B4121375"',
+      "Las Vegas",
+      "Henderson",
     ),
     year: 1981,
-    check: "VIN button value",
+    check: "store cell",
   },
 ])("Nevada names the $check identity check", ({ raw, year, check }) => {
   expect(parseFailure(raw, year)).toContain(

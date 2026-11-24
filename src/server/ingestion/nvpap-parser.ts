@@ -71,6 +71,27 @@ function text(value: string): string {
     .trim();
 }
 
+/**
+ * A row whose rendered VIN, year or model contradicts its JSON donor. One such
+ * row is withheld as a rejected donor instead of failing the page, so a single
+ * bad listing cannot reject the whole source; the 10% rejection limit still
+ * fails a yard where such rows spread. Yard, year partition and stock checks
+ * still fail the page, because they prove which yard and partition a page is.
+ */
+export interface NvpapContradiction {
+  stock: string;
+  /** `stock:VIN` from the JSON row, matching `nvpapRecordKey`. */
+  key: string;
+  /** The JSON VIN when the row's VIN button agreed with it, else null. */
+  vin: string | null;
+  year: number;
+  message: string;
+}
+export interface NvpapPage {
+  records: NvpapRecord[];
+  contradictions: NvpapContradiction[];
+}
+
 /** The native response is six digits, a newline, that many HTML characters,
  * then JSON. Treat both representations as one contract, never a partial page.
  */
@@ -78,7 +99,7 @@ export function parseNvpapPage(
   raw: string,
   yardCode: NvpapYardCode,
   year: number,
-): NvpapRecord[] {
+): NvpapPage {
   if (raw.length > 2_000_000)
     throw new Error("Nevada inventory exceeds the 2 MB character bound");
   const prefix = /^(\d{6})\n/.exec(raw);
@@ -113,7 +134,7 @@ export function parseNvpapPage(
   if (chunks.length !== data.search_results.length)
     throw new Error("Nevada inventory HTML and JSON row counts disagree");
   const expectedStore = yardCode === "1074" ? "Las Vegas" : "Henderson";
-  const records = data.search_results.map(
+  const rows = data.search_results.map(
     ([make, model, sourceYear, vin, unlabeled, store], index) => {
       const chunk = chunks[index];
       if (
@@ -153,10 +174,19 @@ export function parseNvpapPage(
       // Its optional display contract does not relax this traversal identity.
       const stock = cell("stock");
       // Checks run lazily in order, so a later cell is read only after every
-      // earlier check holds.
-      const checks: readonly (readonly [string, () => boolean])[] = [
+      // earlier check holds. Page checks prove the yard and partition.
+      const pageChecks: readonly (readonly [string, () => boolean])[] = [
         ["JSON store id", () => store === Number(yardCode)],
         ["requested year", () => year === 0 || sourceYear === year],
+        ["store cell", () => cell("store") === expectedStore],
+        ["stock format", () => /^[LH]\d{6}$/.test(stock)],
+        [
+          "stock yard prefix",
+          () => stock.startsWith(yardCode === "1074" ? "L" : "H"),
+        ],
+      ];
+      // Row checks bind the rendered donor to its JSON identity.
+      const rowChecks: readonly (readonly [string, () => boolean])[] = [
         ["VIN button count", () => vins.length === 1],
         [
           "VIN button value",
@@ -174,28 +204,49 @@ export function parseNvpapPage(
               : make + " " + model
             ).toLowerCase(),
         ],
-        ["store cell", () => cell("store") === expectedStore],
-        ["stock format", () => /^[LH]\d{6}$/.test(stock)],
-        [
-          "stock yard prefix",
-          () => stock.startsWith(yardCode === "1074" ? "L" : "H"),
-        ],
       ];
-      const failed = checks.find(([, holds]) => !holds());
-      if (failed) {
+      const failure = (check: string) => {
         // Raw cell markup avoids a second decoding failure hiding this one.
         const rawCells = (name: string) =>
           JSON.stringify(
             cellMatches(name).map((match) => (match[1] ?? "").slice(0, 200)),
           );
+        return (
+          `row ${index} failed the ${check} check for store ${yardCode}, expecting ${expectedStore} and ${year === 0 ? "any year" : "year " + year}. ` +
+          `JSON ${JSON.stringify({ make, model, year: sourceYear, vin, unlabeled, store })}; HTML cells stock ${rawCells("stock")}, year ${rawCells("year")}, model ${rawCells("model")}, store ${rawCells("store")}, VIN buttons ${JSON.stringify(vins)}. `
+        );
+      };
+      const pageFailure = pageChecks.find(([, holds]) => !holds());
+      if (pageFailure)
         throw new Error(
-          `Nevada inventory has contradictory yard, year, VIN, stock or model identity: row ${index} failed the ${failed[0]} check for store ${yardCode}, expecting ${expectedStore} and ${year === 0 ? "any year" : "year " + year}. ` +
-            `JSON ${JSON.stringify({ make, model, year: sourceYear, vin, unlabeled, store })}; HTML cells stock ${rawCells("stock")}, year ${rawCells("year")}, model ${rawCells("model")}, store ${rawCells("store")}, VIN buttons ${JSON.stringify(vins)}. ` +
+          "Nevada inventory has contradictory yard, year, VIN, stock or model identity: " +
+            failure(pageFailure[0]) +
             "The whole page is rejected and the source run fails, so previously published Nevada inventory and the last validated checkpoint are preserved. " +
             `Re-POST /wp-json/pt1/v1/vehicle-stock for store ${yardCode} and years=${year} to see whether this row persists, then decide whether the source data or the parser contract changed.`,
         );
+      const rowFailure = rowChecks.find(([, holds]) => !holds());
+      if (rowFailure) {
+        const vinBound =
+          rowFailure[0] !== "VIN button count" &&
+          rowFailure[0] !== "VIN button value";
+        return {
+          status: "contradictory" as const,
+          contradiction: {
+            stock,
+            key: stock + ":" + vin.trim().toUpperCase(),
+            vin: vinBound ? vin.trim().toUpperCase() : null,
+            year: sourceYear,
+            message:
+              "Nevada withheld stock " +
+              stock +
+              " as a rejected donor because its rendered VIN, year or model contradicts its JSON identity: " +
+              failure(rowFailure[0]) +
+              "The rest of the page is kept, and the 10% rejection limit still fails the yard if such rows spread. " +
+              `Re-POST /wp-json/pt1/v1/vehicle-stock for store ${yardCode} and years=${year} to see whether this row persists.`,
+          },
+        };
       }
-      return {
+      const record: NvpapRecord = {
         make: make.trim(),
         model: model.trim(),
         year: sourceYear,
@@ -209,11 +260,22 @@ export function parseNvpapPage(
           return src === null ? [] : [decode(src)];
         }),
       };
+      return { status: "parsed" as const, record };
     },
   );
-  if (new Set(records.map((r) => r.stock)).size !== records.length)
+  const records = rows.flatMap((row) =>
+    row.status === "parsed" ? [row.record] : [],
+  );
+  const contradictions = rows.flatMap((row) =>
+    row.status === "contradictory" ? [row.contradiction] : [],
+  );
+  const stocks = [
+    ...records.map((record) => record.stock),
+    ...contradictions.map((contradiction) => contradiction.stock),
+  ];
+  if (new Set(stocks).size !== stocks.length)
     throw new Error("Nevada inventory repeated a stock number");
-  return records;
+  return { records, contradictions };
 }
 
 export function nvpapRecordKey(record: NvpapRecord): string {

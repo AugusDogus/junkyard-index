@@ -19,6 +19,7 @@ import {
 } from "./pickers-test-fixtures";
 import { pickersHash } from "./pickers-parser";
 import { fetchPickersInventory } from "./pickers-client";
+import { validationRejectionKind } from "./ingestion-validation";
 import { ProviderTurnDeferred } from "./provider-chunk-clock";
 import { runWithQueuedHost } from "./provider-host-test-support";
 import type { VinplusRecord } from "./vinplus-protocol";
@@ -551,6 +552,67 @@ test("closing drift, exact-query drift and callback failure return no advanced c
     ),
   ).rejects.toThrow("staging unavailable");
   expect(closing.cursor.phase).toBe("bookends");
+});
+
+test("a yard that adds or edits a vehicle mid-crawl is transient drift, so the source retries the same day", async () => {
+  const data = smallFixture();
+  const arrival = {
+    ...pickersTestRecord,
+    stock: "STK300000",
+    vin: "1FADP3E23EL300000",
+  };
+  const rejection = async (
+    fixture: ReturnType<typeof smallFixture>,
+  ): Promise<unknown> => {
+    spyOn(globalThis, "fetch").mockRestore();
+    transport(undefined, fixture);
+    return run(16).then(
+      () => {
+        throw new Error("Expected a Pickers rejection");
+      },
+      (error: unknown) => error,
+    );
+  };
+  const api = [
+    ...Array.from({ length: 40 }, (_, index) => ({
+      ...pickersTestRecord,
+      stock: "STK" + String(100000 + index),
+      vin: "1FADP3E23EL" + String(100000 + index),
+    })),
+    { ...pickersTestRecord, stock: "STK200000", vin: "invalid" },
+    { ...pickersTestRecord, stock: "STK200002", vin: "1FADP3E23EL200002" },
+    { ...pickersTestRecord, stock: "STK200003", vin: "1FADP3E23EL200003" },
+  ];
+  // The exact first query, repeated after the closing native reads, now
+  // lists a vehicle that arrived during the crawl.
+  const added = await rejection({
+    ...data,
+    firstBookend: pickersTestSearch([...api, arrival]),
+  });
+  expect(String(added)).toContain(
+    "Exact query bookend introduced a new stock STK300000",
+  );
+  expect(validationRejectionKind(added)).toBe("transient");
+
+  const edited = await rejection({
+    ...data,
+    firstBookend: data.firstBookend.replace(
+      '"color":"BLACK"',
+      '"color":"BLUE"',
+    ),
+  });
+  expect(String(edited)).toContain("Repeated stock changed a whole record");
+  expect(validationRejectionKind(edited)).toBe("transient");
+
+  const closing = await rejection({
+    ...data,
+    native: data.native.map((item) => ({
+      ...item,
+      closing: item.closing.replace("L4, 2.0L", "L4, 3.0L"),
+    })),
+  });
+  expect(String(closing)).toContain("Closing native inventory changed");
+  expect(validationRejectionKind(closing)).toBe("transient");
 });
 
 test("wrong year and wrong site fail before canonical callbacks", async () => {

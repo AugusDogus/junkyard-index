@@ -13,6 +13,7 @@ import {
   littletonTestSearch,
 } from "./littleton-test-fixtures";
 import type { LittletonCanonicalVehicle } from "./littleton-transform";
+import { validationRejectionKind } from "./ingestion-validation";
 import { runWithQueuedHost } from "./provider-host-test-support";
 import {
   LITTLETON_ANALYTICS_URL,
@@ -278,6 +279,52 @@ test("Littleton checks opening and closing context and durable counters", async 
     ),
   ).rejects.toThrow("prior inventory is preserved");
   expect(callbacks).toBe(0);
+});
+
+test("Littleton marks a yard publishing mid-crawl as transient drift so the source retries the same day", async () => {
+  const rejection = (cursor?: LittletonCursor, maxPages?: number) =>
+    run(cursor, maxPages).then(
+      () => {
+        throw new Error("Expected a Littleton rejection");
+      },
+      (error: unknown) => error,
+    );
+  // The website table and the VinPlus counts publish separately, so one
+  // context read can see the new table with the old counts.
+  mock({
+    rewrite: (body, kind) =>
+      kind === "analytics"
+        ? littletonTestAnalytics([littletonTestRecord])
+        : body,
+  });
+  const unreconciled = await rejection();
+  expect(String(unreconciled)).toContain(
+    "Official stock/year table (2 stocks) does not reconcile with native active inventory counts (1 stock); year 2005: table 2, counts 1",
+  );
+  expect(validationRejectionKind(unreconciled)).toBe("transient");
+
+  mock();
+  const first = await run(undefined, 1);
+  if (first.cursor.phase !== "queries")
+    throw new Error("Expected query checkpoint");
+  mock({
+    rewrite: (body, kind) =>
+      kind === "inventory" ? body.replace("<td>35</td>", "<td>36</td>") : body,
+  });
+  const resumed = await rejection(first.cursor);
+  expect(String(resumed)).toContain("changed during the crawl");
+  expect(validationRejectionKind(resumed)).toBe("transient");
+
+  // A vehicle moved rows between the opening and closing context reads.
+  mock({
+    rewrite: (body, kind, ordinal) =>
+      kind === "inventory" && ordinal === 2
+        ? body.replace("<td>35</td>", "<td>36</td>")
+        : body,
+  });
+  const closing = await rejection();
+  expect(String(closing)).toContain("changed during the crawl");
+  expect(validationRejectionKind(closing)).toBe("transient");
 });
 
 test("Littleton rejects corrupted prior VINs, native fingerprints and receipt hashes before requests", async () => {
