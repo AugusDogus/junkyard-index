@@ -1107,6 +1107,8 @@ async function reconcileBatch(
     stage === "project_changes" ||
     stage === "full_reindex_prepare" ||
     stage === "full_reindex_load" ||
+    stage === "full_reindex_inplace_load" ||
+    stage === "full_reindex_inplace_sweep" ||
     stage === "full_reindex_publish" ||
     stage === "full_reindex_move_pending" ||
     stage === "full_reindex_publish_failed" ||

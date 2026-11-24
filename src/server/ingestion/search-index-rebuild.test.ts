@@ -464,6 +464,70 @@ describe("search index rebuild edges", () => {
     }
   });
 
+  test("a copy Algolia refuses over quota is deleted and waits on the record cap instead of retrying", async () => {
+    const { client, database, clock, context, calls, indices } =
+      await liveSetup({
+        fail: (op, indexName) =>
+          op === "save" && indexName.startsWith(`${INDEX}__generation_`)
+            ? algoliaFailure(
+                "QuotaExceeded",
+                "You have exceeded your Record quota",
+                indexName,
+              )
+            : null,
+      });
+    try {
+      await insertVehicles(database, 5);
+      await SearchIndexGenerations.request(database, {
+        environment: "production",
+        indexName: INDEX,
+        reason: "operator",
+        now: NOW,
+      });
+      expect(await SearchProjector.step(context)).toMatchObject({
+        status: "rebuild_prepared",
+      });
+      const loading = (await generations(client)).find(
+        (generation) => generation.status === "loading",
+      );
+      expect(await SearchProjector.step(context)).toMatchObject({
+        status: "record_cap",
+        generationId: loading?.id,
+        vehicles: 5,
+        cap: SEARCH_RECORD_CAP,
+        retryAt: new Date(NOW.getTime() + 15 * MINUTE).toISOString(),
+      });
+      // The copy's records are freed, and one rebuild stays requested.
+      expect(
+        [...indices.keys()].filter((name) => name.includes("__generation_")),
+      ).toEqual([]);
+      expect(
+        (await generations(client))
+          .map((generation) => String(generation.status))
+          .sort(),
+      ).toEqual(["discarded", "live", "requested"]);
+      // The circuit stays closed and new arrivals reach the live index.
+      await database.insert(vehicle).values(vehicleRow("NEW"));
+      await insertRunWithChanges(
+        client,
+        { id: "run", status: "success", stage: "released", activeSlot: null },
+        [["NEW", "upsert"]],
+      );
+      calls.length = 0;
+      clock.now = new Date(NOW.getTime() + MINUTE);
+      expect(await SearchProjector.step(context)).toMatchObject({
+        status: "projected",
+      });
+      expect(calls[0]).toEqual({
+        op: "save",
+        indexName: INDEX,
+        objectIDs: ["NEW"],
+      });
+    } finally {
+      client.close();
+    }
+  });
+
   test("waits for a live index to copy settings from instead of building one with defaults", async () => {
     const { client, database, calls, context, indices } = await setup();
     try {
