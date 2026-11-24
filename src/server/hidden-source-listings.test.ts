@@ -67,7 +67,31 @@ function run(steps: string): unknown {
         },
       },
     }));
+    const fords = (list) =>
+      globalThis.yards.filter((yard) => shown(yard.source, list.list));
+    mock.module("~/server/inventory-snapshot", () => ({
+      InventorySnapshot: {
+        makeCounts: async (_db, list) =>
+          fords(list).map((yard) => ({ make: "Ford", count: yard.vehicleCount })),
+        makeModels: async (_db, _makeKey, list) =>
+          fords(list).map((yard) => ({
+            source: yard.source, code: yard.code, make: "Ford", model: "F-150",
+            count: yard.vehicleCount, minYear: 2000, maxYear: 2010,
+          })),
+      },
+    }));
+    mock.module("~/server/search-filter-options", () => ({
+      SearchFilterOptions: {
+        load: async (_db, list) => ({ yards: fords(list).map((yard) => YardPath.key(yard)) }),
+      },
+    }));
+    mock.module("~/server/api/trpc", () => ({
+      createTRPCRouter: (routes) => routes,
+      publicProcedure: { query: (resolve) => resolve },
+    }));
     const inventory = await import("./src/server/yard-inventory.ts");
+    const models = await import("./src/server/vehicle-models.ts");
+    const { searchRouter } = await import("./src/server/api/routers/search.ts");
     const { getHomepageInventory } = await import("./src/lib/homepage-inventory.ts");
     const { SOURCE_CONTROL_CACHE_TAG } = await import("./src/server/source-control/hidden-sources-loader.ts");
     const yard = (source, code, name, city, state, arrivals) => ({
@@ -79,18 +103,25 @@ function run(steps: string): unknown {
       yard("six03", "2", "603 Auto Salvage - Nashua", "Nashua", "NH", 3),
     ];
     globalThis.granite = yard("row52", "7", "Granite Pull", "Keene", "NH", 2);
-    // What each listing shows, by yard key, after only the source-control
-    // tag expires.
+    // What each listing shows, by yard key (make totals as a sum), after
+    // only the source-control tag expires.
     globalThis.listings = async () => {
       const names = (list) => list.map((entry) => YardPath.key(entry)).sort();
       const region = await inventory.findRegionYards("new-hampshire");
       const chain = await inventory.findChain("603-auto-salvage");
+      const makes = await models.getMakes();
+      const rollup = (
+        await Promise.all(makes.map((make) => models.getMakeModels(make)))
+      ).flat().flatMap((model) => model.yards);
       return {
         directory: names(await inventory.getYardDirectory()),
         state: region ? names(region.yards) : null,
         stateNew: await inventory.getRegionNewCount("NH"),
         chain: chain ? names(chain.yards) : null,
         homepage: names((await getHomepageInventory()).yards),
+        makeCount: makes.reduce((sum, make) => sum + make.count, 0),
+        makeRollup: names(rollup),
+        filterYards: (await searchRouter.filterOptions()).yards.sort(),
       };
     };
     globalThis.change = (next) => {
@@ -129,6 +160,9 @@ describe("hiding or showing a source", () => {
       stateNew: 10,
       chain: SIX03,
       homepage: ["row52:7", ...SIX03],
+      makeCount: 300,
+      makeRollup: ["row52:7", ...SIX03],
+      filterYards: ["row52:7", ...SIX03],
     });
   });
 
@@ -149,6 +183,9 @@ describe("hiding or showing a source", () => {
       stateNew: 2,
       chain: null,
       homepage: ["row52:7"],
+      makeCount: 100,
+      makeRollup: ["row52:7"],
+      filterYards: ["row52:7"],
     });
   });
 });
