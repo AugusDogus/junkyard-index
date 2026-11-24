@@ -122,19 +122,31 @@ async function copyCapacity(runId: string): Promise<RecordCapacity> {
 }
 
 /**
- * Sends a run from the copy path to the in-place rebuild and removes any
- * copy it started. Resolves null when the run is no longer in `from`.
+ * Sends a run from the copy path to the in-place rebuild. Its partial copy
+ * is deleted first, since the in-place load needs those records; when that
+ * fails the run stays on the copy path, so the retried step (refused for
+ * quota again) deletes and routes again. Resolves null when the run is no
+ * longer in `from`.
  */
 async function routeInPlace(
   runId: string,
   from: readonly string[],
   reason: string,
 ): Promise<DurableAlgoliaProjectionBatchResult | null> {
+  const copy = await deleteRebuildIndex(
+    getAlgoliaAdminClient(),
+    ALGOLIA_INDEX_NAME,
+    runId,
+  );
+  if (copy === "blocked") {
+    throw new Error(
+      `Full reindex ${runId} must rebuild ${ALGOLIA_INDEX_NAME} in place (${reason}), but its partial copy ${rebuildIndexName(runId, ALGOLIA_INDEX_NAME)} could not be deleted because the Algolia app is blocked. Live search and Turso are intact. The step retries and switches in place once Algolia accepts writes again.`,
+    );
+  }
   if (!(await InPlaceRebuild.route({ database, runId, from }))) return null;
   console.warn(
     `[Algolia] Full reindex ${runId} rebuilds ${ALGOLIA_INDEX_NAME} in place instead of copying it: ${reason} Live search stays up and Turso is unchanged; records are rewritten in VIN order, then stale ones are swept.`,
   );
-  await deleteRebuildIndex(getAlgoliaAdminClient(), ALGOLIA_INDEX_NAME, runId);
   return {
     status: "paused",
     stage: "full_reindex_inplace_load",
@@ -443,6 +455,59 @@ async function projectDurableAlgoliaBatch(
   }
 }
 
+/**
+ * Algolia refused a rebuild write over its record quota. A copy fails the
+ * same way on every retry, so it is never discarded and restarted: the run
+ * rebuilds in place instead. An in-place rebuild cannot shrink further, so
+ * it fails with the counts and recovery, keeping its cursor; the failure
+ * counts toward abandoning the run. Resolves null for any other stage.
+ */
+async function overRecordQuota(
+  runId: string,
+  detail: string,
+  error: unknown,
+): Promise<DurableAlgoliaProjectionBatchResult | null> {
+  const [run] = await database
+    .select({ stage: ingestionRun.stage })
+    .from(ingestionRun)
+    .where(eq(ingestionRun.id, runId))
+    .limit(1);
+  const stage = run?.stage;
+  if (stage === "full_reindex_prepare" || stage === "full_reindex_load") {
+    const capacity = await copyCapacity(runId).then(
+      (read) => RecordCapacity.describe(read),
+      () => "The record count could not be read.",
+    );
+    return routeInPlace(
+      runId,
+      ["full_reindex_prepare", "full_reindex_load"],
+      `Algolia refused the copy (${detail}). ${capacity}`,
+    );
+  }
+  if (stage === undefined || !isInPlaceStage(stage)) return null;
+  const counts = await Promise.all([
+    listIndexEntries(),
+    database.select({ vehicles: count() }).from(vehicle),
+  ]).then(
+    ([listing, [counted]]) =>
+      RecordCapacity.describeInPlace({
+        listing,
+        indexName: ALGOLIA_INDEX_NAME,
+        vehicles: counted?.vehicles ?? 0,
+        limit: RecordCapacity.limit(),
+      }),
+    () => "The record counts could not be read.",
+  );
+  throw new Error(
+    `In-place search rebuild ${runId} at ${stage} was refused by Algolia over the record quota (${detail}). ${counts} Live search and Turso are intact, and the rebuild keeps its cursor. Free records (delete leftover ${ALGOLIA_INDEX_NAME}__rebuild_* copies or other unneeded indices) or raise the Algolia plan and ALGOLIA_RECORD_LIMIT; the step retries, and repeated failures abandon the run, leaving the rebuild owed by the next run.`,
+    { cause: error },
+  );
+}
+
+function isInPlaceStage(stage: string): stage is InPlaceStage {
+  return InPlaceRebuild.stages.some((inPlace) => inPlace === stage);
+}
+
 export async function runDurableAlgoliaProjectionBatch(
   runId: string,
   options?: { configureIndex?: boolean },
@@ -474,22 +539,16 @@ export async function runDurableAlgoliaProjectionBatch(
     if (result.status === "stopped") await cleanupInactiveRunRebuild(cleanup);
     return result;
   } catch (error) {
-    // A copy over the record cap fails the same way on every retry, so it is
-    // never discarded and restarted: the run rebuilds in place instead.
     const failure = AlgoliaError.classify(
       { operation: "full reindex", indexName: ALGOLIA_INDEX_NAME },
       error,
     );
-    if (failure._tag === "QuotaExceeded") {
-      const capacity = await copyCapacity(runId).then(
-        (read) => RecordCapacity.describe(read),
-        () => "The record count could not be read.",
-      );
-      const routed = await routeInPlace(
-        runId,
-        ["full_reindex_prepare", "full_reindex_load"],
-        `Algolia refused the copy (${failure.detail}). ${capacity}`,
-      );
+    // Operation or search quotas say nothing about room for records.
+    if (
+      failure._tag === "QuotaExceeded" &&
+      RecordCapacity.isRecordQuota(failure.detail)
+    ) {
+      const routed = await overRecordQuota(runId, failure.detail, error);
       if (routed) return routed;
     }
     try {

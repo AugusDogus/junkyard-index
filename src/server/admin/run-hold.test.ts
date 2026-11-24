@@ -139,6 +139,39 @@ describe("RunHold.assess", () => {
     expect(hold?.deployment).toEqual({ kind: "unknown" });
   });
 
+  test("each run counts the other active runs off current code", () => {
+    const holds = RunHold.assess({
+      now,
+      deployments: {
+        status: "read",
+        current: "dpl_new",
+        byWorkflowRun: new Map([
+          ["wrun-stuck", "dpl_old"],
+          ["wrun-waiter-1", "dpl_old"],
+          ["wrun-waiter-2", "dpl_older"],
+          ["wrun-fresh", "dpl_new"],
+        ]),
+      },
+      activeRuns: [
+        active({ runId: "stuck", stage: "full_reindex_load" }),
+        active({ runId: "waiter-1", stage: "validated" }),
+        active({ runId: "waiter-2", stage: "validated" }),
+        active({ runId: "fresh" }),
+        active({ runId: "unlisted" }),
+      ],
+    });
+    expect(holds[0]?.otherCode).toEqual({
+      other: 2,
+      deploymentIds: ["dpl_old", "dpl_older"],
+      unknown: 1,
+    });
+    expect(holds[3]?.otherCode).toEqual({
+      other: 3,
+      deploymentIds: ["dpl_old", "dpl_older"],
+      unknown: 1,
+    });
+  });
+
   test("a run across every source has no source to run again", () => {
     const [hold] = RunHold.assess({
       now,
@@ -270,6 +303,8 @@ describe("RunHold.attention", () => {
             source: "hollanderstores",
             stage: "reconcile_upsert",
             deployment: { kind: "other", deploymentId: "dpl_old" },
+            // The waiter's workflow is not in the listing.
+            otherCode: { other: 0, deploymentIds: [], unknown: 1 },
           },
         ],
       },

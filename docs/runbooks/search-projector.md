@@ -158,9 +158,14 @@ live.
 
 1. **Algolia accepts writes** (plan reset or upgrade). In the dashboard, check
    the app's total records: the bootstrap copy needs about as many again as
-   `vehicle` has rows (about 430,000). Leftover `vehicles__rebuild_*` copies
-   are swept automatically before the copy; a standard (non-virtual) replica
-   counts in full.
+   `vehicle` has rows (519,152 on Nov 24). Leftover `vehicles__rebuild_*`
+   copies are swept automatically before the copy; a standard (non-virtual)
+   replica counts in full. **Do not cut over while the copy is over the
+   cap.** The bootstrap then waits on `record_cap` indefinitely, so runs
+   handed off mid-rebuild never clear `full_reindex_required` and
+   saved-search alert checks stall. Raise the plan and `ALGOLIA_RECORD_LIMIT`
+   first, and let any inline in-place rebuild
+   ([Full reindex](full-reindex.md)) publish before switching.
 2. **Keep `ingestion-skip-search-publication` on.** Runs from deployments
    before the projector then release without calling Algolia. It is ignored
    while decoupled; leave it on until the inline path is removed, so a

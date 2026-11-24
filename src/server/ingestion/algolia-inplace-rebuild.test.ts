@@ -285,6 +285,63 @@ describe("in-place full reindex", () => {
     }
   });
 
+  test("deletes the run's own partial copy before loading, so its records are free", async () => {
+    const turso = vins("VIN", 10);
+    // 5 live records plus a 10-record copy left behind: the 5 new vehicles
+    // fit under 16 only once the copy is gone.
+    const setupResult = await setup({
+      turso,
+      live: turso.slice(0, 5),
+      limit: 16,
+    });
+    const { client, algolia } = setupResult;
+    try {
+      algolia.seed(`${INDEX}__rebuild_${RUN}`, vins("COPY", 10));
+
+      const { result } = await drive(setupResult);
+
+      expect(result.status).toBe("complete");
+      expect(algolia.indices.has(`${INDEX}__rebuild_${RUN}`)).toBe(false);
+      expect(algolia.objectIDs(INDEX)).toEqual(turso);
+    } finally {
+      client.close();
+    }
+  });
+
+  test("does not publish when the index ends with fewer records than vehicles", async () => {
+    const turso = vins("VIN", 3);
+    const setupResult = await setup({ turso, live: [], limit: 10 });
+    const { client, algolia } = setupResult;
+    // A vehicle whose save never lands.
+    const context = {
+      ...setupResult.context,
+      project: async (rows: Array<typeof vehicle.$inferSelect>) =>
+        rows.filter((row) => row.vin !== "VIN00001").map(mapDbVehicleToAlgolia),
+    };
+    try {
+      const failure = await drive({ ...setupResult, context }).then(
+        () => null,
+        (error: unknown) => String(error),
+      );
+
+      expect(failure).toContain(
+        "finished its sweep with 2 records in vehicles for 3 Turso vehicles",
+      );
+      expect(algolia.objectIDs(INDEX)).toEqual(["VIN00000", "VIN00002"]);
+      expect(await runRow(client)).toMatchObject({
+        stage: "full_reindex_inplace_sweep",
+        status: "running",
+        fullReindexRequired: 1,
+      });
+      const changes = await client.execute(
+        "select count(*) as pending from vehicle_change_v2 where processed_at is null",
+      );
+      expect(Number(changes.rows[0]?.pending)).toBe(1);
+    } finally {
+      client.close();
+    }
+  });
+
   test("a step for a run that no longer holds the stage writes no cursor", async () => {
     const setupResult = await setup({
       turso: vins("VIN", 3),
@@ -349,6 +406,33 @@ describe("RecordCapacity", () => {
         limit: 1_000_000,
       }).kind,
     ).toBe("over_cap");
+  });
+
+  test("routes only record quota refusals, not operation quotas", () => {
+    expect(
+      RecordCapacity.isRecordQuota(
+        "Record quota exceeded, change plan or delete records.",
+      ),
+    ).toBe(true);
+    expect(
+      RecordCapacity.isRecordQuota("You have exceeded your Record quota"),
+    ).toBe(true);
+    expect(RecordCapacity.isRecordQuota("Operations quota exceeded")).toBe(
+      false,
+    );
+  });
+
+  test("describes an in-place shortfall with the live index, vehicles and other indices", () => {
+    expect(
+      RecordCapacity.describeInPlace({
+        listing,
+        indexName: "vehicles",
+        vehicles: 519_152,
+        limit: 1_000_000,
+      }),
+    ).toBe(
+      "The live index vehicles holds 519082 records, Turso has 519152 vehicles, other indices hold 481000 (vehicles__rebuild_run: 481000), and the cap is 1000000.",
+    );
   });
 
   test("reads ALGOLIA_RECORD_LIMIT, defaulting to the free plan's cap", () => {

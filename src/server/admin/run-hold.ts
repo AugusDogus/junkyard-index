@@ -41,6 +41,20 @@ export type CommitQueue =
   | { status: "empty" }
   | { status: "waiting"; runs: number; since: Date; waitedMs: number };
 
+/**
+ * The other active runs not known to run the current deployment's code.
+ * After a forced stop, the first of them to claim the commit performs the
+ * full search rebuild with its own, possibly older, code.
+ */
+export type OtherCodeRuns = {
+  /** Runs on another deployment. */
+  other: number;
+  /** Their deployment ids, each once. */
+  deploymentIds: string[];
+  /** Runs whose deployment could not be read. */
+  unknown: number;
+};
+
 /** One active run, with what it holds and the code it runs. */
 export type ActiveRunHold = {
   run: ActiveRun;
@@ -48,6 +62,8 @@ export type ActiveRunHold = {
   /** Null for a run across every source (a local `runIngestion`). */
   source: IngestionSource | null;
   deployment: RunDeployment;
+  /** Every other active run off the current deployment's code. */
+  otherCode: OtherCodeRuns;
   /** Set only on the run that holds the shared commit. */
   commit: {
     since: Date;
@@ -66,6 +82,8 @@ export type StoppableRun = {
   stage: string;
   /** Today's retries run the pass's code, so an old run's may too. */
   deployment: RunDeployment;
+  /** Whoever performs a forced stop's full rebuild may run this code. */
+  otherCode: OtherCodeRuns;
 };
 
 /** A run problem for the overview's Needs attention list. */
@@ -130,7 +148,32 @@ function stoppable(hold: ActiveRunHold): StoppableRun {
     source: hold.source,
     stage: hold.run.stage,
     deployment: hold.deployment,
+    otherCode: hold.otherCode,
   };
+}
+
+function otherCodeOf(
+  runId: string,
+  deployments: ReadonlyMap<string, RunDeployment>,
+): OtherCodeRuns {
+  const ids = new Set<string>();
+  let other = 0;
+  let unknown = 0;
+  for (const [id, deployment] of deployments) {
+    if (id === runId) continue;
+    switch (deployment.kind) {
+      case "other":
+        other += 1;
+        ids.add(deployment.deploymentId);
+        break;
+      case "unknown":
+        unknown += 1;
+        break;
+      case "current":
+        break;
+    }
+  }
+  return { other, deploymentIds: [...ids].sort(), unknown };
 }
 
 /** A run's source page, or the overview for a run across every source. */
@@ -239,6 +282,12 @@ export const RunHold = {
     deployments: WorkflowDeployments;
   }): ActiveRunHold[] {
     const queue = queueOf(input.now, input.activeRuns);
+    const deployments = new Map(
+      input.activeRuns.map((run) => [
+        run.runId,
+        deploymentOf(run, input.deployments),
+      ]),
+    );
     return input.activeRuns.map((run) => {
       const source = isIngestionSource(run.source) ? run.source : null;
       const since = run.commitStartedAt;
@@ -251,6 +300,7 @@ export const RunHold = {
             : INGESTION_SOURCE_DISPLAY_NAMES[source],
         source,
         deployment: deploymentOf(run, input.deployments),
+        otherCode: otherCodeOf(run.runId, deployments),
         commit:
           since === null
             ? null

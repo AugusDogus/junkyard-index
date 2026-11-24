@@ -3,7 +3,7 @@ import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { ingestionRun } from "~/schema";
 import { AlgoliaError } from "./algolia-error";
 
-interface RebuildDeletionClient {
+export interface RebuildDeletionClient {
   deleteIndex(params: { indexName: string }): Promise<{ taskID: number }>;
   waitForTask(params: { indexName: string; taskID: number }): Promise<unknown>;
 }

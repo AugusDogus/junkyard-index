@@ -2,6 +2,11 @@ import { and, asc, count, eq, gt, inArray, isNull } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { z } from "zod";
 import { ingestionRun, vehicle } from "~/schema";
+import {
+  deleteRebuildIndex,
+  rebuildIndexName,
+  type RebuildDeletionClient,
+} from "./algolia-rebuild-index";
 import { releaseFullReindex } from "./durable-algolia-publish";
 import type { AlgoliaVehicleRecord } from "./types";
 
@@ -22,8 +27,11 @@ export type InPlaceStage =
   | "full_reindex_inplace_load"
   | "full_reindex_inplace_sweep";
 
-/** The Algolia admin calls an in-place rebuild makes. Browse is not search. */
-export interface InPlaceRebuildClient {
+/**
+ * The Algolia admin calls an in-place rebuild makes. Browse is not search.
+ * Deletion removes a copy the run started before it switched in place.
+ */
+export interface InPlaceRebuildClient extends RebuildDeletionClient {
   saveObjects(params: {
     indexName: string;
     objects: Array<Record<string, unknown>>;
@@ -133,6 +141,21 @@ async function load(
   context: InPlaceRebuildContext,
   cursor: string | null,
 ): Promise<InPlaceRebuildStepResult> {
+  if (cursor === null) {
+    // A copy this run started before switching in place holds records the
+    // load needs. Routing deletes it; this also covers a delete that failed
+    // after routing. A missing copy counts as deleted.
+    const copy = await deleteRebuildIndex(
+      context.algolia,
+      context.indexName,
+      context.runId,
+    );
+    if (copy === "blocked") {
+      throw new Error(
+        `In-place search rebuild ${context.runId} could not delete its partial copy ${rebuildIndexName(context.runId, context.indexName)} before loading, because the Algolia app is blocked. Live search and Turso are intact and nothing was loaded; the step retries and loads once Algolia accepts writes again.`,
+      );
+    }
+  }
   const rows = await context.database
     .select()
     .from(vehicle)
@@ -279,9 +302,12 @@ async function sweep(
       recordsProcessed: objectIDs.length,
     };
   }
+  // Every load batch waited for its save, so fewer records than vehicles
+  // means vehicles are missing. Publishing would clear the owed rebuild and
+  // the change rows that could restore them.
   if (records !== null && records < vehicles) {
-    console.warn(
-      `[Algolia] In-place rebuild ${context.runId} finished with ${records} records in ${context.indexName} for ${vehicles} Turso vehicles. Every vehicle was saved during the load; the difference is likely index lag. Publishing anyway.`,
+    throw new Error(
+      `In-place search rebuild ${context.runId} finished its sweep with ${records} records in ${context.indexName} for ${vehicles} Turso vehicles, so ${vehicles - records} vehicles are missing from search. It was not published: full_reindex_required and the unprocessed change rows stay. Live search and Turso are otherwise intact. The step retries this check and the run is abandoned after repeated failures, so the next run rebuilds again; if it repeats, compare the index's objectIDs with the vehicle table.`,
     );
   }
   const published = await releaseFullReindex({

@@ -311,6 +311,8 @@ function refusedOverQuota(
   error: AlgoliaError,
 ): RebuildEffect {
   return Effect.gen(function* () {
+    // Free the records first, so a failed count below cannot keep the copy.
+    yield* context.writer.deleteIndex(generation.tempIndexName);
     const listing = yield* context.writer.listIndices();
     const [counted] = yield* Effect.promise(() =>
       context.database.select({ vehicles: count() }).from(vehicle),
@@ -321,7 +323,6 @@ function refusedOverQuota(
       vehicles: counted?.vehicles ?? 0,
       limit: RecordCapacity.limit(),
     });
-    yield* context.writer.deleteIndex(generation.tempIndexName);
     yield* discard(
       context,
       generation,
