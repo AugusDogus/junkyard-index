@@ -36,6 +36,15 @@ export function YardMap({ yards, vehicleCount }: YardMapProps) {
   // back to the approximate one; until they load, the approximate one sorts.
   const [chosenLocation, setLocation] = useState<YardLocation | null>(null);
   const location = chosenLocation ?? approximateLocation;
+  // The IP location arrives after hydration and only reorders the directory,
+  // so the visitor keeps their scroll and focus. A location they chose (saved
+  // or shared) differs from it and starts the directory from the top.
+  const chosenKey =
+    chosenLocation &&
+    (chosenLocation.lat !== approximateLocation?.lat ||
+      chosenLocation.lng !== approximateLocation.lng)
+      ? `${chosenLocation.lat}:${chosenLocation.lng}`
+      : "approximate";
   const [locationMode, setLocationMode] = useState<
     "deferred" | "ready" | "request"
   >("deferred");
@@ -209,7 +218,7 @@ export function YardMap({ yards, vehicleCount }: YardMapProps) {
               </div>
             </div>
             <YardDirectory
-              key={`${deferredFilter}:${location?.lat}:${location?.lng}`}
+              key={`${deferredFilter}:${chosenKey}`}
               yards={filtered}
               selected={selected}
               onSelect={setSelected}
