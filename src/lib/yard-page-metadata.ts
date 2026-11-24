@@ -101,11 +101,13 @@ export function yardMakeMetadata(
     // search result. One model at one yard never is: about 21,000 would pass
     // that threshold and dilute crawling of the yard, make and model hubs
     // that already answer those searches. Their links are still followed.
-    robots:
-      "model" in make ||
-      !MakeInventory.indexable({ count: total }, YARD_MAKE_INDEXABLE_MINIMUM)
-        ? { index: false, follow: true }
-        : undefined,
+    // Indexable pages leave robots out: an undefined key would still
+    // replace the layout's googlebot preview limits.
+    ...(("model" in make ||
+      !MakeInventory.indexable(
+        { count: total },
+        YARD_MAKE_INDEXABLE_MINIMUM,
+      )) && { robots: { index: false, follow: true } }),
     openGraph: { ...SITE_OPEN_GRAPH, type: "website", url, title, description },
     twitter: { ...SITE_TWITTER, title, description },
   };
