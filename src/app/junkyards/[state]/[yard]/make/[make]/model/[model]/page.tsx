@@ -12,9 +12,9 @@ import { getMakePageData, getMakeSlugs } from "~/server/vehicle-models";
 import { getHiddenSources } from "~/server/source-control/hidden-sources-loader";
 import { getYardMakeVehicles, getYardPageData } from "~/server/yard-inventory";
 
-// One model at one yard, narrowed from the yard's cached inventory, so it
-// reads nothing new. Rendered on first request and rebuilt with the yard's
-// pages after each daily pass; this is the fallback lifetime.
+// One model at one yard, narrowed from the yard's cached slices. Rendered on
+// first request and rebuilt with the yard's pages after each daily pass;
+// this is the fallback lifetime.
 export const revalidate = 86400;
 export const dynamicParams = true;
 
@@ -40,12 +40,13 @@ async function load(params: Promise<Params>) {
       VehicleName.sameSlug(candidate.slug, modelSlug),
   );
   if (!model) return null;
-  const vehicles = YardInventory.forModel(
-    await getYardMakeVehicles(data.yard, data.summary, make.key),
+  const { summary, data: makeVehicles } = await getYardMakeVehicles(
+    data.yard,
+    data.summary,
     make.key,
-    model.key,
   );
-  return { data, make, model, makeSlug, modelSlug, vehicles };
+  const vehicles = YardInventory.forModel(makeVehicles, make.key, model.key);
+  return { data, summary, make, model, makeSlug, modelSlug, vehicles };
 }
 
 export async function generateMetadata({
@@ -75,7 +76,7 @@ export default async function YardModelPage({
 }) {
   const loaded = await load(params);
   if (!loaded) notFound();
-  const { data, make, model, makeSlug, modelSlug, vehicles } = loaded;
+  const { data, summary, make, model, makeSlug, modelSlug, vehicles } = loaded;
   // Other spellings and aliases ("chevy") move to the make's own slug.
   if (makeSlug !== make.slug || modelSlug !== model.slug) {
     permanentRedirect(
@@ -92,10 +93,10 @@ export default async function YardModelPage({
         total={vehicles.length}
         newArrivals={YardInventory.newArrivalsFrom(
           YardInventory.arrivals(vehicles),
-          YardInventory.yardArrivals(data.summary),
+          YardInventory.yardArrivals(summary),
           new Date().toISOString(),
         )}
-        makes={data.summary.makes}
+        makes={summary.makes}
         makeSlugs={await getMakeSlugs()}
         hiddenSources={await getHiddenSources()}
         publishedAt={data.publishedAt}
