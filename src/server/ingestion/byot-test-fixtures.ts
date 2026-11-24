@@ -1,4 +1,9 @@
-import { ByotCursor, byotQueryKey, type ByotCache } from "./byot-cursor";
+import {
+  ByotCursor,
+  byotLegacySliceQueries as legacySliceQueries,
+  byotQueryKey,
+  type ByotCache,
+} from "./byot-cursor";
 import { BYOT_QUERIES } from "./byot-directory";
 import { ByotRecordSchema } from "./byot-record";
 import { readFileSync } from "node:fs";
@@ -49,7 +54,7 @@ if (!missingF150)
 export const byotMissingF150 = missingF150;
 
 /** Queries one daily slice of the retired weekly sweep searched. */
-export const byotLegacySliceQueries = Math.ceil(BYOT_QUERIES.length / 7);
+export const byotLegacySliceQueries = legacySliceQueries(BYOT_QUERIES.length);
 /** A published terminal cursor whose run searched `width` queries from
  * `offset`. Pass `byotLegacySliceQueries` for a cursor published by the
  * weekly sweep that preceded daily full sweeps. */

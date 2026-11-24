@@ -48,15 +48,21 @@ Each daily run searches all 1,338 controls at every yard, so arrivals and
 departures of cars without photos appear the same day. That is 6,695 requests
 per run, including the five feeds. All requests are serial with a two-second
 pause after body completion, even on failure. At the measured 0.6-0.7 s per
-response, source runtime is about five hours. A chunk sends at most 64
-requests, stops starting new ones once a request at its full deadline plus
-pause and the snapshot could overrun its four minutes (usually after about 60
-requests), and validates its checkpoint once rather than after each request.
-A resumed daily run older than eight hours fails and must restart from its
-preceding publication. Each response has a combined
-45-second request/body deadline and a 2 MiB cap, with no automatic retries.
-HTTP 429, redirects, partial responses, wrong MIME types and unowned URLs stop
-the run. Resume only after the provider's Retry-After interval has elapsed.
+response, source runtime is about five hours, so the daily pass now waits for
+BYOT until about 12:00 UTC. A chunk normally ends at its cap of 64 requests.
+When responses are slow, it ends earlier, before a request at its full
+deadline plus pause and the snapshot could overrun its four minutes. It
+validates its checkpoint once rather than after each request. When a request
+fails after others in the chunk succeeded, the chunk returns the work before
+it, and the next chunk sends the failed request first. A resumed daily run
+older than eight hours fails and must restart from its preceding publication.
+A failed run also restarts from that publication, so each attempt costs the
+full five hours. Retries start two hours after a failure, so a failure after
+about 11:00 UTC leaves the retry finishing after the 18:00 UTC alert check.
+Each response has a combined 45-second request/body deadline and a 2 MiB cap,
+with no automatic retries. HTTP 429, redirects, partial responses, wrong MIME
+types and unowned URLs stop the run. Resume only after the provider's
+Retry-After interval has elapsed.
 
 Today's arrivals feed is authoritative for photographed stock, including any
 corrected VIN or model. A photographed car leaves search the day it leaves the
@@ -73,7 +79,8 @@ refresh. Published cursors from the earlier weekly sweep (a seventh of the
 directory per run) still seed the next daily run.
 
 The durable adapter loads only the latest accepted, search-published BYOT
-terminal cursor. Failed, partial or unpublished runs cannot seed the next run. Checkpoints bind the qualified directory and yard metadata, validate
+terminal cursor. Failed, partial or unpublished runs cannot seed the next run.
+Checkpoints bind the qualified directory and yard metadata, validate
 the contiguous per-yard search prefix, carry previous published yard counts,
 and have a 16 MiB cap. Snapshot cleanup preserves terminal source cursors.
 Provider imports stay inside step-side ingestion modules, outside Workflow

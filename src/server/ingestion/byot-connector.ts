@@ -67,7 +67,7 @@ export function streamByotInventory<E, R>(
       return yield* Effect.fail(
         ByotResult.error(
           "request budget",
-          `Use an integer from 1 to ${BYOT_CHUNK_REQUESTS}`,
+          `Received ${budget}; use an integer from 1 to ${BYOT_CHUNK_REQUESTS}. No request was sent`,
         ),
       );
     const chunkStartedAt = yield* Clock.currentTimeMillis;
@@ -89,13 +89,31 @@ export function streamByotInventory<E, R>(
       return yield* Effect.fail(
         ByotResult.error(
           "daily run deadline",
-          `${BYOT_MAX_RUN_MS / 3_600_000}-hour limit exceeded; restart from the prior published sweep checkpoint`,
+          `${BYOT_MAX_RUN_MS / 3_600_000}-hour limit exceeded, so this run's search evidence is too old to publish. Published inventory is unchanged; restart from the prior published sweep checkpoint`,
         ),
       );
-    // A failed request discards the whole chunk, so requests advance one
-    // working state and the chunk seals and validates it once at the end.
+    // Requests advance one working state, which the chunk seals and
+    // validates once at the end. After a request has succeeded, a failed one
+    // ends the chunk with the work before it, so a step retry does not resend
+    // it; the next chunk sends the failed request first and fails if it fails
+    // again.
     let state: ByotCursorState = cursor;
     let pagesProcessed = 0;
+    const read = (
+      url: string,
+      code: string,
+      kind: "arrivals" | "search",
+      context: string,
+    ) =>
+      Effect.either(
+        options
+          .readPage(url, code)
+          .pipe(
+            Effect.flatMap((raw) =>
+              unwrap(parseByotResponse(raw, kind, context)),
+            ),
+          ),
+      );
     while (
       state.phase !== "ready" &&
       state.phase !== "complete" &&
@@ -120,10 +138,17 @@ export function streamByotInventory<E, R>(
               "Arrival index is outside the native location list",
             ),
           );
-        const raw = yield* options.readPage(BYOT_ARRIVALS_URL, yard.code);
-        const records = yield* unwrap(
-          parseByotResponse(raw, "arrivals", yard.code),
+        const fetched = yield* read(
+          BYOT_ARRIVALS_URL,
+          yard.code,
+          "arrivals",
+          yard.code,
         );
+        if (fetched._tag === "Left") {
+          if (pagesProcessed > 0) break;
+          return yield* Effect.fail(fetched.left);
+        }
+        const records = fetched.right;
         const feeds = [...state.feeds, records];
         state =
           feeds.length === BYOT_YARDS.length
@@ -142,13 +167,17 @@ export function streamByotInventory<E, R>(
         const index =
           (state.sweepStart + Math.floor(state.progress / BYOT_YARDS.length)) %
           BYOT_QUERIES.length;
-        const raw = yield* options.readPage(
+        const fetched = yield* read(
           byotSearchUrl(yard.code, index),
           yard.code,
+          "search",
+          `${yard.code} query ${index}`,
         );
-        const records = yield* unwrap(
-          parseByotResponse(raw, "search", `${yard.code} query ${index}`),
-        );
+        if (fetched._tag === "Left") {
+          if (pagesProcessed > 0) break;
+          return yield* Effect.fail(fetched.left);
+        }
+        const records = fetched.right;
         const startedAt = state.startedAt;
         const query = byotQueryKey(index);
         const cache = state.cache.map((entries, i) =>
@@ -223,7 +252,10 @@ export function streamByotInventory<E, R>(
     Effect.timeoutFail({
       duration: BYOT_CHUNK_WORK_MS,
       onTimeout: () =>
-        ByotResult.error("chunk deadline", "Four-minute limit exceeded"),
+        ByotResult.error(
+          "chunk deadline",
+          `${BYOT_CHUNK_WORK_MS / 60_000}-minute chunk limit exceeded. Nothing from this chunk was kept; the input checkpoint and published inventory are unchanged, and a retry resumes from that checkpoint`,
+        ),
     }),
   );
 }
