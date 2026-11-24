@@ -23,8 +23,9 @@ export class CitymotorsProviderError extends Data.TaggedError(
 /**
  * One GET that timed out, answered HTTP 5xx or was rate-limited with HTTP 429.
  * None says anything about the page, so the connector may send the same GET
- * again while it fits the chunk deadline, first waiting `retryAfterMs` (the
- * host's Retry-After, or zero) for a rate limit. Every other failure stays a
+ * again while it fits the chunk deadline. A rate limit carries the host's
+ * parsed Retry-After (zero when absent or past, Infinity when unbounded),
+ * which the connector waits out first. Every other failure stays a
  * `CitymotorsProviderError`.
  */
 export class CitymotorsTransientFailure extends Data.TaggedError(
@@ -36,13 +37,15 @@ export class CitymotorsTransientFailure extends Data.TaggedError(
 }> {}
 class CitymotorsServerStatus extends Error {}
 class CitymotorsRateLimited extends Error {
-  constructor(readonly retryAfterMs: number) {
+  readonly retryAfterMs: number;
+  constructor(retryAfter: string | null) {
     super(
-      "City Motors origin answered HTTP 429" +
-        (retryAfterMs > 0
-          ? " with Retry-After " + Math.ceil(retryAfterMs / 1000) + " s"
-          : " without a Retry-After"),
+      "City Motors origin answered HTTP 429 " +
+        (retryAfter === null
+          ? "without a Retry-After header"
+          : "with Retry-After " + retryAfter),
     );
+    this.retryAfterMs = parseRetryAfterMs(retryAfter, Date.now());
   }
 }
 const statusCause = (cause: unknown) =>
@@ -85,10 +88,7 @@ export function fetchCitymotorsPage(url: string, gate: ProviderRequestGate) {
               );
             if (result.status === 429)
               throw new CitymotorsRateLimited(
-                parseRetryAfterMs(
-                  result.headers.get("retry-after"),
-                  Date.now(),
-                ),
+                result.headers.get("retry-after"),
               );
             if (
               result.status !== 200 ||

@@ -30,6 +30,9 @@ const progress = {
   ),
   checksum: hash,
   pages: z.array(CitymotorsCatalogSchema).max(32),
+  /** The host rate-limited the next GET; the durable Workflow sleeps until
+   * this time before that GET is sent again. */
+  retryAt: z.number().int().nonnegative().safe().optional(),
 };
 const records = z.array(CitymotorsRecordSchema).max(1024);
 const ProgressSchema = z.discriminatedUnion("phase", [
@@ -151,6 +154,13 @@ export const CitymotorsCursor = {
     pages: [],
   }),
   checkpoint,
+  /** The progress a GET resumes from, without its elapsed rate-limit wait. */
+  resume(progress: CitymotorsProgress): CitymotorsProgress {
+    if (progress.retryAt === undefined) return progress;
+    const resumed = { ...progress };
+    delete resumed.retryAt;
+    return checkpoint(resumed);
+  },
   parse(raw: string): CitymotorsCursor {
     if (Buffer.byteLength(raw) > CITYMOTORS_MAX_CURSOR_BYTES)
       throw new Error(
