@@ -3,6 +3,7 @@ import { unstable_cache } from "next/cache";
 import { db } from "~/lib/db";
 import { HiddenSources } from "~/lib/hidden-source";
 import {
+  cacheInventory,
   INVENTORY_CACHE_SECONDS,
   INVENTORY_CACHE_TAG,
 } from "~/lib/inventory-cache";
@@ -10,9 +11,10 @@ import { retryTursoRead } from "~/lib/turso-read-retry";
 import { loadHiddenSources } from "./hidden-sources";
 
 /**
- * Tags the cached hidden-source list. Hiding or showing a source from /admin
- * expires it (`updateTag`), and with it every prerendered page that read the
- * list, so the next request renders with the new list.
+ * Tags the cached hidden-source list and every cached listing that leaves
+ * hidden sources out (`cacheShownInventory`). Hiding or showing a source
+ * from /admin expires them (`updateTag`), and with them every prerendered
+ * page that read them, so the next request renders with the new list.
  */
 export const SOURCE_CONTROL_CACHE_TAG = "source-control";
 
@@ -42,4 +44,25 @@ const cachedHiddenList = unstable_cache(
  */
 export async function getHiddenSources(): Promise<HiddenSources> {
   return HiddenSources.of(await cachedHiddenList());
+}
+
+/**
+ * Caches an inventory loader that leaves out the hidden sources it is given,
+ * and calls it with the current list. The list keys the entry, and the
+ * source-control tag expires every entry: a list seen before would otherwise
+ * read an entry cached before the inventory last changed, so a show could
+ * leave a yard off its listings until the next publication.
+ */
+export function cacheShownInventory<Args extends unknown[], Result>(
+  load: (hidden: HiddenSources, ...args: Args) => Promise<Result>,
+  keyParts: string[],
+): (...args: Args) => Promise<Result> {
+  const cached = cacheInventory(
+    (hiddenList: readonly string[], ...args: Args) =>
+      load(HiddenSources.of(hiddenList), ...args),
+    keyParts,
+    [SOURCE_CONTROL_CACHE_TAG],
+  );
+  return async (...args: Args) =>
+    cached((await getHiddenSources()).list, ...args);
 }

@@ -3,7 +3,6 @@ import "server-only";
 import { and, inArray, sql } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "~/lib/db";
-import { cacheInventory } from "~/lib/inventory-cache";
 import { HiddenSources } from "~/lib/hidden-source";
 import { ModelArrivals } from "~/lib/model-arrivals";
 import {
@@ -15,7 +14,7 @@ import { YardMakeInventory } from "~/lib/yard-make-inventory";
 import { VehicleName } from "~/lib/vehicle-name";
 import { YardInventory, type YardVehicle } from "~/lib/yard-inventory";
 import { InventorySnapshot } from "~/server/inventory-snapshot";
-import { getHiddenSources } from "~/server/source-control/hidden-sources-loader";
+import { cacheShownInventory } from "~/server/source-control/hidden-sources-loader";
 import { getRoutedYards, type RoutedYard } from "~/server/yard-inventory";
 import { vehicle } from "~/schema";
 
@@ -25,20 +24,15 @@ import { vehicle } from "~/schema";
 // arrivals query below reads only its model's rows via vehicle_make_model_idx.
 const LIVE_BY_MAKE = sql`+${vehicle.missingSinceAt} is null`;
 
-/**
- * Live vehicles per raw make, from the stored inventory snapshot. The hidden
- * list is an argument, so a hide or show reads a fresh entry.
- */
-const getMakeCounts = cacheInventory(
-  (hiddenList: readonly string[]) =>
-    InventorySnapshot.makeCounts(db, HiddenSources.of(hiddenList)),
-  ["make-counts-snapshot-v4"],
+/** Live vehicles per raw make, from the stored inventory snapshot. */
+const getMakeCounts = cacheShownInventory(
+  (hidden) => InventorySnapshot.makeCounts(db, hidden),
+  ["make-counts-snapshot-v5"],
 );
 
 /** Every make with live vehicles, most first. */
 export const getMakes = cache(
-  async (): Promise<MakeEntry[]> =>
-    MakeInventory.makes(await getMakeCounts((await getHiddenSources()).list)),
+  async (): Promise<MakeEntry[]> => MakeInventory.makes(await getMakeCounts()),
 );
 
 /** Each make's URL slug, by make key, for linking from yard pages. */
@@ -62,19 +56,12 @@ export const findMake = cache(
   },
 );
 
-/**
- * One make's live vehicles per yard and raw model, from the snapshot. The
- * hidden list is an argument, so a hide or show reads a fresh entry.
- */
-const getCachedMakeRollup = cacheInventory(
-  (makeKey: string, hiddenList: readonly string[]) =>
-    InventorySnapshot.makeModels(db, makeKey, HiddenSources.of(hiddenList)),
-  ["make-rollup-snapshot-v4"],
+/** One make's live vehicles per yard and raw model, from the snapshot. */
+const getMakeRollup = cacheShownInventory(
+  (hidden, makeKey: string) =>
+    InventorySnapshot.makeModels(db, makeKey, hidden),
+  ["make-rollup-snapshot-v5"],
 );
-
-async function getMakeRollup(makeKey: string) {
-  return getCachedMakeRollup(makeKey, (await getHiddenSources()).list);
-}
 
 /** A model's vehicle with the yard it sits in. */
 export type ModelArrival = YardVehicle & { source: string; code: string };
@@ -82,11 +69,10 @@ export type ModelArrival = YardVehicle & { source: string; code: string };
 const ARRIVALS = 24;
 
 async function loadModelArrivals(
+  hidden: HiddenSources,
   rawMakes: string[],
   rawModels: string[],
-  hiddenList: readonly string[],
 ): Promise<ModelArrival[]> {
-  const hidden = HiddenSources.of(hiddenList);
   // Providers write dates in different formats, so rank in JS. Read only
   // selection fields, preferring photos and mixing yards before repeats,
   // then fetch the selected vehicles in full by VIN.
@@ -162,17 +148,9 @@ async function loadModelArrivals(
 }
 
 /** One model's most recently set vehicles, across all yards. */
-const getCachedModelArrivals = cacheInventory(loadModelArrivals, [
-  "model-arrivals-v6",
+const getModelArrivals = cacheShownInventory(loadModelArrivals, [
+  "model-arrivals-v7",
 ]);
-
-async function getModelArrivals(rawMakes: string[], rawModels: string[]) {
-  return getCachedModelArrivals(
-    rawMakes,
-    rawModels,
-    (await getHiddenSources()).list,
-  );
-}
 
 function yardsByKey(yards: readonly RoutedYard[]): Map<string, RoutedYard> {
   return new Map(yards.map((yard) => [`${yard.source}:${yard.code}`, yard]));
