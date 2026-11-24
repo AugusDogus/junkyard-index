@@ -1,12 +1,22 @@
 import { projectSearchVehicles } from "./vehicle-search-projection";
-import { and, asc, eq, gt, inArray, isNull } from "drizzle-orm";
+import { and, asc, count, eq, gt, inArray, isNull } from "drizzle-orm";
 import { ALGOLIA_INDEX_NAME, getAlgoliaAdminClient } from "~/lib/algolia";
 import { db as database, dbClient } from "~/lib/db";
 import { ingestionRun, vehicle, vehicleChange } from "~/schema";
+import { AlgoliaError } from "./algolia-error";
+import {
+  InPlaceRebuild,
+  type InPlaceRebuildContext,
+  type InPlaceStage,
+} from "./algolia-inplace-rebuild";
 import {
   mapDbVehicleToCanonical,
   partitionVehicleChanges,
 } from "./algolia-projector-helpers";
+import {
+  RecordCapacity,
+  type RecordCapacityListing,
+} from "./algolia-record-capacity";
 import {
   publishFullReindexForRun,
   withIndexGeneration,
@@ -24,6 +34,7 @@ import {
   discardFailedRebuild,
   cleanupInactiveRunRebuild,
   clearLeftoverRebuildIndices,
+  deleteRebuildIndex,
 } from "./algolia-rebuild-index";
 import { runIngestionEffect } from "./runtime";
 import { syncToAlgoliaEffect } from "./sync-algolia";
@@ -36,7 +47,11 @@ export type DurableAlgoliaProjectionBatchResult =
   | { status: "stopped" }
   | {
       status: "paused";
-      stage: "project_changes" | "full_reindex_load" | "full_reindex_publish";
+      stage:
+        | "project_changes"
+        | "full_reindex_load"
+        | InPlaceStage
+        | "full_reindex_publish";
       recordsProcessed: number;
     }
   | { status: "complete"; searchPublishedAt: Date }
@@ -71,7 +86,79 @@ async function readAlgoliaVehicleRecords(vins: string[]) {
   return projectSearchVehicles(database, rows);
 }
 
-async function prepareFullReindex(runId: string) {
+/** Every index's record count, all pages. An admin call, not a search. */
+async function listIndexEntries(): Promise<RecordCapacityListing[]> {
+  const listing: RecordCapacityListing[] = [];
+  for (let page = 0; ; page += 1) {
+    const result = await getAlgoliaAdminClient().listIndices({
+      page,
+      hitsPerPage: 100,
+    });
+    for (const index of result.items) {
+      listing.push({
+        name: index.name,
+        entries: index.entries,
+        virtual: index.virtual === true,
+      });
+    }
+    const lastPage =
+      result.nbPages === undefined
+        ? result.items.length < 100
+        : page + 1 >= result.nbPages;
+    if (lastPage) return listing;
+  }
+}
+
+/** Whether this run's copy of the live index fits under the record cap. */
+async function copyCapacity(runId: string): Promise<RecordCapacity> {
+  const [counted] = await database.select({ vehicles: count() }).from(vehicle);
+  return RecordCapacity.forCopy({
+    listing: await listIndexEntries(),
+    // A copy left by this run's earlier attempt is cleared before loading.
+    exclude: [rebuildIndexName(runId, ALGOLIA_INDEX_NAME)],
+    vehicles: counted?.vehicles ?? 0,
+    limit: RecordCapacity.limit(),
+  });
+}
+
+/**
+ * Sends a run from the copy path to the in-place rebuild and removes any
+ * copy it started. Resolves null when the run is no longer in `from`.
+ */
+async function routeInPlace(
+  runId: string,
+  from: readonly string[],
+  reason: string,
+): Promise<DurableAlgoliaProjectionBatchResult | null> {
+  if (!(await InPlaceRebuild.route({ database, runId, from }))) return null;
+  console.warn(
+    `[Algolia] Full reindex ${runId} rebuilds ${ALGOLIA_INDEX_NAME} in place instead of copying it: ${reason} Live search stays up and Turso is unchanged; records are rewritten in VIN order, then stale ones are swept.`,
+  );
+  await deleteRebuildIndex(getAlgoliaAdminClient(), ALGOLIA_INDEX_NAME, runId);
+  return {
+    status: "paused",
+    stage: "full_reindex_inplace_load",
+    recordsProcessed: 0,
+  };
+}
+
+function inPlaceContext(
+  runId: string,
+  runStartedAt: Date,
+): InPlaceRebuildContext {
+  return {
+    runId,
+    runStartedAt,
+    database,
+    algolia: getAlgoliaAdminClient(),
+    indexName: ALGOLIA_INDEX_NAME,
+    project: (rows) => projectSearchVehicles(database, rows),
+  };
+}
+
+async function prepareFullReindex(
+  runId: string,
+): Promise<DurableAlgoliaProjectionBatchResult> {
   const temporaryIndex = rebuildIndexName(runId, ALGOLIA_INDEX_NAME);
   // Abandoned or failed runs leave their copies for later cleanup. Remove them
   // before this copy fills, so the app stays under its record cap.
@@ -80,6 +167,16 @@ async function prepareFullReindex(runId: string) {
     algolia: getAlgoliaAdminClient(),
     indexName: ALGOLIA_INDEX_NAME,
   });
+  const capacity = await copyCapacity(runId);
+  if (capacity.kind === "over_cap") {
+    return (
+      (await routeInPlace(
+        runId,
+        ["full_reindex_prepare"],
+        RecordCapacity.describe(capacity),
+      )) ?? { status: "stopped" }
+    );
+  }
   const copied = await getAlgoliaAdminClient().operationIndex({
     indexName: ALGOLIA_INDEX_NAME,
     operationIndexParams: {
@@ -315,6 +412,12 @@ async function projectDurableAlgoliaBatch(
       return prepareFullReindex(runId);
     case "full_reindex_load":
       return loadFullReindexBatch(runId, run.fullReindexCursor);
+    case "full_reindex_inplace_load":
+    case "full_reindex_inplace_sweep":
+      return InPlaceRebuild.step(inPlaceContext(runId, run.startedAt), {
+        stage: run.stage,
+        fullReindexCursor: run.fullReindexCursor,
+      });
     case "full_reindex_publish":
     case "full_reindex_move_pending":
       return publishFullReindex(runId, run.startedAt);
@@ -371,6 +474,24 @@ export async function runDurableAlgoliaProjectionBatch(
     if (result.status === "stopped") await cleanupInactiveRunRebuild(cleanup);
     return result;
   } catch (error) {
+    // A copy over the record cap fails the same way on every retry, so it is
+    // never discarded and restarted: the run rebuilds in place instead.
+    const failure = AlgoliaError.classify(
+      { operation: "full reindex", indexName: ALGOLIA_INDEX_NAME },
+      error,
+    );
+    if (failure._tag === "QuotaExceeded") {
+      const capacity = await copyCapacity(runId).then(
+        (read) => RecordCapacity.describe(read),
+        () => "The record count could not be read.",
+      );
+      const routed = await routeInPlace(
+        runId,
+        ["full_reindex_prepare", "full_reindex_load"],
+        `Algolia refused the copy (${failure.detail}). ${capacity}`,
+      );
+      if (routed) return routed;
+    }
     try {
       await discardFailedRebuild(cleanup);
     } catch (cleanupError) {

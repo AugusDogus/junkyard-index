@@ -10,6 +10,10 @@ export type DurableRunStage =
   | "project_changes"
   | "full_reindex_prepare"
   | "full_reindex_load"
+  /** In-place rebuild (copy over the record cap): upsert every vehicle. */
+  | "full_reindex_inplace_load"
+  /** In-place rebuild: delete live records Turso no longer has. */
+  | "full_reindex_inplace_sweep"
   | "full_reindex_publish"
   | "full_reindex_move_pending"
   | "full_reindex_publish_failed"
@@ -29,6 +33,8 @@ export function parseDurableRunStage(value: string): DurableRunStage {
     case "project_changes":
     case "full_reindex_prepare":
     case "full_reindex_load":
+    case "full_reindex_inplace_load":
+    case "full_reindex_inplace_sweep":
     case "full_reindex_publish":
     case "full_reindex_move_pending":
     case "full_reindex_publish_failed":

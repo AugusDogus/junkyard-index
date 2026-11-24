@@ -86,8 +86,9 @@ would replace its in-place writes.
 
 1. **Prepare.** Delete leftover copies: inline `vehicles__rebuild_*` and any
    `vehicles__generation_*` other than this one (replicas are never touched).
-   Refuse to copy while the app's records plus `count(*)` of `vehicle` exceed
-   1,000,000 (the free plan cap), or while there is no live index to copy
+   Refuse to copy while the app's non-virtual records plus `count(*)` of
+   `vehicle` exceed `ALGOLIA_RECORD_LIMIT` (default 1,000,000, the free plan
+   cap) less a 2% margin, or while there is no live index to copy
    settings from (run the search-index migration once to create it). The
    rebuild then waits (`record_cap` or `missing_live_index`, retried after 15
    minutes doubling to 6 hours, row `search-projector:rebuild-wait`) and the
@@ -98,6 +99,15 @@ would replace its in-place writes.
 2. **Load.** 10,000 vehicles per step in VIN order, resumable from
    `vin_cursor`. A generation still loading after 24 hours, or whose copy
    vanished or carries another marker, is discarded and a new one requested.
+   If Algolia refuses a load with `QuotaExceeded` (the counts said it fit,
+   but the plan disagreed), the copy is deleted at once to free its records,
+   the generation is discarded, and the new request waits on `record_cap`
+   like a refused prepare. The load is never retried into the quota, so the
+   live index keeps receiving changes. The projector does not rebuild in
+   place: its generations go live by a verified move and a snapshot replay.
+   Over the cap, either free records or raise the plan (and
+   `ALGOLIA_RECORD_LIMIT`); see [Full reindex](full-reindex.md) for the
+   inline in-place rebuild.
 3. **Move.** Move the copy over the live index, record the task id, wait, and
    verify the live marker. A moving generation is never discarded; if its
    move cannot be confirmed the tick reports `move_unconfirmed`: check the

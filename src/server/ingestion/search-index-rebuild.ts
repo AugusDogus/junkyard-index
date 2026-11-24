@@ -2,6 +2,7 @@ import { asc, count, gt } from "drizzle-orm";
 import { Effect } from "effect";
 import { vehicle } from "~/schema";
 import type { AlgoliaError } from "./algolia-error";
+import { RecordCapacity } from "./algolia-record-capacity";
 import {
   SearchIndexGenerations,
   type ActiveSearchIndexGeneration,
@@ -25,11 +26,12 @@ const LOAD_PER_STEP = 10_000;
 /** A generation still loading after this long is discarded and restarted. */
 export const GENERATION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 /**
- * The Algolia plan's record cap (free plan: 1M). A rebuild briefly holds the
- * live index and its new copy at once, so it starts only when every index's
- * records plus a full copy of `vehicle` stay under the cap.
+ * The default Algolia record cap (free plan: 1M; ALGOLIA_RECORD_LIMIT sets
+ * it). A rebuild briefly holds the live index and its new copy at once, so
+ * it starts only when every index's records plus a full copy of `vehicle`
+ * stay under the cap less its safety margin (RecordCapacity).
  */
-export const SEARCH_RECORD_CAP = 1_000_000;
+export const SEARCH_RECORD_CAP = RecordCapacity.defaultLimit;
 
 /**
  * One rebuild step's outcome, as part of the projector's step result.
@@ -172,6 +174,37 @@ function waitForLiveIndex(
   });
 }
 
+/**
+ * Records a record-cap wait. The requested generation is retried with
+ * backoff, and the live index keeps receiving changes meanwhile.
+ */
+function overRecordCap(
+  context: SearchProjectorContext,
+  generation: ActiveSearchIndexGeneration,
+  capacity: RecordCapacity,
+  outcome: string,
+): RebuildEffect {
+  return Effect.gen(function* () {
+    const wait = yield* Effect.promise(() =>
+      SearchRebuildWait.record(context.database, {
+        reason: "record_cap",
+        now: context.now(),
+      }),
+    );
+    console.error(
+      `Search rebuild ${generation.id} ${outcome}: ${RecordCapacity.describe(capacity)} The live index is unchanged and keeps receiving changes; a rebuild stays requested and is tried again at ${wait.retryAt.toISOString()}. Delete unneeded indices or replicas, or raise the plan and ALGOLIA_RECORD_LIMIT (docs/runbooks/search-projector.md).`,
+    );
+    return {
+      status: "record_cap",
+      generationId: generation.id,
+      entries: capacity.entries,
+      vehicles: capacity.vehicles,
+      cap: capacity.limit,
+      retryAt: wait.retryAt.toISOString(),
+    };
+  });
+}
+
 function prepare(
   context: SearchProjectorContext,
   generation: Extract<ActiveSearchIndexGeneration, { status: "requested" }>,
@@ -190,29 +223,20 @@ function prepare(
     const [counted] = yield* Effect.promise(() =>
       context.database.select({ vehicles: count() }).from(vehicle),
     );
-    const vehicles = counted?.vehicles ?? 0;
     // Virtual replicas share their primary's records; this copy is cleared.
-    const entries = remaining
-      .filter((index) => !index.virtual && index.name !== tempIndexName)
-      .reduce((total, index) => total + index.entries, 0);
-    if (entries + vehicles > SEARCH_RECORD_CAP) {
-      const wait = yield* Effect.promise(() =>
-        SearchRebuildWait.record(context.database, {
-          reason: "record_cap",
-          now: context.now(),
-        }),
+    const capacity = RecordCapacity.forCopy({
+      listing: remaining,
+      exclude: [tempIndexName],
+      vehicles: counted?.vehicles ?? 0,
+      limit: RecordCapacity.limit(),
+    });
+    if (capacity.kind === "over_cap") {
+      return yield* overRecordCap(
+        context,
+        generation,
+        capacity,
+        "did not start",
       );
-      console.error(
-        `Search rebuild ${generation.id} did not start: the Algolia app holds ${entries} records and the copy needs ${vehicles} more, over the plan's ${SEARCH_RECORD_CAP} record cap. The live index is unchanged and keeps receiving changes; the rebuild stays requested and is tried again at ${wait.retryAt.toISOString()}. Delete unneeded indices or replicas, or raise the plan.`,
-      );
-      return {
-        status: "record_cap",
-        generationId: generation.id,
-        entries,
-        vehicles,
-        cap: SEARCH_RECORD_CAP,
-        retryAt: wait.retryAt.toISOString(),
-      };
     }
     // Every change at or below the snapshot is in Turso before loading
     // reads it, so the copy covers them; replay starts after it.
@@ -275,7 +299,56 @@ function discard(
   });
 }
 
+/**
+ * Algolia refused the copy over its record quota. Retrying the load fails
+ * the same way, and a loading generation holds back changes to the live
+ * index, so its copy is deleted (freeing the records) and it is discarded
+ * into a requested rebuild that waits on the record cap.
+ */
+function refusedOverQuota(
+  context: SearchProjectorContext,
+  generation: Extract<ActiveSearchIndexGeneration, { status: "loading" }>,
+  error: AlgoliaError,
+): RebuildEffect {
+  return Effect.gen(function* () {
+    const listing = yield* context.writer.listIndices();
+    const [counted] = yield* Effect.promise(() =>
+      context.database.select({ vehicles: count() }).from(vehicle),
+    );
+    const capacity = RecordCapacity.forCopy({
+      listing,
+      exclude: [generation.tempIndexName],
+      vehicles: counted?.vehicles ?? 0,
+      limit: RecordCapacity.limit(),
+    });
+    yield* context.writer.deleteIndex(generation.tempIndexName);
+    yield* discard(
+      context,
+      generation,
+      `Algolia refused its copy over the record quota (${error.detail})`,
+    );
+    return yield* overRecordCap(
+      context,
+      generation,
+      // The copy was refused, so it did not fit whatever the counts say.
+      { ...capacity, kind: "over_cap" },
+      "stopped loading",
+    );
+  });
+}
+
 function load(
+  context: SearchProjectorContext,
+  generation: Extract<ActiveSearchIndexGeneration, { status: "loading" }>,
+): RebuildEffect {
+  return loadBatches(context, generation).pipe(
+    Effect.catchTag("QuotaExceeded", (error) =>
+      refusedOverQuota(context, generation, error),
+    ),
+  );
+}
+
+function loadBatches(
   context: SearchProjectorContext,
   generation: Extract<ActiveSearchIndexGeneration, { status: "loading" }>,
 ): RebuildEffect {

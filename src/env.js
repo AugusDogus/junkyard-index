@@ -56,6 +56,9 @@ export const env = createEnv({
     // on it in the Algolia dashboard. Until it is set, browsers receive
     // ALGOLIA_SEARCH_API_KEY unrestricted.
     ALGOLIA_SEARCH_PARENT_API_KEY: z.string().optional(),
+    // The Algolia plan's record cap (free plan: 1,000,000). A full search
+    // rebuild copies the live index only when the copy fits under it.
+    ALGOLIA_RECORD_LIMIT: z.coerce.number().int().positive().default(1_000_000),
     BETTERSTACK_HEARTBEAT_URL: z.string().url().optional(),
     BETTERSTACK_API_TOKEN: betterStackApiTokenSchema,
     // JSON object of ingestion source to its Better Stack status page row:
@@ -152,6 +155,7 @@ export const env = createEnv({
     NEXT_PUBLIC_ALGOLIA_APP_ID: process.env.NEXT_PUBLIC_ALGOLIA_APP_ID,
     ALGOLIA_SEARCH_API_KEY: process.env.ALGOLIA_SEARCH_API_KEY,
     ALGOLIA_SEARCH_PARENT_API_KEY: process.env.ALGOLIA_SEARCH_PARENT_API_KEY,
+    ALGOLIA_RECORD_LIMIT: process.env.ALGOLIA_RECORD_LIMIT,
     NEXT_PUBLIC_STATUS_PAGE_URL: process.env.NEXT_PUBLIC_STATUS_PAGE_URL,
   },
   /**

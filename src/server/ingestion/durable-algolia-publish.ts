@@ -1,4 +1,4 @@
-import { and, eq, isNull, lte, ne, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { ingestionRun, vehicleChange } from "~/schema";
 
@@ -202,6 +202,25 @@ export async function publishFullReindexForRun(params: {
 
   await deleteRebuildIndex(params.algolia, params.indexName, params.runId);
 
+  return releaseFullReindex({
+    runId: params.runId,
+    runStartedAt: params.runStartedAt,
+    database: params.database,
+    stages: ["full_reindex_publish", "full_reindex_move_pending"],
+  });
+}
+
+/**
+ * Releases a run whose full rebuild is live: it clears its own and inherited
+ * `full_reindex_required` and deletes every unprocessed change, all keyed on
+ * this release. Resolves stopped when the run is not active in `stages`.
+ */
+export async function releaseFullReindex(params: {
+  runId: string;
+  runStartedAt: Date;
+  database: LibSQLDatabase;
+  stages: readonly string[];
+}): Promise<FullReindexPublishResult> {
   const publishedAt = new Date();
   const publishRun = params.database
     .update(ingestionRun)
@@ -215,10 +234,7 @@ export async function publishFullReindexForRun(params: {
         eq(ingestionRun.id, params.runId),
         eq(ingestionRun.status, "running"),
         eq(ingestionRun.activeSlot, 1),
-        or(
-          eq(ingestionRun.stage, "full_reindex_publish"),
-          eq(ingestionRun.stage, "full_reindex_move_pending"),
-        ),
+        inArray(ingestionRun.stage, [...params.stages]),
       ),
     );
   const clearInheritedRepairs = params.database

@@ -96,6 +96,8 @@ const HANDOFF_STAGES = [
   "project_changes",
   "full_reindex_prepare",
   "full_reindex_load",
+  "full_reindex_inplace_load",
+  "full_reindex_inplace_sweep",
   "full_reindex_publish",
   "full_reindex_publish_failed",
 ] as const;

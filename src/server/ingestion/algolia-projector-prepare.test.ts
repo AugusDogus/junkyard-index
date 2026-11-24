@@ -9,6 +9,8 @@ const SCRIPT = `
 
   const client = createClient({ url: ":memory:" });
   await client.executeMultiple(TEST_SCHEMA);
+  // The record-cap guard counts vehicles before it copies.
+  await client.execute("create table vehicle (vin text primary key)");
   const calls = [];
   mock.module("~/lib/db", () => ({ db: drizzle(client), dbClient: client }));
   mock.module("~/lib/algolia", () => ({
@@ -16,8 +18,8 @@ const SCRIPT = `
     getAlgoliaAdminClient: () => ({
       listIndices: async () => ({
         items: [
-          { name: "vehicles", updatedAt: new Date().toISOString() },
-          { name: "vehicles__rebuild_abandoned", updatedAt: new Date().toISOString() },
+          { name: "vehicles", entries: 10, updatedAt: new Date().toISOString() },
+          { name: "vehicles__rebuild_abandoned", entries: 10, updatedAt: new Date().toISOString() },
         ],
         nbPages: 1,
       }),
