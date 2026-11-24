@@ -63,22 +63,37 @@ export class UpullRPartsSearchBlocked extends Data.TaggedError(
   "UpullRPartsSearchBlocked",
 )<{ site: UpullRPartsLocation; when: "before" | "during" | "after" }> {
   override get message() {
-    return `U Pull R Parts getVehicles returned no ${CANARY_MAKE} vehicles at location ${this.site} ${this.when} the crawl, so it is most likely blocking this IP, which it does for over an hour after more than about 13 searches in a minute. The chunk's empty results cannot be trusted, so it emitted no batches and prior inventory is preserved.`;
+    return `U Pull R Parts getVehicles returned no ${CANARY_MAKE} vehicles at location ${this.site} ${this.when} the crawl, twice with fresh tokens, so it is most likely blocking this IP, which it does for over an hour after more than about 13 searches in a minute. The chunk's empty results cannot be trusted, so it emitted no batches and prior inventory is preserved.`;
   }
 }
 
+/** The most searches one canary sends: a single rejected token also returns
+ * an empty list, so an empty canary is searched once more. */
+export const UPULLRPARTS_CANARY_SEARCHES = 2;
+
+/**
+ * A Ford search with open dates, sent again with a fresh token when it
+ * comes back empty, since one rejected token returns `[]` too. Fails with
+ * {@link UpullRPartsSearchBlocked} when both are empty; succeeds with the
+ * searches it sent.
+ */
 export function checkUpullRPartsSearch<S>(
   site: UpullRPartsLocation,
   search: UpullRPartsSearch<S>,
   when: "before" | "during" | "after",
-) {
-  return search({ site, beginDate: "", endDate: "", makes: CANARY_MAKE }).pipe(
-    Effect.flatMap((rows) =>
-      rows.length > 0
-        ? Effect.void
-        : Effect.fail(new UpullRPartsSearchBlocked({ site, when })),
-    ),
-  );
+): Effect.Effect<number, S | UpullRPartsSearchBlocked> {
+  return Effect.gen(function* () {
+    for (let sent = 1; sent <= UPULLRPARTS_CANARY_SEARCHES; sent++) {
+      const rows = yield* search({
+        site,
+        beginDate: "",
+        endDate: "",
+        makes: CANARY_MAKE,
+      });
+      if (rows.length > 0) return sent;
+    }
+    return yield* new UpullRPartsSearchBlocked({ site, when });
+  });
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -239,16 +254,19 @@ export type UpullRPartsWindowProgress =
  * `mayStart` allows; the first search always runs, so every chunk makes
  * progress. A window that returns the search limit is never used: a
  * multi-day window is split in two by date (`splitDay`) and both parts
- * searched, and a single day stops the crawl for a make split. An empty window may be a rejected
- * token or a blocked IP, so the canary runs (a blocked IP fails with
- * {@link UpullRPartsSearchBlocked}) and the window is searched exactly once
- * more before it is accepted, empty or not.
+ * searched, and a single day stops the crawl for a make split. An empty
+ * window may be a rejected token or a blocked IP, so the canary runs (a
+ * blocked IP fails with {@link UpullRPartsSearchBlocked}) and the window is
+ * searched exactly once more before it is accepted, empty or not; when
+ * `mayRecheck` refuses those searches, the crawl pauses at that window
+ * without accepting it.
  */
 export function crawlUpullRPartsWindows<S>(options: {
   site: UpullRPartsLocation;
   windows: readonly UpullRPartsWindow[];
   search: UpullRPartsSearch<S>;
   mayStart: () => boolean;
+  mayRecheck: () => boolean;
 }): Effect.Effect<
   {
     results: UpullRPartsSearchResult[];
@@ -284,8 +302,17 @@ export function crawlUpullRPartsWindows<S>(options: {
       }
       let rows = yield* run(window.beginDate, window.endDate);
       if (rows.length === 0) {
-        yield* checkUpullRPartsSearch(site, options.search, "during");
-        searches += 1;
+        if (!options.mayRecheck())
+          return {
+            results,
+            searches,
+            progress: { status: "paused", end: window.endDate },
+          };
+        searches += yield* checkUpullRPartsSearch(
+          site,
+          options.search,
+          "during",
+        );
         rows = yield* run(window.beginDate, window.endDate);
       }
       if (rows.length >= UPULLRPARTS_SEARCH_LIMIT) {

@@ -134,6 +134,7 @@ describe("crawlUpullRPartsWindows", () => {
         windows: [window("2026-11-20", "2026-11-24")],
         search,
         mayStart: () => true,
+        mayRecheck: () => true,
       }),
     );
     expect(crawl.progress).toEqual({ status: "complete" });
@@ -164,6 +165,7 @@ describe("crawlUpullRPartsWindows", () => {
         windows: [window(UPULLRPARTS_FIRST_DAY, "2026-11-24")],
         search,
         mayStart: () => true,
+        mayRecheck: () => true,
       }),
     );
     expect(crawl.progress).toEqual({ status: "complete" });
@@ -180,6 +182,7 @@ describe("crawlUpullRPartsWindows", () => {
         windows: [window("2026-11-24", "2026-11-24")],
         search,
         mayStart: () => true,
+        mayRecheck: () => true,
       }),
     );
     expect(sent.map((params) => params.makes || params.beginDate)).toEqual([
@@ -206,6 +209,7 @@ describe("crawlUpullRPartsWindows", () => {
         windows: newest ? [newest] : [],
         search,
         mayStart: () => true,
+        mayRecheck: () => true,
       }),
     );
     expect(sent.map((params) => params.makes || params.endDate)).toEqual([
@@ -227,6 +231,7 @@ describe("crawlUpullRPartsWindows", () => {
           windows: [window("2026-11-24", "2026-11-24")],
           search: () => Effect.succeed([]),
           mayStart: () => true,
+          mayRecheck: () => true,
         }),
       ),
     );
@@ -251,10 +256,34 @@ describe("crawlUpullRPartsWindows", () => {
         ],
         search,
         mayStart: () => started++ < 0,
+        mayRecheck: () => true,
       }),
     );
     expect(crawl.progress).toEqual({ status: "paused", end: "2026-11-21" });
     expect(crawl.results).toHaveLength(1);
+  });
+
+  test("an empty window with no budget left for its canary and re-search pauses at it, unaccepted", async () => {
+    const { search, sent } = site(stock("2026-11-24", 5));
+    const crawl = await Effect.runPromise(
+      crawlUpullRPartsWindows({
+        site: "1",
+        windows: [
+          window("2026-11-24", "2026-11-24"),
+          window("2026-11-21", "2026-11-23"),
+        ],
+        search,
+        mayStart: () => true,
+        mayRecheck: () => false,
+      }),
+    );
+    // The next chunk searches 2026-11-21..23 again instead of trusting [].
+    expect(crawl.progress).toEqual({ status: "paused", end: "2026-11-23" });
+    expect(crawl.results).toHaveLength(1);
+    expect(sent.map((params) => params.makes || params.beginDate)).toEqual([
+      "2026-11-24",
+      "2026-11-21",
+    ]);
   });
 
   test("stops for a make split when one day alone fills a search", async () => {
@@ -273,6 +302,7 @@ describe("crawlUpullRPartsWindows", () => {
         ],
         search,
         mayStart: () => true,
+        mayRecheck: () => true,
       }),
     );
     expect(crawl.progress).toMatchObject({
