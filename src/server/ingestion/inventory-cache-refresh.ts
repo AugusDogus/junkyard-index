@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, isNotNull, isNull, max, sql } from "drizzle-orm";
+import { and, eq, gt, isNotNull, isNull, max, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import type { ChangedInventorySources } from "~/lib/inventory-cache";
 import { isIngestionSource } from "~/lib/ingestion-source";
