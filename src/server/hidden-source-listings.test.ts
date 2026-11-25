@@ -51,8 +51,12 @@ function run(steps: string): unknown {
         return listed.map((yard) => ({ ...yard, path: paths.get(YardPath.key(yard)) ?? null }));
       },
     }));
+    globalThis.recentReads = 0;
     mock.module("~/server/homepage-recent-vehicles", () => ({
-      getRecentHomepageVehicles: async () => [],
+      getRecentHomepageVehicles: async () => {
+        globalThis.recentReads += 1;
+        return [];
+      },
     }));
     mock.module("~/server/state-new-arrivals", () => ({
       StateNewArrivals: {
@@ -187,5 +191,21 @@ describe("hiding or showing a source", () => {
       makeRollup: ["row52:7"],
       filterYards: ["row52:7"],
     });
+  });
+});
+
+describe("yard listings", () => {
+  test("read the yard directory without the homepage's recent arrivals", () => {
+    expect(
+      run(`
+        globalThis.yards = [...sixO3, granite];
+        await inventory.getYardDirectory();
+        await inventory.findRegionYards("new-hampshire");
+        await models.getMakePageData("ford");
+        const listingsRead = globalThis.recentReads;
+        await getHomepageInventory();
+        console.log(JSON.stringify({ listingsRead, homepageRead: globalThis.recentReads }));
+      `),
+    ).toEqual({ listingsRead: 0, homepageRead: 1 });
   });
 });
