@@ -1987,16 +1987,28 @@ test("a direct provider's observations never revive AutoRecycler mirrors of its 
   }
 });
 
-test("a preserved yard keeps its inventory only until the 7-day hide window passes", async () => {
-  // A&S Auto Wrecking sat in AutoRecycler's preserved list from Nov 21 on with
-  // no accepted publication, so its last row never departed.
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Reconciles one accepted AutoRecycler run that preserves every yard in
+ * `yards`, each holding one listed car. A published yard with no cars sets
+ * the source's previous accepted publication to `sourcePublishedAt`.
+ */
+async function reconcilePreservedYards(params: {
+  startedAt: Date;
+  sourcePublishedAt: number;
+  yards: ReadonlyArray<{
+    code: string;
+    publishedAt: number | null;
+    lastSeenAt: number;
+  }>;
+}) {
   const client = createClient({ url: ":memory:" });
   try {
     await client.executeMultiple(TEST_SCHEMA);
     const database = drizzle(client);
     const store = IngestionSnapshotStore.memory();
-    const startedAt = new Date("2026-11-25T11:05:51.000Z");
-    const day = 24 * 60 * 60 * 1000;
+    const { startedAt } = params;
     await database.insert(ingestionRun).values({
       id: "preserved-window",
       source: "autorecycler",
@@ -2026,21 +2038,25 @@ test("a preserved yard keeps its inventory only until the 7-day hide window pass
           asOf: startedAt.getTime(),
           legacy: {},
           eligibleYards: [],
-          preservedYards: ["recent", "expired", "never"],
+          preservedYards: params.yards.map((yard) => yard.code),
         },
       }),
       startedAt,
     });
-    await client.executeMultiple(`
-      insert into vehicle (vin, source, year, make, model, location_code, location_name, location_city, state, state_abbr, lat, lng, first_seen_at, last_seen_at, missing_since_at, missing_run_count)
-      values ('RECENT', 'autorecycler', 2000, 'Ford', 'Focus', 'recent', 'Yard', 'City', 'California', 'CA', 0, 0, 0, 0, null, 0),
-             ('EXPIRED', 'autorecycler', 2000, 'Ford', 'Focus', 'expired', 'Yard', 'City', 'California', 'CA', 0, 0, 0, 0, null, 0),
-             ('NEVER', 'autorecycler', 2000, 'Ford', 'Focus', 'never', 'Yard', 'City', 'California', 'CA', 0, 0, 0, 0, null, 0);
-      insert into yard_inventory (source, location_code, location_name, location_city, state_abbr, lat, lng, vehicle_count, updated_at, last_published_at)
-      values ('autorecycler', 'recent', 'Yard', 'City', 'CA', 0, 0, 1, 0, ${startedAt.getTime() - 6 * day}),
-             ('autorecycler', 'expired', 'Yard', 'City', 'CA', 0, 0, 1, 0, ${startedAt.getTime() - 8 * day}),
-             ('autorecycler', 'never', 'Yard', 'City', 'CA', 0, 0, 1, 0, null);
-    `);
+    await client.execute({
+      sql: "insert into yard_inventory (source, location_code, location_name, location_city, state_abbr, lat, lng, vehicle_count, updated_at, last_published_at) values ('autorecycler', 'published', 'Yard', 'City', 'CA', 0, 0, 1, 0, ?)",
+      args: [params.sourcePublishedAt],
+    });
+    for (const yard of params.yards) {
+      await client.execute({
+        sql: "insert into vehicle (vin, source, year, make, model, location_code, location_name, location_city, state, state_abbr, lat, lng, first_seen_at, last_seen_at, missing_since_at, missing_run_count) values (?, 'autorecycler', 2000, 'Ford', 'Focus', ?, 'Yard', 'City', 'California', 'CA', 0, 0, 0, ?, null, 0)",
+        args: [yard.code.toUpperCase(), yard.code, yard.lastSeenAt],
+      });
+      await client.execute({
+        sql: "insert into yard_inventory (source, location_code, location_name, location_city, state_abbr, lat, lng, vehicle_count, updated_at, last_published_at) values ('autorecycler', ?, 'Yard', 'City', 'CA', 0, 0, 1, 0, ?)",
+        args: [yard.code, yard.publishedAt],
+      });
+    }
     for (let batch = 0; batch < 3; batch += 1) {
       const result = await reconcileDurableIngestionRun({
         runId: "preserved-window",
@@ -2051,33 +2067,63 @@ test("a preserved yard keeps its inventory only until the 7-day hide window pass
       });
       if (result.status === "complete") break;
     }
-    expect(
-      (
+    return {
+      vehicles: (
         await client.execute(
           "select vin, missing_since_at from vehicle order by vin",
         )
       ).rows,
-    ).toMatchObject([
-      { vin: "EXPIRED", missing_since_at: startedAt.getTime() },
-      { vin: "NEVER", missing_since_at: startedAt.getTime() },
-      { vin: "RECENT", missing_since_at: null },
-    ]);
-    // Preserved yards are never stamped as published by the run.
-    expect(
-      (
+      yards: (
         await client.execute(
           "select location_code, last_published_at from yard_inventory order by location_code",
         )
       ).rows,
-    ).toMatchObject([
-      {
-        location_code: "recent",
-        last_published_at: startedAt.getTime() - 6 * day,
-      },
-    ]);
+    };
   } finally {
     client.close();
   }
+}
+
+test("a preserved yard keeps its inventory only while it lags its source's publications by 7 days", async () => {
+  // A&S Auto Wrecking sat in AutoRecycler's preserved list from Nov 12 on with
+  // no accepted publication, so its last row never departed.
+  const startedAt = new Date("2026-11-25T11:05:51.000Z");
+  const run = startedAt.getTime();
+  const { vehicles, yards } = await reconcilePreservedYards({
+    startedAt,
+    sourcePublishedAt: run - DAY_MS,
+    yards: [
+      { code: "recent", publishedAt: run - 8 * DAY_MS, lastSeenAt: 0 },
+      { code: "expired", publishedAt: run - 9 * DAY_MS, lastSeenAt: 0 },
+      // No publication date: the yard's newest sighting stands in for it.
+      { code: "never", publishedAt: null, lastSeenAt: 0 },
+      { code: "restored", publishedAt: null, lastSeenAt: run - 2 * DAY_MS },
+    ],
+  });
+  expect(vehicles).toMatchObject([
+    { vin: "EXPIRED", missing_since_at: run },
+    { vin: "NEVER", missing_since_at: run },
+    { vin: "RECENT", missing_since_at: null },
+    { vin: "RESTORED", missing_since_at: null },
+  ]);
+  // Preserved yards are never stamped as published by the run.
+  expect(yards).toMatchObject([
+    { location_code: "recent", last_published_at: run - 8 * DAY_MS },
+    { location_code: "restored", last_published_at: null },
+  ]);
+});
+
+test("an outage does not age a preserved yard", async () => {
+  // Neither the source nor the yard published for 10 days. The first accepted
+  // run back preserves the yard, which lags its source by nothing.
+  const startedAt = new Date("2026-11-25T11:05:51.000Z");
+  const run = startedAt.getTime();
+  const { vehicles } = await reconcilePreservedYards({
+    startedAt,
+    sourcePublishedAt: run - 10 * DAY_MS,
+    yards: [{ code: "blocked", publishedAt: run - 10 * DAY_MS, lastSeenAt: 0 }],
+  });
+  expect(vehicles).toMatchObject([{ vin: "BLOCKED", missing_since_at: null }]);
 });
 
 describe("skipped search publication", () => {

@@ -10,6 +10,15 @@ The saved 32-yard opening plus CFC yields 3,295 opening items across all 33 yard
 The full run uses 33 rank windows, one closing check and three discovery/directory
 requests, 37 total with eleven requests below the 48/hour cap.
 
+## Preserved yards (November 25)
+
+Preserved yards (undated legacy yards and quarantined Ario yards) keep their
+inventory while they lag AutoRecycler's previous accepted publication by at
+most 7 days. Days without an accepted AutoRecycler publication do not count,
+so an outage never releases a yard. A yard with no publication date is measured
+from its cars' newest sighting instead. Once released, its unlisted cars go
+missing and depart.
+
 ## November 18 failure isolation
 
 The November 18 production runs did not reconcile AutoRecycler. The 07:00 and
