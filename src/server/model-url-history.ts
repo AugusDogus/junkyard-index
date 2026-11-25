@@ -1,4 +1,4 @@
-import { eq, like } from "drizzle-orm";
+import { and, eq, gt, lt } from "drizzle-orm";
 import { VehicleName } from "~/lib/vehicle-name";
 import { ModelRedirect } from "~/lib/model-redirect";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
@@ -42,10 +42,19 @@ export async function findModelRedirect(
   if (exact) return exact;
   if (!model) return null;
   const key = VehicleName.modelKey(normalizedMake, model.replace(/-/g, " "));
+  // Paths under `${makePath}/` sort between it and `${makePath}0` ("0"
+  // follows "/"), so the primary key reads only this make's rows. LIKE is
+  // case-insensitive, so SQLite read every redirect for it (6,240 rows on
+  // production in November 2026) on each request for a retired model URL.
   const candidates = await database
     .select()
     .from(vehicleModelRedirect)
-    .where(like(vehicleModelRedirect.fromPath, `${makePath}/%`));
+    .where(
+      and(
+        gt(vehicleModelRedirect.fromPath, `${makePath}/`),
+        lt(vehicleModelRedirect.fromPath, `${makePath}0`),
+      ),
+    );
   const matches = candidates.filter(
     (row) =>
       VehicleName.modelKey(
