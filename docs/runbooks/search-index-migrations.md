@@ -35,8 +35,10 @@ to Algolia or deliver alerts after losing the lock.
 3. Vercel Cron starts `searchIndexMigrationWorkflow` at 03:00 UTC each day,
    four hours before the 07:00 ingestion pass. Ingestion runs hold their
    commit while they wait for the shared Algolia writer, so a migration still
-   writing at 07:00 holds every morning publication behind it. The
-   migration exits immediately after schema version `10` is ready.
+   writing at 07:00 holds every morning publication behind it. Once the
+   current schema version is ready, the migration still rewrites every
+   vehicle on days its VIN cache pass accepts a new decode (most days);
+   otherwise it exits immediately.
 4. The migration configures Algolia, backfills one durable vehicle batch per
    Workflow step, validates exact VIN and Boolean token filters, then writes
    search schema version `10` to the index settings. A retried batch safely
