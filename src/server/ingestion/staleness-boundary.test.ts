@@ -81,13 +81,34 @@ test("expires the caches on the first check, then only when a source crosses 36 
   });
   expect(await tick(later(4))).toEqual({ status: "unchanged" });
 
-  // Its next publication shows upullrparts again.
+  // Its next publication makes upullrparts current again. That publication
+  // expires the caches through the inventory refresh, so the boundary only
+  // records the new class.
   await publish("upullrparts", later(5).getTime());
   expect(await tick(later(5))).toEqual({
-    status: "expired",
-    changed: ["upullrparts"],
+    status: "recovered",
+    sources: ["upullrparts"],
   });
-  expect(revalidate).toHaveBeenCalledTimes(3);
+  expect(revalidate).toHaveBeenCalledTimes(2);
+  expect(await tick(later(6))).toEqual({ status: "unchanged" });
+  client.close();
+});
+
+test("expires the caches when a recovery comes with a source going stale", async () => {
+  const { client, db, publish } = await database();
+  await client.execute("delete from ingestion_source_run where source = 'pyp'");
+  await publish("pyp", start.getTime() - 40 * HOUR);
+  const revalidate = mock(() => undefined);
+  const tick = (now: Date) => check(db, now, revalidate);
+  await tick(start);
+  // pyp publishes as every other source, last published 4 hours before
+  // start, passes 36 hours.
+  await publish("pyp", later(33).getTime());
+  expect(await tick(later(33))).toEqual({
+    status: "expired",
+    changed: [...ACTIVE_INGESTION_SOURCES],
+  });
+  expect(revalidate).toHaveBeenCalledTimes(2);
   client.close();
 });
 
