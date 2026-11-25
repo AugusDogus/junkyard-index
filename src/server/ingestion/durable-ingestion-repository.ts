@@ -288,12 +288,20 @@ export function createDurableIngestionRepository(
           ),
         );
       const activeRuns = await database
-        .select({ id: ingestionRun.id, source: ingestionRun.source })
+        .select({
+          id: ingestionRun.id,
+          source: ingestionRun.source,
+          stage: ingestionRun.stage,
+          workflowRunId: ingestionRun.workflowRunId,
+        })
         .from(ingestionRun)
         .where(eq(ingestionRun.activeSlot, 1));
       const runs: DurableIngestionWakeupRun[] = activeRuns.map((run) => ({
         action: "resume",
         runId: run.id,
+        source: run.source,
+        fetching: run.stage === "sources",
+        attached: run.workflowRunId !== null,
       }));
       // A run across every source (a local `runIngestion`) owns the inventory
       // until it finishes; scheduled runs each cover one source.
@@ -349,7 +357,14 @@ export function createDurableIngestionRepository(
       for (const source of due) {
         const runId = await startSourceRun(source, scheduleKey, now);
         // A concurrent wakeup that won the race resumes that source's run.
-        if (runId !== null) runs.push({ action: "start", runId });
+        if (runId !== null)
+          runs.push({
+            action: "start",
+            runId,
+            source,
+            fetching: true,
+            attached: false,
+          });
       }
       if (runs.length > 0) {
         // Active runs can report nothing for hours while they wait for the

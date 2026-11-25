@@ -10,7 +10,7 @@ function dependencies(
   return {
     pauseCause: async () => null,
     startRun: async () => ({ status: "started", runId: "run-1" }),
-    startWorkflow: async () => ({ runId: "wrun-1" }),
+    startWorkflow: async () => ({ via: "workflow", runId: "wrun-1" }),
     ...overrides,
   };
 }
@@ -24,7 +24,32 @@ describe("ManualIngestionRun.start", () => {
       source: "pyp",
       runId: "run-1",
       workflowRunId: "wrun-1",
+      via: "workflow",
     });
+  });
+
+  test("hands a source that shares a host to the daily pass and says so", async () => {
+    const startWorkflow = mock(async () => ({
+      via: "pass" as const,
+      runId: "wrun-pass",
+    }));
+    const started = await ManualIngestionRun.start(
+      dependencies({ startWorkflow }),
+      "central",
+      "admin",
+    );
+    expect(started).toEqual({
+      status: "started",
+      source: "central",
+      runId: "run-1",
+      workflowRunId: "wrun-pass",
+      via: "pass",
+    });
+    expect(startWorkflow).toHaveBeenCalledWith("run-1", "central");
+    if (started.status !== "started") throw new Error("Expected a start");
+    expect(ManualIngestionRun.startNote(started)).toBe(
+      " The daily pass starts it once the rate-limited hosts it shares with other sources are free.",
+    );
   });
 
   test("refuses a retired source before reading anything", async () => {
@@ -90,11 +115,15 @@ describe("ManualIngestionRun.start", () => {
       source: "pratt",
       runId: "run-1",
       workflowRunId: "wrun-1",
+      via: "workflow",
     });
   });
 
   test("reports a source that already has an active run, and starts no workflow", async () => {
-    const startWorkflow = mock(async () => ({ runId: "wrun-1" }));
+    const startWorkflow = mock(async () => ({
+      via: "workflow" as const,
+      runId: "wrun-1",
+    }));
     expect(
       await ManualIngestionRun.start(
         dependencies({

@@ -41,7 +41,13 @@ export async function POST(request: Request) {
     );
   }
   return Response.json(
-    { source, runId: run.runId, workflowRunId: run.workflowRunId },
+    {
+      source,
+      runId: run.runId,
+      workflowRunId: run.workflowRunId,
+      // "pass": the day's pass starts the run once its shared hosts are free.
+      via: run.via,
+    },
     { status: 202 },
   );
 }

@@ -16,12 +16,15 @@ Kernel browsers follow the same lease and lock order below, in their own
 
 ## Session lease
 
-Every session is opened under a lease in the deployment's Upstash Redis, so at
-most `HYPERBROWSER_CONCURRENT_SESSIONS` sessions are open across all sources and
-workflow runs. Each source has its own lane in the `hyperbrowser` lane group,
-whose active places are the plan cap, and waiters take free places in FIFO
-order. Local processes, including soaks, take no lease; the soak script runs
-these sources one at a time instead.
+At most `HYPERBROWSER_CONCURRENT_SESSIONS` sessions are open across all sources
+and workflow runs. Each source has its own lane in the `hyperbrowser` lane
+group, whose places are the plan cap. The daily pass starts a browser source's
+run only while the group has a free place and holds that place until the run
+has fetched (`HostClaims`, see
+[crawl pacing without Redis](../design/crawl-pacing-without-redis.md)). Inside
+a chunk, the session lease is kept in the process. Local processes, including
+soaks, take no lease; the soak script runs these sources one at a time
+instead.
 
 - A chunk takes the lease with its first request and only then creates its
   session. When the chunk ends, the session stops first and the lease is

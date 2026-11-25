@@ -19,6 +19,7 @@ function dependencies(
       source,
       runId: "run-1",
       workflowRunId: "wrun-1",
+      via: "workflow",
     }),
     logRun: async () => undefined,
     expireHiddenSources: () => undefined,

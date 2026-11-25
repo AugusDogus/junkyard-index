@@ -81,10 +81,11 @@ export async function prepareIngestionPassStep(day: string) {
 }
 prepareIngestionPassStep.maxRetries = 2;
 
-/** Reports a stopped source run to its pass, if the pass is listening. */
+/** Reports a source run that fetched or stopped to its pass, if the pass is
+ * listening. */
 export async function reportIngestionRunStep(
   day: string,
-  report: IngestionRunReport,
+  report: Extract<IngestionRunReport, { runId: string }>,
 ) {
   "use step";
 

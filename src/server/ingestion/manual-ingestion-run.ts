@@ -12,15 +12,25 @@ import type { PauseCause } from "~/server/source-control/source-control";
  * which is left running.
  */
 export type ManualIngestionRunStart =
-  | {
+  | ({
       status: "started";
       source: IngestionSource;
       runId: string;
-      workflowRunId: string;
-    }
+    } & ManualWorkflowStart)
   | { status: "retired"; source: IngestionSource }
   | { status: "paused"; source: IngestionSource; cause: PauseCause }
   | { status: "busy"; source: IngestionSource };
+
+/**
+ * How a manual run's workflow starts. `workflow`: its own workflow
+ * (`workflowRunId`) starts now. `pass`: the source shares a rate-limited host
+ * with other sources (`HostClaims`), so the day's pass (`workflowRunId`)
+ * admits it and starts its workflow once those hosts are free.
+ */
+export type ManualWorkflowStart = {
+  via: "workflow" | "pass";
+  workflowRunId: string;
+};
 
 /**
  * Who asked for the run. The admin "Run now" control refuses every paused
@@ -42,8 +52,12 @@ export type ManualIngestionRunDependencies = {
   startRun: (
     source: IngestionSource,
   ) => Promise<{ status: "started"; runId: string } | { status: "busy" }>;
-  /** Starts the workflow that drives the run. */
-  startWorkflow: (runId: string) => Promise<{ runId: string }>;
+  /** Starts the workflow that drives the run, or hands the run to the day's
+   * pass (see `ManualWorkflowStart`); `runId` is that workflow's run. */
+  startWorkflow: (
+    runId: string,
+    source: IngestionSource,
+  ) => Promise<{ via: ManualWorkflowStart["via"]; runId: string }>;
 };
 
 function pausedBy(cause: PauseCause, source: IngestionSource): string {
@@ -75,13 +89,21 @@ export const ManualIngestionRun = {
     }
     const run = await deps.startRun(source);
     if (run.status === "busy") return { status: "busy", source };
-    const workflow = await deps.startWorkflow(run.runId);
+    const workflow = await deps.startWorkflow(run.runId, source);
     return {
       status: "started",
       source,
       runId: run.runId,
       workflowRunId: workflow.runId,
+      via: workflow.via,
     };
+  },
+
+  /** What to add after "Started run …" for a run the pass starts later. */
+  startNote(started: Extract<ManualIngestionRunStart, { status: "started" }>) {
+    return started.via === "pass"
+      ? " The daily pass starts it once the rate-limited hosts it shares with other sources are free."
+      : "";
   },
 
   /** Why no run started, in plain words for the owner and the API. */

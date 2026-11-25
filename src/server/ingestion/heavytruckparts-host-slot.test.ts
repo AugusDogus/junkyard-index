@@ -5,30 +5,38 @@ import {
   withHeavyTruckPartsHostSlot,
   type HeavyTruckPartsHostStore,
 } from "./heavytruckparts-host-slot";
-import { HostReservation } from "./provider-host-slot";
+import { HostReservation, ProviderHostStores } from "./provider-host-slot";
 
-test("deployed clients fail before requesting when Redis configuration is missing", async () => {
+test("deployed clients fail before requesting when the lease store fails", async () => {
   const vercel = process.env.VERCEL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
   let requested = false;
+  const failing: HeavyTruckPartsHostStore = {
+    reserve: async () => {
+      throw new Error("Lease store unavailable");
+    },
+    release: async () => true,
+    cancel: async () => true,
+  };
   try {
     process.env.VERCEL = "1";
-    delete process.env.UPSTASH_REDIS_REST_TOKEN;
-    await expect(
-      Effect.runPromise(
-        heavyTruckPartsHostSlot(
-          Effect.sync(() => {
-            requested = true;
-          }),
-        ),
-      ),
-    ).rejects.toThrow("configuration failed");
+    await ProviderHostStores.using(
+      () => failing,
+      async () => {
+        await expect(
+          Effect.runPromise(
+            heavyTruckPartsHostSlot(
+              Effect.sync(() => {
+                requested = true;
+              }),
+            ),
+          ),
+        ).rejects.toThrow("reservation failed");
+      },
+    );
     expect(requested).toBe(false);
   } finally {
     if (vercel === undefined) delete process.env.VERCEL;
     else process.env.VERCEL = vercel;
-    if (token === undefined) delete process.env.UPSTASH_REDIS_REST_TOKEN;
-    else process.env.UPSTASH_REDIS_REST_TOKEN = token;
   }
 });
 

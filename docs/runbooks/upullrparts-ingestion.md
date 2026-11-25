@@ -280,7 +280,7 @@ time.
 Not measured: the production path. Every search above, and in the November
 24 soak, was sent from a Vercel Sandbox IP or a Kernel browser by a harness.
 Searches sent from a Vercel Function's egress IP, the session lease
-taken through Redis under the 07:00 contention, and whether a function's IP
+taken under the 07:00 contention, and whether a function's IP
 changes between block retries have not been run. Tokens are known to work
 from local, Sandbox, Hyperbrowser and Kernel IPs. If Function IPs share the
 wider AWS limit above, expect block pauses; each costs one short browser.
