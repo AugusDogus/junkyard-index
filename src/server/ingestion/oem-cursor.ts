@@ -24,7 +24,8 @@ export const oemHash = (value: unknown) =>
 /** Parser, traversal and closing contract for carried model evidence. */
 const OEM_CENSUS_CONTRACT =
   "oem/OH40/literal-model-graph/arrival-union/make-directory-closing/incremental-model-census-v4-expected-surplus-replay";
-/** Every model page of an accepted run, carried forward by the next one. */
+/** Every model page of an accepted run: the next run reference for read
+ * reasons, expected cards, closing floors and replay coverage. */
 export const OemCensusSchema = ModelCensus.schema(OemPageSchema, 1024);
 export type OemCensus = z.infer<typeof OemCensusSchema>;
 const menusSchema = z
@@ -102,9 +103,8 @@ export type OemClosingControl =
 /** Closing re-reads the make directory (every page already proves OH40
  * ownership) and every model read this run whose cards differ from its badge or
  * fall below its expected count (ModelCensus.closingReads), so a short page is
- * confirmed before it can be carried. Carried pages were confirmed on the run
- * that read them; other per-model changes surface as badge changes in the next
- * run's opening menus. */
+ * confirmed by an identical re-read in the run that reads it. Other per-model
+ * changes surface as badge changes in the next run's opening menus. */
 export function oemClosingControls(
   state: Pick<
     OemCensusState,
@@ -145,14 +145,13 @@ function oemCensusControls(
     count: model.count,
   }));
 }
-/** Read or carry each published model. A current arrival never triggers a
- * read: OEM model pages lag arrivals by days, so that trigger would re-read the
- * same lagging page daily, and arrival donors are published from the arrivals
- * page itself. A donor that leaves the arrivals page is published only through
- * its model page, so a model is read once on the day an arrival donor whose own
- * destination binds to it departs while missing from its carried page. A
- * departing donor whose destination binds to no published model (for example a
- * RAM DODGE title under /parts/RAM/) cannot trigger a read. */
+/** Read every published model on every run (`reuse: "never"`): an unchanged
+ * badge can hide a donor swapped under it. A read is labelled `trigger` on
+ * the day an arrival donor whose own destination binds to the model departs
+ * while missing from its last accepted page; a current arrival is never a
+ * trigger, because OEM model pages lag arrivals by days. A departing donor
+ * whose destination binds to no published model (for example a RAM DODGE title
+ * under /parts/RAM/) labels no read. */
 export function oemCensusPlan(
   state: Pick<
     OemCensusState,
@@ -169,6 +168,7 @@ export function oemCensusPlan(
     return ModelCensus.plan(controls, state.previous, state.day, {
       cards: oemCards,
       triggers,
+      reuse: "never",
     });
   // Directory parsing stores each model control under its resolved owned URL.
   const parents = new Map(
@@ -194,6 +194,7 @@ export function oemCensusPlan(
   return ModelCensus.plan(controls, state.previous, state.day, {
     cards: oemCards,
     triggers,
+    reuse: "never",
   });
 }
 /** Cards a model page lists, as closing compares them with its badge. */

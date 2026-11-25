@@ -309,44 +309,50 @@ describe("Jim's Import complete census guards", () => {
     expect(changed.calls).toEqual([JIMSIMPORT_CATALOG, url]);
     expect(changed.emitted()).toBe(0);
   });
-  test("carried model pages must equal their accepted census evidence", () => {
+  test("an incremental checkpoint accounts a native read for every model page", () => {
     const state = closingState();
     const census = jimsimportCensus(state);
     const next = { ...state, day: state.day + 1, previous: census };
+    // An unchanged badge proves nothing about the donors under it, so the
+    // run after an accepted census plans a read for every model and carries
+    // none: pages whose cards differ from their badge, unconfirmed by the
+    // cold run, read as short and every other page as a daily read.
     const decisions = jimsimportCensusPlan(next);
-    const carried = decisions.findIndex((d) => d.kind === "carry");
-    const read = decisions.findIndex((d) => d.kind === "read");
-    expect(carried).toBeGreaterThanOrEqual(0);
-    expect(read).toBeGreaterThanOrEqual(0);
+    expect(decisions).toHaveLength(334);
+    expect(decisions.every((d) => d.kind === "read")).toBe(true);
+    const mismatched = jimsimportModels(state.menus).flatMap(({ model }, i) =>
+      state.opening[i]?.records.length === model.count ? [] : [i],
+    );
+    expect(mismatched).toHaveLength(23);
+    expect(decisions).toEqual(
+      decisions.map((_, i) => ({
+        kind: "read",
+        reason: mismatched.includes(i) ? "short" : "daily",
+      })),
+    );
+    // Owner, make directory, 33 menus and all 334 model pages.
+    expect(state.requests).toBe(2 + 33 + 334);
     expect(() =>
       JimsimportCursor.checkpoint({ ...next, phase: "closing-makes" }),
     ).not.toThrow();
-    // A carried page whose donor VIN drifted is not the census evidence.
-    const tampered = state.opening.map((page, i) =>
-      i === carried
-        ? {
-            ...page,
-            records: page.records.map((r, j) =>
-              j === 0 ? { ...r, vin: "WBA7E2C59GG504712" } : r,
-            ),
-          }
-        : page,
-    );
+    // A checkpoint recording one GET fewer than its pages claims a carried
+    // page that no longer exists.
     expect(() =>
       JimsimportCursor.checkpoint({
         ...next,
+        requests: state.requests - 1,
         phase: "closing-makes",
-        opening: tampered,
       }),
-    ).toThrow("carried model page differs");
-    // A paused opening must stop at a model that is due for a read.
+    ).toThrow("request accounting is inconsistent");
+    // A paused opening may stop at any model: each one is due for a read.
     expect(() =>
       JimsimportCursor.checkpoint({
         ...next,
+        requests: 2 + 33 + 100,
         phase: "opening",
-        opening: state.opening.slice(0, carried),
+        opening: state.opening.slice(0, 100),
       }),
-    ).toThrow("not due for a read");
+    ).not.toThrow();
   });
   test("owner closure emits once and publishes the model census", async () => {
     const state = closingState();

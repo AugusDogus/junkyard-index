@@ -1,17 +1,26 @@
 import { z } from "zod";
 
 /**
- * Incremental census for native make/model directories (URG parts plugins).
+ * Census for native make/model directories (URG parts plugins) and other
+ * keyed page sets.
  *
- * The model page is the only complete VIN-bearing listing, so a run still reads
- * every make menu, then reads a model page only when it is new, its published
- * count changed, the connector names it as triggered (for example by an unseen
- * arrival), its evidence reached the age ceiling, or it falls in today's sweep
- * slice. Every other model carries its last accepted page forward unchanged.
+ * Every connector names what an unchanged key proves (`reuse`):
+ * - `never`: the key and published count name a page whose cards can change
+ *   while both stay the same (one donor crushed and another placed under the
+ *   same model badge). This is every model page under a menu badge, the only
+ *   complete VIN-bearing listing those sites publish, so every run reads every
+ *   page. The census still supplies read reasons, expected cards, closing
+ *   floors and coverage references.
+ * - `unchanged-key`: the key binds the whole entry of a complete listing read
+ *   this run (603's catalog card), so a carried page belongs to an entry the
+ *   site still lists unchanged. A run then reads a page only when it is new,
+ *   its count changed, the connector names it as triggered, it is short, its
+ *   evidence reached the age ceiling, or it falls in today's sweep slice.
+ *   Every other page carries its last accepted evidence unchanged.
  *
- * Incremental reading needs an accepted census from today or the previous run
- * day. After a missed, failed or rejected run (a gap of more than one day),
- * every model page is read again (reason `gap`), so a fault that caused a
+ * Carrying needs an accepted census from today or the previous run day.
+ * After a missed, failed or rejected run (a gap of more than one day),
+ * every page is read again (reason `gap`), so a fault that caused a
  * rejection is re-read in full and cannot hide behind carried pages. Only a
  * normal incremental run confirms short pages: a cold, gap or outage run
  * stores none as confirmed, so the next run reads them again.
@@ -125,11 +134,17 @@ export type ModelCensusShortPages<Page> =
   | "confirmed"
   | { kind: "unconfirmed"; identity: (page: Page) => string };
 
+/** What an unchanged key and count prove about a page (see the module
+ * comment): nothing (`never`, read every page every run), or that a complete
+ * listing read this run still shows the same entry (`unchanged-key`). */
+export type ModelCensusReuse = "never" | "unchanged-key";
+
 export interface ModelCensusPlanOptions<Page> {
   /** Cards a page lists, compared with its published count. */
   cards: (page: Page) => number;
   /** Keys a connector-specific signal (for example an arrival) forces to read. */
   triggers?: ReadonlySet<string>;
+  reuse: ModelCensusReuse;
 }
 
 export interface ModelCensus<Page> {
@@ -147,7 +162,9 @@ export type ModelCensusReadReason =
   | "trigger"
   | "short"
   | "stale"
-  | "sweep";
+  | "sweep"
+  /** Read only because the connector never reuses pages (`reuse: never`). */
+  | "daily";
 
 export type ModelCensusDecision<Page> =
   | { kind: "read"; reason: ModelCensusReadReason }
@@ -298,7 +315,7 @@ function plan<Page>(
   controls: readonly ModelCensusControl[],
   previous: ModelCensus<Page> | null,
   today: number,
-  { cards, triggers = new Set() }: ModelCensusPlanOptions<Page>,
+  { cards, triggers = new Set(), reuse }: ModelCensusPlanOptions<Page>,
 ): ModelCensusDecision<Page>[] {
   if (!previous || previous.day > today)
     return controls.map(() => ({ kind: "read", reason: "cold" }));
@@ -320,6 +337,7 @@ function plan<Page>(
       before.recheck
     )
       return { kind: "read", reason: "short" };
+    if (reuse === "never") return { kind: "read", reason: "daily" };
     if (today - before.readDay >= MODEL_CENSUS_SWEEP_DAYS)
       return { kind: "read", reason: "stale" };
     if (

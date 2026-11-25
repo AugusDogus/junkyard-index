@@ -32,7 +32,8 @@ const scope = centralHash({
   contract:
     "DD15/literal-premium-model-graph/all-required-destination-conflicts-quarantined/incremental-model-census-v3",
 });
-/** Every model page read by an accepted run, carried forward by the next one.
+/** Every model page read by an accepted run: the next run reference for read
+ * reasons, expected cards, closing floors and replay coverage.
  * Each page must still match its own card fingerprint. */
 export const CentralCensusSchema = ModelCensus.schema(
   CentralPageSchema,
@@ -121,8 +122,9 @@ function centralCensusControls(
   }));
 }
 
-/** Read or carry each published model. The arrivals page omits about 38% of
- * new donors and is not parsed, so Central has no arrival triggers. */
+/** Read every published model on every run (`reuse: "never"`): an unchanged
+ * badge can hide a donor swapped under it. The arrivals page omits about
+ * 38% of new donors and is not parsed, so Central has no arrival triggers. */
 export function centralCensusPlan(
   state: Pick<CentralProgress, "makes" | "previous" | "day">,
 ): ModelCensusDecision<CentralPage>[] {
@@ -132,7 +134,7 @@ export function centralCensusPlan(
     centralCensusControls(state.makes),
     state.previous,
     state.day,
-    { cards: centralCards },
+    { cards: centralCards, reuse: "never" },
   );
 }
 

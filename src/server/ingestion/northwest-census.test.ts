@@ -5,13 +5,12 @@ import {
   type NorthwestStreamResult,
 } from "./northwest-connector";
 import { NorthwestCursor } from "./northwest-cursor";
-import { northwestHash } from "./northwest-parser";
 import {
   NORTHWEST_MAKES,
   NORTHWEST_ORIGIN,
   NORTHWEST_ROOT,
 } from "./northwest-yard-metadata";
-import { MODEL_CENSUS_DAY_MS, ModelCensus } from "./model-census";
+import { MODEL_CENSUS_DAY_MS } from "./model-census";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
@@ -135,10 +134,7 @@ async function census(
     warnings.push(...result.warnings);
     cursor = NorthwestCursor.parse(NorthwestCursor.serialize(result.cursor));
   }
-  const models = native.urls
-    .slice(before)
-    .flatMap((url) => /\/parts\/ACURA\/M(\d+)\/$/.exec(url)?.[1] ?? [])
-    .map(Number);
+  const models = modelReads(native, before);
   const terminal: unknown = JSON.parse(NorthwestCursor.serialize(cursor));
   return {
     terminal,
@@ -156,13 +152,15 @@ const allVins = (native: ReturnType<typeof yard>) =>
 const censusKey = (i: number, label = "M" + i) =>
   JSON.stringify([MAKE, "ACURA", `${MAKE}/M${i}/`, label]);
 
-/** Published models whose sweep slice falls on `day`, in published order. */
-const swept = (native: ReturnType<typeof yard>, day: number) =>
-  [...native.rows.keys()]
-    .filter(
-      (i) => ModelCensus.slice(censusKey(i, native.labels.get(i))) === day % 6,
-    )
-    .sort((a, b) => a - b);
+const every = Array.from({ length: 12 }, (_, i) => i);
+
+/** Read days of every model in a terminal census, in published order. */
+const readDays = (terminal: unknown) => {
+  const parsed = NorthwestCursor.parse(JSON.stringify(terminal));
+  if (parsed.phase !== "complete" || !parsed.census)
+    throw new Error("Expected a terminal census");
+  return parsed.census.models.map((m) => m.readDay);
+};
 
 /** Expected run summary for read reasons listed in published model order. */
 function summary(total: number, reasons: readonly string[]) {
@@ -216,153 +214,125 @@ test("Northwest cold start reads every model and publishes its census", async ()
   );
 }, 120_000);
 
-test("Northwest carries unread models, rotates the sweep and reads changes", async () => {
+test("Northwest reads every model on every incremental run and reads changes", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
   const parsed = NorthwestCursor.parse(JSON.stringify(cold.terminal));
   if (parsed.phase !== "complete" || !parsed.census)
     throw new Error("Expected a terminal census");
   expect(parsed.census.models.map((m) => m.key)).toEqual(
-    Array.from({ length: 12 }, (_, i) => censusKey(i)),
+    every.map((i) => censusKey(i)),
   );
-  // Day 601: only the sweep slice (slice(key) === 601 % 6) is read.
-  const sweep601 = swept(native, 601);
-  expect(sweep601.length).toBeGreaterThan(0);
+  // Day 601: no model changed, yet every model page is read (reason daily)
+  // and nothing is carried, at the cost of a full read.
   const next = await census(native, 601, cold.terminal);
-  expect(next.models).toEqual(sweep601);
-  expect(next.requests).toBe(5 + sweep601.length);
-  // Carried donors are still published in full.
+  expect(next.models).toEqual(every);
+  expect(next.requests).toBe(cold.requests);
+  expect(next.requests).toBe(17);
   expect(next.vins).toEqual(allVins(native));
   expect(next.warnings.at(-1)).toBe(
     summary(
       12,
-      sweep601.map(() => "sweep"),
+      every.map(() => "daily"),
     ),
   );
+  expect(next.warnings.at(-1)).toEndWith("; carried 0.");
+  expect(readDays(next.terminal)).toEqual(every.map(() => 601));
 
   // Day 602: a sold donor changes model 4's badge, and model 5 is relabelled
-  // at the same path and count, so its carried context no longer binds. Count
-  // and new outrank the sweep, so both reasons hold whatever their slices.
+  // at the same path and count, so its old evidence no longer binds. Count
+  // and new name why those pages are read; every other page is read daily.
   native.rows.set(4, donors(4, 199));
   native.labels.set(5, "M5 SPORT");
-  const sweep602 = swept(native, 602);
-  const reasons602 = [...native.rows.keys()].flatMap((i) =>
-    i === 4
-      ? [{ i, reason: "count" }]
-      : i === 5
-        ? [{ i, reason: "new" }]
-        : sweep602.includes(i)
-          ? [{ i, reason: "sweep" }]
-          : [],
+  const reasons602 = every.map((i) =>
+    i === 4 ? "count" : i === 5 ? "new" : "daily",
   );
   const changed = await census(native, 602, next.terminal);
-  expect(changed.models).toEqual(reasons602.map(({ i }) => i));
+  expect(changed.models).toEqual(every);
+  expect(changed.requests).toBe(17);
   expect(changed.vins).toEqual(allVins(native));
   expect(changed.vins).not.toContain(vin(4, 200));
-  expect(changed.warnings.at(-1)).toBe(
-    summary(
-      12,
-      reasons602.map(({ reason }) => reason),
-    ),
-  );
+  expect(changed.warnings.at(-1)).toBe(summary(12, reasons602));
+  expect(readDays(changed.terminal)).toEqual(every.map(() => 602));
 
-  // A later daily run (within the six-day ceiling of the cold census): a newly
-  // published model is read outside its sweep slice, and the sweep has
-  // rotated to another non-empty slice.
-  const addedDay = [603, 604, 605].find(
-    (day) =>
-      ModelCensus.slice(censusKey(12)) !== day % 6 &&
-      swept(native, day).length > 0,
-  );
-  if (addedDay === undefined)
-    throw new Error("fixture needs a day off model 12's slice with a sweep");
-  // Every day before it runs too, so no gap forces a full read; each reads
-  // exactly its sweep slice.
-  let previous = changed.terminal;
-  for (let day = 603; day < addedDay; day++) {
-    const daily = await census(native, day, previous);
-    expect(daily.models).toEqual(swept(native, day));
-    expect(daily.vins).toEqual(allVins(native));
-    expect(daily.warnings.at(-1)).toBe(
-      summary(
-        12,
-        swept(native, day).map(() => "sweep"),
-      ),
-    );
-    previous = daily.terminal;
-  }
+  // Day 603: a newly published model is read as new, beside every other
+  // model read daily.
   native.rows.set(12, donors(12, 10));
-  const sweepAdded = swept(native, addedDay);
-  expect(sweepAdded).not.toEqual(sweep601);
-  const added = await census(native, addedDay, previous);
-  expect(added.models).toEqual([...sweepAdded, 12]);
+  const added = await census(native, 603, changed.terminal);
+  expect(added.models).toEqual([...every, 12]);
+  expect(added.requests).toBe(18);
   expect(added.vins).toEqual(allVins(native));
+  expect(added.warnings.at(-1)).toBe(
+    summary(13, [...every.map(() => "daily"), "new"]),
+  );
 }, 120_000);
 
-test("Northwest re-reads every model within six days, even across missed runs", async () => {
-  const native = yard();
-  let previous = (await census(native, 600, null)).terminal;
-  const lastRead = new Map<number, number>();
-  for (let i = 0; i < 12; i++) lastRead.set(i, 600);
-  const every = Array.from({ length: 12 }, (_, i) => i);
-  // Skip days 601 and 602, run daily through 608, skip a single day (609),
-  // then run daily again.
-  const gapDays = new Set([603, 610]);
-  const days = [
-    603, 604, 605, 606, 607, 608, 610, 611, 612, 613, 614, 615, 616,
-  ];
-  const perDay: number[][] = [];
-  for (const day of days) {
-    // The first run after any missed day reads every model (reason gap).
-    // Every other daily run resumes incrementally: its sweep slice, read as
-    // stale when the slice's last read is six days old.
-    const reads = gapDays.has(day) ? every : swept(native, day);
-    const reasons = reads.map((model) =>
-      gapDays.has(day)
-        ? "gap"
-        : day - (lastRead.get(model) ?? day) >= 6
-          ? "stale"
-          : "sweep",
-    );
-    const run = await census(native, day, previous);
-    expect(run.models).toEqual(reads);
-    expect(run.warnings.at(-1)).toBe(summary(12, reasons));
-    for (const model of run.models) lastRead.set(model, day);
-    for (const read of lastRead.values()) expect(day - read).toBeLessThan(6);
-    expect(run.vins).toEqual(allVins(native));
-    perDay.push(run.models);
-    previous = run.terminal;
-  }
-  // The six daily runs after the last gap read every model exactly once.
-  expect(days.slice(-6)).toEqual([611, 612, 613, 614, 615, 616]);
-  expect(
-    perDay
-      .slice(-6)
-      .flat()
-      .sort((a, b) => a - b),
-  ).toEqual(every);
-}, 120_000);
-
-test("Northwest rejects a checkpoint whose carried page differs from its census", async () => {
+test("Northwest reads a model whose donors changed under an unchanged badge", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
-  // The first day whose sweep slice does not start at model 0; stop after the
-  // menu so every model before the first read (including model 0) is carried.
-  const day = [601, 602, 603, 604, 605].find(
-    (candidate) => (swept(native, candidate)[0] ?? 12) > 0,
+  expect(cold.vins).toContain(vin(7, 200));
+  // One donor is crushed and another placed under model 7: its key and badge
+  // (200) stay the same, so only reading the page shows the swap.
+  native.rows.set(7, [...donors(7, 199), vin(7, 999)]);
+  const swapped = await census(native, 601, cold.terminal);
+  expect(swapped.models).toEqual(every);
+  expect(swapped.warnings.at(-1)).toBe(
+    summary(
+      12,
+      every.map(() => "daily"),
+    ),
   );
-  if (day === undefined)
-    throw new Error("fixture needs a day whose first swept model is not M0");
-  // Run every day before it, so no gap forces a full read on that day.
-  let previous = cold.terminal;
-  for (let daily = 601; daily < day; daily++)
-    previous = (await census(native, daily, previous)).terminal;
-  const firstRead = swept(native, day)[0] ?? 12;
+  expect(swapped.vins).toEqual(allVins(native));
+  expect(swapped.vins).toContain(vin(7, 999));
+  expect(swapped.vins).not.toContain(vin(7, 200));
+  // The new census holds today's page for model 7, not the crushed donor.
+  const parsed = NorthwestCursor.parse(JSON.stringify(swapped.terminal));
+  if (parsed.phase !== "complete" || !parsed.census)
+    throw new Error("Expected a terminal census");
+  const model7 = parsed.census.models[7];
+  expect(model7?.count).toBe(200);
+  expect(model7?.readDay).toBe(601);
+  expect(model7?.page.records.flatMap((r) => r.vins)).toContain(vin(7, 999));
+  expect(model7?.page.records.flatMap((r) => r.vins)).not.toContain(
+    vin(7, 200),
+  );
+}, 120_000);
+
+test("Northwest reads every model on every run, even across missed runs", async () => {
+  const native = yard();
+  let previous = (await census(native, 600, null)).terminal;
+  // Skip days 601 and 602, run 603 and 604, skip 605, then run 606 and 607.
+  // The first run after any missed day reads every model as gap; every other
+  // run reads every model as daily.
+  const gapDays = new Set([603, 606]);
+  for (const day of [603, 604, 606, 607]) {
+    const run = await census(native, day, previous);
+    expect(run.models).toEqual(every);
+    expect(run.requests).toBe(17);
+    expect(run.warnings.at(-1)).toBe(
+      summary(
+        12,
+        every.map(() => (gapDays.has(day) ? "gap" : "daily")),
+      ),
+    );
+    expect(readDays(run.terminal)).toEqual(every.map(() => day));
+    expect(run.vins).toEqual(allVins(native));
+    previous = run.terminal;
+  }
+}, 120_000);
+
+test("Northwest checkpoints charge a GET for every model page on an incremental run", async () => {
+  const native = yard();
+  const cold = await census(native, 600, null);
+  const parsed = NorthwestCursor.parse(JSON.stringify(cold.terminal));
+  if (parsed.phase !== "complete" || !parsed.census)
+    throw new Error("Expected a terminal census");
+  // Stop after the menu: no model page is carried in before the first read.
   const first = await Effect.runPromise(
     streamNorthwestInventoryWithRequestGate(
       {
-        previousCursor: previous,
-        now: () => day * MODEL_CENSUS_DAY_MS,
+        previousCursor: cold.terminal,
+        now: () => 601 * MODEL_CENSUS_DAY_MS,
         maxPages: 3,
         onBatch: () => Effect.void,
       },
@@ -371,19 +341,16 @@ test("Northwest rejects a checkpoint whose carried page differs from its census"
   );
   const cursor = first.cursor;
   if (cursor.phase !== "models") throw new Error("Expected the model phase");
-  expect(cursor.pages).toHaveLength(firstRead);
+  expect(cursor.pages).toHaveLength(0);
   expect(cursor.requests).toBe(3);
-  const carried = cursor.pages[0];
-  if (!carried) throw new Error("Expected a carried model page");
-  const records = carried.records.slice(1);
-  const tampered = {
-    ...cursor,
-    pages: [{ records, hash: northwestHash(records) }],
-  };
-  expect(() => NorthwestCursor.checkpoint(tampered)).toThrow(
-    "carried model page differs from its census",
-  );
-  // Claiming the carried page cost a GET breaks request accounting.
+  // Filling model 0 from the last accepted census without a GET breaks
+  // request accounting: every page must be read.
+  const previousPage = parsed.census.models[0]?.page;
+  if (!previousPage) throw new Error("Expected model 0 evidence");
+  expect(() =>
+    NorthwestCursor.checkpoint({ ...cursor, pages: [previousPage] }),
+  ).toThrow("request accounting");
+  // Claiming a GET that read no page breaks it too.
   expect(() => NorthwestCursor.checkpoint({ ...cursor, requests: 4 })).toThrow(
     "request accounting",
   );
@@ -457,18 +424,17 @@ test("Northwest confirms a model read with fewer cards than its badge at closing
     Array.from({ length: 12 }, () => false),
   );
 
-  // The next incremental run reads model 3 again off its sweep slice, re-reads
-  // it at closing and confirms it.
-  const reads = [...new Set([...swept(native, 601), 3])].sort((a, b) => a - b);
+  // The next incremental run reads every model, model 3 as short, re-reads
+  // model 3 at closing and confirms it.
   const confirming = await census(native, 601, cold.terminal);
-  expect(confirming.models).toEqual([...reads, 3]);
-  // Root, makes, one menu, the read models, closing root, makes and model 3.
-  expect(confirming.requests).toBe(6 + reads.length);
+  expect(confirming.models).toEqual([...every, 3]);
+  // Root, makes, one menu, 12 models, closing root, makes and model 3.
+  expect(confirming.requests).toBe(18);
   expect(confirming.vins).toEqual(allVins(native));
   expect(confirming.warnings.at(-1)).toBe(
     summary(
       12,
-      reads.map((i) => (i === 3 ? "short" : "sweep")),
+      every.map((i) => (i === 3 ? "short" : "daily")),
     ),
   );
   const confirmed = NorthwestCursor.parse(JSON.stringify(confirming.terminal));
@@ -478,13 +444,24 @@ test("Northwest confirms a model read with fewer cards than its badge at closing
     Array.from({ length: 12 }, (_, i) => i === 3),
   );
 
-  // A carried short page was confirmed on the run that read it.
-  const day = 602;
-  if (swept(native, day).includes(3))
-    throw new Error("fixture needs day 602 without M3");
-  const carried = await census(native, day, confirming.terminal);
-  expect(carried.models).toEqual(swept(native, day));
-  expect(carried.vins).toEqual(allVins(native));
+  // A confirmed short page is still read the next day (reason daily) and,
+  // still below its badge, re-read at closing and confirmed again.
+  const again = await census(native, 602, confirming.terminal);
+  expect(again.models).toEqual([...every, 3]);
+  expect(again.requests).toBe(18);
+  expect(again.vins).toEqual(allVins(native));
+  expect(again.warnings.at(-1)).toBe(
+    summary(
+      12,
+      every.map(() => "daily"),
+    ),
+  );
+  const reconfirmed = NorthwestCursor.parse(JSON.stringify(again.terminal));
+  if (reconfirmed.phase !== "complete" || !reconfirmed.census)
+    throw new Error("Expected a terminal census");
+  expect(reconfirmed.census.models.map((m) => m.confirmed)).toEqual(
+    Array.from({ length: 12 }, (_, i) => i === 3),
+  );
 
   // A short page that does not repeat at closing is never accepted.
   const modelUrl = NORTHWEST_ORIGIN + MAKE + "/M3/";
@@ -537,18 +514,15 @@ test("Northwest marks only closing-confirmed short pages and re-reads unconfirme
   expect(parsed.census.models.map((m) => m.confirmed)).toEqual(
     Array.from({ length: 12 }, () => false),
   );
-  // The next incremental run reads the unconfirmed page off its sweep slice
-  // and confirms it at closing; full pages are not short.
-  const reads601 = [...new Set([...swept(native, 601), 3])].sort(
-    (a, b) => a - b,
-  );
+  // The next incremental run reads the unconfirmed page as short and confirms
+  // it at closing; full pages are not short and are read as daily.
   const first = await census(native, 601, cold.terminal);
-  expect(first.models).toEqual([...reads601, 3]);
+  expect(first.models).toEqual([...every, 3]);
   expect(first.vins).toEqual(allVins(native));
   expect(first.warnings.at(-1)).toBe(
     summary(
       12,
-      reads601.map((i) => (i === 3 ? "short" : "sweep")),
+      every.map((i) => (i === 3 ? "short" : "daily")),
     ),
   );
   const confirmed = NorthwestCursor.parse(JSON.stringify(first.terminal));
@@ -557,62 +531,23 @@ test("Northwest marks only closing-confirmed short pages and re-reads unconfirme
   expect(confirmed.census.models.map((m) => m.confirmed)).toEqual(
     Array.from({ length: 12 }, (_, i) => i === 3),
   );
-  // Evidence that lost its confirmation is never carried: model 3 is read off
-  // its sweep slice and confirmed again at closing.
-  const day = 602;
-  if (swept(native, day).includes(3))
-    throw new Error("fixture needs day 602 without M3");
-  const unconfirmed = await census(native, day, {
+  // Evidence that lost its confirmation is read as short (not merely daily)
+  // and confirmed again at closing.
+  const unconfirmed = await census(native, 602, {
     ...confirmed,
     census: {
       ...confirmed.census,
       models: confirmed.census.models.map((m) => ({ ...m, confirmed: false })),
     },
   });
-  const reads = [...swept(native, day), 3].sort((a, b) => a - b);
-  expect(unconfirmed.models).toEqual([...reads, 3]);
+  expect(unconfirmed.models).toEqual([...every, 3]);
   expect(unconfirmed.vins).toEqual(allVins(native));
   expect(unconfirmed.warnings.at(-1)).toBe(
     summary(
       12,
-      reads.map((i) => (i === 3 ? "short" : "sweep")),
+      every.map((i) => (i === 3 ? "short" : "daily")),
     ),
   );
-}, 120_000);
-
-test("Northwest fails a run whose read and carried cards fall short of today's model badges", async () => {
-  // A site fault renders empty model pages while the menus look normal. Only
-  // today's sweep slice is read, so carried pages still hold the other cards.
-  const native = yard();
-  const cold = await census(native, 600, null);
-  const day = [601, 602, 603, 604, 605].find(
-    (candidate) => swept(native, candidate).length > 0,
-  );
-  if (day === undefined) throw new Error("fixture needs a non-empty slice");
-  for (const model of swept(native, day)) native.broken.add(model);
-  let cursor: NorthwestCursor = NorthwestCursor.initial;
-  let callbacks = 0;
-  const run = async () => {
-    for (;;) {
-      const result = await Effect.runPromise(
-        streamNorthwestInventoryWithRequestGate(
-          {
-            startCursor: cursor,
-            previousCursor: cold.terminal,
-            now: () => day * MODEL_CENSUS_DAY_MS,
-            maxPages: 8,
-            onBatch: () => Effect.sync(() => void callbacks++),
-            onYards: () => Effect.sync(() => void callbacks++),
-          },
-          gate,
-        ),
-      );
-      if (result.status === "complete") return result;
-      cursor = result.cursor;
-    }
-  };
-  await expect(run()).rejects.toThrow("coverage floor");
-  expect(callbacks).toBe(0);
 }, 120_000);
 
 /** Runs every chunk of one census from a fresh cursor, counting publish
@@ -642,29 +577,83 @@ async function guardedRun(
   }
 }
 
-test("Northwest fails an incremental run whose sweep slice is cut to one card per model", async () => {
+/** Fixture model pages requested since `from`, in request order. */
+const modelReads = (native: ReturnType<typeof yard>, from: number) =>
+  native.urls
+    .slice(from)
+    .flatMap((url) => /\/parts\/ACURA\/M(\d+)\/$/.exec(url)?.[1] ?? [])
+    .map(Number);
+
+test("Northwest fails a run whose model cards fall short of today's model badges", async () => {
+  // A site fault renders empty model pages for a sixth of the models while the
+  // menus look normal. Every page is read, so only the floor stops the run.
+  const native = yard();
+  const cold = await census(native, 600, null);
+  for (const model of [2, 7]) native.broken.add(model);
+  const published = { callbacks: 0 };
+  const shortfall =
+    "list 2000 of 2400 cards promised by today's model counts, below the 95% coverage floor";
+  const before = native.urls.length;
+  await expect(guardedRun(601, cold.terminal, published)).rejects.toThrow(
+    shortfall,
+  );
+  // Every model was read and both empty pages were re-read at closing.
+  expect(modelReads(native, before)).toEqual([...every, 2, 7]);
+  // The rejection holds on the next day's gap read and after an outage (the
+  // last accepted run six days old), since the badge floor always applies.
+  await expect(guardedRun(602, cold.terminal, published)).rejects.toThrow(
+    shortfall,
+  );
+  await expect(guardedRun(606, cold.terminal, published)).rejects.toThrow(
+    shortfall,
+  );
+  expect(published.callbacks).toBe(0);
+}, 120_000);
+
+test("Northwest fails an incremental run whose pages are cut to one card each", async () => {
   // Accurate badges already fail such a cut on the 95% badge floor and the 1%
   // unrecovered rule. Pages that list more cards than their badge (surplus
   // rows) hide it from both, so only the replay of last accepted cards sees it.
   const native = yard();
-  const day = [601, 602, 603, 604, 605].find(
-    (candidate) => swept(native, candidate).length > 0,
-  );
-  if (day === undefined) throw new Error("fixture needs a non-empty slice");
-  const slice = swept(native, day);
-  for (const model of native.rows.keys()) {
+  const cut = [2, 7];
+  for (const model of every) {
     native.rows.set(model, donors(model, 400));
-    if (slice.includes(model)) native.badges.set(model, 2);
+    if (cut.includes(model)) native.badges.set(model, 2);
   }
   const cold = await census(native, 600, null);
   expect(cold.vins).toEqual(allVins(native));
-  // Today's slice lists one card per model while every menu keeps its counts.
-  for (const model of slice) native.rows.set(model, donors(model, 1));
+  // A sixth of the pages list one card each while every menu keeps its counts.
+  for (const model of cut) native.rows.set(model, donors(model, 1));
   const published = { callbacks: 0 };
-  await expect(guardedRun(day, cold.terminal, published)).rejects.toThrow(
-    "that the last accepted census listed, less any drop in their counts, below the 97% coverage floor",
+  const replay =
+    "list 4002 of 4800 cards that the last accepted census listed, less any drop in their counts, below the 97% coverage floor";
+  const before = native.urls.length;
+  await expect(guardedRun(601, cold.terminal, published)).rejects.toThrow(
+    replay,
+  );
+  // Every model was read; the cut pages differ from their badges, so closing
+  // re-read them too.
+  expect(modelReads(native, before)).toEqual([...every, 2, 7]);
+  // After the rejection, gap reads stay judged against the same census while
+  // it is under six days old.
+  await expect(guardedRun(602, cold.terminal, published)).rejects.toThrow(
+    replay,
+  );
+  await expect(guardedRun(605, cold.terminal, published)).rejects.toThrow(
+    replay,
   );
   expect(published.callbacks).toBe(0);
+  // Six days on (an outage, or a real drop rejected that long) the run is
+  // judged like a cold run, on the badge floor, so the yard is not blocked.
+  const outage = await guardedRun(606, cold.terminal, published);
+  expect(outage.status).toBe("complete");
+  expect(published.callbacks).toBe(2);
+  expect(outage.warnings.at(-1)).toBe(
+    summary(
+      12,
+      every.map(() => "gap"),
+    ),
+  );
 }, 120_000);
 
 test("Northwest re-reads a surplus page that lost cards down to exactly its badge", async () => {
@@ -672,12 +661,6 @@ test("Northwest re-reads a surplus page that lost cards down to exactly its badg
   // Model 3's healthy page lists ten surplus rows beyond its badge.
   native.badges.set(3, 190);
   const cold = await census(native, 600, null);
-  const day = [601, 602, 603, 604].find((candidate) =>
-    swept(native, candidate).includes(3),
-  );
-  if (day === undefined) throw new Error("fixture needs M3 swept by day 604");
-  if (swept(native, 601).includes(3))
-    throw new Error("fixture needs M3 outside the day 601 slice");
   const model3 = (terminal: unknown) => {
     const parsed = NorthwestCursor.parse(JSON.stringify(terminal));
     if (parsed.phase !== "complete" || !parsed.census)
@@ -700,48 +683,48 @@ test("Northwest re-reads a surplus page that lost cards down to exactly its badg
     confirmed: false,
     page: expect.anything(),
   });
-  // Run every day before it, so no gap forces a full read on that day. The
-  // first incremental run reads model 3 again as short (its surplus is
-  // unconfirmed) and closing re-reads it (200 cards against a 190 badge);
-  // that run confirms the surplus, so later runs only read their slice.
-  let previous = cold.terminal;
-  for (let daily = 601; daily < day; daily++) {
-    const run = await census(native, daily, previous);
-    const confirming = daily === 601;
-    expect(run.models).toEqual(
-      confirming ? [...swept(native, daily), 3, 3] : swept(native, daily),
-    );
-    expect(run.vins).toEqual(allVins(native));
-    expect(run.warnings.at(-1)).toBe(
-      summary(12, [
-        ...swept(native, daily).map(() => "sweep"),
-        ...(confirming ? ["short"] : []),
-      ]),
-    );
-    expect(model3(run.terminal)).toEqual({
-      key: censusKey(3),
-      count: 190,
-      readDay: 601,
-      expected: 200,
-      lowSince: null,
-      lowCount: null,
-      lowRise: null,
-      ceiling: null,
-      ceilingSince: null,
-      recheck: false,
-      surplusConfirmed: true,
-      confirmed: false,
-      page: expect.anything(),
-    });
-    previous = run.terminal;
-  }
-  // Real donors leave model 3 until its page lists exactly its badge.
+  // The first incremental run reads model 3 as short (its surplus is
+  // unconfirmed), every other model as daily, and closing re-reads model 3
+  // (200 cards against a 190 badge); that run confirms the surplus.
+  const confirming = await census(native, 601, cold.terminal);
+  expect(confirming.models).toEqual([...every, 3]);
+  expect(confirming.vins).toEqual(allVins(native));
+  expect(confirming.warnings.at(-1)).toBe(
+    summary(
+      12,
+      every.map((i) => (i === 3 ? "short" : "daily")),
+    ),
+  );
+  expect(model3(confirming.terminal)).toEqual({
+    key: censusKey(3),
+    count: 190,
+    readDay: 601,
+    expected: 200,
+    lowSince: null,
+    lowCount: null,
+    lowRise: null,
+    ceiling: null,
+    ceilingSince: null,
+    recheck: false,
+    surplusConfirmed: true,
+    confirmed: false,
+    page: expect.anything(),
+  });
+  // Real donors leave model 3 until its page lists exactly its badge. Its
+  // confirmed surplus makes it a daily read, not a short one.
+  const day = 602;
   native.rows.set(3, donors(3, 190));
-  const cut = await census(native, day, previous);
+  const cut = await census(native, day, confirming.terminal);
   // Cards equal the badge but fall below the 200 the last census listed, so
   // closing re-reads the page.
-  expect(cut.models).toEqual([...swept(native, day), 3]);
+  expect(cut.models).toEqual([...every, 3]);
   expect(cut.vins).toEqual(allVins(native));
+  expect(cut.warnings.at(-1)).toBe(
+    summary(
+      12,
+      every.map(() => "daily"),
+    ),
+  );
   // The surplus is sticky: the drop keeps the 200 expectation (still
   // confirmed) and opens a low window on the cut day instead of accepting 190
   // as the new truth.
@@ -760,25 +743,19 @@ test("Northwest re-reads a surplus page that lost cards down to exactly its badg
     confirmed: false,
     page: expect.anything(),
   });
-  // The page is never carried while it lists fewer than 200: every following
-  // daily run reads it again as short and closing re-reads it. One lagging
-  // re-read cannot lower the surplus; only a normal incremental run six run
-  // days after the low window opened lowers it to what the page lists.
-  // Other models in a day's slice were last read six days earlier (daily runs
-  // since the cold census on 600), so from 606 on they read as stale.
-  const due = (daily: number) => (daily - 600 >= 6 ? "stale" : "sweep");
+  // While it lists fewer than 200, every following daily run reads it as
+  // short and closing re-reads it. One lagging re-read cannot lower the
+  // surplus; only a normal incremental run six run days after the low window
+  // opened lowers it to what the page lists.
   let terminal = cut.terminal;
   for (let daily = day + 1; daily <= day + 6; daily++) {
     const run = await census(native, daily, terminal);
-    const reads = [...new Set([...swept(native, daily), 3])].sort(
-      (a, b) => a - b,
-    );
-    expect(run.models).toEqual([...reads, 3]);
+    expect(run.models).toEqual([...every, 3]);
     expect(run.vins).toEqual(allVins(native));
     expect(run.warnings.at(-1)).toBe(
       summary(
         12,
-        reads.map((i) => (i === 3 ? "short" : due(daily))),
+        every.map((i) => (i === 3 ? "short" : "daily")),
       ),
     );
     const lowered = daily - day >= 6;
@@ -799,21 +776,21 @@ test("Northwest re-reads a surplus page that lost cards down to exactly its badg
     });
     terminal = run.terminal;
   }
-  // Once lowered, the page lists its full expectation and carries.
+  // Once lowered, the page is no longer short and is read as daily, but it
+  // still lists fewer than its count plus the ceiling, so closing re-reads it.
   const after = await census(native, day + 7, terminal);
-  expect(after.models).toEqual(swept(native, day + 7));
-  expect(after.models).not.toContain(3);
+  expect(after.models).toEqual([...every, 3]);
   expect(after.vins).toEqual(allVins(native));
   expect(after.warnings.at(-1)).toBe(
     summary(
       12,
-      swept(native, day + 7).map(() => due(day + 7)),
+      every.map(() => "daily"),
     ),
   );
   expect(model3(after.terminal)).toEqual({
     key: censusKey(3),
     count: 190,
-    readDay: day + 6,
+    readDay: day + 7,
     expected: 190,
     lowSince: null,
     lowCount: null,

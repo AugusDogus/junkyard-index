@@ -50,7 +50,8 @@ const CensusPageSchema = NorthwestPageSchema.extend({
     )
     .max(1000),
 });
-/** Every model page read by an accepted run, carried forward by the next one. */
+/** Every model page read by an accepted run: the next run reference for read
+ * reasons, expected cards, closing floors and replay coverage. */
 export const NorthwestCensusSchema = ModelCensus.schema(CensusPageSchema, 1024);
 export type NorthwestCensus = z.infer<typeof NorthwestCensusSchema>;
 const progress = z
@@ -89,12 +90,12 @@ export type NorthwestClosingControl =
       index: number;
     };
 
-/** Closing re-reads ownership, the make directory and every model read this
- * run whose cards differ from its badge or fall below its expected count
- * (ModelCensus.closingReads), so a short page is confirmed before it can be
- * carried. Carried pages were confirmed on the run that read them; make
- * menu and other model changes during the run surface as model badge changes
- * in the next run's opening menus, which are all read. */
+/** Closing re-reads ownership, the make directory and every model read this run
+ * whose cards differ from its badge or fall below its expected count
+ * (ModelCensus.closingReads), so a short page is confirmed by an identical
+ * re-read in the run that reads it. Make menu and other model changes during
+ * the run surface as model badge changes in the next run's opening menus, which
+ * are all read. */
 export function northwestClosingControls(
   state: Pick<NorthwestProgress, "makes" | "pages" | "previous" | "day">,
 ): NorthwestClosingControl[] {
@@ -156,8 +157,10 @@ function northwestCensusEvidenceHolds(census: NorthwestCensus): boolean {
   );
 }
 
-/** Read or carry each published model. Latest arrivals are not read (the
- * native list is stale and misses new donors), so nothing triggers a read. */
+/** Read every published model on every run (`reuse: "never"`): an unchanged
+ * badge can hide a donor swapped under it. Latest arrivals are not read
+ * (the native list is stale and misses new donors), so no read is labelled
+ * `trigger`. */
 export function northwestCensusPlan(
   state: Pick<NorthwestProgress, "makes" | "previous" | "day">,
 ): ModelCensusDecision<NorthwestPage>[] {
@@ -167,7 +170,7 @@ export function northwestCensusPlan(
     northwestCensusControls(state.makes),
     state.previous,
     state.day,
-    { cards: northwestCards },
+    { cards: northwestCards, reuse: "never" },
   );
 }
 

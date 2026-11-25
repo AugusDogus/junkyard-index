@@ -55,14 +55,16 @@ The nearest accepted yard was Mount Airy, about 35.5 km away.
 
 The connector reads official contact, recent arrivals, the make directory and
 every literal make link. Model pages go through the shared
-[incremental model census](model-census.md). The day after an accepted run, a
-model is read when it is new, its badge changed, it is short, it is stale, or
-it is in today's sweep slice. Chaz adds one trigger: a recent arrival entered
-no earlier than the day before the last accepted run binds to the model by
-destination but is missing from its carried page. Every other model carries
-its last accepted page at no request cost, so the union always covers every
-published model. After a missed, failed or rejected run, every model page is
-read. Only owned HTTPS browse
+[model census](model-census.md) with `reuse: "never"`: every run reads every
+published model page, so the union always covers every published model as the
+site lists it today. Badge-only reuse was removed because a donor crushed and
+another placed under the same model keeps the badge, so a carried page would
+keep publishing the crushed donor and miss the new one. The census still labels
+each read: the day after an accepted run, a model is read as new, count (its
+badge changed), trigger, short, or otherwise daily. Chaz's trigger is a recent
+arrival entered no earlier than the day before the last accepted run that binds
+to the model by destination but is missing from its last accepted page. After a
+missed, failed or rejected run, every model page is read as gap. Only owned HTTPS browse
 URLs are allowed. It never requests donor details, images, hidden routes,
 part searches or an inferred model route. Supplier declarations must all agree
 on `MD08`. Complete document, native owner, address and phone checks apply.
@@ -76,22 +78,22 @@ surplus rows, lowered only after six run days of lower reads, or twelve when the
 badge rose by at least the missing cards during that window, which looks like
 arrival lag; a surplus lowered by time while the page still lists less stays as a ceiling, so closing still re-reads any read below it, see [Incremental model census](model-census.md)). A
 changed fingerprint stops the run before emission, so a transient short or
-empty page is never published or carried. A page below its badge that re-reads
+empty page is never published. A page below its badge that re-reads
 identically, such as the dead `&` routes (TOWN & COUNTRY: badge 8, explicit
 empty), is confirmed only by a normal incremental run (not a cold, gap or outage
-full read), and carries until
-its sweep. Each such page costs one closing GET on the runs that read it. A
-page that only lost surplus cards without its badge dropping is never
-confirmed and is read again on the next run. Other model-level changes surface as badge
-changes in the next run's opening menus.
+full read). It is still read on every run, and each such page costs one
+closing GET a day. A page that only lost surplus cards without its badge
+dropping is never confirmed and is read again on the next run as short. Other
+model-level changes surface as badge changes in the next run's opening menus.
 
-Before the snapshot, the union of read and carried cards, each model capped at
-its badge, must cover at least 92% of today's model badges
+Before the snapshot, the union of model cards read this run, each model capped
+at its badge, must cover at least 92% of today's model badges
 (`CHAZ_MINIMUM_BADGE_COVERAGE`). The saved Nov 12 capture covers 94.2%
 (1,106 of 1,174; 68 unexplained badge overcounts on 46 models) and the Nov 18
-opening 99.3% (one dead `&` route short). Emptying any one sweep slice drops
-either capture to at most 90.9%, so a fault that breaks today's slice while
-carried pages hide it fails the first broken run with nothing published.
+opening 99.3% (one dead `&` route short). Emptying any one sixth of the models
+(a census slice, `ModelCensus.slice`) drops either capture to at most 90.9%,
+so a fault that empties that many pages fails the first broken run with
+nothing published.
 
 Cutting a slice to one card per page is subtler. Nov 18's lightest slice
 (slice 5: 30 models, 102 badge cards) cut that way still covers 93.5% of
@@ -106,20 +108,18 @@ Nov 12 slice 5 also 94.1%). Healthy incremental runs sit near 100%.
 
 Chaz specifics against the [shared census rules](model-census.md): the badge
 floor is 92% because the Nov 12 capture's 68 unexplained badge overcounts hold
-healthy runs at 94.2%, while emptying any sweep slice falls to 90.9% or less.
-Closing confirms short pages. On the Nov 18 graph (35 makes, 240 models) a
-cold or gap full read costs 282 GETs: 278 opening reads, then contact, the
-make directory and the two dead `&` routes at closing. A steady day costs about
-80: 38 opening reads, about 40 model pages plus changes and triggers, and the
-closing controls. A surplus model listing less than its sticky surplus adds
-about two GETs a day (its read and closing re-read) for 6 to 12 run days, and
-after a cold or gap read each surplus first seen or grown on that read costs
-two GETs (its read and closing re-read) to confirm.
+healthy runs at 94.2%, while emptying any slice falls to 90.9% or less.
+Closing confirms short pages. On the Nov 18 graph (35 makes, 240 models) every
+run is a full read and costs 282 GETs: 278 opening reads, then contact, the
+make directory and the two dead `&` routes at closing. A day after a cold or
+gap read costs the same, with the dead routes read as short until confirmed.
+Each page whose cards differ from its badge, or fall below its sticky surplus
+or ceiling, adds one closing GET on every run that reads it.
 
 Nonempty model destinations must match the requested literal model parent.
 Explicit empty pages must retain their native model heading; labels containing `&` also accept the native `-and`
-spelling. These checks do not claim simultaneous stability of unrefetched or
-carried model pages.
+spelling. These checks do not claim simultaneous stability of model pages
+that closing does not refetch.
 
 Chunks perform at most eight serial GETs with a three-minute deadline. Each
 request and complete body share a 20-second deadline. Transport waits 1.6 seconds

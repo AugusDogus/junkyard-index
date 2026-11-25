@@ -30,7 +30,8 @@ const scope = aplusHash({
   authority:
     "literal-model-graph/native-arrival-union/all-conflicts-quarantined/incremental-model-census-v3",
 });
-/** Every model page read by an accepted run, carried forward by the next one. */
+/** Every model page read by an accepted run: the next run reference for read
+ * reasons, expected cards, closing floors and replay coverage. */
 export const AplusCensusSchema = ModelCensus.schema(AplusPageSchema, 512);
 export type AplusCensus = z.infer<typeof AplusCensusSchema>;
 const MakeSchema = AplusControlSchema.extend({
@@ -74,11 +75,11 @@ export type AplusClosingControl =
       index: number;
     };
 
-/** Closing re-reads ownership, the make directory and every model read this
- * run whose cards differ from its badge or fall below its expected count
- * (ModelCensus.closingReads), so a short page is confirmed before it
- * can be carried. Carried pages were confirmed on the run that read them; other
- * per-model changes surface as count changes in the next run's opening menus. */
+/** Closing re-reads ownership, the make directory and every model read this run
+ * whose cards differ from its badge or fall below its expected count
+ * (ModelCensus.closingReads), so a short page is confirmed by an identical
+ * re-read in the run that reads it. Other per-model changes surface as count
+ * changes in the next run's opening menus. */
 export function aplusClosingControls(
   state: Pick<
     AplusProgress,
@@ -128,8 +129,9 @@ function aplusCensusControls(
   }));
 }
 
-/** Read or carry each published model. A carried model is also read when an
- * opening arrival names it but its carried page lacks that donor. */
+/** Read every published model on every run (`reuse: "never"`): an unchanged
+ * badge can hide a donor swapped under it. A read is labelled `trigger` when an
+ * opening arrival names the model but its last accepted page lacks that donor. */
 export function aplusCensusPlan(
   state: Pick<AplusProgress, "makes" | "arrivals" | "previous" | "day">,
 ): ModelCensusDecision<AplusPage>[] {
@@ -155,6 +157,7 @@ export function aplusCensusPlan(
   return ModelCensus.plan(controls, state.previous, state.day, {
     cards: aplusCards,
     triggers,
+    reuse: "never",
   });
 }
 

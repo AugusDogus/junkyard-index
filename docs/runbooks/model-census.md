@@ -1,4 +1,4 @@
-# Incremental model census (URG parts connectors)
+# Model census (URG parts connectors)
 
 `src/server/ingestion/model-census.ts` is shared by the A Plus, Aviation, Chaz,
 Central, Northwest, Calton, Denton, OEM, Jim's Import, Scotts and 603
@@ -8,24 +8,29 @@ one census entry with a count of one (see its runbook).
 
 ## What a run reads
 
-- Every run reads the fixed opening pages and every make menu.
-- **Incremental day:** when the last accepted census is from the same day or
-  the day before, a model page is read only when one of these holds:
-  - the model is new;
-  - its published count changed;
-  - a connector trigger names it, such as an unseen arrival;
-  - it is `short` (below its expected cards and not confirmed, see below);
-  - it is `stale` (read 6 or more run days ago);
-  - it is in today's sweep slice.
+- Every run reads the fixed opening pages, every make menu and every model
+  page. Each connector names what an unchanged key proves (`reuse` in
+  `ModelCensus.plan`):
+  - **`never` (the ten model-page connectors):** a model page is read on every
+    run. Its key and badge say nothing about which donors it lists: one donor
+    crushed and another placed under the same model keeps the badge, so a
+    carried page would hide both for days. The read reason records why the
+    page would have been read anyway (`new`, `count`, `trigger`, `short`), or
+    `daily` otherwise. Nothing is carried.
+  - **`unchanged-key` (603 only):** the key binds the whole catalog card of a
+    complete catalog read this run, so membership is always today's. A donor
+    article is read only when it is new, changed, short, read 6 or more run
+    days ago (`stale`) or in today's sweep slice (a hash of its key); every
+    other article carries its last accepted evidence.
 
-  Every other model carries its last accepted page at no request cost. A
-  model's sweep slice comes from a hash of its key, so every model is re-read
-  within 6 days.
+  Badge-only reuse was removed on November 25, 2026, after an audit found
+  that day's Scotts run made 83 requests in all, well under its 221 model
+  pages, and carried the rest.
 
 - **After a gap:** when the last accepted census is more than one day old
   (a missed, failed or rejected run), every model page is read (reason `gap`).
   A fault that caused a rejection is therefore re-read in full and cannot hide
-  behind carried pages. The next accepted run returns to incremental reading.
+  behind carried pages. On 603 the next accepted run returns to carrying.
 - **Cold:** with no usable census (first run, contract change, unreadable
   cursor), every page is read.
 - The census is seeded from the terminal cursor of the source's newest
@@ -49,9 +54,9 @@ one census entry with a count of one (see its runbook).
   at exactly its badge has no signal and is an accepted cold-start limit.
 - The same holds on any day a sale races a fault: the badge drops while the
   sold card is still listed, and a one-off fault hides one real card, so the
-  page lists exactly its new badge. Nothing marks it short, closing does not
-  re-read it, and it carries until its next read: a real card hidden for up to
-  6 days in both modes (main: 1).
+  page lists exactly its new badge. Nothing marks it short and closing does not
+  re-read it, so the card is hidden until the next run reads the page again
+  (one run day).
 - A read that lists less than the surplus allows does not lower it: badge lag
   after a sale looks exactly like a lost card. The page counts as short and is
   read again every run, and evidence records when the window began and the
@@ -95,8 +100,7 @@ one census entry with a count of one (see its runbook).
   page's first read after the placeholder returns is after day L + 12, or when
   continuous arrival lag hides a real placeholder for longer than the window
   plus the ceiling (about 24 run days). A one-off fault on that first read can
-  hide a card until the page's next read (up to 6 days). The simulation in the
-  pull request measures both.
+  hide a card until the page's next read, the next run.
 - Counting only VIN-bearing cards instead would need per-source placeholder
   detection. Only Scotts' NOF rows are known to be VIN-less, and real surplus
   rows from badge undercounts (Calton, Central, Aviation) erode the same way, so
@@ -124,11 +128,11 @@ one census entry with a count of one (see its runbook).
    last accepted card count of every model, while the last accepted run is
    under 6 days old. A model whose count dropped has its reference lowered by
    that drop; an increase demands nothing, because pages can lag new arrivals.
-   Healthy runs sit near 100% even where badges overcount, so a sweep slice
+   Healthy runs sit near 100% even where badges overcount, so a set of pages
    emptied or cut to one card per page fails the first broken run.
 
 After a rejection, every later run is a full read judged against the same last
-accepted census, so a broken slice stays rejected. Once the last accepted run
+accepted census, so broken pages stay rejected. Once the last accepted run
 is 6 or more days old (an outage, or a real inventory drop that stayed rejected
 that long), the run is judged on the badge floor alone and confirms no short
 page. A real drop therefore blocks publication for at most 5 days, then clears
@@ -136,12 +140,10 @@ on its own.
 
 ## Request cost
 
-- **Steady state:** opening pages, every make menu, about a sixth of the model
-  pages plus changes and triggers, and the closing pass. A surplus model whose
-  page lists less than its sticky surplus adds about two GETs a day while its
-  window lasts.
-- **The day after a missed, failed or rejected run:** one full read, the same
-  as that source's cold census. The run after that re-reads every short page
-  the full read found (reason `short`) and re-confirms each at closing, about
-  2N extra GETs for N short pages (OEM: about 103 short pages, so about 206).
-  The same follows a cold run and an outage of 6 or more days.
+- **Model-page connectors, every day:** opening pages, every make menu, every
+  model page and the closing pass, the same as that source's cold census. The
+  closing pass re-reads every page whose cards differ from its badge or fall
+  below its floor, so pages that stay short cost two GETs a day.
+- **603:** the catalog, about a sixth of the donor articles plus new and
+  changed cards, and its closing reads. The day after a missed, failed or
+  rejected run it reads every article.

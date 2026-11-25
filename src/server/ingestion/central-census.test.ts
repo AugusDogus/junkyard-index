@@ -6,11 +6,7 @@ import {
 } from "./central-connector";
 import { CentralCursor, type CentralCensus } from "./central-cursor";
 import { validationRejectionKind } from "./ingestion-validation";
-import {
-  centralHash,
-  type CentralControl,
-  type CentralRecord,
-} from "./central-parser";
+import { type CentralControl, type CentralRecord } from "./central-parser";
 import {
   centralFixtureDirectory,
   centralFixtureMake,
@@ -23,11 +19,7 @@ import {
   CENTRAL_ORIGIN,
   CENTRAL_ROOT,
 } from "./central-yard-metadata";
-import {
-  MODEL_CENSUS_DAY_MS,
-  MODEL_CENSUS_SWEEP_DAYS,
-  ModelCensus,
-} from "./model-census";
+import { MODEL_CENSUS_DAY_MS, MODEL_CENSUS_SWEEP_DAYS } from "./model-census";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
@@ -157,30 +149,20 @@ const censusKey = (i: number, label: string) =>
     label,
   ]);
 
-/** Models, in list order, whose sweep slice falls on `day`. */
-const sweep = (native: ReturnType<typeof yard>, day: number) =>
-  [...native.rows.keys()].filter(
-    (i) =>
-      ModelCensus.slice(censusKey(i, native.labels.get(i) ?? "")) ===
-      day % MODEL_CENSUS_SWEEP_DAYS,
-  );
+/** Every fixture model in list order: each run reads all of them. */
+const everyModel = Array.from({ length: 12 }, (_, i) => i);
 
-/** The first day after `after` whose sweep slice holds a model. */
-function nextSweepDay(native: ReturnType<typeof yard>, after: number) {
-  for (let day = after + 1; day <= after + MODEL_CENSUS_SWEEP_DAYS; day++)
-    if (sweep(native, day).length > 0) return day;
-  throw new Error("Expected a non-empty sweep slice within six days");
-}
-
-/** Models in list order that are in `included` or are `extra`. */
-const inListOrder = (
-  native: ReturnType<typeof yard>,
-  included: readonly number[],
-  ...extra: number[]
-) =>
-  [...native.rows.keys()].filter(
-    (i) => included.includes(i) || extra.includes(i),
-  );
+/** The run summary for a full read, counting `reasons` in list order. */
+const readSummary = (reasons: readonly string[]) => {
+  const counts = new Map<string, number>();
+  for (const reason of reasons)
+    counts.set(reason, (counts.get(reason) ?? 0) + 1);
+  return `Central Read ${reasons.length} of ${reasons.length} model pages (${[
+    ...counts,
+  ]
+    .map(([reason, n]) => `${reason} ${n}`)
+    .join(", ")}); carried 0.`;
+};
 
 const allVins = (native: ReturnType<typeof yard>) =>
   [...native.rows.values()]
@@ -207,7 +189,7 @@ test("Central cold start reads every model and publishes its census", async () =
   });
   expect(legacy.models).toHaveLength(12);
   expect(legacy.warnings).toHaveLength(2);
-});
+}, 30_000);
 
 test("Central treats unreadable or incompatible previous cursors as a warned cold census", async () => {
   const native = yard();
@@ -236,63 +218,76 @@ test("Central treats unreadable or incompatible previous cursors as a warned col
   const future = await census(native, 599, cold.terminal);
   expect(future.models).toHaveLength(12);
   expect(future.warnings[0]).toContain("dated after this run");
-  // A tampered carried page fails its card fingerprint and is not adopted.
+  // A tampered census page fails its card fingerprint and is not adopted.
   const tampered: unknown = JSON.parse(
     JSON.stringify(cold.terminal).replace("ACURA M3", "ACURA M4"),
   );
   const refused = await census(native, 601, tampered);
   expect(refused.models).toHaveLength(12);
   expect(refused.warnings[0]).toContain("not a readable terminal census");
-});
+}, 30_000);
 
-test("Central carries unread models and reads count and label changes", async () => {
+test("Central reads every model daily and names count and label changes", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
-  // Only the sweep slice (slice(key) === day % 6) is read.
-  const nextDay = nextSweepDay(native, 600);
-  const swept = sweep(native, nextDay);
-  const next = await census(native, nextDay, cold.terminal);
-  expect(next.models).toEqual(swept);
-  // root, makes, one menu, the swept models, closing root and makes.
-  expect(next.requests).toBe(5 + swept.length);
-  // Carried donors are still published in full.
+  // An incremental run after an accepted census reads every model page.
+  const next = await census(native, 601, cold.terminal);
+  expect(next.models).toEqual(everyModel);
+  // The same requests as a full read: root, makes, one menu, 12 models,
+  // closing root and makes.
+  expect(next.requests).toBe(cold.requests);
+  expect(next.requests).toBe(17);
   expect(next.vins).toEqual(allVins(native));
+  expect(next.warnings.at(-1)).toBe(readSummary(everyModel.map(() => "daily")));
 
-  // A sold donor changes one unswept model's count, and another unswept model
-  // is relabelled at the same path, so its carried cards no longer bind to
-  // the control.
-  const changedDay = nextSweepDay(native, nextDay);
-  const due = sweep(native, changedDay);
-  const [sold, relabelled] = [...native.rows.keys()].filter(
-    (i) => !due.includes(i),
-  );
-  if (sold === undefined || relabelled === undefined)
-    throw new Error("Expected two models outside the sweep slice");
+  // A sold donor changes one model's count, and another model is relabelled
+  // at the same path, so its last accepted cards no longer bind to the
+  // control.
+  const [sold, relabelled] = [4, 7];
   native.rows.set(sold, donors(sold, "M" + sold, 169));
   native.labels.set(relabelled, "MX");
   native.rows.set(relabelled, donors(relabelled, "MX"));
-  const changed = await census(native, changedDay, next.terminal);
-  const expected = inListOrder(native, due, sold, relabelled);
-  expect(changed.models).toEqual(expected);
+  const changed = await census(native, 602, next.terminal);
+  expect(changed.models).toEqual(everyModel);
+  expect(changed.requests).toBe(17);
   expect(changed.vins).toEqual(allVins(native));
-  const reasons = new Map<string, number>();
-  for (const i of expected) {
-    const reason = i === sold ? "count" : i === relabelled ? "new" : "sweep";
-    reasons.set(reason, (reasons.get(reason) ?? 0) + 1);
-  }
   expect(changed.warnings.at(-1)).toBe(
-    `Central Read ${expected.length} of 12 model pages (${[...reasons]
-      .map(([reason, n]) => `${reason} ${n}`)
-      .join(", ")}); carried ${12 - expected.length}.`,
+    readSummary(
+      everyModel.map((i) =>
+        i === sold ? "count" : i === relabelled ? "new" : "daily",
+      ),
+    ),
   );
-  expect(reasons.get("sweep")).toBe(due.length);
-});
+}, 30_000);
 
-test("Central checkpoints refuse edited carried pages and unpaid carried reads", async () => {
+test("Central publishes a donor swapped in under an unchanged badge and drops the one it replaced", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
-  const day = nextSweepDay(native, 600);
-  const swept = sweep(native, day);
+  // One donor is crushed and another placed under the same model, so its
+  // badge and key stay the same.
+  const swapped = 5;
+  const [crushed, ...kept] = donors(swapped, "M" + swapped);
+  if (crushed === undefined) throw new Error("Expected a donor to crush");
+  const placed = centralFixtureRecord(swapped * 1000 + 171, "M" + swapped);
+  native.rows.set(swapped, [...kept, placed]);
+  const run = await census(native, 601, cold.terminal);
+  expect(run.models).toEqual(everyModel);
+  expect(run.requests).toBe(17);
+  expect(run.warnings.at(-1)).toBe(readSummary(everyModel.map(() => "daily")));
+  expect(run.vins).toContain(placed[0]);
+  expect(run.vins).not.toContain(crushed[0]);
+  expect(run.vins).toEqual(allVins(native));
+  expect(
+    terminalCensus(run.terminal).models.find(
+      (m) => m.key === censusKey(swapped, "M" + swapped),
+    )?.page.records,
+  ).toEqual([...kept, placed]);
+}, 30_000);
+
+test("Central checkpoints charge a read for every model page of a daily run", async () => {
+  const native = yard();
+  const cold = await census(native, 600, null);
+  const day = 601;
   let cursor: CentralCursor = CentralCursor.initial;
   // One GET per chunk until the closing root has been read.
   for (
@@ -316,90 +311,70 @@ test("Central checkpoints refuse edited carried pages and unpaid carried reads",
   }
   if (cursor.phase !== "closing") throw new Error("Expected a closing cursor");
   expect(cursor.closing).toBe(1);
-  // Root, makes, menu and the swept models, then the closing root.
-  expect(cursor.requests).toBe(4 + swept.length);
+  // Root, makes, menu and all 12 models, then the closing root: nothing is
+  // carried, so every page costs a GET.
+  expect(cursor.requests).toBe(4 + 12);
   expect(cursor.pages).toHaveLength(12);
   const state = cursor;
-  const carriedIndex = [...native.rows.keys()].findIndex(
-    (i) => !swept.includes(i),
-  );
-  const page = state.pages[carriedIndex];
-  if (!page) throw new Error("Expected a carried page");
-  const records = page.records.slice(1);
-  const edited = { records, hash: centralHash(records) };
-  expect(() =>
-    CentralCursor.checkpoint({
-      ...state,
-      pages: state.pages.map((p, i) => (i === carriedIndex ? edited : p)),
-    }),
-  ).toThrow("carried model page differs");
   expect(() =>
     CentralCursor.checkpoint({ ...state, requests: state.requests + 1 }),
   ).toThrow("request accounting");
-  expect(() => CentralCursor.checkpoint({ ...state, previous: null })).toThrow(
-    "request accounting",
-  );
-});
+  // A model page that was not paid for is refused.
+  expect(() =>
+    CentralCursor.checkpoint({ ...state, requests: state.requests - 1 }),
+  ).toThrow("request accounting");
+}, 30_000);
 
-test("Central re-reads every model within six days, even across missed runs", async () => {
+test("Central reads every model on every run, even across missed runs", async () => {
   const native = yard();
   let previous = (await census(native, 600, null)).terminal;
-  const lastRead = new Map<number, number>();
-  for (let i = 0; i < 12; i++) lastRead.set(i, 600);
-  let steadyReads = 0;
   // Skip day 601 and 602 entirely, then run daily.
   for (const day of [603, 604, 605, 606, 607, 608, 609, 610, 611, 612]) {
     const run = await census(native, day, previous);
-    for (const model of run.models) lastRead.set(model, day);
-    for (const read of lastRead.values()) expect(day - read).toBeLessThan(6);
-    // Once the missed-run backlog is cleared, exactly that day's sweep slice.
-    if (day >= 607) {
-      expect(run.models).toEqual(sweep(native, day));
-      steadyReads += run.models.length;
-    }
+    expect(run.models).toEqual(everyModel);
+    expect(run.requests).toBe(17);
+    // The run after the gap reads in full as `gap`, every later one as
+    // `daily`.
+    expect(run.warnings.at(-1)).toBe(
+      readSummary(everyModel.map(() => (day === 603 ? "gap" : "daily"))),
+    );
     expect(run.vins).toEqual(allVins(native));
+    expect(
+      terminalCensus(run.terminal).models.every((m) => m.readDay === day),
+    ).toBe(true);
     previous = run.terminal;
   }
-  // Six steady days read every model exactly once.
-  expect(steadyReads).toBe(12);
 }, 60_000);
 
-test("Central confirms read models whose cards differ from their badge before carrying them", async () => {
+test("Central confirms read models whose cards differ from their badge at closing every day", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
-  const steadyDay = nextSweepDay(native, 600);
-  const carriedDay = nextSweepDay(native, steadyDay);
-  // A model outside both sweep slices now shows 171 on its badge but keeps
-  // 170 cards on every read.
-  const badged = [...native.rows.keys()].find(
-    (i) =>
-      !sweep(native, steadyDay).includes(i) &&
-      !sweep(native, carriedDay).includes(i),
-  );
-  if (badged === undefined) throw new Error("Expected an unswept model");
+  // A model now shows 171 on its badge but keeps 170 cards on every read.
+  const badged = 6;
   native.badges.set(badged, 171);
-  const steady = await census(native, steadyDay, cold.terminal);
-  // The sweep slice plus the count change, then its closing re-read.
-  const read = inListOrder(native, sweep(native, steadyDay), badged);
-  expect(steady.models).toEqual([...read, badged]);
-  // root, makes, one menu, the read models, closing root, makes and the
-  // badged model.
-  expect(steady.requests).toBe(6 + read.length);
+  const steady = await census(native, 601, cold.terminal);
+  // Every model, then the closing re-read of the badged model.
+  expect(steady.models).toEqual([...everyModel, badged]);
+  // root, makes, one menu, 12 models, closing root, makes and the badged
+  // model.
+  expect(steady.requests).toBe(18);
   expect(steady.vins).toEqual(allVins(native));
-  // Carried short evidence is not re-read at closing.
-  const carried = await census(native, carriedDay, steady.terminal);
-  expect(carried.models).toEqual(sweep(native, carriedDay));
+  expect(steady.warnings.at(-1)).toBe(
+    readSummary(everyModel.map((i) => (i === badged ? "count" : "daily"))),
+  );
+  // Confirmed evidence is still read the next day and re-read at closing.
+  const next = await census(native, 602, steady.terminal);
+  expect(next.models).toEqual([...everyModel, badged]);
+  expect(next.requests).toBe(18);
+  expect(next.warnings.at(-1)).toBe(readSummary(everyModel.map(() => "daily")));
 
-  // A short page on a model's sweep day that does not repeat stops emission
-  // instead of being carried for six days.
-  const shortDay = nextSweepDay(native, carriedDay);
-  const short = sweep(native, shortDay).find((i) => i !== badged);
-  if (short === undefined) throw new Error("Expected a swept model");
+  // A short page that does not repeat at closing stops emission.
+  const short = 2;
   native.once.set(short, donors(short, "M" + short, 120));
-  await expect(census(native, shortDay, carried.terminal)).rejects.toThrow(
+  await expect(census(native, 603, next.terminal)).rejects.toThrow(
     "model cards changed",
   );
-});
+}, 30_000);
 
 /** The census a terminal cursor stores for the next run. */
 function terminalCensus(terminal: unknown): CentralCensus {
@@ -409,48 +384,49 @@ function terminalCensus(terminal: unknown): CentralCensus {
   return cursor.census;
 }
 
-test("Central carries a short page closing confirmed without reading it again", async () => {
+test("Central reads a confirmed short page daily and confirms it again at closing", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
-  const readDay = nextSweepDay(native, 600);
-  const carriedDay = nextSweepDay(native, readDay);
-  // A swept model lists 150 of its 170 badged donors on every read.
-  const short = sweep(native, readDay).find(
-    (i) => !sweep(native, carriedDay).includes(i),
-  );
-  if (short === undefined)
-    throw new Error("Expected a model swept on the read day only");
+  // A model lists 150 of its 170 badged donors on every read.
+  const short = 8;
   native.badges.set(short, 170);
   native.rows.set(short, donors(short, "M" + short, 150));
-  const read = await census(native, readDay, cold.terminal);
-  // The sweep slice, then the closing re-read of the short page.
-  expect(read.models).toEqual([...sweep(native, readDay), short]);
+  const read = await census(native, 601, cold.terminal);
+  // Every model, then the closing re-read of the short page.
+  expect(read.models).toEqual([...everyModel, short]);
   const evidence = terminalCensus(read.terminal).models;
   expect(evidence.map((m) => m.confirmed)).toEqual(
-    [...native.rows.keys()].map((i) => i === short),
+    everyModel.map((i) => i === short),
   );
-  // Confirmed in-run, so the next run carries it instead of a "short" read.
-  const carried = await census(native, carriedDay, read.terminal);
-  expect(carried.models).toEqual(sweep(native, carriedDay));
-  expect(carried.warnings.at(-1)).not.toContain("short");
+  // Confirmed in-run, so the next run reads it as `daily` rather than
+  // `short`, and closing still re-reads and confirms it.
+  const next = await census(native, 602, read.terminal);
+  expect(next.models).toEqual([...everyModel, short]);
+  expect(next.requests).toBe(18);
+  expect(next.warnings.at(-1)).toBe(readSummary(everyModel.map(() => "daily")));
+  expect(next.vins).toEqual(allVins(native));
   expect(
-    terminalCensus(carried.terminal).models.find(
+    terminalCensus(next.terminal).models.find(
       (m) => m.key === censusKey(short, "M" + short),
-    )?.confirmed,
-  ).toBe(true);
-});
+    ),
+  ).toMatchObject({ readDay: 602, confirmed: true });
+}, 30_000);
 
-test("Central fails a run whose read and carried cards fall short of today's badges", async () => {
-  // A site fault leaves every model page with one card while the menus keep
-  // their badges. A full daily read would trip the floor; with carried pages
-  // only today's sweep slice breaks, so badge coverage must catch it.
+/** Two of twelve models (a sixth of the yard). */
+const brokenModels = [1, 10];
+
+test("Central fails a run whose model pages fall short of today's badges", async () => {
+  // A site fault leaves a sixth of the model pages with one card each while
+  // the menus keep their badges. The donor floor still passes, so badge
+  // coverage must catch it.
   const native = yard(400);
   const cold = await census(native, 600, null);
-  const day = nextSweepDay(native, 600);
-  const swept = sweep(native, day);
-  for (const model of swept) native.broken.add(model);
+  const day = 601;
+  for (const model of brokenModels) native.broken.add(model);
   // The floor alone still passes: only coverage can stop this run.
-  expect(400 * (12 - swept.length) + swept.length).toBeGreaterThan(1_985);
+  expect(
+    400 * (12 - brokenModels.length) + brokenModels.length,
+  ).toBeGreaterThan(1_985);
   let published = 0;
   let yards = 0;
   await expect(
@@ -478,26 +454,25 @@ test("Central fails a run whose read and carried cards fall short of today's bad
         cursor = result.cursor;
       }
     })(),
-  ).rejects.toThrow("coverage floor");
+  ).rejects.toThrow("promised by today's model counts, below the 95%");
   expect(published).toBe(0);
   expect(yards).toBe(0);
-});
+}, 30_000);
 
-test("Central fails a sweep slice cut to one card per model even when its badges undercount", async () => {
-  // Today's swept models badge 10 cards but list 400 (surplus rows, as on 44
-  // saved models). Cutting each to one card keeps badge coverage above 95%,
-  // so only replay of the last accepted cards can stop this run.
+test("Central fails model pages cut to one card each even when their badges undercount", async () => {
+  // A sixth of the models badge 10 cards but list 400 (surplus rows, as on 44
+  // saved models). Cutting each to one card on a daily read keeps badge
+  // coverage above 95%, so only replay of the last accepted cards can stop
+  // this run.
   const native = yard(400);
-  const day = nextSweepDay(native, 600);
-  const swept = sweep(native, day);
-  for (const model of swept) native.badges.set(model, 10);
+  const day = 601;
+  for (const model of brokenModels) native.badges.set(model, 10);
   const cold = await census(native, 600, null);
-  for (const model of swept) native.broken.add(model);
-  const badges = 400 * (12 - swept.length) + 10 * swept.length;
-  expect(badges - 9 * swept.length).toBeGreaterThanOrEqual(
-    Math.ceil(badges * 0.95),
-  );
-  expect(400 * (12 - swept.length) + swept.length).toBeGreaterThan(1_985);
+  for (const model of brokenModels) native.broken.add(model);
+  const broken = brokenModels.length;
+  const badges = 400 * (12 - broken) + 10 * broken;
+  expect(badges - 9 * broken).toBeGreaterThanOrEqual(Math.ceil(badges * 0.95));
+  expect(400 * (12 - broken) + broken).toBeGreaterThan(1_985);
   let published = 0;
   let yards = 0;
   await expect(
@@ -530,14 +505,13 @@ test("Central fails a sweep slice cut to one card per model even when its badges
   );
   expect(published).toBe(0);
   expect(yards).toBe(0);
-});
+}, 30_000);
 
-test("Central re-reads a surplus page that drops to its badge instead of carrying it", async () => {
-  // A swept model badges 160 donors but lists 170 (surplus rows).
+test("Central re-reads a surplus page that drops to its badge at closing", async () => {
+  // A model badges 160 donors but lists 170 (surplus rows).
   const native = yard();
-  const day = nextSweepDay(native, 600);
-  const surplus = sweep(native, day)[0];
-  if (surplus === undefined) throw new Error("Expected a swept model");
+  const day = 601;
+  const surplus = 9;
   native.badges.set(surplus, 160);
   const cold = await census(native, 600, null);
   const label = "M" + surplus;
@@ -558,11 +532,10 @@ test("Central re-reads a surplus page that drops to its badge instead of carryin
   });
 
   // A transient drop to exactly its badge is re-read at closing, and the
-  // complete closing read replaces it instead of passing as a healthy page
-  // for six days.
+  // complete closing read replaces it instead of passing as a healthy page.
   native.once.set(surplus, kept);
   const recovered = await census(native, day, cold.terminal);
-  expect(recovered.models).toEqual([...sweep(native, day), surplus]);
+  expect(recovered.models).toEqual([...everyModel, surplus]);
   expect(recovered.vins).toEqual(allVins(native));
   expect(
     terminalCensus(recovered.terminal).models.find(
@@ -579,20 +552,17 @@ test("Central re-reads a surplus page that drops to its badge instead of carryin
   );
 
   // A drop that repeats at closing publishes, but is never confirmed, so the
-  // next run reads the page again although its badge did not change.
+  // next run reads the page again as short although its badge did not change.
   native.rows.set(surplus, kept);
   const dropped = await census(native, day, cold.terminal);
-  expect(dropped.models).toEqual([...sweep(native, day), surplus]);
-  // root, makes, one menu, the swept models, the closing re-read of the
-  // surplus page, closing root and makes.
-  expect(dropped.requests).toBe(5 + sweep(native, day).length + 1);
+  expect(dropped.models).toEqual([...everyModel, surplus]);
+  // root, makes, one menu, 12 models, the closing re-read of the surplus
+  // page, closing root and makes.
+  expect(dropped.requests).toBe(18);
   expect(dropped.vins).toEqual(allVins(native));
-  // The unconfirmed cold surplus is read as short, ahead of its sweep slice.
-  const swept = sweep(native, day).length - 1;
+  // The unconfirmed cold surplus is read as short, every other page daily.
   expect(dropped.warnings.at(-1)).toBe(
-    `Central Read ${swept + 1} of 12 model pages (short 1${
-      swept > 0 ? `, sweep ${swept}` : ""
-    }); carried ${11 - swept}.`,
+    readSummary(everyModel.map((i) => (i === surplus ? "short" : "daily"))),
   );
   const evidence = terminalCensus(dropped.terminal).models.find(
     (m) => m.key === censusKey(surplus, label),
@@ -607,33 +577,14 @@ test("Central re-reads a surplus page that drops to its badge instead of carryin
   // The surplus is sticky: the lower count is not accepted after one re-read.
   // Every daily run reads the page again as short and re-reads it at closing,
   // until a normal incremental run reads it six days after the drop began.
-  const lastRead = new Map([...native.rows.keys()].map((i) => [i, 600]));
-  for (const i of [...sweep(native, day), surplus]) lastRead.set(i, day);
   let previous = dropped.terminal;
   for (let today = day + 1; today <= day + MODEL_CENSUS_SWEEP_DAYS; today++) {
     const run = await census(native, today, previous);
-    const read = inListOrder(native, sweep(native, today), surplus);
-    expect(run.models).toEqual([...read, surplus]);
-    // root, makes, one menu, the read models, the closing re-read of the
-    // surplus page, closing root and makes.
-    expect(run.requests).toBe(5 + read.length + 1);
+    expect(run.models).toEqual([...everyModel, surplus]);
+    expect(run.requests).toBe(18);
     expect(run.vins).toEqual(allVins(native));
-    const reasons = new Map<string, number>();
-    for (const i of read) {
-      const reason =
-        i === surplus
-          ? "short"
-          : today - (lastRead.get(i) ?? 600) >= MODEL_CENSUS_SWEEP_DAYS
-            ? "stale"
-            : "sweep";
-      reasons.set(reason, (reasons.get(reason) ?? 0) + 1);
-      lastRead.set(i, today);
-    }
-    expect(reasons.get("short")).toBe(1);
     expect(run.warnings.at(-1)).toBe(
-      `Central Read ${read.length} of 12 model pages (${[...reasons]
-        .map(([reason, n]) => `${reason} ${n}`)
-        .join(", ")}); carried ${12 - read.length}.`,
+      readSummary(everyModel.map((i) => (i === surplus ? "short" : "daily"))),
     );
     const held = terminalCensus(run.terminal).models.find(
       (m) => m.key === censusKey(surplus, label),
@@ -651,27 +602,30 @@ test("Central re-reads a surplus page that drops to its badge instead of carryin
     previous = run.terminal;
   }
 
-  // Once lowered, the page lists its expected count and carries.
+  // Once lowered, the page is no longer short and is read as daily. The
+  // lowered surplus stays as a ceiling, so closing still re-reads it.
   const after = day + MODEL_CENSUS_SWEEP_DAYS + 1;
-  const carried = await census(native, after, previous);
-  expect(carried.models).toEqual(sweep(native, after));
-  expect(carried.models).not.toContain(surplus);
-  expect(carried.requests).toBe(5 + sweep(native, after).length);
-  expect(carried.vins).toEqual(allVins(native));
-  expect(carried.warnings.at(-1)).not.toContain("short");
+  const lowered = await census(native, after, previous);
+  expect(lowered.models).toEqual([...everyModel, surplus]);
+  expect(lowered.requests).toBe(18);
+  expect(lowered.vins).toEqual(allVins(native));
+  expect(lowered.warnings.at(-1)).toBe(
+    readSummary(everyModel.map(() => "daily")),
+  );
   expect(
-    terminalCensus(carried.terminal).models.find(
+    terminalCensus(lowered.terminal).models.find(
       (m) => m.key === censusKey(surplus, label),
     ),
   ).toMatchObject({
-    readDay: day + MODEL_CENSUS_SWEEP_DAYS,
+    readDay: after,
     count: 160,
     expected: 160,
     lowSince: null,
+    ceiling: 10,
     surplusConfirmed: true,
     confirmed: false,
   });
-});
+}, 60_000);
 
 /** A cold run on day 600 whose model M3 badges 160 donors but lists 170 at its
  * first read, so closing re-reads it; `closing` sets the cards that re-read
@@ -700,10 +654,7 @@ test("Central publishes donors that arrive on a surplus page before its closing 
   ]);
   const closed = await run();
   // Every model, then the closing re-read of the surplus page.
-  expect(closed.models).toEqual([
-    ...Array.from({ length: 12 }, (_, i) => i),
-    surplus,
-  ]);
+  expect(closed.models).toEqual([...everyModel, surplus]);
   expect(closed.vins).toContain(arrival[0]);
   expect(closed.vins).toEqual(allVins(native));
   expect(
@@ -711,7 +662,7 @@ test("Central publishes donors that arrive on a surplus page before its closing 
       (m) => m.key === censusKey(surplus, "M" + surplus),
     )?.page.records,
   ).toEqual(native.rows.get(surplus) ?? []);
-});
+}, 30_000);
 
 /** A cold run stores a closing arrival as surplus: badge 160, 170 cards at
  * the first read and 171 at closing, so expected 171. On day 601 the badge
@@ -749,12 +700,13 @@ test("Central publishes an arrival on a page short of a surplus its badge caught
       arrival,
     ]);
     const closed = await run();
-    // The sweep slice plus the count change, then the closing re-read of the
-    // short page.
-    expect(closed.models).toEqual([
-      ...inListOrder(native, sweep(native, 601), surplus),
-      surplus,
-    ]);
+    // Every model (the surplus page as a count change), then the closing
+    // re-read of the short page.
+    expect(closed.models).toEqual([...everyModel, surplus]);
+    expect(closed.requests).toBe(18);
+    expect(closed.warnings.at(-1)).toBe(
+      readSummary(everyModel.map((i) => (i === surplus ? "count" : "daily"))),
+    );
     expect(closed.vins).toContain(arrival[0]);
     expect(closed.vins).toEqual(allVins(native));
     expect(
@@ -767,7 +719,7 @@ test("Central publishes an arrival on a page short of a surplus its badge caught
       page: { records: native.rows.get(surplus) ?? [] },
     });
   }
-});
+}, 30_000);
 
 test("Central fails a closing re-read that gains cards but stays at or below its badge", async () => {
   for (const closing of [160, 170]) {
@@ -785,7 +737,7 @@ test("Central fails a closing re-read that gains cards but stays at or below its
     // The yard changed while it was read, so a crawl later today can pass.
     expect(validationRejectionKind(drift)).toBe("transient");
   }
-});
+}, 30_000);
 
 test("Central fails a closing re-read that drops a donor even when another arrives", async () => {
   const { run } = surplusClosing((first) => [
@@ -795,7 +747,7 @@ test("Central fails a closing re-read that drops a donor even when another arriv
   await expect(run()).rejects.toThrow(
     "Closing Central model cards lost VIN 1HGCM82633A003001",
   );
-});
+}, 30_000);
 
 test("Central fails a closing re-read that changes a donor's year, title or destination", async () => {
   for (const field of [1, 2, 4] as const) {
@@ -812,7 +764,7 @@ test("Central fails a closing re-read that changes a donor's year, title or dest
       "Closing Central model card for VIN 1HGCM82633A003001 changed",
     );
   }
-});
+}, 30_000);
 
 const otherMake: CentralControl = {
   path: "/used-parts/BMW",
