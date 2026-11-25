@@ -307,13 +307,21 @@ export const yardInventory = sqliteTable(
  * rebuild, so state pages count new arrivals from a few thousand rows instead
  * of every vehicle in the state. Readers apply the exact week.
  */
-export const stateRecentArrival = sqliteTable("state_recent_arrival", {
-  source: text("source").notNull(),
-  stateAbbr: text("state_abbr").notNull(),
-  availableDate: text("available_date"),
-  observedArrivalAt: integer("observed_arrival_at", { mode: "timestamp_ms" }),
-  vehicleCount: integer("vehicle_count").notNull(),
-});
+export const stateRecentArrival = sqliteTable(
+  "state_recent_arrival",
+  {
+    source: text("source").notNull(),
+    stateAbbr: text("state_abbr").notNull(),
+    availableDate: text("available_date"),
+    observedArrivalAt: integer("observed_arrival_at", {
+      mode: "timestamp_ms",
+    }),
+    vehicleCount: integer("vehicle_count").notNull(),
+  },
+  // Each publication replaces its sources' rows; without this the delete
+  // read the whole table every time.
+  (table) => [index("state_recent_arrival_source_idx").on(table.source)],
+);
 
 /**
  * Retains published yard history even after its last vehicle is retired.
@@ -553,6 +561,11 @@ export const ingestionRun = sqliteTable(
     // table scan walked every run's error text to reach the flag.
     index("ingestion_run_full_reindex_required_idx").on(
       table.fullReindexRequired,
+    ),
+    // Each publication and every inventory refresh check reads
+    // max(publication_sequence); without this each read walked every run.
+    index("ingestion_run_publication_sequence_idx").on(
+      table.publicationSequence,
     ),
   ],
 );
