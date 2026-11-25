@@ -3,7 +3,7 @@ import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { readFileSync } from "node:fs";
 import { inventorySnapshot, vehicleModelRedirect } from "~/schema";
-import { retainModelUrls } from "./model-url-history";
+import { findModelRedirect, retainModelUrls } from "./model-url-history";
 import { rememberModelRedirects } from "./ingestion/vin-canonicalization";
 import { makeVehicle } from "./ingestion/durable-ingestion-test-fixtures";
 import { InventorySnapshot } from "./inventory-snapshot";
@@ -140,6 +140,51 @@ test("retired paths keep make aliases, case variants and equivalent model identi
     expect(
       await findModelRedirect(database, "/cars/chevy/not-a-model"),
     ).toBeNull();
+  } finally {
+    client.close();
+  }
+});
+
+test("an unknown model's spellings are found through the make's path range, not a scan", async () => {
+  const client = createClient({ url: ":memory:" });
+  try {
+    await client.executeMultiple(
+      "create table vehicle (vin text primary key);" +
+        readFileSync(
+          new URL(
+            "../../drizzle/0026_vin_canonical_models.sql",
+            import.meta.url,
+          ),
+          "utf8",
+        ),
+    );
+    const queries: { sql: string; params: unknown[] }[] = [];
+    const database = drizzle(client, {
+      logger: { logQuery: (sql, params) => queries.push({ sql, params }) },
+    });
+    await database.insert(vehicleModelRedirect).values([
+      { fromPath: "/cars/ford/f150new", toPath: "/cars/ford/f-150" },
+      { fromPath: "/cars/fordson/tractor", toPath: "/cars/fordson" },
+      {
+        fromPath: "/cars/chevrolet/silvrdo15",
+        toPath: "/cars/chevrolet/silverado-1500",
+      },
+    ]);
+    queries.length = 0;
+    expect(
+      await findModelRedirect(database, "/cars/ford/f-150-new"),
+    ).toMatchObject({ toPath: "/cars/ford/f-150" });
+    const range = queries.at(-1);
+    if (!range) throw new Error("findModelRedirect ran no query.");
+    const plan = await client.execute({
+      sql: `explain query plan ${range.sql}`,
+      args: range.params.map((param) =>
+        typeof param === "number" || typeof param === "string" ? param : null,
+      ),
+    });
+    expect(plan.rows.map((row) => String(row.detail)).join("\n")).toContain(
+      "(from_path>? AND from_path<?)",
+    );
   } finally {
     client.close();
   }
