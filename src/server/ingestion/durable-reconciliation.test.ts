@@ -1693,12 +1693,12 @@ test("missing reconciliation reads accepted and retired sources, including resum
       values ('B', 'pyp', 2000, 'Ford', 'Focus', '1', 'Yard', 'City', 'Oklahoma', 'OK', 0, 0, 0, 0),
              ('C', 'row52', 2000, 'Ford', 'Focus', '1', 'Yard', 'City', 'Oklahoma', 'OK', 0, 0, 0, 0);
     `);
-    const reads: string[] = [];
+    const reads: { query: string; params: unknown[] }[] = [];
     const database = drizzle(client, {
       logger: {
-        logQuery(query) {
+        logQuery(query, params) {
           if (query.startsWith("select") && query.includes('from "vehicle"'))
-            reads.push(query);
+            reads.push({ query, params });
         },
       },
     });
@@ -1720,17 +1720,17 @@ test("missing reconciliation reads accepted and retired sources, including resum
       { vin: "B", missing_run_count: 1 },
       { vin: "C", missing_run_count: null },
     ]);
-    // One placeholder for the accepted source plus one per retired source.
-    const scopedSources = ["pyp", ...RETIRED_INGESTION_SOURCES]
-      .map(() => "?")
-      .join(", ");
-    expect(
-      reads.some(
-        (query) =>
-          query.includes(`"vehicle"."source" in (${scopedSources})`) &&
-          query.includes('"vehicle"."vin" > ?'),
-      ),
-    ).toBe(true);
+    // One ordered page read per source, the accepted one and each retired
+    // one, each after the resumed cursor.
+    const scopedReads = reads.filter(
+      ({ query }) =>
+        query.includes('"vehicle"."source" = ?') &&
+        query.includes('"vehicle"."vin" > ?'),
+    );
+    expect(scopedReads.map(({ params }) => params[0]).sort()).toEqual(
+      ["pyp", ...RETIRED_INGESTION_SOURCES].sort(),
+    );
+    expect(scopedReads.every(({ params }) => params[1] === "A")).toBe(true);
   } finally {
     client.close();
   }

@@ -1,6 +1,6 @@
 import { rememberModelRedirects } from "./vin-canonicalization";
 import type { Client, InStatement, InValue } from "@libsql/client";
-import { and, asc, eq, gt, gte, inArray, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, sql } from "drizzle-orm";
 import { Duration } from "effect";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import type { FirstSighting } from "~/lib/first-sighting";
@@ -28,6 +28,7 @@ import {
   parseDurableRunStage,
 } from "./durable-run-state";
 import { DURABLE_INGESTION_SOURCES } from "./durable-source";
+import { reconciledVehiclePage } from "./reconciled-vehicle-page";
 import type { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import { PROVIDER_CHUNK_WALL_LIMIT } from "./provider-chunk-clock";
 import {
@@ -821,23 +822,12 @@ async function runMissingBatch(
   },
 ): Promise<DurableReconciliationBatchResult> {
   const reconciled = reconciledSources(params.acceptedSources);
-  const sourceRows = await params.database
-    .select({
-      vin: vehicle.vin,
-      source: vehicle.source,
-      locationCode: vehicle.locationCode,
-      missingSinceAt: vehicle.missingSinceAt,
-      missingRunCount: vehicle.missingRunCount,
-    })
-    .from(vehicle)
-    .where(
-      and(
-        inArray(vehicle.source, [...reconciled]),
-        params.cursor === null ? undefined : gt(vehicle.vin, params.cursor),
-      ),
-    )
-    .orderBy(asc(vehicle.vin))
-    .limit(RECONCILIATION_BATCH_SIZE);
+  const sourceRows = await reconciledVehiclePage(
+    params.database,
+    reconciled,
+    params.cursor,
+    RECONCILIATION_BATCH_SIZE,
+  );
   const inventory = await params.inventory();
   // An accepted source can observe a VIN whose canonical owner is outside
   // this run. Preserve that restoration with bounded primary-key lookups.
