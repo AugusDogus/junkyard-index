@@ -3,6 +3,7 @@ import { IngestionTokens } from "./ingestion-tokens";
 import { searchRebuildInFlightStep } from "./search-projector-steps";
 import { runVinCachePass } from "~/server/ingestion/vin-cache-pass";
 import {
+  expireInventoryAfterMigrationStep,
   finalizeSearchIndexMigrationStep,
   initializeSearchIndexMigrationStep,
   runSearchIndexMigrationBatchStep,
@@ -84,12 +85,19 @@ export async function searchIndexMigrationWorkflow(force = false) {
     }
 
     let state = initialized.state;
-    while (true) {
-      const batch = await runSearchIndexMigrationBatchStep(state);
-      state = batch.state;
-      if (batch.done) break;
+    try {
+      while (true) {
+        const batch = await runSearchIndexMigrationBatchStep(state);
+        state = batch.state;
+        if (batch.done) break;
+      }
+      const migration = await finalizeSearchIndexMigrationStep(state);
+      return { status: "completed" as const, migration };
+    } catch (error) {
+      // Batches that ran rewrote vehicles; pages must not keep the old
+      // identities until their daily expiry.
+      if (state.batchesProcessed > 0) await expireInventoryAfterMigrationStep();
+      throw error;
     }
-    const migration = await finalizeSearchIndexMigrationStep(state);
-    return { status: "completed" as const, migration };
   }
 }

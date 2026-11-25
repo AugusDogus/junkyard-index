@@ -1,6 +1,7 @@
-import { asc, eq, gt, max, sql } from "drizzle-orm";
+import { and, asc, eq, gt, isNotNull, isNull, max, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import type { ChangedInventorySources } from "~/lib/inventory-cache";
+import { isIngestionSource } from "~/lib/ingestion-source";
 import {
   ingestionProjectorCheckpoint,
   ingestionRun,
@@ -50,6 +51,20 @@ export type InventoryCacheSource = {
   project: () => Promise<void>;
 };
 
+/**
+ * A run's accepted sources, or none when the stored list is unreadable: a
+ * bad list only costs that run's sources an early expiry, never a refresh.
+ */
+function acceptedSourceList(value: string | null): string[] {
+  if (value === null) return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter(isIngestionSource) : [];
+  } catch {
+    return [];
+  }
+}
+
 export const InventoryCacheRefresh = {
   /**
    * Records that the caches show this publication, with every yard change
@@ -81,27 +96,43 @@ export const InventoryCacheRefresh = {
   },
 
   /**
-   * The sources whose yards reconciliation rebuilt since `since` (every
-   * publication rebuilds its sources' yards, and a batch that moves another
-   * source's VINs rebuilds that source's), or all of them when no earlier
-   * read is recorded.
+   * The sources whose vehicles may have changed since `since`, or all of
+   * them when no earlier read is recorded: sources whose yards
+   * reconciliation rebuilt (every publication rebuilds its sources' yards,
+   * and a batch that moves another source's VINs rebuilds that source's),
+   * and the accepted sources of every run that ended, which covers a run
+   * abandoned after writing some of its vehicles but before rebuilding its
+   * yards.
    */
   async changedSources(
     database: LibSQLDatabase,
     since: Date | null,
   ): Promise<ChangedInventorySources> {
     if (since === null) return { kind: "all" };
-    const rows = await database
-      .selectDistinct({ source: yardInventory.source })
-      .from(yardInventory)
-      .where(
-        gt(
-          yardInventory.updatedAt,
-          new Date(since.getTime() - CHANGE_MARGIN_MS),
+    const after = new Date(since.getTime() - CHANGE_MARGIN_MS);
+    const [yards, runs] = await Promise.all([
+      database
+        .selectDistinct({ source: yardInventory.source })
+        .from(yardInventory)
+        .where(gt(yardInventory.updatedAt, after)),
+      database
+        .select({ acceptedSources: ingestionRun.acceptedSources })
+        .from(ingestionRun)
+        .where(
+          and(
+            isNull(ingestionRun.activeSlot),
+            gt(ingestionRun.completedAt, after),
+            isNotNull(ingestionRun.acceptedSources),
+          ),
         ),
-      )
-      .orderBy(asc(yardInventory.source));
-    return { kind: "sources", sources: rows.map((row) => row.source) };
+    ]);
+    const sources = new Set(yards.map((row) => row.source));
+    for (const { acceptedSources } of runs) {
+      for (const source of acceptedSourceList(acceptedSources)) {
+        sources.add(source);
+      }
+    }
+    return { kind: "sources", sources: [...sources].sort() };
   },
 
   /**
