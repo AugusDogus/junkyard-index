@@ -10,3 +10,12 @@ test.each([
   expect(IngestionDay.key(now)).toBe(day);
   expect(IngestionDay.start(now).toISOString()).toBe(`${day}T07:00:00.000Z`);
 });
+
+test("a day ends when the next one starts", () => {
+  expect(new Date(IngestionDay.end("2026-12-31")).toISOString()).toBe(
+    "2027-01-01T07:00:00.000Z",
+  );
+  expect(IngestionDay.key(new Date(IngestionDay.end("2026-09-19")))).toBe(
+    "2026-09-20",
+  );
+});

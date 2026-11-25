@@ -152,8 +152,8 @@ the next check after they publish.
 
 The configured URG IIS tenant origins and the native IIS catalogs of Aviation,
 Chaz, A Plus, Central, Northwest, Pratt, Calton, Denton, OEM, Jim's Import, Scotts,
-Pick-A-Part VA, All-N-1, Grandpa John's, Midway and Allied use Redis-backed host
-queues, one per verified origin server:
+Pick-A-Part VA, All-N-1, Grandpa John's, Midway and Allied use host queues, one
+per verified origin server:
 
 - URG's own AWS load balancer (six shared IPs, `x-urg-storage` header), as
   two queues: Aviation, Calton and Scotts (`urg:aws`); Central and Jim's
@@ -237,36 +237,24 @@ interrupted or timed-out waiters remove their queue entries. HTP's existing leas
 key is retained for rolling-deployment compatibility. Its wait budget increases
 to five minutes so two bounded requests can complete ahead of a third source.
 
-Upstash bills every command a reservation script runs, so waiting is what the
-Redis bill pays for. A reservation replies with how many waiters stand ahead in
-the lane and how many ready lanes stand ahead for a group place. A waiter at the
-front polls every `pollMs`. One further back sleeps `pollMs` plus one turn per
-waiter ahead, where a turn is the larger of `pollMs` and the policy gap, since
-each holder keeps the lease for at least the gap. A ready lane waits a turn
-divided by the group's active lanes per ready lane ahead, since the group's
-places free up in parallel. Sleeps stop at 10 seconds, so every live waiter
-renews its 30-second deadline in time. A request that finds no queue and a free
-lane (and, for a group, a free place) takes the lease without joining a queue.
-In a model of the Nov 19 to 25 load, these rules cut billed commands from about
-1.1 million a day to about 0.38 million, with the same crawl length.
+A reservation reports how many waiters stand ahead in the lane and how many
+ready lanes stand ahead for a group place. A waiter at the front polls every
+`pollMs`; one further back sleeps `pollMs` plus one turn per waiter ahead, where
+a turn is the larger of `pollMs` and the policy gap. A ready lane waits a turn
+divided by the group's active lanes per ready lane ahead. Sleeps stop at 10
+seconds.
 
-Expected Redis cost of the daily model-page reads (Upstash pay-as-you-go, $0.20
-per 100,000 commands, counting every command a script runs): under the
-reservation script before the polling above, each URG GET cost about 40
-commands, and 75 to 110 on the contended AWS queues with one-second polls, so
-the about 4,000 extra GETs a day came to about 250,000 to 300,000 commands a
-day, $14 to $18 a month. Two changes lower that: the position-based polling
-above, and a two-second `pollMs` on URG queues, which halves how often a waiter
-at the front of its lane repolls (about 6 to 16 commands each). The longer poll
-adds about half a second of idle queue time per contended turn, up to about 12
-minutes a day on the busier AWS queue's ~1,465 GETs. The combined cost has not
-been remodeled: check the Upstash daily command count in the first week after
-deploy.
-
-Redis configuration, reservation, timeout and release failures remain failures.
-There is no deployed in-process fallback. An uncertain acquired lease expires
-rather than being unsafely removed. Local development keeps the existing HTP
-bypass. URG waits at most 30 minutes and VinPlus ten minutes for a turn. This can
+The daily model-page reads (about 4,000 more URG GETs a day) no longer cost
+Redis commands. Since November 25, 2026 the queues are kept in the process, not
+in Redis: the
+daily pass starts at most one fetching run per queue and no more runs in a
+group than its places, and starts the next once a run has fetched
+(`HostClaims`, see
+[crawl pacing without Redis](../design/crawl-pacing-without-redis.md)). A
+manual run of a source that shares a host goes to the day's pass, which starts
+it once its hosts are free. Reservation, timeout and release failures remain
+failures. Local development keeps the existing bypass. URG waits at most 30
+minutes and VinPlus ten minutes for a turn. This can
 increase crawl duration under contention; the qualification time estimates are
 not capacity guarantees with every source running together.
 
@@ -302,18 +290,8 @@ pause. A source with no chunk advancing for three hours fails with a clear
 message; its prior inventory stays published and it retries after the usual
 two-hour delay.
 
-The production Lua is exercised against an isolated local Redis Unix socket:
-
-```sh
-nix shell nixpkgs#redis --command bun test --timeout 15000 \
-  src/server/ingestion/provider-host-slot.test.ts \
-  src/server/ingestion/shared-provider-host.test.ts \
-  src/server/ingestion/heavytruckparts-host-slot.test.ts
-```
-
-No deployed Redis or provider is contacted. Without a local Redis executable,
-the ordinary unit suite skips only the Lua integration case. Effect-clock tests
-still check request lifetime, failure gaps, cancellation and fail-closed behavior.
+Effect-clock tests check request lifetime, failure gaps, cancellation and
+fail-closed behavior; `process-host-store.test.ts` checks the queue rules.
 
 ## Retry and yard isolation
 

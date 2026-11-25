@@ -33,6 +33,7 @@ function dependencies(
       source,
       runId: "run-2",
       workflowRunId: "wrun-2",
+      via: "workflow",
     }),
     logRun: async () => undefined,
     ...overrides,

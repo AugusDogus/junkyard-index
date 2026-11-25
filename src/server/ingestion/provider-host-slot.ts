@@ -1,9 +1,9 @@
-import { Redis } from "@upstash/redis";
 import { Clock, Effect, FiberRef, Option, type Scope } from "effect";
 import {
   ProviderChunkClock,
   type ProviderTurnDeferred,
 } from "./provider-chunk-clock";
+import { processProviderHostStore } from "./process-host-store";
 
 /** A reservation attempt: the lease, or where the waiter stands in line. */
 export type HostReservation =
@@ -24,8 +24,6 @@ export type HostReservation =
 const MAX_POLL_MS = 10_000;
 
 const GRANTED: HostReservation = { _tag: "Granted" };
-const isCount = (value: unknown): value is number =>
-  typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 
 export const HostReservation = {
   granted: GRANTED,
@@ -34,19 +32,6 @@ export const HostReservation = {
     laneAhead,
     readyAhead,
   }),
-
-  /** Reads a `RESERVE_HOST_SLOT` reply: `{granted, laneAhead, readyAhead}`. */
-  parse(reply: unknown): HostReservation {
-    if (Array.isArray(reply) && reply.length === 3) {
-      const [granted, laneAhead, readyAhead]: unknown[] = reply;
-      if (granted === 1) return GRANTED;
-      if (granted === 0 && isCount(laneAhead) && isCount(readyAhead))
-        return HostReservation.queued(laneAhead, readyAhead);
-    }
-    throw new Error(
-      `Host reservation script replied ${JSON.stringify(reply)}, expected [granted, laneAhead, readyAhead]. The reservation state is unknown, so the waiter gives up its place.`,
-    );
-  },
 
   /**
    * How long a queued waiter sleeps before it polls again. Every turn ahead of
@@ -71,6 +56,7 @@ export const HostReservation = {
   },
 } as const;
 
+/** Where a policy's leases are kept (see `processProviderHostStore`). */
 export interface ProviderHostStore {
   reserve(token: string, leaseMs: number): Promise<HostReservation>;
   release(token: string): Promise<boolean>;
@@ -106,229 +92,11 @@ const slotError = (
   cause: unknown,
 ) =>
   new Error(
-    `${policy.label} shared host slot ${operation} failed. Prior inventory and checkpoint remain preserved. Check Upstash Redis before retrying.`,
+    `${policy.label} shared host slot ${operation} failed. Prior inventory and checkpoint remain preserved; the chunk retries from its last checkpoint.`,
     { cause },
   );
 
-/**
- * Atomic FIFO registration and acquisition of a lane lease (KEYS 1 to 4).
- * Polls renew the waiter's deadline without changing its order. Dead workers
- * expire instead of blocking the queue.
- *
- * A grouped lane also passes its group's ready queue (KEYS 5 to 7) and active
- * lanes (KEYS 8), with the group's lane cap as ARGV[3]. A waiter at the front
- * of its free lane joins the ready queue, and ready waiters take the group's
- * free places in the order they became ready. Only lane holders wait there, so
- * a busy lane never holds back another lane's waiter. Active entries expire
- * with their lease.
- *
- * All keys share one Redis hash tag for cluster-safe scripts.
- *
- * Replies `{granted, laneAhead, readyAhead}` (see `HostReservation`), so a
- * waiter far back can poll less often. Upstash bills every command a script
- * runs, so a waiter's repoll runs only what keeps its place: queue TTLs are
- * renewed only once they fall below the 30 s waiter deadline, and a request
- * nobody is queued for takes the lease without joining a queue. Older
- * deployments run the previous script on the same keys during a rollout;
- * both keep the same FIFO order, group cap and expiry.
- */
-export const RESERVE_HOST_SLOT = `
--- The last argument is '1' on a token's first attempt, which alone may find
--- every queue empty and skip them.
-local first = ARGV[#ARGV] == '1'
-local ms
-local function clock()
-  if not ms then
-    local now = redis.call('TIME')
-    ms = now[1] * 1000 + math.floor(now[2] / 1000)
-  end
-  return ms
-end
--- Registers ARGV[1] at the back of a FIFO queue once, renews its deadline,
--- and returns how many waiters stand ahead of it.
-local function place(queue, deadlines, sequence)
-  local expired = redis.call('ZRANGEBYSCORE', deadlines, '-inf', clock())
-  for _, token in ipairs(expired) do
-    redis.call('ZREM', queue, token)
-    redis.call('ZREM', deadlines, token)
-  end
-  local rank = redis.call('ZRANK', queue, ARGV[1])
-  if not rank then
-    redis.call('ZADD', queue, redis.call('INCR', sequence), ARGV[1])
-    rank = redis.call('ZRANK', queue, ARGV[1])
-  end
-  redis.call('ZADD', deadlines, clock() + 30000, ARGV[1])
-  -- The three keys are always renewed together, so one TTL stands for all.
-  if redis.call('PTTL', deadlines) < 30000 then
-    redis.call('PEXPIRE', queue, 60000)
-    redis.call('PEXPIRE', deadlines, 60000)
-    redis.call('PEXPIRE', sequence, 60000)
-  end
-  return rank
-end
-local function leave(queue, deadlines)
-  redis.call('ZREM', queue, ARGV[1])
-  redis.call('ZREM', deadlines, ARGV[1])
-end
-if #KEYS == 4 then
-  -- A missing queue key means nobody waits for the lane.
-  if first and redis.call('EXISTS', KEYS[2]) == 0 then
-    if redis.call('SET', KEYS[1], ARGV[1], 'NX', 'PX', ARGV[2]) then return {1, 0, 0} end
-    place(KEYS[2], KEYS[3], KEYS[4])
-    return {0, 0, 0}
-  end
-  local ahead = place(KEYS[2], KEYS[3], KEYS[4])
-  if ahead > 0 then return {0, ahead, 0} end
-  if not redis.call('SET', KEYS[1], ARGV[1], 'NX', 'PX', ARGV[2]) then return {0, 0, 0} end
-  leave(KEYS[2], KEYS[3])
-  return {1, 0, 0}
-end
-local ttl = tonumber(ARGV[2])
-local active
-local function places()
-  if not active then
-    redis.call('ZREMRANGEBYSCORE', KEYS[8], '-inf', clock())
-    active = redis.call('ZCARD', KEYS[8])
-  end
-  return math.max(0, tonumber(ARGV[3]) - active)
-end
-local function take()
-  redis.call('SET', KEYS[1], ARGV[1], 'PX', ttl)
-  redis.call('ZADD', KEYS[8], clock() + ttl, ARGV[1])
-  if redis.call('PTTL', KEYS[8]) < ttl then redis.call('PEXPIRE', KEYS[8], ttl) end
-  return {1, 0, 0}
-end
--- Nobody waits for the lane or for a place, and the lane is free.
-local idle = first and redis.call('EXISTS', KEYS[2], KEYS[1], KEYS[5]) == 0
-if idle and places() > 0 then return take() end
-local ahead = place(KEYS[2], KEYS[3], KEYS[4])
-if ahead > 0 then return {0, ahead, 0} end
-if not idle and redis.call('EXISTS', KEYS[1]) == 1 then return {0, 0, 0} end
-local free = places()
-local rank = place(KEYS[5], KEYS[6], KEYS[7])
-if rank >= free then return {0, 0, rank - free + 1} end
-take()
-leave(KEYS[5], KEYS[6])
-leave(KEYS[2], KEYS[3])
-return {1, 0, 0}
-`;
-
-/** Releases KEYS[1] if ARGV[1] still owns it, and its group place (KEYS[2],
- * if any) either way. */
-export const RELEASE_HOST_SLOT = `
-if KEYS[2] then redis.call('ZREM', KEYS[2], ARGV[1]) end
-if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) else return 0 end
-`;
-
-/**
- * Which deployment's host gates a process joins, from `VERCEL_ENV`. "local"
- * is any process outside a Vercel deployment.
- */
-export type ProviderHostKeyspace =
-  | "production"
-  | "preview"
-  | "development"
-  | "local";
-
-export const ProviderHostKeyspace = {
-  parse(vercelEnv: string | undefined): ProviderHostKeyspace {
-    switch (vercelEnv) {
-      case "production":
-      case "preview":
-      case "development":
-        return vercelEnv;
-      default:
-        return "local";
-    }
-  },
-} as const;
-
-/**
- * Redis keys for a policy's lane. Production keeps its unprefixed keys:
- * renaming them would let runs on an older deployment and a newer one queue
- * apart and reach an origin server at once. Other keyspaces put their name
- * inside the hash tag, so they never hold or join production's queues and
- * every key still shares one cluster slot.
- */
-export function providerHostKeys(
-  policy: ProviderLeasePolicy,
-  keyspace: ProviderHostKeyspace,
-) {
-  const base =
-    keyspace === "production" ? "ingestion" : `${keyspace}:ingestion`;
-  // Keep the existing HTP lease key during rolling deployments. Hash-tag
-  // queue keys with its complete name so all scripts use the same cluster
-  // slot. Every lane of a group shares the group's hash tag instead, so one
-  // script sees the lane and the group's places.
-  const tag = policy.group
-    ? `{${base}:host-group:${policy.group.key}:v1}`
-    : `{${base}:host:${policy.key}:v1}`;
-  const lease = policy.group
-    ? `${tag}:lane:${policy.key}`
-    : `${base}:host:${policy.key}:v1`;
-  const prefix = policy.group ? lease : tag;
-  return {
-    lease,
-    lane: [
-      lease,
-      `${prefix}:queue`,
-      `${prefix}:deadlines`,
-      `${prefix}:sequence`,
-    ],
-    ready: [`${tag}:ready`, `${tag}:ready-deadlines`],
-    readySequence: `${tag}:ready-sequence`,
-    active: `${tag}:active`,
-  };
-}
-
-export function redisProviderHostStore(
-  policy: ProviderLeasePolicy,
-  redis: Pick<Redis, "eval">,
-  keyspace: ProviderHostKeyspace,
-): ProviderHostStore {
-  const { lease, lane, ready, readySequence, active } = providerHostKeys(
-    policy,
-    keyspace,
-  );
-  // Tokens this store has queued, whose later attempts are repolls.
-  const queued = new Set<string>();
-  return {
-    reserve: async (owner, ttl) => {
-      const first = queued.has(owner) ? 0 : 1;
-      queued.add(owner);
-      const reservation = HostReservation.parse(
-        await redis.eval(
-          RESERVE_HOST_SLOT,
-          policy.group ? [...lane, ...ready, readySequence, active] : lane,
-          policy.group
-            ? [owner, ttl, policy.group.activeLanes, first]
-            : [owner, ttl, first],
-        ),
-      );
-      if (reservation._tag === "Granted") queued.delete(owner);
-      return reservation;
-    },
-    release: async (owner) =>
-      (await redis.eval(
-        RELEASE_HOST_SLOT,
-        policy.group ? [lease, active] : [lease],
-        [owner],
-      )) === 1,
-    cancel: async (owner) => {
-      queued.delete(owner);
-      // A timed-out Redis response may have acquired the lease. Keep that
-      // lease until expiry; cancellation removes only its queued registration.
-      await redis.eval(
-        "for _, key in ipairs(KEYS) do redis.call('ZREM', key, ARGV[1]) end return 1",
-        policy.group ? [...lane.slice(1, 3), ...ready] : lane.slice(1, 3),
-        [owner],
-      );
-      return true;
-    },
-  };
-}
-
-/** One store call, bounded so a stalled Redis fails instead of hanging. */
+/** One store call, bounded so a stalled store fails instead of hanging. */
 const storeCall = <A>(
   policy: ProviderLeasePolicy,
   operation: string,
@@ -340,14 +108,14 @@ const storeCall = <A>(
   }).pipe(
     Effect.timeoutFail({
       duration: "5 seconds",
-      onTimeout: () => slotError(policy, operation, "Redis deadline exceeded"),
+      onTimeout: () => slotError(policy, operation, "Store deadline exceeded"),
     }),
   );
 
 /**
  * Sleeps until a queued waiter's next poll (`HostReservation.pollDelayMs`),
  * or returns false once its wait has ended. The wait ends between polls,
- * never during a reservation that Redis may still grant, which would leave
+ * never during a reservation that the store may still grant, which would leave
  * the lease held.
  */
 const awaitNextPoll = (
@@ -623,6 +391,31 @@ export function withProviderHostLease(
   );
 }
 
+/** Where a deployed process keeps a policy's leases: in the process, since
+ * the daily pass schedules runs that share a host (`HostClaims`). */
+let deployedHostStore: (policy: ProviderLeasePolicy) => ProviderHostStore =
+  processProviderHostStore;
+
+export const ProviderHostStores = {
+  /**
+   * Runs `run` with `store` keeping every policy's leases, as on a
+   * deployment, and restores the deployed stores after. Tests use it to
+   * simulate other sources holding a host.
+   */
+  async using<T>(
+    store: (policy: ProviderLeasePolicy) => ProviderHostStore,
+    run: () => Promise<T>,
+  ): Promise<T> {
+    const deployed = deployedHostStore;
+    deployedHostStore = store;
+    try {
+      return await run();
+    } finally {
+      deployedHostStore = deployed;
+    }
+  },
+} as const;
+
 function onHostStore<A, E, R>(
   policy: ProviderLeasePolicy,
   use: (store: ProviderHostStore) => Effect.Effect<A, E | Error, R>,
@@ -630,7 +423,7 @@ function onHostStore<A, E, R>(
 ): Effect.Effect<A, E | Error, R> {
   return process.env.VERCEL !== "1" && process.env.NODE_ENV !== "production"
     ? bypass
-    : withRedisProviderHostStore(policy, use);
+    : Effect.suspend(() => use(deployedHostStore(policy)));
 }
 
 export function providerHostSlot<A, E, R>(
@@ -688,8 +481,8 @@ export function providerHostTurn<A, E, R>(
   );
 }
 
-/** `withProviderHostLease` on the deployment's Redis store, or no lease for
- * a local process, like every shared host gate. */
+/** `withProviderHostLease` on the deployment's store, or no lease for a
+ * local process, like every shared host gate. */
 export function providerHostLease(
   policy: ProviderLeasePolicy,
 ): Effect.Effect<void, Error | ProviderTurnDeferred, Scope.Scope> {
@@ -700,28 +493,4 @@ export function providerHostLease(
       Effect.void,
     ),
   );
-}
-
-function withRedisProviderHostStore<A, E, R>(
-  policy: ProviderLeasePolicy,
-  use: (store: ProviderHostStore) => Effect.Effect<A, E, R>,
-) {
-  return Effect.try({
-    try: () => {
-      const url = process.env.UPSTASH_REDIS_REST_URL;
-      const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-      if (!url || !token) throw new Error("Missing Upstash Redis URL or token");
-      return redisProviderHostStore(
-        policy,
-        new Redis({
-          url,
-          token,
-          retry: false,
-          signal: () => AbortSignal.timeout(5_000),
-        }),
-        ProviderHostKeyspace.parse(process.env.VERCEL_ENV),
-      );
-    },
-    catch: (cause) => slotError(policy, "configuration", cause),
-  }).pipe(Effect.flatMap(use));
 }

@@ -401,13 +401,30 @@ describe("durable ingestion repository", () => {
         ]),
       ).toEqual({
         status: "active",
-        runs: [{ action: "resume", runId: first.runId }],
+        runs: [
+          {
+            action: "resume",
+            runId: first.runId,
+            source: "pyp",
+            fetching: true,
+            attached: false,
+          },
+        ],
         retryAt: null,
       });
 
       await client.execute({
         sql: "update ingestion_run set stage = 'reconcile_missing' where id = ?",
         args: [first.runId],
+      });
+      await repository.attachWorkflowRun(first.runId, "wrun_first");
+      // A staged run no longer fetches, and its workflow may be running.
+      expect(
+        await repository.prepareWakeup(new Date("2026-08-22T08:00:00.000Z"), [
+          "pyp",
+        ]),
+      ).toMatchObject({
+        runs: [{ runId: first.runId, fetching: false, attached: true }],
       });
       await expect(repository.abandon(first.runId, false)).rejects.toThrow(
         "force is required",
@@ -528,7 +545,15 @@ describe("durable ingestion repository", () => {
         ]),
       ).toEqual({
         status: "active",
-        runs: [{ action: "resume", runId: "local-run" }],
+        runs: [
+          {
+            action: "resume",
+            runId: "local-run",
+            source: "all",
+            fetching: true,
+            attached: false,
+          },
+        ],
         retryAt: null,
       });
     } finally {

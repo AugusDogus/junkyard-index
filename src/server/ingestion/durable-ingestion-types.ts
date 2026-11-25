@@ -33,6 +33,12 @@ export type DurableIngestionStart =
 export interface DurableIngestionWakeupRun {
   action: "start" | "resume";
   runId: string;
+  /** The run's source, or "all" for a local run across every source. */
+  source: string;
+  /** The run is still fetching its sources (stage "sources"). */
+  fetching: boolean;
+  /** A workflow has attached to the run, so it may be running now. */
+  attached: boolean;
 }
 
 /**

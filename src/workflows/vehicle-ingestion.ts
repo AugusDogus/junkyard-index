@@ -55,6 +55,7 @@ import { vehicleNotificationDeliveryWorkflow } from "./downstream-consumers";
 import { searchProjectorWorkflow } from "./search-projector";
 import { PublicationModeFlag } from "~/server/ingestion/publication-mode-flag";
 import { withSearchWriteLock } from "./search-write-lock";
+import { IngestionDay } from "~/server/ingestion/ingestion-day";
 
 // Fallbacks for signals that never arrive, such as a workflow that died.
 // Each commit claim attempt also keeps a waiter live in the commit queue,
@@ -168,13 +169,25 @@ export async function vehicleIngestionPassWorkflow(day: string) {
   // A report that loses a race against the watchdog stays pending for the
   // next wait instead of being dropped.
   let pendingReport = incoming.next();
+  // The pass re-plans at least this often, even while reports keep coming,
+  // so claims of runs that report elsewhere (another day's pass, an older
+  // deployment) are freed within one interval.
+  let watchdog = sleep(PASS_WATCHDOG_INTERVAL).then(() => "timeout" as const);
+  // After its day the pass stops admitting runs; its next plan expires it.
+  const dayEnded = sleep(new Date(IngestionDay.end(day))).then(
+    () => "timeout" as const,
+  );
   const outcome = await runIngestionPass({
-    plan: () => prepareIngestionPassStep(day),
+    plan: () => {
+      watchdog = sleep(PASS_WATCHDOG_INTERVAL).then(() => "timeout" as const);
+      return prepareIngestionPassStep(day);
+    },
     startRuns: (runIds) => startIngestionRunWorkflowsStep(runIds, day),
     nextReport: async (deadline) => {
       const next = await Promise.race([
         pendingReport,
-        sleep(PASS_WATCHDOG_INTERVAL).then(() => "timeout" as const),
+        watchdog,
+        dayEnded,
         // A source's retry falls due while active runs report nothing.
         ...(deadline === null
           ? []
@@ -199,7 +212,8 @@ export async function vehicleIngestionPassWorkflow(day: string) {
 }
 
 /**
- * One source run. Staging runs in parallel with other sources; the commit
+ * One source run. Staging runs in parallel with other sources (the pass
+ * starts sources that share a host one at a time); the commit
  * (reconciliation and Algolia publication) waits its turn. The run is
  * released once its inventory is searchable; alerts are checked daily.
  */
@@ -218,7 +232,7 @@ export async function vehicleIngestionWorkflow(runId: string, day?: string) {
   let failed = true;
   let completed = false;
   try {
-    const result = await runSourceIngestion(runId);
+    const result = await runSourceIngestion(runId, day);
     failed = false;
     completed = result.status === "completed";
     return result;
@@ -232,7 +246,7 @@ export async function vehicleIngestionWorkflow(runId: string, day?: string) {
   }
 }
 
-async function runSourceIngestion(runId: string) {
+async function runSourceIngestion(runId: string, day: string | undefined) {
   const { workflowRunId } = getWorkflowMetadata();
   await attachDurableIngestionWorkflowStep(runId, workflowRunId);
   const markRunFailed = (failedRunId: string, message: string) =>
@@ -252,6 +266,10 @@ async function runSourceIngestion(runId: string) {
   // commit, so its source can retry while another run holds it.
   const staging = await stageDurableIngestion({ runId, operations });
   if (staging.status !== "staged") return staging;
+  // Fetching is done, so the pass may start the next run on this run's
+  // shared hosts while this one waits for the commit.
+  if (day !== undefined)
+    await reportIngestionRunStep(day, { runId, fetched: true });
 
   // Committing writes the shared inventory and search index, so one run
   // commits at a time. The claim lives in the database, so a run

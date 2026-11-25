@@ -152,7 +152,7 @@ async function run(
   if (started.status !== "started") {
     return { status: "refused", message: ManualIngestionRun.message(started) };
   }
-  const message = `Started run ${started.runId}. It appears under Recent runs within a minute; reload the page to follow it.`;
+  const message = `Started run ${started.runId}.${ManualIngestionRun.startNote(started)} It appears under Recent runs within a minute; reload the page to follow it.`;
   try {
     await deps.logRun({
       source,

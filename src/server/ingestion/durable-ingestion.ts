@@ -37,6 +37,7 @@ import {
 import { reconcileDurableIngestionRun } from "./durable-reconciliation";
 import { validateDurableSourceRuns } from "./durable-source-validation";
 import { fetchDurableSourceChunk } from "./durable-source-fetch";
+import { HostClaims } from "./host-claims";
 import { IngestionDay } from "./ingestion-day";
 import type { IngestionPassPlan } from "./ingestion-pass-orchestrator";
 import { IngestionPause } from "~/server/source-control/ingestion-pause";
@@ -49,6 +50,7 @@ import {
   type SearchPublicationMode,
 } from "./search-publication-flag";
 import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
+import { SourceHostClaims } from "./source-host-claims";
 import { BetterStackProviders } from "./better-stack-providers";
 import { reportUrgiisCensusProgress } from "./urgiis-progress";
 
@@ -112,7 +114,14 @@ export async function prepareIngestionPass(
   return wakeup.status === "active"
     ? {
         status: "active",
-        runIds: wakeup.runs.map((run) => run.runId),
+        runs: wakeup.runs.map((run) => ({
+          runId: run.runId,
+          claims:
+            run.fetching && isIngestionSource(run.source)
+              ? SourceHostClaims.of(run.source)
+              : HostClaims.none,
+          started: run.attached,
+        })),
         retryAt: wakeup.retryAt,
       }
     : wakeup;

@@ -20,10 +20,8 @@ const urgLane = (server: string): ProviderHostPolicy => ({
   leaseMs: 130_000,
   requestMs: 110_000,
   waitMs: 30 * 60_000,
-  // A waiter at the front of its lane repolls every pollMs, each a script of
-  // about 6 to 16 Redis commands. Two seconds halves those repolls on the
-  // contended AWS lanes for about half a second more idle lane time per
-  // contended turn.
+  // Chosen when each repoll was a Redis script. Leases are now kept in the
+  // process and the pass starts one run per lane, so a waiter here is rare.
   pollMs: 2_000,
   gapMs: 3_500,
   group: URG_HOST_GROUP,
@@ -88,6 +86,11 @@ const urgServerLanes = new Map(
 const urgLanes = new Map(
   urgHosts.map((host) => [host, urgServerLanes.get(host) ?? urgLane(host)]),
 );
+/** Every host that takes a shared host turn. */
+export const SHARED_PROVIDER_HOSTS: readonly string[] = [
+  ...urgLanes.keys(),
+  VINPLUS_HOST_POLICY.key,
+];
 export function sharedProviderHostPolicy(
   url: string,
 ): ProviderHostPolicy | null {

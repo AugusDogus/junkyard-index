@@ -9,6 +9,10 @@ export const IngestionDay = {
         START_OFFSET_MS,
     );
   },
+  /** When the ingestion day `key` (from `IngestionDay.key`) ends. */
+  end(key: string): number {
+    return Date.parse(key) + START_OFFSET_MS + DAY_MS;
+  },
   key(now: Date): string {
     return IngestionDay.start(now).toISOString().slice(0, 10);
   },

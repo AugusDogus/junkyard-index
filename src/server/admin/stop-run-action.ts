@@ -109,7 +109,7 @@ async function startAgain(
       message: `${stopped} ${ManualIngestionRun.message(started)}`,
     };
   }
-  const message = `${stopped} Started run ${started.runId} on current code. It appears under Recent runs within a minute.`;
+  const message = `${stopped} Started run ${started.runId} on current code.${ManualIngestionRun.startNote(started)} It appears under Recent runs within a minute.`;
   try {
     await deps.logRun({
       source,

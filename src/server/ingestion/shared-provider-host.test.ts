@@ -8,6 +8,10 @@ import {
   URG_HOST_GROUP,
   VINPLUS_HOST_POLICY,
 } from "./shared-provider-host";
+import {
+  ProviderHostStores,
+  type ProviderHostStore,
+} from "./provider-host-slot";
 import { URGIIS_TENANTS } from "./urgiis-configuration";
 import { readUrgiisPage } from "./urgiis-client";
 import { fetchJolietSearch } from "./joliet-client";
@@ -79,58 +83,66 @@ test("URG hosts share a lane only with hosts on the same origin server, while Vi
   expect(sharedProviderHostPolicy("https://example.com/")).toBeNull();
 });
 
-test("deployed URG and every VinPlus API client fail closed without Redis", async () => {
+test("deployed URG and every VinPlus API client fail closed when the lease store fails", async () => {
   const vercel = process.env.VERCEL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
   const fetch = spyOn(globalThis, "fetch").mockRejectedValue(
     new Error("No provider requests allowed"),
   );
   const pair = { make: "HONDA", model: "ACCORD" };
+  const failing: ProviderHostStore = {
+    reserve: async () => {
+      throw new Error("Lease store unavailable");
+    },
+    release: async () => true,
+    cancel: async () => true,
+  };
   try {
     process.env.VERCEL = "1";
-    delete process.env.UPSTASH_REDIS_REST_TOKEN;
-    const calls: readonly Effect.Effect<unknown, unknown>[] = [
-      fetchJolietSearch(pair, gate),
-      fetchLittletonSearch(pair, gate),
-      fetchPickersSearch(pair, gate),
-      fetchPipesControl({ kind: "query", pair }, gate),
-      fetchUwrenchSearch(pair, gate, { used: 0 }),
-      readVinplusControl(
-        {
-          url: VINPLUS_API + "/api/vehicle-groups",
-          mime: "application/json",
-          body: null,
-        },
-        gate,
-      ),
-    ];
-    for (const call of calls)
-      await expect(Effect.runPromise(call)).rejects.toThrow(
-        "configuration failed",
-      );
-    const tenant = URGIIS_TENANTS[0];
-    if (!tenant) throw new Error("Expected a configured URG tenant");
-    await Effect.runPromise(
-      Effect.gen(function* () {
-        const fiber = yield* Effect.fork(
-          Effect.either(
-            readUrgiisPage(tenant.origin + tenant.ownerPath, tenant),
+    await ProviderHostStores.using(
+      () => failing,
+      async () => {
+        const calls: readonly Effect.Effect<unknown, unknown>[] = [
+          fetchJolietSearch(pair, gate),
+          fetchLittletonSearch(pair, gate),
+          fetchPickersSearch(pair, gate),
+          fetchPipesControl({ kind: "query", pair }, gate),
+          fetchUwrenchSearch(pair, gate, { used: 0 }),
+          readVinplusControl(
+            {
+              url: VINPLUS_API + "/api/vehicle-groups",
+              mime: "application/json",
+              body: null,
+            },
+            gate,
           ),
+        ];
+        for (const call of calls)
+          await expect(Effect.runPromise(call)).rejects.toThrow(
+            "reservation failed",
+          );
+        const tenant = URGIIS_TENANTS[0];
+        if (!tenant) throw new Error("Expected a configured URG tenant");
+        await Effect.runPromise(
+          Effect.gen(function* () {
+            const fiber = yield* Effect.fork(
+              Effect.either(
+                readUrgiisPage(tenant.origin + tenant.ownerPath, tenant),
+              ),
+            );
+            yield* TestClock.adjust("1 minute");
+            expect((yield* Fiber.join(fiber))._tag).toBe("Left");
+          }).pipe(Effect.provide(TestContext.TestContext)),
         );
-        yield* TestClock.adjust("1 minute");
-        expect((yield* Fiber.join(fiber))._tag).toBe("Left");
-      }).pipe(Effect.provide(TestContext.TestContext)),
+        await expect(
+          Effect.runPromise(sharedProviderHostSlot(tenant.origin)(Effect.void)),
+        ).rejects.toThrow("reservation failed");
+      },
     );
-    await expect(
-      Effect.runPromise(sharedProviderHostSlot(tenant.origin)(Effect.void)),
-    ).rejects.toThrow("configuration failed");
     expect(fetch).not.toHaveBeenCalled();
   } finally {
     fetch.mockRestore();
     if (vercel === undefined) delete process.env.VERCEL;
     else process.env.VERCEL = vercel;
-    if (token === undefined) delete process.env.UPSTASH_REDIS_REST_TOKEN;
-    else process.env.UPSTASH_REDIS_REST_TOKEN = token;
   }
 });
 
