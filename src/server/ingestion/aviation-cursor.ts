@@ -104,13 +104,16 @@ export function aviationClosingControls(
       ? []
       : aviationCensusPlan(state);
   const mismatched = decisions.length
-    ? ModelCensus.closingReads({
-        controls: aviationCensusControls(state.makes),
-        pages: state.pages,
-        decisions,
-        previous: state.previous,
-        cards: aviationCards,
-      }).flatMap((index) => {
+    ? ModelCensus.closingReads(
+        {
+          controls: aviationCensusControls(state.makes),
+          pages: state.pages,
+          decisions,
+          previous: state.previous,
+          cards: aviationCards,
+        },
+        (page) => page.hash,
+      ).flatMap((index) => {
         const value = models[index];
         return value
           ? [

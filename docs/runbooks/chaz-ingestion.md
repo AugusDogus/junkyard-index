@@ -81,8 +81,8 @@ changed fingerprint stops the run before emission, so a transient short or
 empty page is never published. A page below its badge that re-reads
 identically, such as the dead `&` routes (TOWN & COUNTRY: badge 8, explicit
 empty), is confirmed only by a normal incremental run (not a cold, gap or outage
-full read). It is still read on every run, and each such page costs one
-closing GET a day. A page that only lost surplus cards without its badge
+full read). It is still read on every run; closing skips it while it repeats
+its confirmed evidence and re-reads it once it changes. A page that only lost surplus cards without its badge
 dropping is never confirmed and is read again on the next run as short. Other
 model-level changes surface as badge changes in the next run's opening menus.
 
@@ -110,11 +110,13 @@ Chaz specifics against the [shared census rules](model-census.md): the badge
 floor is 92% because the Nov 12 capture's 68 unexplained badge overcounts hold
 healthy runs at 94.2%, while emptying any slice falls to 90.9% or less.
 Closing confirms short pages. On the Nov 18 graph (35 makes, 240 models) every
-run is a full read and costs 282 GETs: 278 opening reads, then contact, the
-make directory and the two dead `&` routes at closing. A day after a cold or
-gap read costs the same, with the dead routes read as short until confirmed.
+run is a full read and costs 280 GETs: 278 opening reads, then contact and the
+make directory at closing. A cold or gap run, and the day after one, also
+re-reads the two dead `&` routes at closing (282 GETs) until a normal
+incremental run confirms them.
 Each page whose cards differ from its badge, or fall below its sticky surplus
-or ceiling, adds one closing GET on every run that reads it.
+or ceiling, adds one closing GET on every run that reads it, unless it repeats
+its confirmed evidence.
 
 Nonempty model destinations must match the requested literal model parent.
 Explicit empty pages must retain their native model heading; labels containing `&` also accept the native `-and`

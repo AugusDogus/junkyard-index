@@ -96,13 +96,16 @@ export function scottsClosingControls(
       ? []
       : scottsCensusPlan(state);
   const mismatched = decisions.length
-    ? ModelCensus.closingReads({
-        controls: scottsCensusControls(state.makes),
-        pages: state.pages,
-        decisions,
-        previous: state.previous,
-        cards: scottsCards,
-      }).flatMap((index) => {
+    ? ModelCensus.closingReads(
+        {
+          controls: scottsCensusControls(state.makes),
+          pages: state.pages,
+          decisions,
+          previous: state.previous,
+          cards: scottsCards,
+        },
+        (page) => page.hash,
+      ).flatMap((index) => {
         const value = models[index];
         return value
           ? [

@@ -102,13 +102,16 @@ export function northwestClosingControls(
   const models = northwestModels(state.makes);
   if (state.pages.length > models.length)
     throw new Error("Northwest closing model is outside the published graph");
-  const reads = ModelCensus.closingReads({
-    controls: northwestCensusControls(state.makes),
-    pages: state.pages,
-    decisions: northwestCensusPlan(state),
-    previous: state.previous,
-    cards: northwestCards,
-  });
+  const reads = ModelCensus.closingReads(
+    {
+      controls: northwestCensusControls(state.makes),
+      pages: state.pages,
+      decisions: northwestCensusPlan(state),
+      previous: state.previous,
+      cards: northwestCards,
+    },
+    (page) => page.hash,
+  );
   return [
     { kind: "root", url: NORTHWEST_ROOT },
     { kind: "directory", url: NORTHWEST_MAKES },

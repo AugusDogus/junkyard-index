@@ -132,6 +132,16 @@ export function jimsimportCensusPlan(state: {
 
 /** Cards a model page lists, as closing compares them with the badge. */
 const jimsimportCards = (page: JimsimportPage) => page.records.length;
+/** Required donor fingerprint of a model page, what closing compares. Optional
+ * images may change to null between reads without changing it. */
+export const jimsimportRequiredDonors = (page: JimsimportPage) =>
+  jimsimportHash({
+    ...page,
+    records: page.records.map(({ image, ...required }) => {
+      void image;
+      return required;
+    }),
+  });
 /** Badges are diagnostic, not exact card counts: on the saved Nov 15 census
  * 23 of 334 models disagree, but cards capped at each badge cover 3,980 of
  * 3,981 (99.97%). An empty sweep slice leaves at most 86.7% (3,453 of 3,981
@@ -186,13 +196,16 @@ export function jimsimportClosingModels(state: {
     throw new Error(
       "Jim's Import closing model is outside the published graph",
     );
-  return ModelCensus.closingReads({
-    controls: censusControls(state.menus),
-    pages: state.opening,
-    decisions: jimsimportCensusPlan(state),
-    previous: state.previous,
-    cards: jimsimportCards,
-  }).flatMap((index) => {
+  return ModelCensus.closingReads(
+    {
+      controls: censusControls(state.menus),
+      pages: state.opening,
+      decisions: jimsimportCensusPlan(state),
+      previous: state.previous,
+      cards: jimsimportCards,
+    },
+    jimsimportRequiredDonors,
+  ).flatMap((index) => {
     const entry = models[index];
     return entry
       ? [{ url: JIMSIMPORT_ORIGIN + entry.model.path, ...entry, index }]

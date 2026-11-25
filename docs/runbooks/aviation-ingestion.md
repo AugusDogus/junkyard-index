@@ -88,8 +88,8 @@ the newest accepted publication. Aviation specifics:
   both floors fail the first such run and nothing publishes.
 - Request cost, estimated from the November 12 graph: every run (cold, gap or
   daily) is about 485 GETs (47 opening and make menus, 404 model lists, 2
-  closing controls and closing re-reads of the about 32 surplus lists and any
-  short lists). That stays under the 650 GET run cap.
+  closing controls and closing re-reads of any of the about 32 surplus lists
+  and short lists that are new, unconfirmed or changed). That stays under the 650 GET run cap.
 
 The saved qualification has nine byte-stable live closing bodies: `/parts/`,
 KIA and Pontiac make directories, and the Rio, Tahoe, Mercedes C-Class,

@@ -539,24 +539,16 @@ test("Aviation confirms a model read with fewer cards than its badge at closing"
   expect(confirmed(shortRead.cursor)).toBe(true);
 
   // A confirmed short page is still read the next day (an unchanged badge
-  // proves nothing about its cards), and closing re-reads it again: the same
-  // nine requests as a full read.
+  // proves nothing about its cards). It repeats its confirmed evidence, so
+  // closing does not re-read it: eight requests, one chunk.
   const dailyFrom = native.urls.length;
-  const dailyPaused = await run(
-    AviationCursor.initial,
-    shortRead.cursor,
-    day + 2,
-  );
-  expect(dailyPaused.status).toBe("paused");
-  expect(dailyPaused.pagesProcessed).toBe(8);
-  const daily = await run(dailyPaused.cursor, shortRead.cursor, day + 2);
+  const daily = await run(AviationCursor.initial, shortRead.cursor, day + 2);
   expect(daily.status).toBe("complete");
-  expect(daily.pagesProcessed).toBe(1);
-  expect(native.urls.length - dailyFrom).toBe(9);
+  expect(daily.pagesProcessed).toBe(8);
+  expect(native.urls.length - dailyFrom).toBe(8);
   expect(
     native.urls.slice(dailyFrom).filter((url) => url === modelUrl),
-  ).toHaveLength(2);
-  expect(native.urls.at(-1)).toBe(modelUrl);
+  ).toHaveLength(1);
   expect(daily.warnings).toContain(
     "Aviation Read 1 of 1 model pages (daily 1); carried 0.",
   );

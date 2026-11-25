@@ -277,7 +277,7 @@ test("A Plus reads every model page on every run, even across missed runs", asyn
   }
 });
 
-test("A Plus re-reads a short page at closing on every daily run and fails when it changes", async () => {
+test("A Plus re-reads a confirmed short page at closing only when it changes, and fails when the re-read differs", async () => {
   const native = yard();
   // M9's badge promises one more donor than its page lists.
   native.badges.set(9, 41);
@@ -292,16 +292,18 @@ test("A Plus re-reads a short page at closing on every daily run and fails when 
   expect(confirming.warnings.at(-1)).toBe(
     "Aplus Read 12 of 12 model pages (daily 11, short 1); carried 0.",
   );
-  // Once confirmed, M9 is still read daily and re-read at closing.
+  // Once confirmed, M9 is still read daily. While it repeats its confirmed
+  // evidence, closing does not re-read it.
   const confirmed = await census(native, 602, confirming.terminal);
-  expect(confirmed.requests).toBe(FULL_READ_REQUESTS + 1);
-  expect(confirmed.models.filter((m) => m === 9)).toHaveLength(2);
+  expect(confirmed.requests).toBe(FULL_READ_REQUESTS);
+  expect(confirmed.models.filter((m) => m === 9)).toHaveLength(1);
   expect(confirmed.vins).toEqual(allVins(native));
   expect(confirmed.warnings.at(-1)).toBe(
     "Aplus Read 12 of 12 model pages (daily 12); carried 0.",
   );
-  // A closing re-read that lists other cards stops the run before emission.
-  native.flaky.set(9, 0);
+  // A daily read that lists other cards is re-read at closing, and a re-read
+  // that disagrees with it stops the run before emission.
+  native.flaky.set(9, 1);
   const published: string[] = [];
   await expect(
     census(native, 603, confirmed.terminal, published),

@@ -346,7 +346,7 @@ test("Central reads every model on every run, even across missed runs", async ()
   }
 }, 60_000);
 
-test("Central confirms read models whose cards differ from their badge at closing every day", async () => {
+test("Central confirms read models whose cards differ from their badge at closing, and skips the re-read while they repeat", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
   // A model now shows 171 on its badge but keeps 170 cards on every read.
@@ -362,10 +362,11 @@ test("Central confirms read models whose cards differ from their badge at closin
   expect(steady.warnings.at(-1)).toBe(
     readSummary(everyModel.map((i) => (i === badged ? "count" : "daily"))),
   );
-  // Confirmed evidence is still read the next day and re-read at closing.
+  // Confirmed evidence is still read the next day. The page repeats it, so
+  // closing does not re-read it.
   const next = await census(native, 602, steady.terminal);
-  expect(next.models).toEqual([...everyModel, badged]);
-  expect(next.requests).toBe(18);
+  expect(next.models).toEqual(everyModel);
+  expect(next.requests).toBe(17);
   expect(next.warnings.at(-1)).toBe(readSummary(everyModel.map(() => "daily")));
 
   // A short page that does not repeat at closing stops emission.
@@ -384,7 +385,7 @@ function terminalCensus(terminal: unknown): CentralCensus {
   return cursor.census;
 }
 
-test("Central reads a confirmed short page daily and confirms it again at closing", async () => {
+test("Central reads a confirmed short page daily and keeps it confirmed while it repeats", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
   // A model lists 150 of its 170 badged donors on every read.
@@ -399,10 +400,11 @@ test("Central reads a confirmed short page daily and confirms it again at closin
     everyModel.map((i) => i === short),
   );
   // Confirmed in-run, so the next run reads it as `daily` rather than
-  // `short`, and closing still re-reads and confirms it.
+  // `short`. It repeats its confirmed evidence, so closing skips its re-read
+  // and it stays confirmed.
   const next = await census(native, 602, read.terminal);
-  expect(next.models).toEqual([...everyModel, short]);
-  expect(next.requests).toBe(18);
+  expect(next.models).toEqual(everyModel);
+  expect(next.requests).toBe(17);
   expect(next.warnings.at(-1)).toBe(readSummary(everyModel.map(() => "daily")));
   expect(next.vins).toEqual(allVins(native));
   expect(
@@ -603,11 +605,12 @@ test("Central re-reads a surplus page that drops to its badge at closing", async
   }
 
   // Once lowered, the page is no longer short and is read as daily. The
-  // lowered surplus stays as a ceiling, so closing still re-reads it.
+  // lowered surplus stays as a ceiling, but the page repeats the evidence the
+  // last closing re-read confirmed, so closing does not re-read it again.
   const after = day + MODEL_CENSUS_SWEEP_DAYS + 1;
   const lowered = await census(native, after, previous);
-  expect(lowered.models).toEqual([...everyModel, surplus]);
-  expect(lowered.requests).toBe(18);
+  expect(lowered.models).toEqual(everyModel);
+  expect(lowered.requests).toBe(17);
   expect(lowered.vins).toEqual(allVins(native));
   expect(lowered.warnings.at(-1)).toBe(
     readSummary(everyModel.map(() => "daily")),

@@ -58,8 +58,10 @@ is not read or used as a delta. Its badge floor is 95% (below). Its closing
 confirms short pages. Counted from the saved graph, every run is a full read
 of about 629 GETs: 583 opening pages (the root, the directory, 46 make menus
 and 535 model pages), then closing reads of the root, the make directory and
-the 44 surplus models. Each short page, and each surplus model listing less
-than its sticky surplus or ceiling, adds one closing re-read. The census contract is
+any of the 44 surplus models that changed. Each short page, and each surplus
+model listing less than its sticky surplus or ceiling, adds one closing
+re-read. A page read daily that repeats its confirmed evidence is not re-read
+(see [Model census](model-census.md)). The census contract is
 `DD15/literal-premium-model-graph/all-required-destination-conflicts-quarantined/incremental-model-census-v3`;
 a contract change starts a cold census. It requests only owned HTTPS
 browse URLs. It does not construct aliases or request donor details, components,
