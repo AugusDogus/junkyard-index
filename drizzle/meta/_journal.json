@@ -239,6 +239,13 @@
       "when": 1796140800000,
       "tag": "0033_yard_check",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1796227200000,
+      "tag": "0034_turso_read_indexes",
+      "breakpoints": true
     }
   ]
 }

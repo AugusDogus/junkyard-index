@@ -1,0 +1,2 @@
+CREATE INDEX `ingestion_run_publication_sequence_idx` ON `ingestion_run` (`publication_sequence`);--> statement-breakpoint
+CREATE INDEX `state_recent_arrival_source_idx` ON `state_recent_arrival` (`source`);
