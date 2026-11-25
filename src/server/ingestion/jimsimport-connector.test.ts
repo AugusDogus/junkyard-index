@@ -9,7 +9,10 @@ import {
   JimsimportProviderError,
   readJimsimportPage,
 } from "./jimsimport-client";
-import { streamJimsimportInventory } from "./jimsimport-connector";
+import {
+  streamJimsimportInventory,
+  streamJimsimportInventoryFromProvider,
+} from "./jimsimport-connector";
 import { validationRejectionKind } from "./ingestion-validation";
 import {
   JimsimportCursor,
@@ -18,7 +21,10 @@ import {
   jimsimportClosingModels,
 } from "./jimsimport-cursor";
 import { jimsimportHash, parseJimsimportModel } from "./jimsimport-parser";
-import { runWithQueuedHost } from "./provider-host-test-support";
+import {
+  queuedHostPacing,
+  runWithQueuedHost,
+} from "./provider-host-test-support";
 import {
   jimsimportFixture,
   jimsimportOpeningFixture,
@@ -547,10 +553,7 @@ describe("Jim's Import complete census guards", () => {
     try {
       await expect(
         Effect.runPromise(
-          readJimsimportPage(
-            "https://foreign.example/used-parts/ACURA",
-            (effect) => effect,
-          ),
+          readJimsimportPage("https://foreign.example/used-parts/ACURA"),
         ),
       ).rejects.toThrow("destination");
       expect(calls).toBe(0);
@@ -584,9 +587,7 @@ describe("Jim's Import complete census guards", () => {
           ),
         );
         await expect(
-          Effect.runPromise(
-            readJimsimportPage(JIMSIMPORT_OWNER, (effect) => effect),
-          ),
+          Effect.runPromise(readJimsimportPage(JIMSIMPORT_OWNER)),
         ).rejects.toThrow("Expected complete owned");
       }
       expect(calls).toBe(4);
@@ -656,10 +657,9 @@ test("Jim's Import opening tail and closing re-reads complete when every GET wai
   try {
     for (let count = 0; count < 40; count++) {
       const chunk = await runWithQueuedHost(
-        streamJimsimportInventory({
+        streamJimsimportInventoryFromProvider({
           previousUniqueInventory: null,
           startCursor: cursor,
-          readPage: (url) => readJimsimportPage(url, (request) => request),
           onBatch: (batch) =>
             Effect.sync(() => {
               emitted.push(batch);
@@ -673,6 +673,9 @@ test("Jim's Import opening tail and closing re-reads complete when every GET wai
       // Every chunk returns its checkpoint and releases each lease in time.
       expect(chunk.elapsedMs).toBeLessThanOrEqual(6 * 60_000);
       expect(chunk.turns.every((turn) => turn.releasedAt !== null)).toBe(true);
+      // Jim's shares URG's AWS lane: its own 2.5 s gate runs after the lease,
+      // which holds only the request (instant here) and the 3.5 s host gap.
+      expect(queuedHostPacing(chunk).longestLeaseMs).toBeLessThanOrEqual(4_000);
       cursor = JSON.parse(JSON.stringify(result.cursor));
       if (result.status === "complete") {
         expect(result.count).toBe(3649);

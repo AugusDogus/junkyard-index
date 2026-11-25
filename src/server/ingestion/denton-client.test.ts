@@ -5,10 +5,8 @@ import {
   dentonRequestGate,
   readDentonPage,
 } from "./denton-client";
-import type { ProviderRequestGate } from "./provider-http-client";
 
 const originalFetch = globalThis.fetch;
-const direct: ProviderRequestGate = (request) => request;
 const url = "https://dentonauto.com/used-parts/ACURA";
 afterEach(() => {
   globalThis.fetch = originalFetch;
@@ -29,7 +27,7 @@ test("Denton one physical GET returns the literal native 301 without following i
       headers: { location: url + "/", "content-type": "text/html" },
     });
   });
-  expect(await Effect.runPromise(readDentonPage(url, direct))).toEqual({
+  expect(await Effect.runPromise(readDentonPage(url))).toEqual({
     kind: "redirect",
     url,
     target: url + "/",
@@ -52,8 +50,7 @@ test("Denton refuses foreign/detail destinations, denied/challenge/status bounda
     "https://dentonauto.com/wp-json/",
   ])
     expect(
-      (await Effect.runPromise(Effect.either(readDentonPage(target, direct))))
-        ._tag,
+      (await Effect.runPromise(Effect.either(readDentonPage(target))))._tag,
     ).toBe("Left");
   expect(calls).toBe(0);
   for (const response of [
@@ -84,8 +81,7 @@ test("Denton refuses foreign/detail destinations, denied/challenge/status bounda
       return response;
     });
     expect(
-      (await Effect.runPromise(Effect.either(readDentonPage(url, direct))))
-        ._tag,
+      (await Effect.runPromise(Effect.either(readDentonPage(url))))._tag,
     ).toBe("Left");
     expect(calls).toBe(1);
     expect(response.body?.locked).toBe(false);
@@ -95,9 +91,7 @@ test("Denton refuses foreign/detail destinations, denied/challenge/status bounda
     calls++;
     throw new Error("original-call outcome unknown");
   });
-  const unknown = await Effect.runPromise(
-    Effect.either(readDentonPage(url, direct)),
-  );
+  const unknown = await Effect.runPromise(Effect.either(readDentonPage(url)));
   expect(unknown).toMatchObject({
     _tag: "Left",
     left: { message: expect.stringContaining("original-call outcome unknown") },
@@ -117,7 +111,7 @@ test("Denton combined body deadline aborts and releases a stalled stream", async
   stub(async () => response);
   const result = await Effect.runPromise(
     Effect.gen(function* () {
-      const fiber = yield* Effect.fork(readDentonPage(url, direct));
+      const fiber = yield* Effect.fork(readDentonPage(url));
       yield* TestClock.adjust("20 seconds");
       return yield* Effect.either(Fiber.join(fiber));
     }).pipe(Effect.provide(TestContext.TestContext)),

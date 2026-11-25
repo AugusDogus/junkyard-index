@@ -1,6 +1,5 @@
 import { sharedProviderHostSlot } from "./shared-provider-host";
 import { Data, Effect } from "effect";
-import type { ProviderRequestGate } from "./provider-http-client";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import {
   SCOTTS_MAKES,
@@ -65,50 +64,50 @@ async function readScottsDocument(
   );
 }
 
-export function fetchScottsPage(url: string, gate: ProviderRequestGate) {
-  return gate(
-    Effect.suspend(() => {
-      if (
-        ![SCOTTS_ROOT, SCOTTS_MAKES].includes(url) &&
-        !scottsBrowsePath(url, 1) &&
-        !scottsBrowsePath(url, 2)
-      )
-        return Effect.fail(
-          new Error("Destination is outside the finite Scotts browse graph"),
-        );
-      const lifetime = new AbortController();
-      const deadline = AbortSignal.timeout(20_000);
-      let pending: Promise<string> | null = null;
-      return Effect.tryPromise({
-        try: (interruption) => {
-          pending = readScottsDocument(
-            url,
-            AbortSignal.any([lifetime.signal, interruption, deadline]),
-          );
-          return pending;
-        },
-        catch: (cause) => cause,
-      }).pipe(
-        Effect.ensuring(
-          Effect.promise(async () => {
-            lifetime.abort();
-            // The request effect owns its failure. Cleanup awaits transport/body
-            // release on interruption without replacing that original failure.
-            if (pending)
-              await pending.then(
-                () => undefined,
-                () => undefined,
-              );
-          }),
-        ),
-        Effect.timeoutFail({
-          duration: "20 seconds",
-          onTimeout: () =>
-            new Error("Combined request/body deadline exceeded 20 seconds"),
-        }),
+/** One native page inside its URG host slot. The caller's own pacing gate
+ * belongs outside the shared host turn, so it does not hold the lane. */
+export function fetchScottsPage(url: string) {
+  return Effect.suspend(() => {
+    if (
+      ![SCOTTS_ROOT, SCOTTS_MAKES].includes(url) &&
+      !scottsBrowsePath(url, 1) &&
+      !scottsBrowsePath(url, 2)
+    )
+      return Effect.fail(
+        new Error("Destination is outside the finite Scotts browse graph"),
       );
-    }),
-  ).pipe(
+    const lifetime = new AbortController();
+    const deadline = AbortSignal.timeout(20_000);
+    let pending: Promise<string> | null = null;
+    return Effect.tryPromise({
+      try: (interruption) => {
+        pending = readScottsDocument(
+          url,
+          AbortSignal.any([lifetime.signal, interruption, deadline]),
+        );
+        return pending;
+      },
+      catch: (cause) => cause,
+    }).pipe(
+      Effect.ensuring(
+        Effect.promise(async () => {
+          lifetime.abort();
+          // The request effect owns its failure. Cleanup awaits transport/body
+          // release on interruption without replacing that original failure.
+          if (pending)
+            await pending.then(
+              () => undefined,
+              () => undefined,
+            );
+        }),
+      ),
+      Effect.timeoutFail({
+        duration: "20 seconds",
+        onTimeout: () =>
+          new Error("Combined request/body deadline exceeded 20 seconds"),
+      }),
+    );
+  }).pipe(
     sharedProviderHostSlot(url),
     Effect.mapError(
       (cause) => new ScottsProviderError({ operation: url, cause }),

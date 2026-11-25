@@ -10,7 +10,10 @@ import {
   streamDentonInventoryWithRequestGate,
   type DentonStreamResult,
 } from "./denton-connector";
-import { runWithQueuedHost } from "./provider-host-test-support";
+import {
+  queuedHostPacing,
+  runWithQueuedHost,
+} from "./provider-host-test-support";
 import {
   DentonCursor,
   dentonNextUrl,
@@ -22,7 +25,7 @@ import {
   dentonTestGraph,
   dentonTestVin,
 } from "./denton-test-fixtures";
-import { DENTON_MAX_BODY_BYTES } from "./denton-client";
+import { DENTON_MAX_BODY_BYTES, dentonRequestGate } from "./denton-client";
 
 async function collect(
   graph: ReturnType<typeof dentonTestGraph>,
@@ -492,7 +495,7 @@ test("Denton keeps advancing when every GET waits two minutes for a shared host 
               batches++;
             }),
         },
-        (request) => request,
+        dentonRequestGate,
       ),
       { turnWaitMs: 2 * 60_000 },
     );
@@ -502,6 +505,10 @@ test("Denton keeps advancing when every GET waits two minutes for a shared host 
     // Every chunk returns its checkpoint and releases each lease in time.
     expect(chunk.elapsedMs).toBeLessThanOrEqual(6 * 60_000);
     expect(chunk.turns.every((turn) => turn.releasedAt !== null)).toBe(true);
+    // Denton's own 1.6 s gate runs after the lease, so the lease holds only
+    // the request (instant here) and the 3.5 s host gap, and frees its URG
+    // group place sooner.
+    expect(queuedHostPacing(chunk).longestLeaseMs).toBeLessThanOrEqual(4_000);
     const encoded = DentonCursor.serialize(result.cursor, null);
     if (!encoded.ok) throw new Error(encoded.error.message);
     wire = encoded.value;

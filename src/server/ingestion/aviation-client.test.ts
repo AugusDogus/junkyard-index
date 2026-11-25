@@ -7,7 +7,6 @@ const original = globalThis.fetch;
 afterEach(() => {
   globalThis.fetch = original;
 });
-const gate = <A, E, R>(request: Effect.Effect<A, E, R>) => request;
 
 test("Aviation refuses redirects, partial bodies, foreign MIME and malformed UTF-8 without retry", async () => {
   const responses = [
@@ -42,7 +41,7 @@ test("Aviation refuses redirects, partial bodies, foreign MIME and malformed UTF
       { preconnect: original.preconnect },
     );
     await expect(
-      Effect.runPromise(fetchAviationPage(AVIATION_ROOT, gate)),
+      Effect.runPromise(fetchAviationPage(AVIATION_ROOT)),
     ).rejects.toThrow("prior inventory is preserved");
     expect(requests).toBe(1);
   }
@@ -63,8 +62,8 @@ test("Aviation does not fetch hidden inventory failures, donor details, images o
     "https://example.com/parts/",
     "https://aviationauto.com/used-parts/ACURA?all=1",
   ])
-    await expect(
-      Effect.runPromise(fetchAviationPage(url, gate)),
-    ).rejects.toThrow("outside the finite");
+    await expect(Effect.runPromise(fetchAviationPage(url))).rejects.toThrow(
+      "outside the finite",
+    );
   expect(requests).toBe(0);
 });

@@ -234,10 +234,10 @@ export function streamChazInventoryWithRequestGate<E, R>(
         });
       const current: ChazProgress = cursor;
       const url = yield* attempt("next native control", () => nextUrl(current));
-      const page = yield* fetchChazPage(url, gate).pipe(
-        sharedProviderHostTurn(url),
-        ProviderChunkClock.unlessDeferred(summary.pagesProcessed > 0),
-      );
+      // The gate runs after the turn releases the shared lane.
+      const page = yield* gate(
+        fetchChazPage(url).pipe(sharedProviderHostTurn(url)),
+      ).pipe(ProviderChunkClock.unlessDeferred(summary.pagesProcessed > 0));
       if (Option.isNone(page)) break;
       const raw = page.value;
       const advanced: ChazProgress = yield* attempt(

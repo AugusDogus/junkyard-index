@@ -279,10 +279,10 @@ export function streamCentralInventoryWithRequestGate<E, R>(
           cause: "1600 native GET limit reached; preserve prior inventory",
         });
       const url = yield* attempt("next control", () => nextUrl(current));
-      const page = yield* fetchCentralPage(url, gate).pipe(
-        sharedProviderHostTurn(url),
-        ProviderChunkClock.unlessDeferred(summary.pagesProcessed > 0),
-      );
+      // The gate runs after the turn releases the shared lane.
+      const page = yield* gate(
+        fetchCentralPage(url).pipe(sharedProviderHostTurn(url)),
+      ).pipe(ProviderChunkClock.unlessDeferred(summary.pagesProcessed > 0));
       if (Option.isNone(page)) break;
       const raw = page.value;
       const advanced: CentralProgress = yield* attempt(

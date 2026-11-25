@@ -54,64 +54,61 @@ async function document(url: string, signal: AbortSignal): Promise<string> {
   );
 }
 
-/** One request/body lifetime, no retry, redirects or hidden detail endpoint. */
-export function readCaltonPage(
-  url: string,
-  gate: ProviderRequestGate = caltonRequestGate,
-) {
-  return gate(
-    Effect.suspend(() => {
-      const parsed = caltonOwnedUrl(url);
-      if (
-        !parsed ||
-        parsed.href !== url ||
-        (![CALTON_ROOT, CALTON_MAKES].includes(url) &&
-          !/^\/parts\/[^/]+(?:\/[^/]+)?$/.test(parsed.pathname))
-      )
-        return Effect.fail(
-          CaltonError.create(
-            "request destination",
-            "URL is outside the owned root/make/model graph: " + url,
-          ),
+/** One request/body lifetime, no retry, redirects or hidden detail endpoint.
+ * Callers pace it with `caltonRequestGate` outside the shared host turn, so
+ * the gate does not hold the lane. */
+export function readCaltonPage(url: string) {
+  return Effect.suspend(() => {
+    const parsed = caltonOwnedUrl(url);
+    if (
+      !parsed ||
+      parsed.href !== url ||
+      (![CALTON_ROOT, CALTON_MAKES].includes(url) &&
+        !/^\/parts\/[^/]+(?:\/[^/]+)?$/.test(parsed.pathname))
+    )
+      return Effect.fail(
+        CaltonError.create(
+          "request destination",
+          "URL is outside the owned root/make/model graph: " + url,
+        ),
+      );
+    const lifetime = new AbortController(),
+      deadline = AbortSignal.timeout(CALTON_REQUEST_TIMEOUT_MS);
+    let pending: Promise<string> | null = null;
+    return Effect.tryPromise({
+      try: (interrupted) => {
+        pending = document(
+          url,
+          AbortSignal.any([lifetime.signal, interrupted, deadline]),
         );
-      const lifetime = new AbortController(),
-        deadline = AbortSignal.timeout(CALTON_REQUEST_TIMEOUT_MS);
-      let pending: Promise<string> | null = null;
-      return Effect.tryPromise({
-        try: (interrupted) => {
-          pending = document(
-            url,
-            AbortSignal.any([lifetime.signal, interrupted, deadline]),
-          );
-          return pending;
-        },
-        catch: (cause) =>
+        return pending;
+      },
+      catch: (cause) =>
+        CaltonError.create(
+          "request/body " + url,
+          cause instanceof Error ? cause.message : String(cause),
+        ),
+    }).pipe(
+      Effect.ensuring(
+        Effect.promise(async () => {
+          lifetime.abort();
+          if (pending)
+            await pending.then(
+              () => undefined,
+              () => undefined,
+            );
+        }),
+      ),
+      Effect.timeoutFail({
+        duration: "20 seconds",
+        onTimeout: () =>
           CaltonError.create(
             "request/body " + url,
-            cause instanceof Error ? cause.message : String(cause),
+            "Combined request and body deadline exceeded 20 seconds",
           ),
-      }).pipe(
-        Effect.ensuring(
-          Effect.promise(async () => {
-            lifetime.abort();
-            if (pending)
-              await pending.then(
-                () => undefined,
-                () => undefined,
-              );
-          }),
-        ),
-        Effect.timeoutFail({
-          duration: "20 seconds",
-          onTimeout: () =>
-            CaltonError.create(
-              "request/body " + url,
-              "Combined request and body deadline exceeded 20 seconds",
-            ),
-        }),
-      );
-    }),
-  ).pipe(
+      }),
+    );
+  }).pipe(
     sharedProviderHostSlot(url),
     Effect.mapError((cause) =>
       cause instanceof Error

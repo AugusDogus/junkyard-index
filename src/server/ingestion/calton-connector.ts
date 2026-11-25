@@ -10,7 +10,12 @@ import {
   CALTON_MAX_REQUESTS,
   CALTON_MAX_TOTAL_BYTES,
 } from "./calton-cursor";
-import { CALTON_MAX_BODY_BYTES, readCaltonPage } from "./calton-client";
+import type { ProviderRequestGate } from "./provider-http-client";
+import {
+  CALTON_MAX_BODY_BYTES,
+  caltonRequestGate,
+  readCaltonPage,
+} from "./calton-client";
 import { caltonAdvance, caltonNextUrl } from "./calton-traversal";
 import { CaltonSnapshot } from "./calton-snapshot";
 import { ProviderChunkClock } from "./provider-chunk-clock";
@@ -27,6 +32,9 @@ export interface CaltonOptions<E, R> {
   maxPages?: number;
   /** Complete bounded HTTP 200 documents, or saved fixtures. No retry here. */
   readPage: (url: string) => Effect.Effect<string, CaltonError>;
+  /** Pacing around each page's shared host turn, after its lease is released.
+   * Saved fixtures need none. */
+  gate?: ProviderRequestGate;
   onBatch: (vehicles: CaltonCanonicalVehicle[]) => Effect.Effect<void, E, R>;
 }
 export interface CaltonStreamResult {
@@ -150,12 +158,11 @@ export function streamCaltonInventory<E, R>(options: CaltonOptions<E, R>) {
             ),
           );
         const url = yield* unwrap(caltonNextUrl(cursor));
-        const page = yield* options
-          .readPage(url)
-          .pipe(
-            sharedProviderHostTurn(url),
-            ProviderChunkClock.unlessDeferred(summary.pagesProcessed > 0),
-          );
+        // The gate runs after the turn releases the shared lane.
+        const turn = options.readPage(url).pipe(sharedProviderHostTurn(url));
+        const page = yield* (options.gate ? options.gate(turn) : turn).pipe(
+          ProviderChunkClock.unlessDeferred(summary.pagesProcessed > 0),
+        );
         if (Option.isNone(page)) break;
         cursor = yield* unwrap(caltonAdvance(cursor, page.value, contract));
         summary.pagesProcessed++;
@@ -181,5 +188,9 @@ export function streamCaltonInventory<E, R>(options: CaltonOptions<E, R>) {
 export function streamCaltonInventoryFromProvider<E, R>(
   options: Omit<CaltonOptions<E, R>, "readPage">,
 ) {
-  return streamCaltonInventory({ ...options, readPage: readCaltonPage });
+  return streamCaltonInventory({
+    ...options,
+    readPage: readCaltonPage,
+    gate: caltonRequestGate,
+  });
 }

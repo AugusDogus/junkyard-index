@@ -1,13 +1,17 @@
 import { afterEach, expect, test } from "bun:test";
 import { Effect, Either } from "effect";
 import { ProviderTurnDeferred } from "./provider-chunk-clock";
-import { runWithQueuedHost } from "./provider-host-test-support";
+import {
+  queuedHostPacing,
+  runWithQueuedHost,
+} from "./provider-host-test-support";
 import {
   CentralCursor,
   CENTRAL_MAX_CURSOR_BYTES,
   type CentralCursor as Cursor,
 } from "./central-cursor";
 import {
+  streamCentralInventory,
   streamCentralInventoryWithRequestGate,
   type CentralStreamResult,
 } from "./central-connector";
@@ -216,6 +220,27 @@ const queuedChunk = (startCursor: Cursor, turnWaitMs: number) =>
     ),
     { turnWaitMs },
   );
+
+test("Central's own 1.6 s gate runs after its shared host lease", async () => {
+  // Several sources share a URG lane. A gate inside the lease idled the lane
+  // after every request on top of its 3.5 s host gap.
+  fixture();
+  const chunk = await runWithQueuedHost(
+    streamCentralInventory({
+      startCursor: CentralCursor.initial,
+      maxPages: 8,
+      onBatch: () => Effect.void,
+    }),
+    { turnWaitMs: 0 },
+  );
+  if (Either.isLeft(chunk.result)) throw chunk.result.left;
+  expect(chunk.requests.length).toBeGreaterThan(2);
+  const pacing = queuedHostPacing(chunk);
+  // The request (instant here) and the 3.5 s gap, in whole test seconds.
+  expect(pacing.longestLeaseMs).toBeLessThanOrEqual(4_000);
+  // The gap and the gate still both pass before the source's next request.
+  expect(pacing.shortestGapMs).toBeGreaterThanOrEqual(5_000);
+}, 60_000);
 
 test("Central keeps advancing when every request waits minutes for a shared host turn", async () => {
   // Production URG queue on 2026-11-19: about 20 sources shared one lease, so

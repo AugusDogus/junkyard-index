@@ -155,8 +155,9 @@ Chaz, A Plus, Central, Northwest, Pratt, Calton, Denton, OEM, Jim's Import, Scot
 Pick-A-Part VA, All-N-1, Grandpa John's, Midway and Allied use Redis-backed host
 queues, one per verified origin server:
 
-- URG's own AWS load balancer (six shared IPs, `x-urg-storage` header):
-  Aviation, Central, Calton, Jim's Import and Scotts;
+- URG's own AWS load balancer (six shared IPs, `x-urg-storage` header), as
+  two queues: Aviation, Calton and Scotts (`urg:aws-1`); Central and Jim's
+  Import (`urg:aws-2`);
 - Vultr 66.42.115.19: Lambert and Pratt;
 - Vultr 149.28.120.41: Chaz (Metro also lives there but is not a source);
 - every other host, including those behind Cloudflare, has its own queue.
@@ -164,7 +165,7 @@ queues, one per verified origin server:
 A November 2026 study of about 17,800 saved URG requests found that response
 times correlate within one origin server (r about 0.5 to 0.9) but barely across
 servers (about 0.01 to 0.11), with no HTTP 429. The WordPress plugin on every
-site does call a central URG API, so at most four URG queues may hold a lease at
+site does call a central URG API, so at most six URG queues may hold a lease at
 once. Queues that are ready for a lease take free places in the order they
 became ready. I-Pull (ifipull.com) and Indian River are not URG sites and keep
 only their own client pacing.
@@ -177,12 +178,50 @@ one origin server can receive a request from each scheme at once. Deploy the
 change when no URG source run is in flight, or accept that overlap.
 
 Each URG queue holds an exclusive lease through the entire response and an
-additional 3.5-second gap, including failures. All six VinPlus API clients share the
+additional 3.5-second gap, including failures. A client's own pacing gate (1.6
+seconds on most connectors, 2.5 on Jim's Import, 5 on Scotts) runs after the
+lease is released, so the source still waits it before its next request while
+the queue serves other sources. Aviation, Calton, Central, Chaz, Denton, Jim's
+Import and Scotts do this. A Plus, Northwest and OEM still pace inside their
+turn; each has its own queue. All six VinPlus API clients share the
 `inventory-search-api-581547763015.us-central1.run.app` lease with a 1.6-second gap.
 Their independent website hosts are not grouped into that API budget. Existing
 per-client pacing is retained, so some paths are slower than the shared minimum.
 The complete configured membership is in
 [`shared-provider-host.ts`](../../src/server/ingestion/shared-provider-host.ts).
+
+### Morning timing of the URG model-page sources (November 25, 2026)
+
+The ten model-page connectors read every model page daily (about 5,150 GETs).
+Measured in production on November 22, the full-read day, the single AWS queue
+moved about 2,400 GETs from 07:00 to 13:11 UTC, about 9.25 seconds per GET.
+Live AWS pages answer in about 1.5 to 2.5 seconds, so most of each GET's queue
+time was our own spacing: the 3.5-second gap plus the client gate inside the
+lease. At 07:00 about a dozen URG queues also competed for four places, one of
+them held by URG IIS all morning.
+
+Three changes, modeled against November 22 (the model reproduces that day's
+finishes within minutes), bring the last of the ten crawls from about 14:10 to
+about 10:00 UTC:
+
+- the AWS load balancer gets two queues of about 1,400 GETs each, so it sees at
+  most two of our requests at once, each queue still with its 3.5-second gap;
+- the URG group cap rises from four to six places;
+- client gates run after the lease (above).
+
+Start times stay at 07:00 UTC. On November 21, when Aplus, Chaz, Denton and
+Calton each ran once overnight and again after 07:00, the later run found 6,
+13, 4 and 15 new cars; most of the dated ones carry the previous day's date.
+These sites keep adding cars late in the US evening or overnight, so an earlier
+start would push those cars to the next day. No cheaper complete signal
+exists: the November 19 URG study found no API or bulk export, Central's
+arrivals listing missed about 38% of new cars, Northwest's had been stale since
+October 9, and badges lag cards (see [model census](model-census.md) for why
+badges cannot stand in for reads). A run also publishes as one snapshot, so
+reading changed pages first would not publish anything sooner.
+
+A failed run retries two hours after it stops. Run alone, a full read takes
+about 55 minutes (A Plus, Chaz) to about two hours (Jim's Import, Denton).
 
 HTP, C&S Truck and Big Truck Page now acquire their shared lease FIFO. A busy
 source cannot reacquire ahead of queued requests. Polling renews a waiter's

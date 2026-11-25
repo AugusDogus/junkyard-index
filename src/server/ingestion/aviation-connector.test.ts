@@ -35,7 +35,10 @@ import {
 } from "./durable-source";
 import type { AviationRecord } from "./aviation-parser";
 import { MODEL_CENSUS_DAY_MS } from "./model-census";
-import { runWithQueuedHost } from "./provider-host-test-support";
+import {
+  queuedHostPacing,
+  runWithQueuedHost,
+} from "./provider-host-test-support";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
@@ -425,6 +428,27 @@ test("Aviation completes a full crawl when every request waits two minutes for a
   expect(count).toBe(21);
   expect(native.urls).toHaveLength(9);
 }, 120_000);
+
+test("Aviation's own 1.6 s gate runs after its shared host lease", async () => {
+  // Five sources share URG's AWS lane. A gate inside the lease idled the lane
+  // for 1.6 s after every request on top of its 3.5 s host gap.
+  transport();
+  const chunk = await runWithQueuedHost(
+    streamAviationInventory({
+      startCursor: AviationCursor.initial,
+      maxPages: 8,
+      onBatch: () => Effect.void,
+    }),
+    { turnWaitMs: 0 },
+  );
+  if (Either.isLeft(chunk.result)) throw chunk.result.left;
+  expect(chunk.requests.length).toBeGreaterThan(2);
+  const pacing = queuedHostPacing(chunk);
+  // The request (instant here) and the 3.5 s gap, in whole test seconds.
+  expect(pacing.longestLeaseMs).toBeLessThanOrEqual(4_000);
+  // The gap and the gate still both pass before the source's next request.
+  expect(pacing.shortestGapMs).toBeGreaterThanOrEqual(5_000);
+}, 60_000);
 
 test("Aviation confirms a model read with fewer cards than its badge at closing", async () => {
   const native = transport();

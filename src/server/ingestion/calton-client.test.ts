@@ -5,10 +5,8 @@ import {
   caltonRequestGate,
   readCaltonPage,
 } from "./calton-client";
-import type { ProviderRequestGate } from "./provider-http-client";
 
 const originalFetch = globalThis.fetch;
-const direct: ProviderRequestGate = (request) => request;
 const url = "https://caltonautoparts.com/parts/CHEVROLET/CHEVROLET_PASS.";
 afterEach(() => {
   globalThis.fetch = originalFetch;
@@ -28,7 +26,7 @@ test("Calton preserves the exact literal dot control and owns one bounded manual
       headers: { "content-type": "text/html", "content-length": "5" },
     });
   });
-  expect(await Effect.runPromise(readCaltonPage(url, direct))).toBe("saved");
+  expect(await Effect.runPromise(readCaltonPage(url))).toBe("saved");
   expect(calls).toHaveLength(1);
   expect(calls[0]?.url).toBe(url);
   expect(calls[0]?.options?.redirect).toBe("manual");
@@ -47,8 +45,7 @@ test("Calton rejects unsupported URLs, response boundaries and incomplete bytes 
     "https://caltonautoparts.com/inventory/",
   ])
     expect(
-      (await Effect.runPromise(Effect.either(readCaltonPage(target, direct))))
-        ._tag,
+      (await Effect.runPromise(Effect.either(readCaltonPage(target))))._tag,
     ).toBe("Left");
   expect(calls).toBe(0);
   for (const response of [
@@ -68,8 +65,7 @@ test("Calton rejects unsupported URLs, response boundaries and incomplete bytes 
       return response;
     });
     expect(
-      (await Effect.runPromise(Effect.either(readCaltonPage(url, direct))))
-        ._tag,
+      (await Effect.runPromise(Effect.either(readCaltonPage(url))))._tag,
     ).toBe("Left");
     expect(calls).toBe(1);
     expect(response.body?.locked).toBe(false);
@@ -92,7 +88,7 @@ test("Calton interruption aborts a stalled body and releases its reader", async 
   });
   const result = await Effect.runPromise(
     Effect.gen(function* () {
-      const fiber = yield* Effect.fork(readCaltonPage(url, direct));
+      const fiber = yield* Effect.fork(readCaltonPage(url));
       yield* TestClock.adjust("20 seconds");
       return yield* Effect.either(Fiber.join(fiber));
     }).pipe(Effect.provide(TestContext.TestContext)),

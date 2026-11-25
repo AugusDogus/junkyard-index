@@ -226,10 +226,10 @@ export function streamScottsInventoryWithRequestGate<E, R>(
           cause: "600 native GET limit reached; preserve prior inventory",
         });
       const url = yield* attempt("next control", () => nextUrl(current));
-      const page = yield* fetchScottsPage(url, gate).pipe(
-        sharedProviderHostTurn(url),
-        ProviderChunkClock.unlessDeferred(summary.pagesProcessed > 0),
-      );
+      // The gate runs after the turn releases the shared lane.
+      const page = yield* gate(
+        fetchScottsPage(url).pipe(sharedProviderHostTurn(url)),
+      ).pipe(ProviderChunkClock.unlessDeferred(summary.pagesProcessed > 0));
       if (Option.isNone(page)) break;
       const raw = page.value;
       const advanced: ScottsProgress = yield* attempt(

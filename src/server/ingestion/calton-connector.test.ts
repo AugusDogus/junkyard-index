@@ -1,7 +1,10 @@
-import { expect, test } from "bun:test";
-import { Effect } from "effect";
+import { afterEach, expect, test } from "bun:test";
+import { Effect, Either } from "effect";
 import { CALTON_CONTRACT } from "./calton-configuration";
-import { streamCaltonInventory } from "./calton-connector";
+import {
+  streamCaltonInventory,
+  streamCaltonInventoryFromProvider,
+} from "./calton-connector";
 import {
   CALTON_MAKES,
   CALTON_ROOT,
@@ -22,6 +25,10 @@ import {
   CALTON_TLX_FIXTURE,
   caltonFixtureDocument,
 } from "./calton-test-fixtures";
+import {
+  queuedHostPacing,
+  runWithQueuedHost,
+} from "./provider-host-test-support";
 
 const contract: Contract = {
   location: {
@@ -85,6 +92,50 @@ function harness() {
   };
   return { options, requests, batches, documents };
 }
+const originalFetch = globalThis.fetch;
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+});
+
+test("Calton's own 1.6 s gate runs after its shared host lease", async () => {
+  // Calton shares URG's AWS lane with other sources. A gate inside the lease
+  // idled the lane for 1.6 s after every request on top of its 3.5 s gap.
+  const { documents } = harness();
+  globalThis.fetch = Object.assign(
+    async (input: string | URL | Request) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+      const body = documents.get(url);
+      if (body === undefined) throw new Error("Unexpected request " + url);
+      return new Response(body, {
+        status: 200,
+        headers: { "content-type": "text/html" },
+      });
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  const chunk = await runWithQueuedHost(
+    streamCaltonInventoryFromProvider({
+      contract,
+      previousUniqueInventory: null,
+      maxPages: 8,
+      onBatch: () => Effect.void,
+    }),
+    { turnWaitMs: 0 },
+  );
+  if (Either.isLeft(chunk.result)) throw chunk.result.left;
+  expect(chunk.requests.length).toBeGreaterThan(2);
+  const pacing = queuedHostPacing(chunk);
+  // The request (instant here) and the 3.5 s gap, in whole test seconds.
+  expect(pacing.longestLeaseMs).toBeLessThanOrEqual(4_000);
+  // The gap and the gate still both pass before the source's next request.
+  expect(pacing.shortestGapMs).toBeGreaterThanOrEqual(5_000);
+}, 60_000);
+
 test("Calton contract requires an explicit qualified minimum and valid location", () => {
   expect(CaltonContract.parse(contract).ok).toBe(true);
   expect(CaltonContract.parse({ location: contract.location }).ok).toBe(false);

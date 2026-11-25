@@ -70,61 +70,57 @@ async function document(url: string, signal: AbortSignal): Promise<string> {
   );
 }
 
-/** No retries. The gate owns the entire request/body lifetime and completion gap. */
-export function readJimsimportPage(
-  url: string,
-  gate: ProviderRequestGate = jimsimportRequestGate,
-) {
-  return gate(
-    Effect.suspend(() => {
-      if (
-        url !== JIMSIMPORT_OWNER &&
-        url !== JIMSIMPORT_CATALOG &&
-        ((jimsimportControlPath(url, 1) === null &&
-          jimsimportControlPath(url, 2) === null) ||
-          URL.parse(url)?.href !== url)
-      )
-        return Effect.fail(
-          new JimsimportProviderError(
-            "destination",
-            "URL is outside the verified native inventory controls",
-          ),
-        );
-      const lifetime = new AbortController(),
-        deadline = AbortSignal.timeout(20_000);
-      let pending: Promise<string> | null = null;
-      return Effect.tryPromise({
-        try: (interruption) => {
-          pending = document(
-            url,
-            AbortSignal.any([lifetime.signal, deadline, interruption]),
-          );
-          return pending;
-        },
-        catch: (cause) =>
-          new JimsimportProviderError("request/body " + url, cause),
-      }).pipe(
-        Effect.ensuring(
-          Effect.promise(async () => {
-            lifetime.abort();
-            if (pending)
-              await pending.then(
-                () => undefined,
-                () => undefined,
-              );
-          }),
+/** No retries. Callers pace it with `jimsimportRequestGate` outside the
+ * shared host turn, so the gate does not hold the lane. */
+export function readJimsimportPage(url: string) {
+  return Effect.suspend(() => {
+    if (
+      url !== JIMSIMPORT_OWNER &&
+      url !== JIMSIMPORT_CATALOG &&
+      ((jimsimportControlPath(url, 1) === null &&
+        jimsimportControlPath(url, 2) === null) ||
+        URL.parse(url)?.href !== url)
+    )
+      return Effect.fail(
+        new JimsimportProviderError(
+          "destination",
+          "URL is outside the verified native inventory controls",
         ),
-        Effect.timeoutFail({
-          duration: "20 seconds",
-          onTimeout: () =>
-            new JimsimportProviderError(
-              "request/body " + url,
-              "Combined request and body deadline exceeded 20 seconds",
-            ),
-        }),
       );
-    }),
-  ).pipe(
+    const lifetime = new AbortController(),
+      deadline = AbortSignal.timeout(20_000);
+    let pending: Promise<string> | null = null;
+    return Effect.tryPromise({
+      try: (interruption) => {
+        pending = document(
+          url,
+          AbortSignal.any([lifetime.signal, deadline, interruption]),
+        );
+        return pending;
+      },
+      catch: (cause) =>
+        new JimsimportProviderError("request/body " + url, cause),
+    }).pipe(
+      Effect.ensuring(
+        Effect.promise(async () => {
+          lifetime.abort();
+          if (pending)
+            await pending.then(
+              () => undefined,
+              () => undefined,
+            );
+        }),
+      ),
+      Effect.timeoutFail({
+        duration: "20 seconds",
+        onTimeout: () =>
+          new JimsimportProviderError(
+            "request/body " + url,
+            "Combined request and body deadline exceeded 20 seconds",
+          ),
+      }),
+    );
+  }).pipe(
     sharedProviderHostSlot(url),
     Effect.mapError((cause) =>
       cause instanceof Error
