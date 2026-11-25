@@ -173,3 +173,26 @@ test("old model URLs persist and ambiguous mappings cannot become arbitrary redi
     client.close();
   }
 });
+
+test("remembering a redirect already stored writes no row", async () => {
+  const { client, database } = await setup();
+  try {
+    const canonical = {
+      ...row,
+      make: "Ford",
+      model: "F-150",
+      sourceMake: "FORD",
+      sourceModel: "TFORD150",
+    };
+    await rememberModelRedirects(database, [canonical]);
+    const before = await client.execute("select total_changes() as n");
+    await rememberModelRedirects(database, [canonical]);
+    const after = await client.execute("select total_changes() as n");
+    expect(Number(after.rows[0]?.n)).toBe(Number(before.rows[0]?.n));
+    expect(await database.select().from(vehicleModelRedirect)).toEqual([
+      { fromPath: "/cars/ford/tford150", toPath: "/cars/ford/f-150" },
+    ]);
+  } finally {
+    client.close();
+  }
+});
