@@ -227,7 +227,12 @@ export function streamLittletonInventoryWithRequestGate<E, R>(
     // the closing context when that query is the last, so a chunk needs one
     // turn to advance. Nothing here touches chunk state.
     const opening = yield* Effect.gen(function* () {
-      const context = yield* fetchLittletonContext(gate);
+      // Only a crawl that has not bound a snapshot can wait for the table
+      // and counts to agree.
+      const context = yield* fetchLittletonContext(
+        gate,
+        initial.phase === "start" ? "wait" : "drift",
+      );
       if (initial.phase === "queries")
         yield* validated("durable scope", () =>
           validateResume(initial, context),
@@ -236,7 +241,7 @@ export function streamLittletonInventoryWithRequestGate<E, R>(
       const search = pair ? yield* fetchLittletonSearch(pair, gate) : null;
       const closing =
         (pair ? resumeQuery + 1 : resumeQuery) >= context.pairs.length
-          ? yield* fetchLittletonContext(gate)
+          ? yield* fetchLittletonContext(gate, "drift")
           : null;
       return { context, search, closing };
     }).pipe(
@@ -288,7 +293,7 @@ export function streamLittletonInventoryWithRequestGate<E, R>(
           const response = yield* fetchLittletonSearch(pair, gate);
           return {
             response,
-            closing: last ? yield* fetchLittletonContext(gate) : null,
+            closing: last ? yield* fetchLittletonContext(gate, "drift") : null,
           };
         }).pipe(
           sharedProviderHostTurn(

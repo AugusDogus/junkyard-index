@@ -65,6 +65,16 @@ Every native year bucket and the total count must exactly reconcile with the
 official table. A stable digest binds these contexts across durable chunks.
 The terminal query repeats all four context reads before accepting completion.
 
+The yard publishes the website table and the VinPlus counts separately. The
+table publishes nightly around 01:30 Denver time, and the counts can trail it
+by hours: on November 25 the table had 1,092 stocks from before 09:11 UTC
+while the counts still reported the earlier 1,067 at 11:12 UTC, and both
+agreed again by 15:45 UTC. The counts are the only check that catches a table
+missing whole make/model pairs, so the match stays exact. A crawl that has not
+started defers its chunk while they disagree, retrying every few minutes
+without using a daily attempt. Once a crawl has bound a snapshot, a mismatch is
+drift and a fresh crawl retries after the usual delay.
+
 The saved November 12 qualification has 1,090 unique source stocks across
 289 exact official pairs. All stocks occur in their own exact pair search.
 The 289 responses contain 1,384 hits, including 294 identical cross-query
@@ -131,11 +141,15 @@ HTTP 200 responses from the exact endpoint with the correct MIME are accepted.
 Redirects, partial ranges, length mismatches, invalid UTF-8 and bodies over
 4 MiB fail closed. On failure, retain prior accepted inventory, inspect the
 native source and resume only from the last validated checkpoint. A changed
-context requires a new complete crawl rather than combining snapshots. The
-website table and the VinPlus counts publish separately, so a table that does
-not reconcile with the counts, or a context that changes between chunks or at
-the closing read, is a transient rejection: the source retries after the usual
-delay within its daily attempts instead of ending its day.
+context requires a new complete crawl rather than combining snapshots. A
+context that changes between chunks or at the closing read is a transient
+rejection: the source retries after the usual delay within its daily attempts
+instead of ending its day.
+
+The website sits behind SiteGround's anti-bot layer, which sometimes answers
+with an HTTP 202 "Robot Challenge Screen" for a while. The step's quick
+retries see the same challenge, so the chunk defers and retries the same
+checkpoint every few minutes instead. Any other 202 still fails closed.
 
 `scripts/soak-littleton.ts` is the count-and-discard driver. Its caller supplies
 the connector and callbacks; it does not write inventory. Its total query
