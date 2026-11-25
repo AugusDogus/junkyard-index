@@ -821,16 +821,43 @@ function missingUpdateStatement(params: {
   };
 }
 
+/**
+ * Withdraws every departure recorded for retired mirrors the batch deletes:
+ * the direct provider still lists those cars, so they never left. The hourly
+ * capture records one as soon as AutoRecycler's run marks a mirror missing.
+ * It matches the mirror's own listing, so it runs before the delete.
+ */
+function retiredMirrorWithdrawalStatement(params: {
+  runId: string;
+  cursor: string | null;
+  rows: readonly ReadVehicle[];
+}): InStatement | null {
+  if (params.rows.length === 0) return null;
+  const filter = readVehicleFilter(params.rows);
+  return {
+    sql: `
+      delete from vehicle_departure
+      where ${filter.sql}
+        and exists (
+          select 1 from vehicle
+          where vehicle.vin = vehicle_departure.vin
+            and vehicle.source = vehicle_departure.source
+            and vehicle.location_code = vehicle_departure.location_code
+            and vehicle.first_seen_at = vehicle_departure.first_seen_at
+        )
+        and ${guardSql("reconcile_missing")}
+    `,
+    args: [...filter.args, params.runId, params.cursor],
+  };
+}
+
 function deleteStatement(params: {
   runId: string;
   cursor: string | null;
-  transitions: ScopedTransition[];
+  rows: readonly ReadVehicle[];
 }): InStatement | null {
-  const deleted = params.transitions.filter(
-    (transition) => transition.changeType === "delete",
-  );
-  if (deleted.length === 0) return null;
-  const filter = readVehicleFilter(deleted);
+  if (params.rows.length === 0) return null;
+  const filter = readVehicleFilter(params.rows);
   return {
     sql: `
       delete from vehicle
@@ -891,15 +918,20 @@ async function runMissingBatch(
     ...sourceRows.filter((row) => candidateSet.has(row.vin)),
     ...observedRows,
   ];
-  // A direct provider owns the yards AutoRecycler used to mirror. Its
-  // rejected-row observations must not keep those retired mirrors alive.
-  const restoreRows = rows.filter(
+  // A direct provider owns the yards AutoRecycler used to mirror. When it
+  // still observes a mirrored car, the car never left: the mirror is deleted
+  // with no departure, and one recorded after AutoRecycler's run marked it
+  // missing is withdrawn. Those observations must neither keep the mirror
+  // alive nor let it depart.
+  const retiredMirrors = rows.filter(
     (row) =>
-      inventory.observedVins.has(row.vin) &&
-      !(
-        row.source === "autorecycler" &&
-        AutorecyclerSourcePolicy.isDirectProviderYard(row.locationCode)
-      ),
+      row.source === "autorecycler" &&
+      AutorecyclerSourcePolicy.isDirectProviderYard(row.locationCode) &&
+      inventory.observedVins.has(row.vin),
+  );
+  const retiredVins = new Set(retiredMirrors.map((row) => row.vin));
+  const restoreRows = rows.filter(
+    (row) => inventory.observedVins.has(row.vin) && !retiredVins.has(row.vin),
   );
   const presentVins = new Set([
     ...rows.map((row) => row.vin).filter((vin) => inventory.vehicles.has(vin)),
@@ -915,7 +947,9 @@ async function runMissingBatch(
   const transitions = planMissingVehicleTransitions({
     presentVins,
     existingRows: rows.filter(
-      (row) => !holdsPreservedYard(inventory, row.source, row.locationCode),
+      (row) =>
+        !retiredVins.has(row.vin) &&
+        !holdsPreservedYard(inventory, row.source, row.locationCode),
     ),
     runTimestamp: params.runTimestamp,
     acceptedSources: reconciled,
@@ -949,6 +983,11 @@ async function runMissingBatch(
         source,
         changeType: "upsert" as const,
       })),
+      ...retiredMirrors.map(({ vin, source }) => ({
+        vin,
+        source,
+        changeType: "delete" as const,
+      })),
     ],
     now,
   });
@@ -970,13 +1009,6 @@ async function runMissingBatch(
       ],
     });
   }
-  // An observation can restore a VIN another source owns. That source is not
-  // reconciled in this run, so refresh its yard summary here, which the
-  // published counts are read from.
-  const restoredOwners = restoredRows
-    .filter((row) => !reconciled.has(row.source))
-    .map((row) => row.source);
-  statements.push(...yardInventoryRefreshStatements(restoredOwners, now));
   const withdrawals = departureWithdrawalStatement({
     runId: params.runId,
     stage: "reconcile_missing",
@@ -997,12 +1029,29 @@ async function runMissingBatch(
     now,
   });
   if (departures) statements.push(departures);
+  const mirrorWithdrawals = retiredMirrorWithdrawalStatement({
+    runId: params.runId,
+    cursor: params.cursor,
+    rows: retiredMirrors,
+  });
+  if (mirrorWithdrawals) statements.push(mirrorWithdrawals);
+  const deletedRows = [
+    ...transitions.filter((transition) => transition.changeType === "delete"),
+    ...retiredMirrors,
+  ];
   const deletes = deleteStatement({
     runId: params.runId,
     cursor: params.cursor,
-    transitions,
+    rows: deletedRows,
   });
   if (deletes) statements.push(deletes);
+  // An observation can restore a VIN another source owns, or retire its
+  // mirror. That source is not reconciled in this run, so refresh its yard
+  // summary here, which the published counts are read from.
+  const otherOwners = [...restoredRows, ...retiredMirrors]
+    .filter((row) => !reconciled.has(row.source))
+    .map((row) => row.source);
+  statements.push(...yardInventoryRefreshStatements(otherOwners, now));
   // The last batch commits the reconciled sources' yard summary with them.
   if (finishing)
     statements.push(...yardInventoryRefreshStatements([...reconciled], now));
@@ -1043,9 +1092,7 @@ async function runMissingBatch(
     });
   }
   const checkpointIndex = statements.length;
-  const deletedCount = transitions.filter(
-    (transition) => transition.changeType === "delete",
-  ).length;
+  const deletedCount = deletedRows.length;
   statements.push({
     sql: finishing
       ? publicationStatementSql(params.searchPublication)
