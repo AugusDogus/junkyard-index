@@ -13,6 +13,8 @@ import {
   UrgiisCensus,
   urgiisCarry,
   urgiisDefer,
+  urgiisModelFailureStreak,
+  URGIIS_MODEL_FAILURE_STREAK,
   URGIIS_SWEEP_MS,
   URGIIS_RUN_DAYS,
   urgiisCarryMs,
@@ -455,6 +457,15 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
         result.pagesProcessed > 0
       )
         break;
+      // A frontier model failure that completes the streak stops the tenant.
+      // Later retries reread pages that already failed, so they neither add
+      // to the streak nor end it.
+      const endsStreak =
+        task.kind === "model" &&
+        !retrying &&
+        urgiisModelFailureStreak(cursor.entries) + 1 >=
+          URGIIS_MODEL_FAILURE_STREAK;
+      const streakMessage = `${URGIIS_MODEL_FAILURE_STREAK} model pages failed in a row; stopping the tenant crawl rather than probing every page through an outage. Prior tenant inventory is preserved.`;
       // A deferred turn is not a provider failure. After this chunk advanced
       // it returns the last checkpoint; before that it escapes unwrapped and
       // defers the chunk. A failed read whose retry was deferred counts as a
@@ -464,9 +475,7 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
       const carriesFailedModel =
         task.kind === "model" &&
         cursor.phase === "opening" &&
-        !cursor.entries.some(
-          (e) => e.kind === "model" && e.freshness.kind === "deferred",
-        ) &&
+        !endsStreak &&
         urgiisDefer(task, cursor.entries, previousTenant, now, carry) !==
           undefined;
       const read = yield* options.readPage(task.url, tenant).pipe(
@@ -484,9 +493,6 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
       const response = read.value;
       if (response._tag === "Left") {
         const failedAt = now;
-        const alreadyDeferred = cursor.entries.some(
-          (e) => e.kind === "model" && e.freshness.kind === "deferred",
-        );
         if (
           response.left.kind === "blocked" &&
           response.left.retryAfterMs > 0
@@ -512,11 +518,8 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
           yield* blockTenant(response.left.message, 0);
           break;
         }
-        if (task.kind === "model" && alreadyDeferred) {
-          yield* blockTenant(
-            `requests failed on distinct model pages; stopping the tenant crawl. ${response.left.message}`,
-            0,
-          );
+        if (endsStreak) {
+          yield* blockTenant(`${streakMessage} ${response.left.message}`, 0);
           break;
         }
         const deferred =
@@ -597,6 +600,17 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
       }
       let entry = parsed.right;
       if (
+        endsStreak &&
+        entry.kind === "model" &&
+        entry.freshness.kind === "retry"
+      ) {
+        yield* blockTenant(
+          `${streakMessage} ${task.url} returned an explicit empty result.`,
+          Buffer.byteLength(raw),
+        );
+        break;
+      }
+      if (
         retrying &&
         entry.kind === "model" &&
         entry.freshness.kind === "retry"
@@ -608,10 +622,7 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
           now,
           carry,
         );
-        const alreadyDeferred = cursor.entries.some(
-          (e) => e.kind === "model" && e.freshness.kind === "deferred",
-        );
-        if (!deferred || alreadyDeferred) {
+        if (!deferred) {
           yield* blockTenant(
             `${task.url} still returns an explicit empty result after a later retry; no eligible prior model evidence can be carried. Prior tenant inventory is preserved.`,
             Buffer.byteLength(raw),
