@@ -449,6 +449,51 @@ describe("streamAutorecyclerInventory", () => {
     }
   });
 
+  test("rejects listings without an organization and never keeps their VINs alive", async () => {
+    // Live catalog shape (November 2026): KIKER'S U PULL IT's former VINs are
+    // relisted with no organization, so they belong to no yard we can check.
+    const client = createClient({ url: ":memory:" });
+    try {
+      const result = await Effect.runPromise(
+        streamAutorecyclerInventoryWithPageFetcher(
+          { onBatch: () => Effect.void },
+          async (beforeId) => ({
+            responses: [
+              {
+                at_end: true,
+                hits: {
+                  hits:
+                    beforeId !== null
+                      ? []
+                      : [
+                          {
+                            _id: recordId(0),
+                            _source: {
+                              inventory_id_text:
+                                "1760969301322x602410674911824500",
+                              vin_text: "3FA6P0HD3ER171092",
+                              name_text: "2014 Ford Fusion",
+                            },
+                          },
+                        ],
+                },
+              },
+            ],
+          }),
+          independentPolicy,
+        ).pipe(Effect.provideService(Database, drizzle(client))),
+      );
+      expect(result.observedVins).toEqual([]);
+      expect(result.count).toBe(0);
+      expect(result.accounting).toMatchObject({
+        recordsProcessed: 1,
+        recordsRejected: 1,
+      });
+    } finally {
+      client.close();
+    }
+  });
+
   test("excludes VIN-less catalog entries but still rejects malformed nonempty VINs and malformed rows", async () => {
     const client = createClient({ url: ":memory:" });
     const org = "1348695171700984260__LOOKUP__1726602417880x199387504054651780";

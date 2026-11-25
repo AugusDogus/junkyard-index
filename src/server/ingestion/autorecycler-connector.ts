@@ -273,22 +273,24 @@ export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
                     : "",
                 )
               : null;
-          if (!identity) {
+          // A listing without an organization belongs to no yard we read, so
+          // it cannot vouch for a VIN another yard published. Retired yards'
+          // cars are relisted this way and would otherwise never depart.
+          if (!identity || !orgKey) {
             recordsRejected++;
             continue;
           }
-          const resolution = orgKey ? geo.getCached(orgKey) : undefined;
+          const resolution = geo.getCached(orgKey);
           if (
-            orgKey &&
-            (decisions.get(orgKey) === "unresolved" ||
-              resolution?.status === "unresolved")
+            decisions.get(orgKey) === "unresolved" ||
+            resolution?.status === "unresolved"
           ) {
             recordsExcluded += 1;
             observedVins.add(identity);
             excludedYards.set(orgKey, (excludedYards.get(orgKey) ?? 0) + 1);
             continue;
           }
-          if (resolution?.status !== "resolved" || !orgKey) {
+          if (resolution?.status !== "resolved") {
             recordsRejected += 1;
             observedVins.add(identity);
             continue;
