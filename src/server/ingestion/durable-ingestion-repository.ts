@@ -358,7 +358,6 @@ export function createDurableIngestionRepository(
         const retryAt = IngestionSchedule.nextRetryAt({
           days: sourceDays,
           enabledSources: sources.filter((source) => !running.has(source)),
-          now,
         });
         return {
           status: "active",
@@ -374,7 +373,6 @@ export function createDurableIngestionRepository(
           IngestionSchedule.nextRetryAt({
             days: sourceDays,
             enabledSources: sources,
-            now,
           }) ?? now.getTime() + CONCURRENT_WAKEUP_RECHECK_MS,
       } as const;
       if (

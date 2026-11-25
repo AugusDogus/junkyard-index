@@ -133,15 +133,10 @@ describe("IngestionSchedule.nextRetryAt", () => {
           },
         ],
         enabledSources: ["row52", "pyp", "pullnsave", "ipullupull"],
-        now,
       }),
     ).toBe(hoursAgo(1.5) + IngestionSchedule.retryDelayMs);
     expect(
-      IngestionSchedule.nextRetryAt({
-        days: [],
-        enabledSources: ["row52"],
-        now,
-      }),
+      IngestionSchedule.nextRetryAt({ days: [], enabledSources: ["row52"] }),
     ).toBeNull();
   });
 });
@@ -159,7 +154,7 @@ test("validation rejection ends automatic attempts for the day", () => {
   ];
   const params = { days, enabledSources: ["pyp"] as const };
   expect(IngestionSchedule.dueSources({ ...params, now })).toEqual([]);
-  expect(IngestionSchedule.nextRetryAt({ ...params, now })).toBeNull();
+  expect(IngestionSchedule.nextRetryAt(params)).toBeNull();
   expect(IngestionSchedule.passComplete(params)).toBe(true);
 });
 
@@ -178,56 +173,7 @@ test("a long transient failure waits two hours after completion", () => {
     enabledSources: ["pyp"] as const,
   };
   expect(IngestionSchedule.dueSources({ ...params, now })).toEqual([]);
-  expect(IngestionSchedule.nextRetryAt({ ...params, now })).toBe(
+  expect(IngestionSchedule.nextRetryAt(params)).toBe(
     hoursAgo(0.25) + IngestionSchedule.retryDelayMs,
   );
-});
-
-describe("AutoRecycler's daily start", () => {
-  // Ario imports the Ez Pull N Pay and Foss yards at 08:30 to 08:52 UTC
-  // (Nov 5 to 25, 2026). A 07:00 crawl published those arrivals a day late.
-  const at = (time: string) => new Date(`2026-11-25T${time}:00.000Z`);
-
-  test("waits for Ario's morning import while other sources start at the day boundary", () => {
-    const params = {
-      days: [],
-      enabledSources: ["row52", "autorecycler"] as const,
-    };
-    expect(
-      IngestionSchedule.dueSources({ ...params, now: at("07:00") }),
-    ).toEqual(["row52"]);
-    expect(
-      IngestionSchedule.nextRetryAt({
-        days: [],
-        enabledSources: ["autorecycler"],
-        now: at("07:00"),
-      }),
-    ).toBe(at("09:15").getTime());
-    expect(
-      IngestionSchedule.dueSources({ ...params, now: at("09:15") }),
-    ).toEqual(["row52", "autorecycler"]);
-    expect(IngestionSchedule.passComplete(params)).toBe(false);
-  });
-
-  test("a failure from the previous day retries no earlier than the start", () => {
-    const params = {
-      days: [
-        {
-          source: "autorecycler",
-          published: false,
-          attempts: 0,
-          lastStartedAt: null,
-          lastCompletedAt: at("06:30").getTime(),
-          validationRejected: false,
-        },
-      ],
-      enabledSources: ["autorecycler"] as const,
-    };
-    expect(
-      IngestionSchedule.dueSources({ ...params, now: at("08:45") }),
-    ).toEqual([]);
-    expect(IngestionSchedule.nextRetryAt({ ...params, now: at("08:45") })).toBe(
-      at("09:15").getTime(),
-    );
-  });
 });

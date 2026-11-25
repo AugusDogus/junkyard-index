@@ -1,5 +1,4 @@
 import type { DurableIngestionSource } from "./durable-source";
-import { IngestionDay } from "./ingestion-day";
 
 /** One source's ingestion attempts on the current ingestion day. */
 export interface IngestionSourceDay {
@@ -13,24 +12,7 @@ export interface IngestionSourceDay {
 }
 
 const MAX_ATTEMPTS_PER_DAY = 3;
-const HOUR_MS = 60 * 60 * 1000;
-const RETRY_DELAY_MS = 2 * HOUR_MS;
-
-/**
- * Sources whose first daily attempt waits past the 07:00 UTC day boundary,
- * by delay. Ario imports AutoRecycler's Ez Pull N Pay and Foss yards at 08:30
- * to 08:52 UTC (measured Nov 5 to 25, 2026), so a 07:00 crawl published those
- * arrivals a day late. 09:15 leaves room for a slow import; the crawl stages
- * in about 6 minutes, well before the daily commit queue drains.
- */
-const START_DELAY_MS: Partial<Record<DurableIngestionSource, number>> = {
-  autorecycler: 2.25 * HOUR_MS,
-};
-
-/** The earliest a source may start on the ingestion day of `now`. */
-function startAt(source: DurableIngestionSource, now: Date): number {
-  return IngestionDay.start(now).getTime() + (START_DELAY_MS[source] ?? 0);
-}
+const RETRY_DELAY_MS = 2 * 60 * 60 * 1000;
 
 function retryAt(day: IngestionSourceDay): number {
   return (
@@ -57,7 +39,6 @@ export const IngestionSchedule = {
   }): DurableIngestionSource[] {
     const daysBySource = new Map(params.days.map((day) => [day.source, day]));
     return params.enabledSources.filter((source) => {
-      if (params.now.getTime() < startAt(source, params.now)) return false;
       const day = daysBySource.get(source);
       if (!day) return true;
       if (
@@ -70,25 +51,20 @@ export const IngestionSchedule = {
     });
   },
 
-  /**
-   * When the earliest waiting source's retry delay or delayed daily start
-   * ends, if any is waiting.
-   */
+  /** When the earliest waiting source's retry delay ends, if any is waiting. */
   nextRetryAt(params: {
     days: readonly IngestionSourceDay[];
     enabledSources: readonly DurableIngestionSource[];
-    now: Date;
   }): number | null {
     const daysBySource = new Map(params.days.map((day) => [day.source, day]));
     const retryTimes = params.enabledSources.flatMap((source) => {
       const day = daysBySource.get(source);
-      const start = startAt(source, params.now);
-      if (!day) return start > params.now.getTime() ? [start] : [];
-      return !day.published &&
+      return day &&
+        !day.published &&
         !day.validationRejected &&
         day.attempts < MAX_ATTEMPTS_PER_DAY &&
         (day.lastStartedAt !== null || day.lastCompletedAt !== null)
-        ? [Math.max(retryAt(day), start)]
+        ? [retryAt(day)]
         : [];
     });
     return retryTimes.length === 0 ? null : Math.min(...retryTimes);

@@ -195,40 +195,6 @@ describe("durable ingestion repository", () => {
     }
   });
 
-  test("starts AutoRecycler after Ario's morning import and re-plans the pass for it", async () => {
-    const testDatabase = createTestClient();
-    const { client } = testDatabase;
-    try {
-      await client.executeMultiple(TEST_SCHEMA);
-      const repository = createDurableIngestionRepository(
-        drizzle(client),
-        client,
-        IngestionSnapshotStore.memory(),
-      );
-      const early = await repository.prepareWakeup(
-        new Date("2026-11-25T07:00:30.000Z"),
-        ["pyp", "autorecycler"],
-      );
-      const pyp = startedRun(early);
-      expect((await repository.getRun(pyp)).source).toBe("pyp");
-      expect(early).toMatchObject({
-        status: "active",
-        retryAt: Date.parse("2026-11-25T09:15:00.000Z"),
-      });
-      const autorecycler = startedRun(
-        await repository.prepareWakeup(new Date("2026-11-25T09:15:00.000Z"), [
-          "pyp",
-          "autorecycler",
-        ]),
-      );
-      expect((await repository.getRun(autorecycler)).source).toBe(
-        "autorecycler",
-      );
-    } finally {
-      testDatabase.cleanup();
-    }
-  });
-
   test("makes the first v2 ingestion a full reindex without mutating legacy runs", async () => {
     const testDatabase = createTestClient();
     const { client } = testDatabase;
@@ -1694,8 +1660,7 @@ test("a fetching native source does not delay AutoRecycler publication; a native
       client,
       IngestionSnapshotStore.memory(),
     );
-    // After AutoRecycler's 09:15 UTC daily start.
-    const now = new Date("2026-11-17T09:30:00Z");
+    const now = new Date("2026-11-17T08:00:00Z");
     const native = startedRun(await repository.prepareWakeup(now, ["pontiac"]));
     const mirror = startedRun(
       await repository.prepareWakeup(now, ["pontiac", "autorecycler"]),
@@ -1737,8 +1702,7 @@ test.each(["autorecycler", "harrys", "budget"] as const)(
         client,
         IngestionSnapshotStore.memory(),
       );
-      // After AutoRecycler's 09:15 UTC daily start, so every source starts.
-      const now = new Date("2026-11-17T09:30:00Z");
+      const now = new Date("2026-11-17T08:00:00Z");
       const wakeup = await repository.prepareWakeup(now);
       if (wakeup.status !== "active")
         throw new Error("Expected first-deploy runs");
