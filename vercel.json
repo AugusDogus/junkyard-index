@@ -28,7 +28,7 @@
     },
     {
       "path": "/api/cron/database-usage",
-      "schedule": "15 7 * * *"
+      "schedule": "15 * * * *"
     },
     {
       "path": "/api/cron/notification-delivery",

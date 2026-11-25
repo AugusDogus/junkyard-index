@@ -9,10 +9,16 @@ const STATUS_CACHE_SECONDS = 60 * 60;
 export function checkTursoUsage(
   now: Date = new Date(),
 ): Promise<TursoUsageCheck> {
+  const organization = env.TURSO_ORGANIZATION;
   return TursoUsage.check(
     {
       token: env.TURSO_PLATFORM_API_TOKEN,
-      organization: env.TURSO_ORGANIZATION,
+      organization,
+      database:
+        organization === undefined
+          ? undefined
+          : (TursoUsage.databaseName(env.TURSO_DATABASE_URL, organization) ??
+            undefined),
     },
     now,
   );
