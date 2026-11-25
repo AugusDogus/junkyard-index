@@ -8,8 +8,12 @@ import {
 } from "./provider-host-slot";
 
 /** The WordPress plugin on every URG site calls a central URG API, so only a
- * few URG lanes may hold a lease at once. */
-export const URG_HOST_GROUP: ProviderHostGroup = { key: "urg", activeLanes: 4 };
+ * few URG lanes may hold a lease at once. Six lets the morning's native
+ * full reads finish by about 10:00 UTC next to URG IIS, which holds one place
+ * all morning; with four they queued past 11:00. No URG host has answered
+ * 429 (about 17,800 saved requests), and response times barely correlate
+ * across servers, so the central API showed no shared limit. */
+export const URG_HOST_GROUP: ProviderHostGroup = { key: "urg", activeLanes: 6 };
 const urgLane = (server: string): ProviderHostPolicy => ({
   key: "urg:" + server,
   label: "URG " + server,
@@ -30,18 +34,17 @@ export const VINPLUS_HOST_POLICY: ProviderHostPolicy = {
   gapMs: 1_600,
 };
 
-/** URG hosts that share an origin server, by that server. Response times
- * correlate within a server but not across them, and DNS resolves each set to
- * the same addresses. See docs/runbooks/provider-launch-readiness.md. */
+/** URG hosts that share an origin server, by lane. Response times correlate
+ * within a server but not across them, and DNS resolves each set to the same
+ * addresses. See docs/runbooks/provider-launch-readiness.md. */
 const URG_SERVERS: Readonly<Record<string, readonly string[]>> = {
   // URG's own AWS load balancer (`x-urg-storage` header, six shared IPs).
-  aws: [
-    "aviationauto.com",
-    "centralautoliq.com",
-    "caltonautoparts.com",
-    "jimsimport.com",
-    "hondapartsused.com",
-  ],
+  // Its five sources read about 2,800 model pages a day; one lane took about
+  // 7 hours, so two lanes of about 1,400 GETs each split them. The balancer
+  // then sees at most two of our requests at once, each lane still with its
+  // own gap.
+  "aws-1": ["aviationauto.com", "caltonautoparts.com", "hondapartsused.com"],
+  "aws-2": ["centralautoliq.com", "jimsimport.com"],
   // Vultr 66.42.115.19 (Cloudways).
   "66.42.115.19": ["lambertsalvage.com", "prattsautosalvage.com"],
   // Vultr 149.28.120.41, shared with Metro, which is not a source.
