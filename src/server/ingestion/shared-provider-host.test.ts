@@ -22,16 +22,14 @@ import type { ProviderRequestGate } from "./provider-http-client";
 const gate: ProviderRequestGate = (request) => request;
 
 test("URG hosts share a lane only with hosts on the same origin server, while VinPlus shares its API only", () => {
+  // URG's AWS load balancer serves five census sources. They run as two
+  // lanes, about 1,400 full-read GETs a day each, so the server sees at most
+  // two of our requests at once.
   const lane = (host: string) =>
     sharedProviderHostPolicy("https://www." + host + "/inventory/");
   const servers = [
-    [
-      "aviationauto.com",
-      "centralautoliq.com",
-      "caltonautoparts.com",
-      "jimsimport.com",
-      "hondapartsused.com",
-    ],
+    ["aviationauto.com", "caltonautoparts.com", "hondapartsused.com"],
+    ["centralautoliq.com", "jimsimport.com"],
     ["lambertsalvage.com", "prattsautosalvage.com"],
     ["chazsauto.com"],
   ];
@@ -62,7 +60,7 @@ test("URG hosts share a lane only with hosts on the same origin server, while Vi
   }
   // Distinct servers never share a lane.
   expect(new Set(lanes.map((hosts) => hosts[0]?.key)).size).toBe(lanes.length);
-  expect(URG_HOST_GROUP.activeLanes).toBe(4);
+  expect(URG_HOST_GROUP.activeLanes).toBe(6);
   // Not URG sites: their clients pace them.
   expect(lane("ifipull.com")).toBeNull();
   expect(lane("indianriverautosalvage.com")).toBeNull();
