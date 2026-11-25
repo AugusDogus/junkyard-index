@@ -4,7 +4,7 @@
   "crons": [
     {
       "path": "/api/cron/search-index-migration",
-      "schedule": "0 6 * * *"
+      "schedule": "0 3 * * *"
     },
     {
       "path": "/api/cron/vehicle-ingestion",

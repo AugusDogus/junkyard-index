@@ -401,7 +401,7 @@ export async function runSearchIndexMigrationBatchStep(
   "use step";
 
   try {
-    const result = await migrateSearchIndexBatch(state, 10_000);
+    const result = await migrateSearchIndexBatch(state);
     console.info("[Workflow] Search index migration progress", {
       batchesProcessed: result.state.batchesProcessed,
       recordsProcessed: result.state.recordsProcessed,
