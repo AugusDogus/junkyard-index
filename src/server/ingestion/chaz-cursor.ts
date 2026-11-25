@@ -31,9 +31,10 @@ const scope = chazHash({
   authority:
     "literal-model-graph/native-arrival-union/all-conflicts-quarantined/incremental-model-census-v3",
 });
-/** Every model page read by an accepted run, carried forward by the next one. */
+/** Every model page read by an accepted run: the next run reference for read
+ * reasons, expected cards, closing floors and replay coverage. */
 // A page failing its fingerprint makes the terminal cursor unreadable, so the
-// next run starts a warned cold census instead of failing on the carried page.
+// next run starts a warned cold census instead of failing on the stored page.
 export const ChazCensusSchema = ModelCensus.schema(
   ChazPageSchema,
   512,
@@ -86,12 +87,12 @@ export type ChazClosingControl =
       index: number;
     };
 
-/** Closing re-reads ownership, the make directory and every model read this
- * run whose cards differ from its badge or fall below its expected count
- * (ModelCensus.closingReads), so a short page is confirmed before it can be
- * carried. Carried pages were confirmed on the run that read them; other
- * per-model changes surface as badge changes in the next run's opening menus.
- * Persistent discrepancies, such as the dead `&` routes, re-read identically. */
+/** Closing re-reads ownership, the make directory and every model read this run
+ * whose cards differ from its badge or fall below its expected count
+ * (ModelCensus.closingReads), so a short page is confirmed by an identical
+ * re-read in the run that reads it. Other per-model changes surface as badge
+ * changes in the next run's opening menus. Persistent discrepancies, such as
+ * the dead `&` routes, re-read identically. */
 export function chazClosingControls(
   state: Pick<
     ChazProgress,
@@ -148,14 +149,13 @@ function enterDay(value: string | null): number | null {
 }
 
 /**
- * Read or carry each published model. A carried model is also read when a
- * recent arrival whose own destination
- * binds to it is missing from its carried page and was entered no earlier than
- * the day before the previous accepted run. About 15% of arrivals never reach
- * their model page, so an unbounded trigger would re-read those models every
- * day for the 21-day arrival window; the Enter Date bound fires each such
- * arrival at most twice. Arrival donors are published from the arrival page
- * either way, and older swaps wait for the six-day sweep.
+ * Read every published model on every run (`reuse: "never"`): an unchanged
+ * badge can hide a donor swapped under it. A read is labelled `trigger` when a
+ * recent arrival whose own destination binds to the model is missing from its last
+ * accepted page and was entered no earlier than the day before the previous
+ * accepted run. About 15% of arrivals never reach their model page; the Enter
+ * Date bound labels each such arrival at most twice. Arrival donors are
+ * published from the arrival page either way.
  */
 export function chazCensusPlan(
   state: Pick<ChazProgress, "makes" | "arrivals" | "previous" | "day">,
@@ -185,6 +185,7 @@ export function chazCensusPlan(
   return ModelCensus.plan(controls, previous, state.day, {
     cards: chazCards,
     triggers,
+    reuse: "never",
   });
 }
 

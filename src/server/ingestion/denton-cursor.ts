@@ -58,7 +58,8 @@ const CONTRACT =
 /** Parser and traversal contract that carried model evidence depends on. It
  * excludes the prior inventory guard, which changes every accepted run. */
 const censusContract = dentonHash({ contract: CONTRACT, yard: DENTON_YARD });
-/** Every model page held by an accepted run, carried forward by the next one. */
+/** Every model page held by an accepted run: the next run reference for read
+ * reasons, expected cards, closing floors and replay coverage. */
 export const DentonCensusSchema = ModelCensus.schema(
   DentonModelEntrySchema,
   DENTON_MAX_MODELS,
@@ -149,9 +150,11 @@ const donorDestinations = (destinations: readonly (string | null)[]) =>
       : [];
   });
 
-/** Read or carry each published model. A carried model is also read when the
- * opening arrivals list a donor whose own destination sits under that model but
- * its carried page lacks that destination. Re-derived from cursor contents. */
+/** Read every published model on every run (`reuse: "never"`): an unchanged
+ * badge can hide a donor swapped under it. A read is labelled `trigger` when
+ * the opening arrivals list a donor whose own destination sits under that model
+ * but its last accepted page lacks that destination. Re-derived from cursor
+ * contents. */
 export function dentonCensusPlan(
   state: Pick<DentonProgress, "opening" | "day" | "previous">,
 ): DentonCensusDecision[] {
@@ -187,6 +190,7 @@ export function dentonCensusPlan(
   return ModelCensus.plan(controls, state.previous, state.day, {
     cards: dentonCards,
     triggers,
+    reuse: "never",
   });
 }
 /** A closing re-read and the opening entry it must repeat. */
@@ -196,12 +200,11 @@ export interface DentonClosingControl {
 }
 const modelEntries = (opening: readonly DentonEntry[]) =>
   opening.filter((entry): entry is DentonModelEntry => entry.kind === "model");
-/** Closing re-reads ownership, the make directory and every model read this
- * run whose cards differ from its badge or fall below its expected count
- * (ModelCensus.closingReads), so a short page is confirmed before it can be
- * carried. Carried pages were confirmed on the run that read them; other
- * per-model changes surface as badge changes in the next run's opening.
- * Re-derived from cursor contents. */
+/** Closing re-reads ownership, the make directory and every model read this run
+ * whose cards differ from its badge or fall below its expected count
+ * (ModelCensus.closingReads), so a short page is confirmed by an identical
+ * re-read in the run that reads it. Other per-model changes surface as badge
+ * changes in the next run's opening. Re-derived from cursor contents. */
 export function dentonClosingControls(
   state: Pick<DentonProgress, "opening" | "day" | "previous">,
 ): DentonClosingControl[] {
@@ -229,9 +232,8 @@ export function dentonClosingControls(
   ];
 }
 
-/** Carried pages keep the floor and prior-count guards satisfied while model
- * pages break, so the union of read and carried model cards must reconcile
- * with today's opening model badges before anything is staged. */
+/** Model cards read this run must reconcile with today's opening model badges
+ * before anything is staged, so model pages that break fail the run. */
 export function dentonBadgeCoverage(state: DentonProgress) {
   return dentonBoundary("model badge reconciliation", () => {
     if (!dentonReady(state))

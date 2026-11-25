@@ -31,7 +31,8 @@ const graph = chazFixtureNov18Graph.flatMap((make) =>
     dead: model.label.includes("&"),
   })),
 );
-// D is a multiple of six, so slice 5 is due on D + 5 and D + 11.
+// Slice 5 (ModelCensus.slice) is a stable sixth of the models used as the cut
+// set; Chaz reads every model page on every run.
 const D = 6000;
 const CUT_SLICE = 5;
 const cards = (page: number) => page;
@@ -45,7 +46,8 @@ interface Outcome {
   rejected: number[];
   /** Accepted runs that followed a missed day (full `gap` reads). */
   acceptedAfterGap: number;
-  /** Faulted models a later accepted run carried instead of reading. */
+  /** Faulted models a later accepted run carried instead of reading (Chaz
+   * reads every page daily, so none may ever be carried). */
   stuckFaults: string[];
 }
 
@@ -148,7 +150,7 @@ function simulate(
       models,
       census,
       day,
-      { cards, triggers },
+      { cards, triggers, reuse: "never" },
     );
     // With `gapFault`, a fault confined to each gap run lists five models
     // (two of them placeholder models) one card below their true count, small
@@ -236,7 +238,7 @@ function simulate(
 describe("Chaz census on the real Nov 18 graph", () => {
   for (const missed of [false, true])
     for (const rate of [5, 10, 20])
-      test(`never publishes a cut sweep slice before the outage path at ${rate} events a day${missed ? " with missed days" : ""}`, () => {
+      test(`never publishes a cut slice before the outage path at ${rate} events a day${missed ? " with missed days" : ""}`, () => {
         const early: string[] = [];
         for (let seed = 1; seed <= 200; seed++) {
           const { publishedCutEarly } = simulate(seed, rate, {

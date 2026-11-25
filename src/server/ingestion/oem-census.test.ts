@@ -1,13 +1,9 @@
 import { expect, test } from "bun:test";
 import { Effect } from "effect";
 import { serializeDurableSourceCursor } from "./durable-cursor";
-import {
-  MODEL_CENSUS_DAY_MS,
-  MODEL_CENSUS_SWEEP_DAYS,
-  ModelCensus,
-} from "./model-census";
+import { MODEL_CENSUS_DAY_MS, MODEL_CENSUS_SWEEP_DAYS } from "./model-census";
 import { streamOemInventory } from "./oem-connector";
-import { OemCursor } from "./oem-cursor";
+import { OemCursor, OemCursorSchema } from "./oem-cursor";
 import { OEM_ARRIVALS, OEM_MAKES, OEM_ORIGIN } from "./oem-html";
 import { oemControlUrl } from "./oem-parser";
 import { oemFixtureDocument } from "./oem-test-fixtures";
@@ -179,26 +175,9 @@ const modelKey = (model: number) =>
     ),
     "M" + model,
   ]);
-/** Fixture models in the sweep slice of `day`, in menu order. */
-const sweep = (day: number) =>
-  MODELS.filter(
-    (m) => ModelCensus.slice(modelKey(m)) === day % MODEL_CENSUS_SWEEP_DAYS,
-  );
-/** First day from `from` on, while the day-600 cold evidence is still under the
- * age ceiling, that satisfies `ok`. */
-function dayAfterCold(ok: (day: number) => boolean, from = 601) {
-  for (let day = from; day < 600 + MODEL_CENSUS_SWEEP_DAYS; day++)
-    if (ok(day)) return day;
-  throw new Error("No day before the age ceiling fits this fixture");
-}
-/** First fixture model other than M0 (which holds the default arrival) for
- * which `ok` holds. */
-function pickModel(ok: (model: number) => boolean) {
-  const model = MODELS.find((m) => m !== 0 && ok(m));
-  if (model === undefined) throw new Error("No fixture model fits this test");
-  return model;
-}
-const sorted = (models: number[]) => [...models].sort((a, b) => a - b);
+/** Fixture models other than `except`, in menu order. */
+const others = (...except: number[]) =>
+  MODELS.filter((m) => !except.includes(m));
 /** The run summary for disjoint read reasons, listed in menu order of each
  * reason's first model as ModelCensus.summary does. */
 function summary(reasons: [string, number[]][]) {
@@ -278,67 +257,90 @@ test("OEM unreadable or incompatible previous checkpoints start a warned cold ce
   expect(silent.warnings).toEqual([
     "OEM Read 12 of 12 model pages (cold 12); carried 0.",
   ]);
-});
+}, 30_000);
 
-test("OEM carries unread models, rotates the sweep and reads count changes", async () => {
+test("OEM reads every model page daily after an accepted census and labels count changes", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
-  // First day with a non-empty slice: only that slice (slice(key) === day % 6)
-  // is read.
-  const first = dayAfterCold((day) => sweep(day).length > 0);
-  expect(sweep(first).length).toBeGreaterThan(0);
-  const next = await census(native, first, cold.wire);
-  expect(next.models).toEqual(sweep(first));
-  expect(next.requests).toBe(4 + sweep(first).length);
-  expect(next.terminal.requests).toBe(4 + sweep(first).length);
-  // Carried donors are still published in full.
+  // The next day's incremental run still reads every model page, so its
+  // request accounting matches a full read.
+  const next = await census(native, 601, cold.wire);
+  expect(next.models).toEqual(MODELS);
+  // Arrivals, makes, one menu, 12 models and the closing make directory.
+  expect(next.requests).toBe(16);
+  expect(next.terminal.requests).toBe(16);
   expect(next.vins).toEqual(allVins(native));
+  expect(next.warnings.at(-1)).toBe(summary([["daily", MODELS]]));
+  expect(next.warnings.at(-1)).toBe(
+    "OEM Read 12 of 12 model pages (daily 12); carried 0.",
+  );
 
-  // The next non-empty slice is a different set of models.
-  const second = dayAfterCold((day) => sweep(day).length > 0, first + 1);
-  expect(sweep(second).length).toBeGreaterThan(0);
-  expect(sweep(second)).not.toEqual(sweep(first));
-  // A sold donor changes one unswept model's badge and so the make badge. Only
-  // that model is read for it; its siblings keep carrying.
-  const sold = pickModel((m) => !sweep(second).includes(m));
+  // A sold donor changes one model's badge and so the make badge. That model
+  // is labelled as a count change; every other model is still read.
+  const sold = 5;
   native.rows.set(sold, donors(sold, 39));
-  const changed = await census(native, second, next.wire);
-  expect(changed.models).toEqual(sorted([...sweep(second), sold]));
+  const changed = await census(native, 602, next.wire);
+  expect(changed.models).toEqual(MODELS);
+  expect(changed.requests).toBe(16);
   expect(changed.vins).toEqual(allVins(native));
   expect(changed.warnings.at(-1)).toBe(
     summary([
-      ["sweep", sweep(second)],
+      ["daily", others(sold)],
       ["count", [sold]],
     ]),
   );
-});
+}, 30_000);
+
+test("OEM reads a page whose donor was replaced under an unchanged badge", async () => {
+  // One donor is crushed and another placed under the same model: the badge
+  // and every menu count stay the same. Badge-only reuse would have carried
+  // the old page; the daily read publishes the new donor and drops the old.
+  const native = yard();
+  const m = 5;
+  const cold = await census(native, 600, null);
+  const crushed = donor(m, 40);
+  const placed = donor(m, 41);
+  expect(cold.vins).toContain(crushed.vin);
+  native.rows.set(m, [...donors(m, 39), placed]);
+  const swapped = await census(native, 601, cold.wire);
+  expect(swapped.models).toEqual(MODELS);
+  expect(swapped.requests).toBe(16);
+  expect(swapped.warnings.at(-1)).toBe(summary([["daily", MODELS]]));
+  expect(swapped.vins).toContain(placed.vin);
+  expect(swapped.vins).not.toContain(crushed.vin);
+  expect(swapped.vins).toEqual(allVins(native));
+  if (
+    swapped.terminal.state.phase !== "complete" ||
+    !swapped.terminal.state.census
+  )
+    throw new Error("Expected a terminal census");
+  const evidence = swapped.terminal.state.census.models[m];
+  expect(evidence).toMatchObject({ count: 40, readDay: 601 });
+  expect(
+    evidence?.page.records.some((r) =>
+      r.fields.some((f) => f.label === "vin" && f.value === placed.vin),
+    ),
+  ).toBe(true);
+}, 30_000);
 
 test("OEM arrivals publish lagging donors without triggering model reads", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
-  // A day with a non-empty slice that leaves M0 unswept, and an arrival model
-  // it leaves unswept.
-  const day = dayAfterCold((d) => sweep(d).length > 0 && !sweep(d).includes(0));
-  expect(sweep(day).length).toBeGreaterThan(0);
-  const lagging = pickModel((m) => !sweep(day).includes(m));
+  const lagging = 5;
   // The arrival is not on its model page yet (model pages lag arrivals).
   const arrival = donor(lagging, 41);
   native.setArrivals([arrival]);
-  const run = await census(native, day, cold.wire);
-  // M0 is not read either: its departed arrival is on its carried page.
-  expect(run.models).toEqual(sweep(day));
-  expect(run.models).not.toContain(lagging);
-  expect(run.models).not.toContain(0);
+  const run = await census(native, 601, cold.wire);
+  // Every page is read, and neither the current arrival nor M0's departed
+  // arrival (on its last accepted page) labels a trigger.
+  expect(run.models).toEqual(MODELS);
+  expect(run.warnings.at(-1)).toBe(summary([["daily", MODELS]]));
   expect(run.vins).toEqual(allVins(native, [arrival]));
 });
 
-test("OEM reads a model once when a departing arrival is missing from its carried page", async () => {
+test("OEM labels a trigger once when a departing arrival is missing from its last accepted page", async () => {
   const native = yard();
-  // Model M stays out of the sweep on days 601 to 604, so only the short
-  // re-read and the trigger can read it.
-  const m = pickModel((model) =>
-    [601, 602, 603, 604].every((day) => !sweep(day).includes(model)),
-  );
+  const m = 5;
   // Day 600: the M badge already counts arrival X, but its page lags. A cold
   // run confirms no short page.
   const x = donor(m, 41);
@@ -353,14 +355,16 @@ test("OEM reads a model once when a departing arrival is missing from its carrie
     readDay: 600,
     confirmed: false,
   });
-  // Day 601: the first incremental run re-reads the short M page and its
+  // Day 601: the first incremental run reads the short M page and its
   // closing re-reads it identically, so this run confirms it.
   const confirming = await census(native, 601, cold.wire);
-  expect(confirming.models).toEqual([...sorted([...sweep(601), m]), m]);
+  expect(confirming.models).toEqual([...MODELS, m]);
+  // A full read plus the closing re-read of M.
+  expect(confirming.requests).toBe(17);
   expect(confirming.vins).toEqual(allVins(native, [x]));
   expect(confirming.warnings.at(-1)).toBe(
     summary([
-      ["sweep", sweep(601)],
+      ["daily", others(m)],
       ["short", [m]],
     ]),
   );
@@ -374,56 +378,61 @@ test("OEM reads a model once when a departing arrival is missing from its carrie
     readDay: 601,
     confirmed: true,
   });
-  // Day 602: the page lists X with the badge unchanged, so M carries the
-  // day-601 page without X; the arrivals page still publishes X.
-  native.rows.set(m, donors(m, 41));
+  // Day 602: the page still lags under the same badge. It is read again
+  // (confirmed, so labelled daily) and closing re-reads it, since its cards
+  // differ from its badge.
   const lagging = await census(native, 602, confirming.wire);
-  expect(lagging.models).toEqual(sweep(602));
-  expect(lagging.vins).toEqual(allVins(native));
-  // Day 603: X leaves the arrivals page. Its own destination binds M and the
-  // carried page lacks it, so M is read and X stays published.
+  expect(lagging.models).toEqual([...MODELS, m]);
+  expect(lagging.vins).toEqual(allVins(native, [x]));
+  expect(lagging.warnings.at(-1)).toBe(summary([["daily", MODELS]]));
+  // Day 603: X reaches its page and leaves the arrivals page the same day.
+  // Its own destination binds M and the last accepted page lacks it, so M's
+  // read is labelled a trigger, and X stays published from the page.
+  native.rows.set(m, donors(m, 41));
   native.setArrivals([donor(0, 1)]);
   const departed = await census(native, 603, lagging.wire);
-  expect(departed.models).toEqual(sorted([...sweep(603), m]));
+  expect(departed.models).toEqual(MODELS);
+  expect(departed.requests).toBe(16);
   expect(departed.vins).toEqual(allVins(native));
+  expect(departed.vins).toContain(x.vin);
   expect(departed.warnings.at(-1)).toBe(
     summary([
-      ["sweep", sweep(603)],
+      ["daily", others(m)],
       ["trigger", [m]],
     ]),
   );
-  // Day 604: the trigger fired once; M now carries its page with X.
+  // Day 604: the trigger fired once; M is read daily with X on its page.
   const after = await census(native, 604, departed.wire);
-  expect(after.models).toEqual(sweep(604));
+  expect(after.models).toEqual(MODELS);
   expect(after.vins).toEqual(allVins(native));
-});
+  expect(after.warnings.at(-1)).toBe(summary([["daily", MODELS]]));
+}, 30_000);
 
 test("OEM departing arrivals trigger one read even while the page still lags", async () => {
   const native = yard();
-  // Model M stays out of the sweep on days 601 and 602.
-  const m = pickModel((model) =>
-    [601, 602].every((day) => !sweep(day).includes(model)),
-  );
+  const m = 5;
   const x = donor(m, 41);
   native.badges.set(m, 41);
   native.setArrivals([x]);
   const cold = await census(native, 600, null);
-  // X leaves arrivals before reaching its page: one read, then no re-reads.
+  // X leaves arrivals before reaching its page: one trigger, then none.
   native.setArrivals([donor(0, 1)]);
   const departed = await census(native, 601, cold.wire);
   // M still shows 40 cards under its 41 badge, so closing confirms its page.
-  expect(departed.models).toEqual([...sorted([...sweep(601), m]), m]);
+  expect(departed.models).toEqual([...MODELS, m]);
   expect(departed.warnings.at(-1)).toBe(
     summary([
-      ["sweep", sweep(601)],
+      ["daily", others(m)],
       ["trigger", [m]],
     ]),
   );
   const after = await census(native, 602, departed.wire);
-  expect(after.models).toEqual(sweep(602));
-});
+  // M is read again (closing re-reads its short page), but not as a trigger.
+  expect(after.models).toEqual([...MODELS, m]);
+  expect(after.warnings.at(-1)).toBe(summary([["daily", MODELS]]));
+}, 30_000);
 
-test("OEM re-reads every model within six days, even across missed runs", async () => {
+test("OEM reads every model after missed runs and on every following day", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
   // Skip days 601 and 602 entirely: the gap makes day 603 read every model.
@@ -434,50 +443,36 @@ test("OEM re-reads every model within six days, even across missed runs", async 
   expect(gap.vins).toEqual(allVins(native));
   expect(gap.warnings.at(-1)).toBe(summary([["gap", MODELS]]));
   let previous = gap.wire;
-  const lastRead = new Map<number, number>();
-  for (const model of MODELS) lastRead.set(model, 603);
-  let aged = 0;
-  // Daily runs then resume incrementally.
+  // Daily runs then resume incrementally, and each reads every model page.
   for (const day of [604, 605, 606, 607, 608, 609, 610, 611, 612]) {
-    // Today's slice plus every model whose evidence reached the age ceiling.
-    const stale = MODELS.filter((m) => day - (lastRead.get(m) ?? day) >= 6);
-    const swept = sweep(day).filter((m) => !stale.includes(m));
-    aged += stale.filter((m) => !sweep(day).includes(m)).length;
     const run = await census(native, day, previous);
-    expect(run.models).toEqual(sorted([...swept, ...stale]));
-    expect(run.warnings.at(-1)).toBe(
-      summary([
-        ["stale", stale],
-        ["sweep", swept],
-      ]),
-    );
-    for (const model of run.models) lastRead.set(model, day);
-    for (const read of lastRead.values()) expect(day - read).toBeLessThan(6);
+    expect(run.models).toEqual(MODELS);
+    expect(run.requests).toBe(16);
+    expect(run.warnings.at(-1)).toBe(summary([["daily", MODELS]]));
+    if (run.terminal.state.phase !== "complete" || !run.terminal.state.census)
+      throw new Error("Expected a terminal census");
+    expect(
+      run.terminal.state.census.models.every((m) => m.readDay === day),
+    ).toBe(true);
     expect(run.vins).toEqual(allVins(native));
     previous = run.wire;
   }
-  // The gap read refreshed every model on day 603, and the daily sweep
-  // reaches each again before its evidence ages to the ceiling.
-  expect(aged).toBe(0);
   // Eleven resumable runs revalidate every checkpoint.
 }, 30_000);
 
-test("OEM rejects a checkpoint whose carried page differs from its census", async () => {
+test("OEM rejects a checkpoint that counts a model page as free", async () => {
+  // Every model page is a native read, so a paused incremental checkpoint
+  // counts one request per page it holds.
   const native = yard();
   const cold = await census(native, 600, null);
-  // A day whose first swept model follows M0, so M0 and every model before the
-  // first due one carry.
-  const day = dayAfterCold((d) => (sweep(d)[0] ?? 0) > 0);
-  const due = sweep(day)[0];
-  if (due === undefined) throw new Error("Expected a swept model");
-  // Arrivals, makes and the menu fill the budget before the first due model,
-  // so the paused cursor already holds the carried pages before it.
+  const day = 601;
+  // Arrivals, makes, the menu and the first two model pages fill the budget.
   const paused = await Effect.runPromise(
     streamOemInventory({
       startCursor: OemCursor.initial(),
       previousCursor: cold.wire,
       now: () => day * MODEL_CENSUS_DAY_MS,
-      maxPages: 3,
+      maxPages: 5,
       location,
       minimumUniqueInventory: 400,
       previousUniqueInventory: null,
@@ -487,48 +482,32 @@ test("OEM rejects a checkpoint whose carried page differs from its census", asyn
   );
   const state = paused.cursor.state;
   if (state.phase !== "models") throw new Error("Expected a models checkpoint");
-  expect(state.pages).toHaveLength(due);
-  expect(paused.cursor.requests).toBe(3);
-  const [carried] = state.pages;
-  if (!carried) throw new Error("Expected a carried page");
-  expect(() =>
-    OemCursor.checkpoint({
-      ...paused.cursor,
-      state: {
-        ...state,
-        pages: [
-          {
-            ...carried,
-            records: carried.records.map((record, index) =>
-              index === 0
-                ? {
-                    ...record,
-                    fields: record.fields.filter((f) => f.label !== "vin"),
-                  }
-                : record,
-            ),
-          },
-        ],
-      },
-    }),
-  ).toThrow("carried model page differs");
-  // Counting a carried page as a request is also rejected.
+  expect(state.pages).toHaveLength(2);
+  expect(paused.cursor.requests).toBe(5);
+  // The checkpoint validates as it stands.
+  expect(OemCursorSchema.safeParse(paused.cursor).success).toBe(true);
+  // Claiming a held page cost no request (as a carried page once did) is
+  // rejected, and so is counting one more request than was made.
   expect(() => OemCursor.checkpoint({ ...paused.cursor, requests: 4 })).toThrow(
+    "accounting does not reconcile",
+  );
+  expect(() => OemCursor.checkpoint({ ...paused.cursor, requests: 6 })).toThrow(
     "accounting does not reconcile",
   );
 });
 
-test("OEM fails a run whose read and carried cards fall short of today's model badges", async () => {
-  // Badges overstate cards as they do natively (about 89% covered). A site
-  // fault then renders today's swept pages as explicit empties while the
-  // menus keep their badges. Carried pages keep the inventory floor
-  // satisfied, so only the badge coverage check catches the first broken day.
+test("OEM fails a daily run whose read cards fall short of today's model badges", async () => {
+  // Badges overstate cards as they do natively (480 cards under 540 badges,
+  // about 89% covered). A site fault then renders one model page (M9) as an
+  // explicit empty while the menus keep their badges. The other pages keep
+  // the inventory floor satisfied, so only the coverage checks catch the
+  // first broken day: 440 of 540 badges falls below the 82% badge floor.
   const native = yard();
   for (const model of MODELS) native.badges.set(model, 45);
   const cold = await census(native, 600, null);
   expect(cold.vins).toEqual(allVins(native));
-  const day = dayAfterCold((d) => sweep(d).length > 0);
-  for (const model of sweep(day)) native.broken.add(model);
+  const day = 601;
+  native.broken.add(9);
   let published = 0;
   await expect(
     (async () => {
@@ -554,19 +533,20 @@ test("OEM fails a run whose read and carried cards fall short of today's model b
         cursor = result.cursor;
       }
     })(),
-  ).rejects.toThrow("coverage floor");
+  ).rejects.toThrow(
+    "list 440 of 540 cards promised by today's model counts, below the 82% coverage floor",
+  );
   expect(published).toBe(0);
 });
 
-test("OEM confirms an explicit empty model under a nonzero badge and carries it", async () => {
+test("OEM confirms an explicit empty model under a nonzero badge and keeps reading it", async () => {
   // Native explicit empties under nonzero badges are accepted (23 such models
   // on November 15). A cold run's closing re-reads the empty page but confirms
   // nothing; the first incremental run reads it as short, its closing re-reads
-  // it, so its evidence is confirmed and the next run carries it.
+  // it, so its evidence is confirmed. The next run reads it daily, and closing
+  // re-reads it again because it still lists fewer cards than its badge.
   const native = yard();
-  const empty = pickModel(
-    (m) => !sweep(601).includes(m) && !sweep(602).includes(m),
-  );
+  const empty = 1;
   native.rows.set(empty, []);
   native.badges.set(empty, 3);
   const cold = await census(native, 600, null);
@@ -583,14 +563,14 @@ test("OEM confirms an explicit empty model under a nonzero badge and carries it"
   });
   expect(coldEvidence.filter((m) => m.confirmed)).toHaveLength(0);
   const confirming = await census(native, 601, cold.wire);
-  expect(confirming.models).toEqual([...sorted([...sweep(601), empty]), empty]);
-  // Arrivals, makes, one menu, the swept and short pages, the closing re-read
-  // and the closing make directory.
-  expect(confirming.requests).toBe(6 + sweep(601).length);
+  expect(confirming.models).toEqual([...MODELS, empty]);
+  // Arrivals, makes, one menu, 12 model pages, the closing re-read and the
+  // closing make directory.
+  expect(confirming.requests).toBe(17);
   expect(confirming.vins).toEqual(allVins(native));
   expect(confirming.warnings.at(-1)).toBe(
     summary([
-      ["sweep", sweep(601)],
+      ["daily", others(empty)],
       ["short", [empty]],
     ]),
   );
@@ -608,10 +588,19 @@ test("OEM confirms an explicit empty model under a nonzero badge and carries it"
   });
   expect(evidence.filter((m) => m.confirmed)).toHaveLength(1);
   const next = await census(native, 602, confirming.wire);
-  expect(next.models).toEqual(sweep(602));
+  expect(next.models).toEqual([...MODELS, empty]);
+  expect(next.requests).toBe(17);
   expect(next.vins).toEqual(allVins(native));
-  expect(next.warnings.at(-1)).toBe(summary([["sweep", sweep(602)]]));
-});
+  expect(next.warnings.at(-1)).toBe(summary([["daily", MODELS]]));
+  if (next.terminal.state.phase !== "complete" || !next.terminal.state.census)
+    throw new Error("Expected a terminal census");
+  expect(next.terminal.state.census.models[empty]).toMatchObject({
+    count: 3,
+    readDay: 602,
+    confirmed: true,
+    page: { nativeEmpty: true, records: [] },
+  });
+}, 30_000);
 
 /** Runs chunks seeded by `previousCursor` on `day` until the run completes or
  * fails, counting every published vehicle. */
@@ -645,46 +634,52 @@ async function attemptRun(
   }
 }
 
-test("OEM fails an incremental run whose swept pages list one card each while badges hold", async () => {
+test("OEM fails an incremental run whose page lists one card while its badge holds", async () => {
   // Badges overstate cards as they do natively (480 cards under 528 badges,
-  // 90.9%). A fault then renders today's one swept page with a single card
-  // while its menu badge holds: 441 of 528 badges (83.5%) still clears the 82%
+  // 90.9%). A fault then renders one model page (M9) with a single card while
+  // its menu badge holds: 441 of 528 badges (83.5%) still clears the 82%
   // badge floor, so only the replay floor (441 of the last accepted 480 cards)
   // catches it. The real November 15 census loses 9.7% to 18.2% of its cards
-  // per slice cut this way.
+  // when a sixth of its model pages is cut this way.
   const native = yard();
   for (const model of MODELS) native.badges.set(model, 44);
   const cold = await census(native, 600, null);
   expect(cold.vins).toEqual(allVins(native));
-  const day = dayAfterCold((d) => sweep(d).length === 1);
-  for (const model of sweep(day)) native.cut.add(model);
+  const day = 601;
+  native.cut.add(9);
   const published = { count: 0 };
   await expect(
     attemptRun(native, day, cold.wire, cold.vins.length, published),
   ).rejects.toThrow(
     "list 441 of 480 cards that the last accepted census listed, less any drop in their counts, below the 97% coverage floor",
   );
+  // The rejection holds the next day: the gap run reads every page again and
+  // is still judged against the day-600 census.
+  await expect(
+    attemptRun(native, day + 1, cold.wire, cold.vins.length, published),
+  ).rejects.toThrow(
+    "list 441 of 480 cards that the last accepted census listed, less any drop in their counts, below the 97% coverage floor",
+  );
   expect(published.count).toBe(0);
-});
+}, 30_000);
 
-test("OEM fails a steady-state run whose routine sweep page, read at age six, lists one card", async () => {
-  // After the first cycle every routine sweep read happens at age exactly six
-  // (reason stale). With badges overstating cards (480 under 528), ten healthy
-  // daily runs and then one swept page cut to a single card: 441 of 528
-  // badges clears the 82% badge floor, so the replay floor must still see the
-  // age-six read and reject the run before anything is published.
+test("OEM fails a steady-state daily run whose page lists one card", async () => {
+  // With badges overstating cards (480 under 528), ten healthy daily runs and
+  // then one model page (M5) cut to a single card: 441 of 528 badges clears
+  // the 82% badge floor, so the replay floor against the previous day's
+  // accepted census must reject the run before anything is published.
   const native = yard();
   for (const model of MODELS) native.badges.set(model, 44);
   let previous = (await census(native, 600, null)).wire;
   for (let day = 601; day <= 610; day++) {
     const run = await census(native, day, previous);
+    // Every page lists 40 of its 44 badge, so closing re-reads each one.
+    expect(run.models).toEqual([...MODELS, ...MODELS]);
     expect(run.vins).toEqual(allVins(native));
     previous = run.wire;
   }
-  const day = [611, 612, 613, 614, 615, 616].find((d) => sweep(d).length === 1);
-  if (day === undefined)
-    throw new Error("fixture needs a steady day that sweeps one model");
-  for (const model of sweep(day)) native.cut.add(model);
+  const day = 611;
+  native.cut.add(5);
   const published = { count: 0 };
   await expect(
     attemptRun(native, day, previous, allVins(native).length, published),
@@ -697,16 +692,17 @@ test("OEM fails a steady-state run whose routine sweep page, read at age six, li
 test("OEM re-reads a surplus page that lost donors down to its unchanged badge", async () => {
   // A model page lists 40 cards under a badge of 38 (placeholder or surplus
   // rows). The cold run stores that surplus unconfirmed, so the first
-  // incremental run (M's sweep day) reads M as short. There it has lost two
-  // real donors and lists exactly 38, so its cards match its badge. Its
-  // surplus is sticky: it stays expected at 40 and unconfirmed, closing
-  // re-reads it, its evidence is not confirmed, and every following daily run
-  // reads it again (and closing re-reads it) instead of carrying the shrunken
-  // page. Only a normal incremental run six days after the first low read
-  // lowers the surplus to what the page lists; after that it carries.
+  // incremental run reads M as short. There it has lost two real donors and
+  // lists exactly 38, so its cards match its badge. Its surplus is sticky: it
+  // stays expected at 40 and unconfirmed, closing re-reads it, its evidence
+  // is not confirmed, and every following daily run labels it short (and
+  // closing re-reads it) instead of accepting the shrunken page. Only a
+  // normal incremental run six days after the first low read lowers the
+  // surplus to what the page lists; after that it is read daily like the
+  // rest, and closing still re-reads it while its 40-card ceiling stands.
   const native = yard();
-  const day = dayAfterCold((d) => sweep(d).some((m) => m !== 0));
-  const m = pickModel((model) => sweep(day).includes(model));
+  const day = 601;
+  const m = 9;
   native.badges.set(m, 38);
   const cold = await census(native, 600, null);
   expect(cold.vins).toEqual(allVins(native));
@@ -729,14 +725,14 @@ test("OEM re-reads a surplus page that lost donors down to its unchanged badge",
   ).toEqual([modelKey(m)]);
   native.rows.set(m, donors(m, 38));
   const shrunk = await census(native, day, cold.wire);
-  expect(shrunk.models).toEqual([...sweep(day), m]);
-  // Arrivals, makes, one menu, the swept pages and M's short read, the closing
-  // re-read and the closing make directory.
-  expect(shrunk.requests).toBe(5 + sweep(day).length);
+  expect(shrunk.models).toEqual([...MODELS, m]);
+  // Arrivals, makes, one menu, 12 model pages, M's closing re-read and the
+  // closing make directory.
+  expect(shrunk.requests).toBe(17);
   expect(shrunk.vins).toEqual(allVins(native));
   expect(shrunk.warnings.at(-1)).toBe(
     summary([
-      ["sweep", sweep(day).filter((x) => x !== m)],
+      ["daily", others(m)],
       ["short", [m]],
     ]),
   );
@@ -753,37 +749,21 @@ test("OEM re-reads a surplus page that lost donors down to its unchanged badge",
     surplusConfirmed: false,
     confirmed: false,
   });
-  const lastRead = new Map(MODELS.map((model) => [model, 600]));
-  for (const model of shrunk.models) lastRead.set(model, day);
   let previous = shrunk.wire;
   const lowered = day + MODEL_CENSUS_SWEEP_DAYS;
   for (let today = day + 1; today <= lowered + 2; today++) {
-    // M is short through the lowering day; the other models follow the sweep
-    // and the age ceiling.
+    // M is short through the lowering day; every other model is read daily.
     const short = today <= lowered ? [m] : [];
-    const stale = MODELS.filter(
-      (x) =>
-        !short.includes(x) &&
-        today - (lastRead.get(x) ?? today) >= MODEL_CENSUS_SWEEP_DAYS,
-    );
-    const swept = sweep(today).filter(
-      (x) => !short.includes(x) && !stale.includes(x),
-    );
     const run = await census(native, today, previous);
-    // Closing re-reads M whenever it lists fewer cards than the 40 expected.
-    expect(run.models).toEqual([
-      ...sorted([...short, ...stale, ...swept]),
-      ...short,
-    ]);
-    expect(run.requests).toBe(
-      4 + 2 * short.length + stale.length + swept.length,
-    );
+    // Closing re-reads M whenever it lists fewer cards than the 40 expected,
+    // and after the lowering whenever it lists fewer than its 40-card ceiling.
+    expect(run.models).toEqual([...MODELS, m]);
+    expect(run.requests).toBe(17);
     expect(run.vins).toEqual(allVins(native));
     expect(run.warnings.at(-1)).toBe(
       summary([
+        ["daily", others(...short)],
         ["short", short],
-        ["stale", stale],
-        ["sweep", swept],
       ]),
     );
     if (run.terminal.state.phase !== "complete" || !run.terminal.state.census)
@@ -799,18 +779,20 @@ test("OEM re-reads a surplus page that lost donors down to its unchanged badge",
             surplusConfirmed: false,
             confirmed: false,
           }
-        : // Lowered on the lowering day, then carried. With no surplus left
-          // there is nothing to confirm.
+        : // Lowered on the lowering day, then read daily. With no surplus
+          // left there is nothing to confirm; the lowered surplus stays as a
+          // ceiling for closing re-reads.
           {
             count: 38,
-            readDay: lowered,
+            readDay: today,
             expected: 38,
             lowSince: null,
+            ceiling: 2,
+            ceilingSince: lowered,
             surplusConfirmed: true,
             confirmed: false,
           },
     );
-    for (const model of run.models) lastRead.set(model, today);
     previous = run.wire;
   }
 }, 60_000);

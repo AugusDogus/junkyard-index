@@ -70,7 +70,8 @@ const page = z
   })
   .strict();
 type CaltonCensusPage = z.infer<typeof page>;
-/** Every model page of an accepted run, carried forward by the next one. */
+/** Every model page of an accepted run: the next run reference for read
+ * reasons, expected cards, closing floors and replay coverage. */
 const CaltonCensusSchema = ModelCensus.schema(page, 1536);
 export type CaltonCensus = z.infer<typeof CaltonCensusSchema>;
 const base = {
@@ -146,9 +147,11 @@ interface CaltonCensusState {
   day: number | null;
 }
 
-/** Read or carry each published model. A carried model is also read when a
- * root arrival's own donor destination binds to it but its carried page lacks
- * that destination. Arrivals are only a trigger, never a delta. */
+/** Read every published model on every run (`reuse: "never"`): an unchanged
+ * badge can hide a donor swapped under it. A read is labelled `trigger` when
+ * a root arrival's own donor destination binds to the model but its last
+ * accepted page lacks that destination. Arrivals are only a trigger, never a
+ * delta. */
 export function caltonCensusPlan(
   state: CaltonCensusState,
 ): ModelCensusDecision<CaltonCensusPage>[] {
@@ -180,6 +183,7 @@ export function caltonCensusPlan(
   return ModelCensus.plan(controls, state.previous, state.day, {
     cards: caltonCards,
     triggers,
+    reuse: "never",
   });
 }
 
@@ -193,12 +197,12 @@ const caltonCardIdentity = (page: CaltonCensusPage) =>
       .map((r) => JSON.stringify([r.cardId, r.vins, r.titles, r.years]))
       .sort(),
   );
-/** Minimum share of today's model badges the read and carried model cards must
+/** Minimum share of today's model badges the model cards read this run must
  * cover, each model capped at its badge. The November 13 capture covers
  * 12,856 of 12,857 model badge cards (99.99%) on 630 models: the only short
  * model is the native-empty `CHEVROLET_PASS.` (badge 1, no rows), and 22
- * models list one row above their badge. A changed badge forces a read, so
- * carried pages add no lag. Emptying any one sweep slice of that capture
+ * models list one row above their badge. Emptying any one sixth of the models
+ * (by census key hash) in that capture
  * leaves 78.6% to 87.9%. Cutting one to a single card per model leaves 79.4%
  * to 88.8% of both the badges and the 12,879 accepted cards the shared replay
  * floor checks, below both floors on the first broken day. */
@@ -259,7 +263,7 @@ function validate(input: unknown, contract: CaltonContract): CaltonCursor {
       "Checkpoint integrity, source or qualification contract changed",
     );
   if (cursor.phase === "complete") {
-    // Root, make directory and one make menu; every model page may be carried.
+    // At least the root, make directory and one make menu.
     if (
       cursor.requests < (cursor.census ? 3 : 4) ||
       cursor.bytes < cursor.requests

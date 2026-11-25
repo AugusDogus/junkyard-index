@@ -31,9 +31,10 @@ const scope = aviationHash({
   authority:
     "literal-model-graph/native-arrival-union/all-conflicts-quarantined/incremental-model-census-v3",
 });
-/** Every model page read by an accepted run, carried forward by the next one. */
+/** Every model page read by an accepted run: the next run reference for read
+ * reasons, expected cards, closing floors and replay coverage. */
 // A page failing its fingerprint makes the terminal cursor unreadable, so the
-// next run starts a warned cold census instead of failing on the carried page.
+// next run starts a warned cold census instead of failing on the stored page.
 export const AviationCensusSchema = ModelCensus.schema(
   AviationPageSchema,
   512,
@@ -87,13 +88,13 @@ export type AviationClosingControl =
       index: number;
     };
 
-/** Closing re-reads ownership, the live make directory and every model read
- * this run whose cards differ from its badge or fall below its expected count
- * (ModelCensus.closingReads), so a short page is confirmed before it can be
- * carried. The WPO-cached `/parts/` copy and root are not
- * re-read: their equality proves only that the page cache did not rebuild.
- * Carried pages were confirmed on the run that read them; other per-model
- * changes surface as count changes in the next run's opening menus. */
+/** Closing re-reads ownership, the live make directory and every model read this
+ * run whose cards differ from its badge or fall below its expected count
+ * (ModelCensus.closingReads), so a short page is confirmed by an identical
+ * re-read in the run that reads it. The WPO-cached `/parts/` copy and root are
+ * not re-read: their equality proves only that the page cache did not rebuild.
+ * Other per-model changes surface as count changes in the next run's opening
+ * menus. */
 export function aviationClosingControls(
   state: Pick<AviationProgress, "makes" | "pages" | "previous" | "day">,
 ): AviationClosingControl[] {
@@ -142,9 +143,10 @@ function aviationCensusControls(
   }));
 }
 
-/** Read or carry each published model. Arrivals never trigger a read: they are
- * unioned into every snapshot already, and many stay absent from their own model
- * page for weeks, so a trigger would re-read the same models every day. */
+/** Read every published model on every run (`reuse: "never"`): an unchanged
+ * badge can hide a donor swapped under it. Arrivals are unioned into every
+ * snapshot and label no read: many stay absent from their own model page for
+ * weeks. */
 export function aviationCensusPlan(
   state: Pick<AviationProgress, "makes" | "previous" | "day">,
 ): ModelCensusDecision<AviationPage>[] {
@@ -154,7 +156,7 @@ export function aviationCensusPlan(
     aviationCensusControls(state.makes),
     state.previous,
     state.day,
-    { cards: aviationCards },
+    { cards: aviationCards, reuse: "never" },
   );
 }
 

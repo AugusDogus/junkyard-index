@@ -122,7 +122,7 @@ export function six03CensusPlan(
     six03CensusControls(state.catalog),
     state.previous,
     state.day,
-    { cards: six03Cards },
+    { cards: six03Cards, reuse: "unchanged-key" },
   );
 }
 

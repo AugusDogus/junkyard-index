@@ -33,7 +33,8 @@ const scope = jimsimportHash({
   census: "incremental-model-census-v3",
 });
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
-/** Every model page of an accepted run, carried forward by the next one. */
+/** Every model page of an accepted run: the next run reference for read
+ * reasons, expected cards, closing floors and replay coverage. */
 export const JimsimportCensusSchema = ModelCensus.schema(
   JimsimportPageSchema,
   1024,
@@ -108,7 +109,9 @@ function censusControls(
   }));
 }
 
-/** Read or carry each published model, derived only from cursor contents. */
+/** Read every published model on every run (`reuse: "never"`): an unchanged
+ * badge can hide a donor swapped under it. Derived only from cursor
+ * contents. */
 export function jimsimportCensusPlan(state: {
   menus: readonly JimsimportMenu[];
   previous: JimsimportCensus | null;
@@ -122,6 +125,7 @@ export function jimsimportCensusPlan(state: {
     state.day,
     {
       cards: jimsimportCards,
+      reuse: "never",
     },
   );
 }
@@ -166,12 +170,11 @@ export interface JimsimportClosingModel {
   index: number;
 }
 
-/** Model pages read this run whose cards differ from their badge or fall
- * below their expected count (ModelCensus.closingReads), re-read after the
- * make directory so a short page is confirmed before it can be carried.
- * Carried pages were confirmed on the run that read them; other per-model
- * changes surface as count changes in the next run's opening menus. Derived
- * only from cursor contents of a complete opening. */
+/** Model pages read this run whose cards differ from their badge or fall below
+ * their expected count (ModelCensus.closingReads), re-read after the make
+ * directory so a short page is confirmed by an identical re-read in the run
+ * that reads it. * Other per-model changes surface as count changes in the next
+ * run's opening menus. Derived only from cursor contents of a complete opening. */
 export function jimsimportClosingModels(state: {
   menus: readonly JimsimportMenu[];
   opening: readonly JimsimportPage[];

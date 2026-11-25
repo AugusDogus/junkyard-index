@@ -153,7 +153,7 @@ export function streamDentonInventory<E, R>(options: DentonOptions<E, R>) {
         summary.rejections = snapshot.rejections;
         summary.warnings = [
           ...summary.warnings,
-          "Denton retained required rejects, all valid rejected/conflicting identities and the AD80068 destination quarantine. Model badge counts select census reads and bound the read plus carried model cards; optional metadata is nullable.",
+          "Denton retained required rejects, all valid rejected/conflicting identities and the AD80068 destination quarantine. Every model page is read on every run and model badge counts bound the cards read; optional metadata is nullable.",
           "Denton " + ModelCensus.summary(plan),
         ];
         cursor = complete;

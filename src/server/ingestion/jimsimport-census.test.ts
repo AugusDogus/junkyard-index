@@ -157,8 +157,6 @@ const CARDS = fixture.pages.map((page) => page.records.length);
 const MISMATCHED = jimsimportModels(fixture.menus).flatMap(({ model }, i) =>
   fixture.pages[i]?.records.length === model.count ? [] : [i],
 );
-const mismatched = (models: readonly number[]) =>
-  models.filter((i) => MISMATCHED.includes(i));
 
 /** Fixture models listing fewer cards than their badge (the explicit-empty
  * SUBARU_PASS. at badge 1). */
@@ -189,9 +187,86 @@ const confirmed = (terminal: unknown) =>
 const unconfirmedSurplus = (terminal: unknown) =>
   evidenceOf(terminal).flatMap((m, i) => (m.surplusConfirmed ? [] : [i]));
 
-/** Models in a day's sweep slice, by their stable key hash. */
-const slice = (day: number) =>
-  KEYS.flatMap((key, i) => (ModelCensus.slice(key) === day % 6 ? [i] : []));
+const ALL = Array.from({ length: MODELS }, (_, i) => i);
+
+/** One sixth of the models (`part` 0 to 5), by their stable key hash. Every
+ * page is read every run; this only picks a spread-out set of pages for a
+ * site fault, as one broken sweep slice used to be. */
+const sixth = (part: number) =>
+  KEYS.flatMap((key, i) => (ModelCensus.slice(key) === part ? [i] : []));
+
+/** Read reasons of the first normal incremental run after a cold or gap
+ * run: the short page and every surplus page it left unconfirmed are read as
+ * short, every other page as a daily read. */
+const AFTER_FULL = ALL.map((i) => (MISMATCHED.includes(i) ? "short" : "daily"));
+/** Read reasons once every short page and surplus is confirmed. */
+const DAILY = ALL.map(() => "daily");
+
+/** The run warning for one read reason per model, in published order. */
+function summary(reasons: readonly string[]) {
+  const counts = new Map<string, number>();
+  for (const reason of reasons)
+    counts.set(reason, (counts.get(reason) ?? 0) + 1);
+  const listed = [...counts].map(([reason, n]) => `${reason} ${n}`);
+  return `Jim's Import Read ${reasons.length} of ${MODELS} model pages (${listed.join(", ")}); carried 0.`;
+}
+
+/** A run that read every model page once with these reasons and re-read
+ * `rereads` at closing, with request accounting of a full read: owner, make
+ * directory, 33 menus, every model, closing make directory, re-reads, owner. */
+function expectFullRead(
+  run: Awaited<ReturnType<typeof census>>,
+  reasons: readonly string[],
+  rereads: readonly number[],
+) {
+  expect(run.models).toEqual(ALL);
+  expect(run.rereads).toEqual([...rereads]);
+  expect(run.requests).toBe(2 + 33 + MODELS + 2 + rereads.length);
+  expect(run.warnings.at(-1)).toBe(summary(reasons));
+}
+
+/** Runs one chunked crawl that must fail before publishing anything, and
+ * returns the native URLs it requested. */
+async function rejected(
+  native: ReturnType<typeof yard>,
+  day: number,
+  last: Awaited<ReturnType<typeof census>>,
+  message: string,
+) {
+  const before = native.urls.length;
+  let published = 0;
+  let cursor: unknown = undefined;
+  await expect(
+    (async () => {
+      for (;;) {
+        const result = await Effect.runPromise(
+          streamJimsimportInventory({
+            previousUniqueInventory: last.vins.length,
+            startCursor: cursor,
+            previousCursor: last.terminal,
+            now: () => day * MODEL_CENSUS_DAY_MS,
+            readPage: native.readPage,
+            onBatch: (batch) =>
+              Effect.sync(() => {
+                published += batch.length;
+              }),
+            onYards: () =>
+              Effect.sync(() => {
+                published++;
+              }),
+          }),
+        );
+        if (result.cursor.phase === "complete") return;
+        cursor = JSON.parse(JSON.stringify(result.cursor));
+      }
+    })(),
+  ).rejects.toThrow(message);
+  expect(published).toBe(0);
+  return native.urls.slice(before);
+}
+
+/** Model page URLs in published order. */
+const PATHS = fixture.pages.map((p) => JIMSIMPORT_ORIGIN + p.modelPath);
 
 test("Jim's Import cold start reads every model and publishes its census", async () => {
   const native = yard();
@@ -210,7 +285,7 @@ test("Jim's Import cold start reads every model and publishes its census", async
   );
 }, 120_000);
 
-test("Jim's Import carries unread models, rotates the sweep and reads count changes", async () => {
+test("Jim's Import reads every model page on every incremental run and reads count changes", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
   // A cold run confirms no short page and no surplus.
@@ -219,40 +294,26 @@ test("Jim's Import carries unread models, rotates the sweep and reads count chan
   expect([...SHORT, ...SURPLUS].sort((a, b) => a - b)).toEqual(MISMATCHED);
   expect(confirmed(cold.terminal)).toEqual([]);
   expect(unconfirmedSurplus(cold.terminal)).toEqual(SURPLUS);
-  // Day 601: only the sweep slice (key hash % 6 === 601 % 6) is read, plus
-  // the short page and the surplus pages the cold run left unconfirmed. Those
-  // read as short even inside the slice, and the first read (model 0) is a
-  // sweep read.
-  expect(slice(601).length).toBeGreaterThan(0);
-  expect(slice(601)[0]).toBe(0);
-  expect(slice(602).length).toBeGreaterThan(0);
-  expect(SHORT.some((i) => slice(601).includes(i))).toBe(false);
-  const read601 = [...new Set([...slice(601), ...MISMATCHED])].sort(
-    (a, b) => a - b,
-  );
-  const sweep601 = slice(601).length - mismatched(slice(601)).length;
-  expect(read601).toHaveLength(sweep601 + MISMATCHED.length);
+  // Day 601, a normal incremental run: every model page is read. The short
+  // page and the surplus pages the cold run left unconfirmed read as short,
+  // every other page as a daily read, and closing re-reads each page whose
+  // cards differ from its badge.
   const next = await census(native, 601, cold.terminal);
-  expect(next.models).toEqual(read601);
-  // Every mismatched page was read, so closing re-reads each of them.
-  expect(next.rereads).toEqual(MISMATCHED);
+  expectFullRead(next, AFTER_FULL, MISMATCHED);
   expect(next.rereads).toEqual(expect.arrayContaining(SHORT));
-  expect(next.requests).toBe(2 + 33 + read601.length + 2 + MISMATCHED.length);
-  expect(next.warnings.at(-1)).toBe(
-    `Jim's Import Read ${read601.length} of ${MODELS} model pages (sweep ${sweep601}, short ${MISMATCHED.length}); carried ${MODELS - read601.length}.`,
-  );
-  // This normal incremental run confirms them, so later days carry them.
+  // This normal incremental run confirms them.
   expect(confirmed(next.terminal)).toEqual(SHORT);
   expect(unconfirmedSurplus(next.terminal)).toEqual([]);
-  // Carried donors are still published in full.
+  expect(evidenceOf(next.terminal).every((m) => m.readDay === 601)).toBe(true);
   expect(next.vins).toEqual(native.vins());
 
-  // Day 602: a donor sells on a model outside today's slice; its badge
-  // count changes, which forces a read and drops the donor.
+  // Day 602: a donor sells on a model whose cards match its badge; its badge
+  // count changes, so that page reads as a count change and drops the donor.
+  // Every other page is still read daily.
   const published = new Set(native.vins());
-  const changed = Array.from({ length: MODELS }, (_, i) => i).find(
+  const changed = ALL.find(
     (i) =>
-      !slice(602).includes(i) &&
+      !MISMATCHED.includes(i) &&
       native.page(i).records.length >= 2 &&
       published.has(native.page(i).records[0]?.vin ?? ""),
   );
@@ -266,72 +327,101 @@ test("Jim's Import carries unread models, rotates the sweep and reads count chan
     before.records.length - 1,
   );
   const third = await census(native, 602, next.terminal);
-  expect(third.models).toEqual([...slice(602), changed].sort((a, b) => a - b));
+  expectFullRead(
+    third,
+    ALL.map((i) => (i === changed ? "count" : "daily")),
+    MISMATCHED,
+  );
   expect(third.vins).toEqual(native.vins());
   expect(third.vins).not.toContain(sold.vin);
-  expect(third.warnings.at(-1)).toBe(
-    `Jim's Import Read ${slice(602).length + 1} of ${MODELS} model pages (count 1, sweep ${slice(602).length}); carried ${MODELS - slice(602).length - 1}.`,
+  expect(confirmed(third.terminal)).toEqual(SHORT);
+  expect(evidenceOf(third.terminal).every((m) => m.readDay === 602)).toBe(true);
+}, 240_000);
+
+test("Jim's Import reads a model whose donor was crushed and replaced under an unchanged badge", async () => {
+  const native = yard();
+  const cold = await census(native, 600, null);
+  const accepted = await census(native, 601, cold.terminal);
+  // Day 602: on a model whose cards match its badge, one donor leaves and
+  // another arrives. The menu badge, the model key and the card count stay
+  // the same, so nothing in the menus marks the page as changed.
+  const published = new Set(accepted.vins);
+  const model = ALL.find(
+    (i) =>
+      !MISMATCHED.includes(i) &&
+      !sixth(602 % 6).includes(i) &&
+      published.has(native.page(i).records[0]?.vin ?? ""),
+  );
+  if (model === undefined) throw new Error("Fixture needs a swappable donor");
+  const before = native.page(model);
+  const gone = before.records[0];
+  if (!gone?.vin || !gone.image) throw new Error("Fixture donor needs a VIN");
+  const stock = "ZZ" + gone.stock;
+  const arrived = {
+    ...gone,
+    id: stock,
+    stock,
+    vin: "1FTZZ99Z9ZZ000001",
+    destinations: gone.destinations.map((d) => d.replace(gone.stock, stock)),
+    image: gone.image.replaceAll(gone.stock, stock),
+  };
+  expect(published.has(arrived.vin)).toBe(false);
+  native.setPage(
+    model,
+    { ...before, records: [arrived, ...before.records.slice(1)] },
+    before.records.length,
+  );
+  const terminal = JimsimportCursor.parse(accepted.terminal);
+  if (terminal.phase !== "complete" || !terminal.census)
+    throw new Error("Expected a terminal census");
+  // Badge-only reuse would have carried the old page, outside today's sweep
+  // slice, for up to six days.
+  const controls = KEYS.map((key, i) => ({ key, count: BADGES[i] ?? 0 }));
+  const cards = (page: JimsimportPage) => page.records.length;
+  expect(
+    ModelCensus.plan(controls, terminal.census, 602, {
+      cards,
+      reuse: "unchanged-key",
+    })[model]?.kind,
+  ).toBe("carry");
+  // Daily reads read it, publish the arrival and drop the crushed donor.
+  const swapped = await census(native, 602, accepted.terminal);
+  expectFullRead(swapped, DAILY, MISMATCHED);
+  expect(swapped.vins).toEqual(native.vins());
+  expect(swapped.vins).toContain(arrived.vin);
+  expect(swapped.vins).not.toContain(gone.vin);
+  expect(evidenceOf(swapped.terminal)[model]?.page.records[0]?.vin).toBe(
+    arrived.vin,
   );
 }, 240_000);
 
-test("Jim's Import re-reads every model within six days, even across missed runs", async () => {
+test("Jim's Import reads every model on every run, even across missed runs", async () => {
   const native = yard();
-  let previous = (await census(native, 600, null)).terminal;
-  const lastRead = new Map<number, number>();
-  for (let i = 0; i < MODELS; i++) lastRead.set(i, 600);
-  // The explicit-empty page below its badge, left unconfirmed by the cold run.
-  const short = SHORT;
-  expect(short).toHaveLength(1);
+  const previous = (await census(native, 600, null)).terminal;
   expect(confirmed(previous)).toEqual([]);
   expect(unconfirmedSurplus(previous)).toEqual(SURPLUS);
-  // Its slice is not day 604's, so day 604 reads it only as a short page. The
-  // surplus pages the gap run left unconfirmed are read as short too, even
-  // inside the slice, and the first read (model 1) is a sweep read.
-  expect(short.some((i) => slice(604).includes(i))).toBe(false);
-  expect(slice(604)[0]).toBe(1);
-  const read604 = [...new Set([...slice(604), ...MISMATCHED])].sort(
-    (a, b) => a - b,
-  );
-  const sweep604 = slice(604).length - mismatched(slice(604)).length;
-  expect(read604).toHaveLength(sweep604 + MISMATCHED.length);
   // Skip day 601 and 602 entirely, then run daily.
-  for (const day of [603, 604, 605, 606, 607, 608]) {
-    expect(slice(day).length).toBeGreaterThan(0);
-    const run = await census(native, day, previous);
-    for (const model of run.models) lastRead.set(model, day);
-    for (const read of lastRead.values()) expect(day - read).toBeLessThan(6);
-    // Day 603 follows missed runs, so it reads every model, and as a gap run
-    // it confirms no short page and no surplus. Day 604 is the first normal
-    // incremental run: it re-reads the short and surplus pages, its closing
-    // re-reads them again, and those confirmations are stored. Later days
-    // carry them, one sixth read each.
-    expect(run.models).toEqual(
-      day === 603
-        ? Array.from({ length: MODELS }, (_, i) => i)
-        : day === 604
-          ? read604
-          : slice(day),
+  let last = previous;
+  for (const day of [603, 604, 605, 606]) {
+    const run = await census(native, day, last);
+    // Day 603 follows missed runs, so it reads every model as a gap run and
+    // confirms no short page and no surplus. Day 604 is the first normal
+    // incremental run: it reads the short and surplus pages as short, its
+    // closing re-reads them, and those confirmations are stored. Later days
+    // read every page daily; closing still re-reads each page whose cards
+    // differ from its badge.
+    expectFullRead(
+      run,
+      day === 603 ? ALL.map(() => "gap") : day === 604 ? AFTER_FULL : DAILY,
+      MISMATCHED,
     );
-    expect(run.warnings.at(-1)).toBe(
-      day === 603
-        ? `Jim's Import Read ${MODELS} of ${MODELS} model pages (gap ${MODELS}); carried 0.`
-        : day === 604
-          ? `Jim's Import Read ${read604.length} of ${MODELS} model pages (sweep ${sweep604}, short ${MISMATCHED.length}); carried ${MODELS - read604.length}.`
-          : `Jim's Import Read ${slice(day).length} of ${MODELS} model pages (sweep ${slice(day).length}); carried ${MODELS - slice(day).length}.`,
-    );
-    if (day === 604) {
-      expect(run.rereads).toEqual(MISMATCHED);
-      expect(run.rereads).toEqual(expect.arrayContaining(short));
-      expect(run.requests).toBe(
-        2 + 33 + read604.length + 2 + MISMATCHED.length,
-      );
-    }
     expect(run.vins).toEqual(native.vins());
-    expect(confirmed(run.terminal)).toEqual(day === 603 ? [] : short);
+    expect(evidenceOf(run.terminal).every((m) => m.readDay === day)).toBe(true);
+    expect(confirmed(run.terminal)).toEqual(day === 603 ? [] : SHORT);
     expect(unconfirmedSurplus(run.terminal)).toEqual(
       day === 603 ? SURPLUS : [],
     );
-    previous = run.terminal;
+    last = run.terminal;
   }
 }, 300_000);
 
@@ -388,112 +478,87 @@ test("Jim's Import treats an unreadable or incompatible previous cursor as a war
   expect(adopted.cursor.previous?.models).toHaveLength(MODELS);
 }, 120_000);
 
-test("Jim's Import fails a run whose read and carried cards fall short of today's badges", async () => {
-  // A site fault renders empty model pages while the menus keep their counts.
-  // Closing confirms the empty pages and the floor and previous-count guards
-  // still pass with five sixths carried, so only badge coverage catches it.
+/** Cards a run lists, each model capped at its badge, when the pages in
+ * `faulty` list `fault(cards)` cards instead. */
+const coveredWith = (
+  faulty: readonly number[],
+  fault: (cards: number) => number,
+) =>
+  CARDS.reduce(
+    (sum, cards, i) =>
+      sum + Math.min(faulty.includes(i) ? fault(cards) : cards, BADGES[i] ?? 0),
+    0,
+  );
+
+/** The sixth of the models that leaves the most cards under `fault`: the
+ * hardest one to catch. */
+const hardestSixth = (fault: (cards: number) => number) => {
+  const part = [0, 1, 2, 3, 4, 5].reduce((best, p) =>
+    coveredWith(sixth(p), fault) > coveredWith(sixth(best), fault) ? p : best,
+  );
+  expect(sixth(part).length).toBeGreaterThan(0);
+  return sixth(part);
+};
+
+test("Jim's Import fails a run whose read cards fall short of today's badges", async () => {
+  // A site fault renders a sixth of the model pages empty while the menus
+  // keep their counts. Every page is read and closing would confirm the
+  // empty pages, so badge coverage must reject the run before closing.
   const native = yard();
   const cold = await census(native, 600, null);
-  const day = [601, 602, 603, 604, 605].find((d) => slice(d).length > 0);
-  if (day === undefined) throw new Error("Fixture needs a non-empty slice");
-  for (const i of slice(day)) {
+  const broken = hardestSixth(() => 0);
+  for (const i of broken) {
     const path = fixture.pages[i]?.modelPath;
     if (path) native.broken.add(path);
   }
-  const before = native.urls.length;
-  let published = 0;
-  let cursor: unknown = undefined;
-  await expect(
-    (async () => {
-      for (;;) {
-        const result = await Effect.runPromise(
-          streamJimsimportInventory({
-            previousUniqueInventory: cold.vins.length,
-            startCursor: cursor,
-            previousCursor: cold.terminal,
-            now: () => day * MODEL_CENSUS_DAY_MS,
-            readPage: native.readPage,
-            onBatch: (batch) =>
-              Effect.sync(() => {
-                published += batch.length;
-              }),
-            onYards: () =>
-              Effect.sync(() => {
-                published++;
-              }),
-          }),
-        );
-        if (result.cursor.phase === "complete") return;
-        cursor = JSON.parse(JSON.stringify(result.cursor));
-      }
-    })(),
-  ).rejects.toThrow(
+  const urls = await rejected(
+    native,
+    601,
+    cold,
     `below the ${JIMSIMPORT_MINIMUM_BADGE_COVERAGE * 100}% coverage floor`,
   );
-  expect(published).toBe(0);
-  // The run stops at the end of the opening: no closing re-reads.
-  expect(native.urls.slice(before).at(-1)).toBe(
-    JIMSIMPORT_ORIGIN + fixture.pages[slice(day).at(-1) ?? -1]?.modelPath,
-  );
+  // The opening read every model page (owner, make directory, 33 menus and
+  // every model) and the run stops at its end: no closing re-reads.
+  expect(urls).toHaveLength(2 + 33 + MODELS);
+  expect(urls.filter((url) => PATHS.includes(url))).toEqual(PATHS);
+  expect(urls.at(-1)).toBe(PATHS.at(-1));
 }, 120_000);
 
-test("Jim's Import carries short pages its closing confirmed and re-reads unconfirmed ones", async () => {
+test("Jim's Import confirms short pages at closing and still reads them every run", async () => {
   const native = yard();
   // Badges are not card counts here: only pages with fewer cards than their
   // badge (the explicit-empty SUBARU_PASS. at badge 1) are short.
   expect(SHORT).toHaveLength(1);
   const model = SHORT[0] ?? -1;
-  // The cold run, the run confirming it and the run carrying it all fall on
-  // days outside its sweep slice, so only the short rule reads it.
-  const start = [600, 601, 602, 603, 604, 605].find(
-    (d) => !slice(d + 1).includes(model) && !slice(d + 2).includes(model),
-  );
-  if (start === undefined)
-    throw new Error("Fixture needs two slices without it");
-  const cold = await census(native, start, null);
+  const cold = await census(native, 600, null);
   // A cold run never confirms a short page, even after its closing re-read.
   expect(cold.rereads).toContain(model);
   expect(confirmed(cold.terminal)).toEqual([]);
   // Nor any surplus page.
   expect(unconfirmedSurplus(cold.terminal)).toEqual(SURPLUS);
   // The next normal incremental run reads it again as short, with every
-  // surplus page the cold run left unconfirmed (short too, even inside the
-  // slice); its closing re-reads them identically, and those confirmations
-  // are stored. The slice's first read is a sweep read.
-  const firstSweep = slice(start + 1)[0] ?? -1;
-  expect(MISMATCHED).not.toContain(firstSweep);
-  expect(MISMATCHED.every((i) => i > firstSweep)).toBe(true);
-  const read = [...new Set([...slice(start + 1), ...MISMATCHED])].sort(
-    (a, b) => a - b,
-  );
-  const sweep = slice(start + 1).length - mismatched(slice(start + 1)).length;
-  expect(read).toHaveLength(sweep + MISMATCHED.length);
-  const confirming = await census(native, start + 1, cold.terminal);
-  expect(confirming.models).toEqual(read);
+  // surplus page the cold run left unconfirmed; its closing re-reads them
+  // identically, and those confirmations are stored.
+  const confirming = await census(native, 601, cold.terminal);
+  expectFullRead(confirming, AFTER_FULL, MISMATCHED);
   expect(confirming.rereads).toContain(model);
-  expect(confirming.rereads).toEqual(MISMATCHED);
-  expect(confirming.requests).toBe(
-    2 + 33 + read.length + 2 + MISMATCHED.length,
-  );
-  expect(confirming.warnings.at(-1)).toBe(
-    `Jim's Import Read ${read.length} of ${MODELS} model pages (sweep ${sweep}, short ${MISMATCHED.length}); carried ${MODELS - read.length}.`,
-  );
   expect(unconfirmedSurplus(confirming.terminal)).toEqual([]);
   const terminal = JimsimportCursor.parse(confirming.terminal);
   if (terminal.phase !== "complete" || !terminal.census)
     throw new Error("Expected a terminal census");
-  expect(
-    terminal.census.models.flatMap((m, i) => (m.confirmed ? [i] : [])),
-  ).toEqual(SHORT);
-  expect(terminal.census.models[model]?.readDay).toBe(start + 1);
-  const day = start + 2;
-  // Confirmed short evidence is carried outside its sweep slice.
-  const carried = await census(native, day, confirming.terminal);
-  expect(carried.models).toEqual(slice(day));
-  expect(carried.rereads).not.toContain(model);
-  expect(confirmed(carried.terminal)).toEqual(SHORT);
-  expect(unconfirmedSurplus(carried.terminal)).toEqual([]);
-  // The same evidence without its in-run confirmation is read again.
+  expect(confirmed(confirming.terminal)).toEqual(SHORT);
+  expect(terminal.census.models[model]?.readDay).toBe(601);
+  const day = 602;
+  // Confirmed short evidence is never carried: the page is read again as a
+  // daily read, and closing re-reads it because it still lists fewer cards
+  // than its badge.
+  const daily = await census(native, day, confirming.terminal);
+  expectFullRead(daily, DAILY, MISMATCHED);
+  expect(daily.rereads).toContain(model);
+  expect(confirmed(daily.terminal)).toEqual(SHORT);
+  expect(unconfirmedSurplus(daily.terminal)).toEqual([]);
+  expect(evidenceOf(daily.terminal)[model]?.readDay).toBe(day);
+  // The same evidence without its in-run confirmation reads as short.
   const { checksum, ...state } = terminal;
   void checksum;
   const unconfirmed = JimsimportCursor.checkpoint({
@@ -506,9 +571,11 @@ test("Jim's Import carries short pages its closing confirmed and re-reads unconf
     },
   });
   const reread = await census(native, day, unconfirmed);
-  expect(reread.models).toEqual([...slice(day), model].sort((a, b) => a - b));
-  expect(reread.rereads).toContain(model);
-  expect(reread.warnings.at(-1)).toContain("short 1");
+  expectFullRead(
+    reread,
+    ALL.map((i) => (i === model ? "short" : "daily")),
+    MISMATCHED,
+  );
   expect(reread.vins).toEqual(native.vins());
   expect(unconfirmedSurplus(reread.terminal)).toEqual([]);
   const next = JimsimportCursor.parse(reread.terminal);
@@ -518,69 +585,33 @@ test("Jim's Import carries short pages its closing confirmed and re-reads unconf
   expect(next.census.models[model]?.readDay).toBe(day);
 }, 240_000);
 
-test("Jim's Import fails an incremental run whose sweep slice lists one card per model", async () => {
-  // A site fault renders only the first card of each model page in today's
-  // sweep slice while the menus keep their counts. Closing would confirm the
-  // short pages, and five sixths are carried, so only coverage catches it.
+test("Jim's Import fails an incremental run whose sixth of model pages lists one card each", async () => {
+  // A site fault renders only the first card of each model page in a sixth of
+  // the models while the menus keep their counts. Every page is read and
+  // closing would confirm the short pages, so only coverage catches it.
   const native = yard();
   const cold = await census(native, 600, null);
-  // The lightest slice leaves the most cards: the hardest one to catch.
-  const listed = (day: number) =>
-    CARDS.map((cards, i) =>
-      slice(day).includes(i) ? Math.min(cards, 1) : cards,
-    );
-  const covered = (day: number) =>
-    listed(day).reduce(
-      (sum, cards, i) => sum + Math.min(cards, BADGES[i] ?? 0),
-      0,
-    );
-  const day = [601, 602, 603, 604, 605].reduce((best, d) =>
-    covered(d) > covered(best) ? d : best,
-  );
-  expect(slice(day).length).toBeGreaterThan(0);
-  // Healthy daily runs up to the faulty day, so it reads incrementally.
-  let last = cold;
-  for (let healthy = 601; healthy < day; healthy++)
-    last = await census(native, healthy, last.terminal);
-  for (const i of slice(day)) {
+  // The sixth that leaves the most cards: the hardest one to catch.
+  const cut = hardestSixth((cards) => Math.min(cards, 1));
+  // A healthy daily run first, so the faulty day reads incrementally against
+  // a census that confirmed every short page and surplus.
+  const last = await census(native, 601, cold.terminal);
+  const day = 602;
+  for (const i of cut) {
     const path = fixture.pages[i]?.modelPath;
     if (path) native.cut.add(path);
   }
-  const before = native.urls.length;
-  let published = 0;
-  let cursor: unknown = undefined;
-  await expect(
-    (async () => {
-      for (;;) {
-        const result = await Effect.runPromise(
-          streamJimsimportInventory({
-            previousUniqueInventory: last.vins.length,
-            startCursor: cursor,
-            previousCursor: last.terminal,
-            now: () => day * MODEL_CENSUS_DAY_MS,
-            readPage: native.readPage,
-            onBatch: (batch) =>
-              Effect.sync(() => {
-                published += batch.length;
-              }),
-            onYards: () =>
-              Effect.sync(() => {
-                published++;
-              }),
-          }),
-        );
-        if (result.cursor.phase === "complete") return;
-        cursor = JSON.parse(JSON.stringify(result.cursor));
-      }
-    })(),
-  ).rejects.toThrow(
+  const urls = await rejected(
+    native,
+    day,
+    last,
     `promised by today's model counts, below the ${JIMSIMPORT_MINIMUM_BADGE_COVERAGE * 100}% coverage floor`,
   );
-  expect(published).toBe(0);
-  // The run stops at the end of the opening: no closing re-reads.
-  expect(native.urls.slice(before).at(-1)).toBe(
-    JIMSIMPORT_ORIGIN + fixture.pages[slice(day).at(-1) ?? -1]?.modelPath,
-  );
+  // The opening read every model page and the run stops at its end: no
+  // closing re-reads.
+  expect(urls).toHaveLength(2 + 33 + MODELS);
+  expect(urls.filter((url) => PATHS.includes(url))).toEqual(PATHS);
+  expect(urls.at(-1)).toBe(PATHS.at(-1));
   // Independently of badge accuracy, the replay floor alone rejects the same
   // pages against the last accepted census.
   const terminal = JimsimportCursor.parse(last.terminal);
@@ -592,7 +623,7 @@ test("Jim's Import fails an incremental run whose sweep slice lists one card per
       {
         controls: KEYS.map((key, i) => ({ key, count: BADGES[i] ?? 0 })),
         pages: fixture.pages.map((page, i) =>
-          slice(day).includes(i)
+          cut.includes(i)
             ? { ...page, records: page.records.slice(0, 1) }
             : page,
         ),
@@ -612,8 +643,9 @@ test("Jim's Import re-reads a surplus page that lost donors down to its badge", 
   // Some model pages list more cards than their badge. One that loses real
   // donors down to exactly its badge passes the cards-versus-badge closing
   // comparison, so closing re-reads it against its sticky surplus. The lower
-  // page is not taken as the new truth: it stays short and is read every run
-  // until a normal incremental run reads it six days after the drop.
+  // page is not taken as the new truth: it stays short and is read as short
+  // and re-read at closing every run until a normal incremental run reads it
+  // six days after the drop.
   const native = yard();
   const cold = await census(native, 600, null);
   const published = new Set(cold.vins);
@@ -622,18 +654,11 @@ test("Jim's Import re-reads a surplus page that lost donors down to its badge", 
       .page(i)
       .records.slice(0, (CARDS[i] ?? 0) - (BADGES[i] ?? 0))
       .flatMap((r) => (r.vin && published.has(r.vin) ? [r.vin] : []));
-  const target = [601, 602, 603, 604]
-    .flatMap((day) =>
-      slice(day).map((model) => ({ day, model, lost: lost(model) })),
-    )
-    .find(
-      ({ model, lost }) =>
-        (BADGES[model] ?? 0) > 0 &&
-        (CARDS[model] ?? 0) > (BADGES[model] ?? 0) &&
-        lost.length > 0,
-    );
-  if (!target) throw new Error("Fixture needs a surplus page with donors");
-  const { day, model } = target;
+  const model = SURPLUS.find((i) => (BADGES[i] ?? 0) > 0 && lost(i).length > 0);
+  if (model === undefined)
+    throw new Error("Fixture needs a surplus page with donors");
+  const gone = lost(model);
+  const day = 601;
   const badge = BADGES[model] ?? 0;
   const before = native.page(model);
   const surplus = before.records.length;
@@ -643,42 +668,28 @@ test("Jim's Import re-reads a surplus page that lost donors down to its badge", 
     badge,
   );
   // The cold run left the short page and every surplus page (this one too)
-  // unconfirmed, so this first incremental run reads them all (reason
-  // "short", even inside the slice) and its closing confirms all but this
-  // one, whose read fell below its surplus. The slice's first read is a
-  // sweep read.
+  // unconfirmed, so this first incremental run reads them as short and its
+  // closing confirms all but this one, whose read fell below its surplus.
   expect(confirmed(cold.terminal)).toEqual([]);
   expect(unconfirmedSurplus(cold.terminal)).toEqual(SURPLUS);
-  expect(SURPLUS).toContain(model);
-  expect(SHORT.some((i) => slice(day).includes(i))).toBe(false);
-  const firstSweep = slice(day)[0] ?? -1;
-  expect(MISMATCHED.every((i) => i > firstSweep)).toBe(true);
-  const read = [...new Set([...slice(day), ...MISMATCHED])].sort(
-    (a, b) => a - b,
-  );
-  const sweep = slice(day).length - mismatched(slice(day)).length;
-  expect(read).toHaveLength(sweep + MISMATCHED.length);
   const dropped = await census(native, day, cold.terminal);
-  expect(dropped.models).toEqual(read);
-  // The page now matches its badge but fell below its sticky surplus.
+  // The page now matches its badge but fell below its sticky surplus, so
+  // closing still re-reads it.
+  expectFullRead(dropped, AFTER_FULL, MISMATCHED);
   expect(dropped.rereads).toContain(model);
-  expect(dropped.rereads).toEqual(MISMATCHED);
   expect(dropped.rereads).toEqual(expect.arrayContaining(SHORT));
-  expect(dropped.requests).toBe(2 + 33 + read.length + 2 + MISMATCHED.length);
-  expect(dropped.warnings.at(-1)).toBe(
-    `Jim's Import Read ${read.length} of ${MODELS} model pages (sweep ${sweep}, short ${MISMATCHED.length}); carried ${MODELS - read.length}.`,
-  );
   expect(confirmed(dropped.terminal)).toEqual(SHORT);
   // A lower read never confirms the surplus it keeps.
   expect(unconfirmedSurplus(dropped.terminal)).toEqual([model]);
   expect(dropped.vins).toEqual(native.vins());
-  for (const vin of target.lost) expect(dropped.vins).not.toContain(vin);
+  for (const vin of gone) expect(dropped.vins).not.toContain(vin);
   const evidence = (terminal: unknown) => {
     const m = evidenceOf(terminal)[model];
     return {
       readDay: m?.readDay,
       expected: m?.expected,
       lowSince: m?.lowSince,
+      ceiling: m?.ceiling,
       surplusConfirmed: m?.surplusConfirmed,
       confirmed: m?.confirmed,
     };
@@ -688,80 +699,53 @@ test("Jim's Import re-reads a surplus page that lost donors down to its badge", 
     readDay: day,
     expected: surplus,
     lowSince: day,
+    ceiling: null,
     surplusConfirmed: false,
     confirmed: false,
   });
 
-  // Daily normal incremental runs. The page is read every run (reason
-  // "short") and re-read at closing until the sixth day after the drop lowers
-  // its surplus to the badge; from then on it carries. The other models
-  // follow the sweep, or are stale six days after their last read.
-  const lastRead = new Map<number, number>();
-  for (let i = 0; i < MODELS; i++) lastRead.set(i, 600);
-  for (const i of dropped.models) lastRead.set(i, day);
-  const summary = (reasons: readonly (string | null)[]) => {
-    const counts = new Map<string, number>();
-    for (const reason of reasons)
-      if (reason) counts.set(reason, (counts.get(reason) ?? 0) + 1);
-    const total = [...counts.values()].reduce((sum, n) => sum + n, 0);
-    const listed = [...counts].map(([reason, n]) => `${reason} ${n}`);
-    return `Jim's Import Read ${total} of ${MODELS} model pages (${listed.join(", ")}); carried ${MODELS - total}.`;
-  };
+  // Daily normal incremental runs read every page. This one reads as short
+  // and is re-read at closing until the sixth day after the drop lowers its
+  // surplus to the badge. From then on it is a daily read, and closing keeps
+  // re-reading it against the lowered surplus, kept as a ceiling for twelve
+  // run days, so a one-off fault behind the old surplus still fails the run.
   let previous = dropped.terminal;
   for (let today = day + 1; today <= day + 7; today++) {
-    const reasons = Array.from({ length: MODELS }, (_, i) => {
-      if (i === model && today <= day + 6) return "short";
-      if (today - (lastRead.get(i) ?? 600) >= 6) return "stale";
-      if (slice(today).includes(i)) return "sweep";
-      return null;
-    });
-    const reads = reasons.flatMap((reason, i) => (reason ? [i] : []));
-    const run = await census(native, today, previous);
-    expect(run.models).toEqual(reads);
-    expect(run.rereads).toEqual(mismatched(reads));
-    expect(run.requests).toBe(
-      2 + 33 + reads.length + 2 + mismatched(reads).length,
+    const reasons = ALL.map((i) =>
+      i === model && today <= day + 6 ? "short" : "daily",
     );
-    expect(run.warnings.at(-1)).toBe(summary(reasons));
+    const run = await census(native, today, previous);
+    expectFullRead(run, reasons, MISMATCHED);
+    expect(run.rereads).toContain(model);
     expect(run.vins).toEqual(native.vins());
-    for (const vin of target.lost) expect(run.vins).not.toContain(vin);
+    for (const vin of gone) expect(run.vins).not.toContain(vin);
     expect(confirmed(run.terminal)).toEqual(SHORT);
     // The kept surplus stays unconfirmed until the run that lowers it.
     expect(unconfirmedSurplus(run.terminal)).toEqual(
       today < day + 6 ? [model] : [],
     );
-    if (today < day + 6) {
-      expect(run.rereads).toContain(model);
-      expect(evidence(run.terminal)).toEqual({
-        readDay: today,
-        expected: surplus,
-        lowSince: day,
-        surplusConfirmed: false,
-        confirmed: false,
-      });
-    } else if (today === day + 6) {
-      // lowSince + 6: the normal incremental run lowers the surplus, and
-      // with none left the page is confirmed.
-      expect(run.rereads).toContain(model);
-      expect(evidence(run.terminal)).toEqual({
-        readDay: today,
-        expected: badge,
-        lowSince: null,
-        surplusConfirmed: true,
-        confirmed: false,
-      });
-    } else {
-      // The badge-sized page is now its own expectation and carries.
-      expect(run.models).not.toContain(model);
-      expect(evidence(run.terminal)).toEqual({
-        readDay: day + 6,
-        expected: badge,
-        lowSince: null,
-        surplusConfirmed: true,
-        confirmed: false,
-      });
-    }
-    for (const i of reads) lastRead.set(i, today);
+    expect(evidence(run.terminal)).toEqual(
+      today < day + 6
+        ? {
+            readDay: today,
+            expected: surplus,
+            lowSince: day,
+            ceiling: null,
+            surplusConfirmed: false,
+            confirmed: false,
+          }
+        : // lowSince + 6: the normal incremental run lowers the surplus, and
+          // with none left the badge-sized page is its own expectation. The
+          // old surplus stays as the ceiling closing re-reads it against.
+          {
+            readDay: today,
+            expected: badge,
+            lowSince: null,
+            ceiling: surplus - badge,
+            surplusConfirmed: true,
+            confirmed: false,
+          },
+    );
     previous = run.terminal;
   }
 }, 600_000);

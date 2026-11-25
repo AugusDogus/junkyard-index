@@ -6,6 +6,7 @@ import {
   type ModelCensus as ModelCensusState,
   type ModelCensusControl,
   type ModelCensusDecision,
+  type ModelCensusReuse,
 } from "./model-census";
 
 const contract = "fixture-contract";
@@ -34,11 +35,13 @@ function run(
     /** Which cards a read page lists, by key, when not the usual ones. */
     tags?: ReadonlyMap<string, string>;
     shortPages?: "confirmed" | "unconfirmed";
+    reuse?: ModelCensusReuse;
   } = {},
 ) {
   const decisions = ModelCensus.plan(models, previous, day, {
     cards,
     triggers,
+    reuse: options.reuse ?? "unchanged-key",
   });
   const pages = decisions.map((d, i) => {
     if (d.kind === "carry") return d.evidence.page;
@@ -1068,7 +1071,10 @@ describe("ModelCensus", () => {
     for (let day = 101; day <= 111; day++)
       census = run(models, census, day).census;
     const today = 112;
-    const decisions = ModelCensus.plan(models, census, today, { cards });
+    const decisions = ModelCensus.plan(models, census, today, {
+      cards,
+      reuse: "unchanged-key",
+    });
     const due = decisions.flatMap((d, i) => (d.kind === "read" ? [i] : []));
     expect(due.length).toBeGreaterThan(0);
     expect(
@@ -1109,7 +1115,10 @@ describe("ModelCensus", () => {
     );
     expect(broken.size).toBeGreaterThan(0);
     const attempt = (today: number) => {
-      const decisions = ModelCensus.plan(models, census, today, { cards });
+      const decisions = ModelCensus.plan(models, census, today, {
+        cards,
+        reuse: "unchanged-key",
+      });
       const pages = decisions.map((d, i) => {
         const key = models[i]?.key ?? "";
         if (d.kind === "carry") return d.evidence.page;
@@ -1141,7 +1150,10 @@ describe("ModelCensus", () => {
       census = run(models, census, day).census;
     const late = (m: ModelCensusControl) =>
       ModelCensus.slice(m.key) === 111 % MODEL_CENSUS_SWEEP_DAYS;
-    const decisions = ModelCensus.plan(models, census, 112, { cards });
+    const decisions = ModelCensus.plan(models, census, 112, {
+      cards,
+      reuse: "unchanged-key",
+    });
     const pages = decisions.map((d, i) => {
       const model = models[i];
       if (!model) throw new Error("fixture decision has no model");
@@ -1230,5 +1242,67 @@ describe("ModelCensus", () => {
         "confirmed",
       ),
     ).toThrow("cannot close");
+  });
+});
+
+describe("ModelCensus with reuse never", () => {
+  const never = { reuse: "never" } as const;
+
+  test("every incremental run reads every model page, so nothing is carried", () => {
+    const models = controls(240);
+    let census = run(models, null, 100, undefined, never).census;
+    for (let day = 101; day <= 100 + 2 * MODEL_CENSUS_SWEEP_DAYS; day++) {
+      const next = run(models, census, day, undefined, never);
+      expect(
+        next.decisions.every((d) => d.kind === "read" && d.reason === "daily"),
+      ).toBe(true);
+      expect(next.census.models.every((m) => m.readDay === day)).toBe(true);
+      census = next.census;
+    }
+  });
+
+  test("a second run on the same day reads every model page again", () => {
+    const models = controls(12);
+    const first = run(
+      models,
+      run(models, null, 100, undefined, never).census,
+      101,
+      undefined,
+      never,
+    );
+    const again = run(models, first.census, 101, undefined, never);
+    expect(reads(again.decisions)).toEqual(models.map((_, i) => i));
+  });
+
+  test("reads keep their count, trigger, new and short reasons", () => {
+    const models = controls(12);
+    const cold = run(models, null, 100, undefined, {
+      ...never,
+      listed: new Map([["model-5", 2]]),
+      shortPages: "unconfirmed",
+    });
+    const changed = [
+      ...models.map((m, i) => (i === 3 ? { ...m, count: 4 } : m)),
+      { key: "model-new", count: 1 },
+    ];
+    const next = run(changed, cold.census, 101, new Set(["model-7"]), never);
+    expect(next.decisions[3]).toEqual({ kind: "read", reason: "count" });
+    expect(next.decisions[5]).toEqual({ kind: "read", reason: "short" });
+    expect(next.decisions[7]).toEqual({ kind: "read", reason: "trigger" });
+    expect(next.decisions.at(-1)).toEqual({ kind: "read", reason: "new" });
+    expect(next.decisions[0]).toEqual({ kind: "read", reason: "daily" });
+    expect(ModelCensus.summary(next.decisions)).toBe(
+      "Read 13 of 13 model pages (daily 9, count 1, short 1, trigger 1, new 1); carried 0.",
+    );
+  });
+
+  test("a gap still reads every page as a gap run", () => {
+    const models = controls(6);
+    const cold = run(models, null, 100, undefined, never);
+    expect(
+      run(models, cold.census, 103, undefined, never).decisions.every(
+        (d) => d.kind === "read" && d.reason === "gap",
+      ),
+    ).toBe(true);
   });
 });

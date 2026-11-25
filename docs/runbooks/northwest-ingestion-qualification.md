@@ -57,25 +57,31 @@ until the closing root, make directory and model re-reads match. The 1% unrecove
 rule still applies. Checkpoints retain the complete native claims and validate
 contiguous graph prefixes, request counts, context and hashes.
 
-Model pages follow the shared [incremental model census](model-census.md): gap
-full reads, short-page confirmation, the badge floor and the 97% replay floor.
+Model pages follow the shared [model census](model-census.md) with
+`reuse: "never"`: every model page is read on every run, plus gap full reads,
+short-page confirmation, the badge floor and the 97% replay floor. Badge-only
+reuse was removed: a donor crushed and another placed under the same model
+keeps the badge, so a page carried on its badge would hide both changes.
 Northwest specifics:
 
-- Every run reads the root, the make directory and all 36 make menus. Closing
-  re-reads the root, the make directory and every model page read this run whose
-  cards differ from its badge or fall below its expected cards, so Northwest
-  confirms short pages. Make menus are not re-read at closing; a menu change
-  shows up as a badge change in the next run's menus.
+- Every run reads the root, the make directory, all 36 make menus and all 334
+  model pages. A page's read reason is `new`, `count` or `short` when one
+  applies and `daily` otherwise; after a missed, failed or rejected run every
+  page reads as `gap`. Nothing is carried. Closing re-reads the root, the make
+  directory and every model page whose cards differ from its badge or fall
+  below its expected cards, so Northwest confirms short pages. Make menus are
+  not re-read at closing; a menu change shows up as a badge change in the next
+  run's menus.
 - Badge floor: 95% (`NORTHWEST_MINIMUM_BADGE_COVERAGE`). The saved census covers
-  99.63% (6,934 of 6,960 badge cards). Emptying any one sweep slice of it leaves
-  76.0% to 88.9%. Cutting any one slice to one card per model leaves 77.0% to
-  89.6% of badges and 77.3% to 90.0% of last accepted cards, so both floors fail it.
-- Requests per day: a cold or full read (first run, contract change, or any run
-  after a missed, failed or rejected run until one is accepted) is 380 requests
-  on the saved census: root, directory, 36 menus and 334 models, then closing
-  root, directory and the six models whose cards differ from their badges. A
-  steady day is about 96: the 38 opening pages, about 56 sweep models and 2
-  closing pages, plus changed, new or short models and their closing re-reads.
+  99.63% (6,934 of 6,960 badge cards). Emptying any one of six key-hash groups
+  of its models (about 56 models each) leaves 76.0% to 88.9%. Cutting one group
+  to one card per model leaves 77.0% to 89.6% of badges and 77.3% to 90.0% of
+  last accepted cards, so both floors fail it.
+- Requests per day: every run is a full read, 380 requests on the saved census:
+  root, directory, 36 menus and 334 models, then closing root, directory and
+  the six models whose cards differ from their badges, plus a closing re-read
+  for any other page below its expected cards. Cold and gap runs cost the same
+  and differ only in read reasons and in confirming no short page.
 - Census contract `incremental-model-census-v3`; cursor cap 16 MiB.
 
 The Nov 14 qualification follow-up made 17 provider requests: 14 HTML pages,

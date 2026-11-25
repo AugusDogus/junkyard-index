@@ -43,22 +43,23 @@ physical yards.
 ## Runtime contract
 
 The connector reads official homepage ownership, the make directory and all
-literal make controls. Model pages go through the shared incremental census;
-[model-census.md](model-census.md) states its rules (incremental and gap
-reads, short pages, closing, coverage floors and seeding). Central keys each
-model by make path/label and model path/label. It has no arrival triggers: the
-`/iislatestarrivals/` page omits about 38% of new donors, so it is not read or
-used as a delta. Its badge floor is 95% (below). Its closing confirms short
-pages. Counted from the saved graph, a cold or gap full read is about 629 GETs:
-583 opening pages, then closing reads of the root, the make directory and the
-44 surplus models. A steady day is about 146 GETs: the root, the directory, 46
-make menus and about 89 sweep pages, then closing reads of the root, the
-directory and the roughly 7 sweep pages that list surplus cards. Each new,
-changed, short or stale model adds a read. A surplus model listing less than
-its sticky surplus adds about two GETs a day for 6 to 12 run days, and after a
-cold or gap read each surplus first seen or grown on that read (up to the 44
-surplus models after a cold read) costs two GETs, its read and closing
-re-read, to confirm. The census contract is
+literal make controls. Model pages go through the shared model census;
+[model-census.md](model-census.md) states its rules (read reasons, short
+pages, closing, coverage floors and seeding). Central reads every model page
+on every run (`reuse: "never"`) and carries none forward. It used to carry a
+model whose key and badge were unchanged for up to six days, reading only a
+sweep slice each day, but a donor crushed and another placed under the same
+model keeps the badge, so a carried page could miss both. The census still
+supplies read reasons (`cold`, `gap`, `new`, `count`, `short`, otherwise
+`daily`), expected cards, closing floors and coverage references. Central
+keys each model by make path/label and model path/label. It has no arrival
+triggers: the `/iislatestarrivals/` page omits about 38% of new donors, so it
+is not read or used as a delta. Its badge floor is 95% (below). Its closing
+confirms short pages. Counted from the saved graph, every run is a full read
+of about 629 GETs: 583 opening pages (the root, the directory, 46 make menus
+and 535 model pages), then closing reads of the root, the make directory and
+the 44 surplus models. Each short page, and each surplus model listing less
+than its sticky surplus or ceiling, adds one closing re-read. The census contract is
 `DD15/literal-premium-model-graph/all-required-destination-conflicts-quarantined/incremental-model-census-v3`;
 a contract change starts a cold census. It requests only owned HTTPS
 browse URLs. It does not construct aliases or request donor details, components,
@@ -81,8 +82,8 @@ is then published as the union of both reads, even when the first read fell
 short of the expected count: Central lists cards before its badges count them
 (G6 listed 15 cards under a badge of 14), so a surplus stored from one run's
 arrivals can count cards the badge has since caught up with. Such a page is
-never stored as confirmed and is read again next run while it lists less than
-its expected count. A re-read at or below its badge must repeat exactly, so a
+never stored as confirmed and is read as short next run while it lists less
+than its expected count. A re-read at or below its badge must repeat exactly, so a
 short page is confirmed only by an identical re-read. The make directory must
 repeat every make path and label in the same order; a make that appears,
 disappears, is relabelled or moves fails the run. Make badges may differ:
@@ -94,22 +95,25 @@ expected count is its badge plus a sticky surplus (44 saved models list
 surplus cards): it is lowered only after six run days of lower reads, or twelve when the badge rose by at least the missing cards during that window, which looks like arrival lag; a surplus lowered by time while the page still lists less stays as a ceiling, so closing still re-reads any read below it, see [Incremental model census](model-census.md). A page below its
 badge that repeats is stored as confirmed evidence only by a normal
 incremental run (not a cold, gap or outage full read). Any other page below its expected count, including a surplus
-page that only fell toward its badge, is read again next run. Other per-model
+page that only fell toward its badge, is read as short next run. Other per-model
 changes during a run surface as badge changes in the next run's opening menus.
 
-Before the snapshot, the union of read and carried cards, each model capped at
-its own badge, must cover at least 95% of today's model badges, or nothing is
+Before the snapshot, the cards read this run, each model capped at its own
+badge, must cover at least 95% of today's model badges, or nothing is
 published. The saved census covers 100% (6,463 of 6,463 badge cards; all 44
-mismatched models list surplus cards). The same union, against the last
+mismatched models list surplus cards). The same cards, against the last
 accepted card count of every model with a last accepted page (lowered by any
 badge drop), must also cover the shared 97% replay floor while the last
-accepted run is under six days old. One sweep slice of models listing a single
-card each drops badge coverage to 81.9% to 89.9% and replay coverage to 81.8%
-to 89.9% across the six slices (lightest: slice 5, 87 models and 745 cards, at
-89.87% badge and 89.90% replay), while the 1,985 floor still passes, so both
-checks fail the first broken day. After a missed, failed or rejected run, the next run
-reads every model and is judged against the same last accepted census. Once
-that census is six or more days old, only the badge floor applies.
+accepted run is under six days old. The replay floor still matters under
+daily reads: a model whose badge undercounts its surplus rows can be cut to
+one card and keep badge coverage above 95%. A sixth of the models listing a
+single card each (measured on the six saved key slices) drops badge coverage
+to 81.9% to 89.9% and replay coverage to 81.8% to 89.9% (lightest: 87 models
+and 745 cards, at 89.87% badge and 89.90% replay), while the 1,985 floor
+still passes, so both checks fail the first broken day. After a missed,
+failed or rejected run, the next run reads every model as `gap` and is judged
+against the same last accepted census. Once that census is six or more days
+old, only the badge floor applies.
 Changed closing fingerprints stop emission. These controls do not establish an
 atomic snapshot or stability of unrefetched pages. All old badge differences
 remain diagnostics; the actual classified cards supply the quality denominator.

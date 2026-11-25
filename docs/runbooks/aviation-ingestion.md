@@ -61,8 +61,11 @@ then enumerates every literal make and model. It never constructs donor routes
 from YMM, fetches hidden inventory links, individual details or images, submits
 lookups, follows redirects or retries a failed request.
 
-Model lists use the shared incremental census. See
-[the model census rules](model-census.md) for which lists a run reads, gap and
+Model lists use the shared model census with `reuse: "never"`: every run reads
+every model list, and no list is carried from an earlier run. Badge-only reuse
+was removed because a donor crushed and another placed under the same model
+keeps the badge, so a carried list would publish the old donor and miss the new
+one. See [the model census rules](model-census.md) for read reasons, gap and
 cold full reads, short-page confirmation, both coverage floors and seeding from
 the newest accepted publication. Aviation specifics:
 
@@ -74,21 +77,19 @@ the newest accepted publication. Aviation specifics:
   lists carry surplus cards above their badge; that surplus stays in their
   expected cards across badge changes. Changed graph/list fingerprints fail
   before emission.
-- Badge floor: read and carried model cards, each model capped at its own
+- Badge floor: model cards read this run, each model capped at its own
   badge, must cover at least 95% of today's model badges
   (`AVIATION_MINIMUM_BADGE_COVERAGE`). Every November 12 model list held at
   least its badge (2,482 of 2,482 badge cards on 404 models), and November 19
   badge changes matched card changes. The shared 97% replay floor
   (`MODEL_CENSUS_REPLAY_MINIMUM`) also applies to every model with a last
-  accepted page. A sweep slice cut to one card per model leaves 82.8% to 88.6%
-  of the badges and 82.7% to 88.8% of the 2,524 replayed cards, so both floors
-  fail the first such run and nothing publishes.
-- Request cost, estimated from the November 12 graph: a cold or full read
-  (first run, or the day after a missed, failed or rejected run) is about 485
-  GETs (47 opening and make menus, 404 model lists, 2 closing controls and the
-  about 32 surplus lists). A steady day is about 120 GETs (47 opening and make
-  menus, about a sixth of the model lists plus changes, triggers and short
-  pages, and their closing re-reads). Both stay under the 650 GET run cap.
+  accepted page. A sixth of the model lists cut to one card each leaves 82.8%
+  to 88.6% of the badges and 82.7% to 88.8% of the 2,524 replayed cards, so
+  both floors fail the first such run and nothing publishes.
+- Request cost, estimated from the November 12 graph: every run (cold, gap or
+  daily) is about 485 GETs (47 opening and make menus, 404 model lists, 2
+  closing controls and closing re-reads of the about 32 surplus lists and any
+  short lists). That stays under the 650 GET run cap.
 
 The saved qualification has nine byte-stable live closing bodies: `/parts/`,
 KIA and Pontiac make directories, and the Rio, Tahoe, Mercedes C-Class,
@@ -100,7 +101,7 @@ qualification of the complete known finite graph plus arrivals. It does not
 prove simultaneous stability of every model list or inventory outside the
 published graph. Closing contact, every make directory and the broader model
 control set (the historical closing set at qualification, before the
-incremental census) have not all been captured live. Saved replay reuses opening bodies
+model census) have not all been captured live. Saved replay reuses opening bodies
 for those added controls; a future authorized live run must execute them.
 
 Chunks contain at most eight serial GETs and have a three-minute deadline.

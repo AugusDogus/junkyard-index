@@ -55,14 +55,19 @@ The excluded Lexington listing receives neither this census nor a second yard.
 
 The connector reads official homepage ownership, latest arrivals, the make
 directory and every literal make on every run. Model pages follow the shared
-[incremental model census](model-census.md). On an incremental day, a model is
-read when it is new, its badge changed, an opening arrival names it but its
-carried page lacks that donor, its page is short, its evidence is six run days
-old, or it falls in that day's stable one-sixth sweep slice. Every other model
-carries its last accepted page from the terminal cursor of the newest accepted
-publication, whether or not search published it. When the last accepted census
-is more than one day old, every model page is read. A missing, incompatible or
-corrupt census starts a full (cold) census. Only owned HTTPS browse
+[model census](model-census.md) with `reuse: "never"`: every model page is read
+on every run and nothing is carried. A model page is the only complete
+VIN-bearing listing, and a donor crushed and another placed under the same
+model keeps its badge, so an unchanged badge proves nothing about the cards.
+Badge-only reuse (sweep slices and six-day carried pages) was removed for that
+reason. The census from the terminal cursor of the newest accepted publication,
+whether or not search published it, still supplies read reasons, expected
+cards, closing floors and coverage references. On a normal incremental day the
+reason is `new`, `count` (badge changed), `trigger` (an opening arrival names
+the model but its last accepted page lacks that donor), `short`, or `daily`
+otherwise. When the last accepted census is more than one day old, the reason
+is `gap`. A missing, incompatible or corrupt census starts a cold census
+(`cold`). Only owned HTTPS browse
 URLs are allowed. It never fetches donor details, images, parts searches or
 inferred routes. All supplier declarations must agree on `QQ91`. Complete
 HTML, native owner, physical address and a recognized native phone are checked.
@@ -71,11 +76,11 @@ unredirected 200 text/html. Failures receive no automatic retry.
 
 Closing controls repeat ownership, the make directory and every model read
 this run whose cards differ from its badge or fall below its expected cards.
-Make menus and arrivals are not re-read at closing. Carried models are not
-re-read; other per-model changes surface as badge changes in the next run's
-opening menus. Changed closing fingerprints stop emission. A short page whose
-closing re-read matched in a normal incremental run is stored as confirmed;
-cold, gap and outage full reads confirm none. These controls do not claim
+Make menus and arrivals are not re-read at closing. Other model pages are not
+re-read at closing; they are read again on the next run. Changed closing
+fingerprints stop emission. A short page whose closing re-read matched in a
+normal incremental run is stored as confirmed; cold, gap and outage full reads
+confirm none. These controls do not claim
 simultaneous stability of every unrefetched model page. Explicit empty
 pages must bind their native h1 and lack donor continuation.
 
@@ -85,13 +90,12 @@ pages, the 97% replay floor and the outage path. A Plus specifics:
 - The badge floor is 95% (`APLUS_MINIMUM_BADGE_COVERAGE`), because published
   model counts matched model cards exactly in every observed census (1,133 of
   1,133 on 210 models).
-- Closing confirms short pages on normal incremental runs, so a confirmed
-  short page is carried rather than re-read on the next run.
-- With the November 12 graph (35 makes, 232 models), a cold or gap read costs
-  270 opening GETs plus two closing GETs and one re-read per short page. A
-  steady day costs about 80 GETs: 38 fixed opening GETs, about 39 sweep pages
-  and two closing GETs, plus new, changed, short, stale and arrival-triggered
-  models and their closing re-reads.
+- Closing confirms short pages on normal incremental runs. A confirmed short
+  page is still read on the next run (`daily`) and re-read at closing, so a
+  change on it stops emission.
+- With the November 12 graph (35 makes, 232 models), every run (cold, gap or
+  incremental) costs 270 opening GETs (38 fixed opening GETs and 232 model
+  pages) plus two closing GETs and one closing re-read per short page.
 
 Chunks perform at most eight serial GETs under a three-minute deadline.
 Each request and complete body share a 20-second deadline. Transport waits
@@ -180,5 +184,8 @@ Focused tests cover native parsing, numeric punctuation, explicit empty h1
 binding, supplier/owner checks, optional repeated fields, native arrival alias
 boundaries, all-occurrence conflict quarantine, quality guards, serialized
 resumption, closing changes, HTTP envelopes, wire bounds and callback failures.
+Census tests cover daily reads of every model page (including a donor replaced
+under an unchanged badge), short page confirmation, the badge and replay floors,
+and the gap and outage paths.
 `scripts/soak-aplus.ts` counts and discards results while round-tripping cursors.
 It owns neither transport nor source admission.

@@ -4,7 +4,7 @@ import {
   streamAviationInventoryWithRequestGate,
   type AviationStreamResult,
 } from "./aviation-connector";
-import { AviationCursor } from "./aviation-cursor";
+import { AviationCursor, aviationCensusPlan } from "./aviation-cursor";
 import type { AviationControl, AviationRecord } from "./aviation-parser";
 import {
   AVIATION_CONTACT,
@@ -17,14 +17,11 @@ import {
   aviationFixtureContact,
   aviationFixtureDirectory,
   aviationFixtureModelPage,
-  aviationFixturePage,
   aviationFixtureRoot,
 } from "./aviation-test-fixtures";
 import {
   MODEL_CENSUS_DAY_MS,
   MODEL_CENSUS_REPLAY_MINIMUM,
-  MODEL_CENSUS_SWEEP_DAYS,
-  ModelCensus,
 } from "./model-census";
 
 const originalFetch = globalThis.fetch;
@@ -170,23 +167,8 @@ const every = Array.from({ length: 12 }, (_, i) => i);
 /** The census key aviationCensusControls builds for fixture model `i`. */
 const key = (i: number) =>
   JSON.stringify([make.path, make.label, control(i, 0).path, label(i)]);
-/** Fixture models 0-11 in day `day`'s sweep slice, ascending. */
-const sweep = (day: number) =>
-  every.filter(
-    (i) => ModelCensus.slice(key(i)) === day % MODEL_CENSUS_SWEEP_DAYS,
-  );
-/** First day after `after` whose sweep slice holds a fixture model and whose
- * lowest such model satisfies `accept`. */
-function sweepDay(
-  after: number,
-  accept: (first: number) => boolean = () => true,
-) {
-  for (let day = after + 1; day <= after + MODEL_CENSUS_SWEEP_DAYS; day++) {
-    const first = sweep(day)[0];
-    if (first !== undefined && accept(first)) return day;
-  }
-  throw new Error(`No fixture sweep slice after day ${after} fits the test`);
-}
+/** Pages a site fault cuts to one card each: a sixth of the fixture models. */
+const broken = [2, 7];
 
 test("Aviation cold start reads every model and publishes its census", async () => {
   const native = yard();
@@ -239,56 +221,65 @@ test("Aviation treats unreadable or incompatible previous censuses as warned col
   }
 });
 
-test("Aviation carries unread models, rotates the sweep and reads changes", async () => {
+test("Aviation reads every model page on every incremental run and reads changes", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
-  // Two later days with distinct, non-empty sweep slices, both before any
-  // day-600 evidence reaches the six-day ceiling.
-  const first = sweepDay(600);
-  const second = sweepDay(first);
-  expect(second - 600).toBeLessThan(MODEL_CENSUS_SWEEP_DAYS);
-  const firstSweep = sweep(first);
-  const secondSweep = sweep(second);
-  expect(firstSweep.length).toBeGreaterThan(0);
-  expect(secondSweep.length).toBeGreaterThan(0);
-  expect(secondSweep.some((i) => firstSweep.includes(i))).toBe(false);
-
-  // Only the first day's sweep slice is read.
-  const next = await census(native, first, cold.terminal);
-  expect(next.models).toEqual(firstSweep);
-  // Four opening pages, one menu, the sweep models, closing contact and makes.
-  expect(next.requests).toBe(7 + firstSweep.length);
-  // Carried donors are still published in full.
+  // An unchanged badge proves nothing about the cards under it, so the next
+  // day reads every model page again at the cost of a full read.
+  const next = await census(native, 601, cold.terminal);
+  expect(next.models).toEqual(every);
+  expect(next.requests).toBe(cold.requests);
   expect(next.vins).toEqual(allVins(native));
   expect(next.warnings.at(-1)).toBe(
-    `Aviation Read ${firstSweep.length} of 12 model pages (sweep ${firstSweep.length}); carried ${12 - firstSweep.length}.`,
+    "Aviation Read 12 of 12 model pages (daily 12); carried 0.",
   );
 
-  // A sold donor changes the published count of a model outside the second
-  // day's slice and a new model appears; both are read alongside that slice.
-  const sold = every.find((i) => !secondSweep.includes(i));
-  if (sold === undefined)
-    throw new Error("Expected a model outside the second sweep slice");
-  native.rows.set(sold, donors(sold, 4));
+  // A sold donor changes model 0's published count and a new model appears;
+  // every other page is still read for the day.
+  native.rows.set(0, donors(0, 4));
   native.rows.set(12, donors(12));
-  const changed = await census(native, second, next.terminal);
-  const reads = [...secondSweep, sold, 12].sort((a, b) => a - b);
-  expect(changed.models).toEqual(reads);
+  const changed = await census(native, 602, next.terminal);
+  expect(changed.models).toEqual([...every, 12]);
+  // Four opening pages, one menu, 13 models, closing contact and makes.
+  expect(changed.requests).toBe(7 + 13);
   expect(changed.vins).toEqual(allVins(native));
   // Reasons are listed in the order they first occur in model order.
-  const reasons =
-    sold < (secondSweep[0] ?? Infinity)
-      ? `count 1, sweep ${secondSweep.length}`
-      : `sweep ${secondSweep.length}, count 1`;
   expect(changed.warnings.at(-1)).toBe(
-    `Aviation Read ${reads.length} of 13 model pages (${reasons}, new 1); carried ${13 - reads.length}.`,
+    "Aviation Read 13 of 13 model pages (count 1, daily 11, new 1); carried 0.",
   );
 });
 
-test("Aviation re-reads every model within six days, even across missed runs", async () => {
+test("Aviation reads a page whose donor was crushed and replaced under the same badge", async () => {
   const native = yard();
-  let previous = (await census(native, 600, null)).terminal;
-  const lastRead = new Map<number, number>(every.map((i) => [i, 600]));
+  const cold = await census(native, 600, null);
+  // One donor leaves model 3 and another takes its place: the badge and the
+  // model key stay the same.
+  const crushed = record(3, 5);
+  const placed = record(3, 6);
+  native.rows.set(3, [...donors(3, 4), placed]);
+  const next = await census(native, 601, cold.terminal);
+  expect(next.models).toEqual(every);
+  expect(next.requests).toBe(cold.requests);
+  expect(next.warnings.at(-1)).toBe(
+    "Aviation Read 12 of 12 model pages (daily 12); carried 0.",
+  );
+  expect(next.vins).toEqual(allVins(native));
+  expect(next.vins).toContain(placed[0]);
+  expect(next.vins).not.toContain(crushed[0]);
+  // The terminal census holds today's page, not the one read on day 600.
+  const terminal = AviationCursor.parse(JSON.stringify(next.terminal));
+  if (terminal.phase !== "complete" || !terminal.census)
+    throw new Error("Expected a terminal census");
+  const evidence = terminal.census.models.find((e) => e.key === key(3));
+  expect(evidence?.readDay).toBe(601);
+  expect(evidence?.page.records.map((r) => r[0])).toContain(placed[0]);
+  expect(evidence?.page.records.map((r) => r[0])).not.toContain(crushed[0]);
+});
+
+test("Aviation reads every model every day, including after missed runs", async () => {
+  const native = yard();
+  const previousRun = await census(native, 600, null);
+  let previous = previousRun.terminal;
   // Skip days 601 and 602 entirely: the gap makes day 603 read every model.
   const gap = await census(native, 603, previous);
   expect(gap.models).toEqual(every);
@@ -296,35 +287,25 @@ test("Aviation re-reads every model within six days, even across missed runs", a
   expect(gap.warnings.at(-1)).toBe(
     "Aviation Read 12 of 12 model pages (gap 12); carried 0.",
   );
-  for (const model of gap.models) lastRead.set(model, 603);
   previous = gap.terminal;
-  let reads = 0;
-  // Daily runs resume incrementally and read only each day's sweep slice.
-  const days = [604, 605, 606, 607, 608, 609, 610, 611, 612];
-  for (const day of days) {
+  // Daily runs resume incrementally and still read every model page.
+  for (const day of [604, 605, 606, 607, 608, 609, 610, 611, 612]) {
     const run = await census(native, day, previous);
-    expect(run.models).toEqual(sweep(day));
-    reads += run.models.length;
-    for (const model of run.models) lastRead.set(model, day);
-    for (const read of lastRead.values()) expect(day - read).toBeLessThan(6);
+    expect(run.models).toEqual(every);
+    expect(run.requests).toBe(previousRun.requests);
+    expect(run.warnings.at(-1)).toBe(
+      "Aviation Read 12 of 12 model pages (daily 12); carried 0.",
+    );
     expect(run.vins).toEqual(allVins(native));
     previous = run.terminal;
   }
-  // Steady state reads about a sixth of the models per day.
-  expect(reads).toBe(19);
-  expect(reads / days.length).toBeLessThanOrEqual(12 / 6 + 1);
 });
 
-test("Aviation checkpoints reject carried pages that differ from the census and skipped reads", async () => {
+test("Aviation checkpoints reject a model page skipped without its read", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
-  // A day whose sweep slice skips model 0, so the run opens on carried pages.
-  const day = sweepDay(600, (first) => first > 0);
-  const due = sweep(day);
-  const firstDue = due[0];
-  if (firstDue === undefined) throw new Error("Expected a non-empty sweep");
-  // Opening contact, root, parts, makes and the menu; models before the first
-  // due model are carried.
+  const day = 601;
+  // Opening contact, root, parts, makes and the menu; no model is carried.
   const paused = await Effect.runPromise(
     streamAviationInventoryWithRequestGate(
       {
@@ -340,24 +321,20 @@ test("Aviation checkpoints reject carried pages that differ from the census and 
   if (progress.phase !== "models" || progress.previous === null)
     throw new Error("Expected an incremental model checkpoint");
   const previous = progress.previous;
-  expect(progress.pages).toHaveLength(firstDue);
+  expect(progress.pages).toHaveLength(0);
+  expect(aviationCensusPlan(progress)).toEqual(
+    every.map(() => ({ kind: "read", reason: "daily" })),
+  );
+  // Model 0 is due for a read today; storing its last accepted page as if it
+  // were carried, without the GET, is refused.
+  const accepted = previous.models[0];
+  if (!accepted) throw new Error("Expected census evidence for model 0");
   expect(() =>
     AviationCursor.checkpoint({
       ...progress,
-      pages: [aviationFixturePage(donors(0, 4)), ...progress.pages.slice(1)],
+      pages: [accepted.page],
     }),
-  ).toThrow("carried model page differs");
-  // The first due model is in today's sweep; skipping it as if carried is
-  // refused.
-  const carried = previous.models[firstDue];
-  if (!carried)
-    throw new Error(`Expected census evidence for model ${firstDue}`);
-  expect(() =>
-    AviationCursor.checkpoint({
-      ...progress,
-      pages: [...progress.pages, carried.page],
-    }),
-  ).toThrow("not due for a read");
+  ).toThrow("request accounting");
   expect(() =>
     AviationCursor.checkpoint({ ...progress, requests: progress.requests + 1 }),
   ).toThrow("request accounting");
@@ -379,11 +356,11 @@ test("Aviation checkpoints reject carried pages that differ from the census and 
     );
     cursor = result.cursor;
   }
-  // The sweep models, then closing contact and makes.
-  expect(native.urls.length - before).toBe(due.length + 2);
+  // Every model, then closing contact and makes.
+  expect(native.urls.length - before).toBe(every.length + 2);
 });
 
-test("Aviation starts a warned cold census when a carried page fails its fingerprint", async () => {
+test("Aviation starts a warned cold census when a stored census page fails its fingerprint", async () => {
   const native = yard();
   const cold = await census(native, 600, null);
   const terminal = AviationCursor.parse(JSON.stringify(cold.terminal));
@@ -441,33 +418,35 @@ async function failedCensus(
   throw new Error(`Expected the day-${day} Aviation run to fail`);
 }
 
-test("Aviation fails a run whose read and carried cards fall short of today's model counts", async () => {
-  // A site fault renders one card per model page while the menus look normal.
-  // A full daily read would have shown it everywhere; with carried pages only
-  // today's sweep slice breaks, and closing re-reads it identically.
+test("Aviation fails a run whose model cards fall short of today's model counts", async () => {
+  // A site fault renders one card on a sixth of the model pages while the
+  // menus look normal. Every page is read, and closing re-reads the short
+  // pages identically, so only the coverage floor stops the run.
   const native = yard();
   const cold = await census(native, 600, null);
-  const day = sweepDay(600);
-  const broken = sweep(day);
+  const day = 601;
   for (const model of broken) native.short.add(model);
   const failed = await failedCensus(day, cold.terminal);
   expect(String(failed.error)).toContain("coverage floor");
+  expect(String(failed.error)).toContain("promised by today's model counts");
   expect(String(failed.error)).toContain(`ACURA M${broken[0]} (4)`);
   expect(failed.callbacks).toBe(0);
   // The last accepted census stays usable once the pages recover.
   native.short.clear();
   const recovered = await census(native, day, cold.terminal);
-  expect(recovered.models).toEqual(broken);
+  expect(recovered.models).toEqual(every);
+  expect(recovered.warnings.at(-1)).toBe(
+    "Aviation Read 12 of 12 model pages (daily 12); carried 0.",
+  );
   expect(recovered.vins).toEqual(allVins(native));
 });
 
 test("Aviation surplus cards on some models never hide a shortfall on others", async () => {
-  // Models outside the broken slice list five cards under a badge of two, so
+  // Models outside the broken pages list five cards under a badge of two, so
   // the run's cards still exceed the badge total; each model counts only up to
   // its own badge.
   const native = yard();
-  const day = sweepDay(600);
-  const broken = sweep(day);
+  const day = 601;
   for (const model of every)
     if (!broken.includes(model)) native.badges.set(model, 2);
   // Surplus cards alone are healthy and every card is published.
@@ -488,13 +467,12 @@ test("Aviation surplus cards on some models never hide a shortfall on others", a
   expect(failed.callbacks).toBe(0);
 });
 
-test("Aviation fails a run whose sweep slice is cut to one card per model even while the badge floor holds", async () => {
-  // Models outside today's slice list enough donors that one card per swept
-  // page still leaves at least 95% of today's badges; the menus keep counting
-  // every donor. Only the replay of last accepted cards catches it.
+test("Aviation fails a run whose pages are cut to one card each even while the badge floor holds", async () => {
+  // Models outside the broken pages list enough donors that one card per
+  // broken page still leaves at least 95% of today's badges; the menus keep
+  // counting every donor. Only the replay of last accepted cards catches it.
   const native = yard();
-  const day = sweepDay(600);
-  const broken = sweep(day);
+  const day = 601;
   const outside = Math.ceil((95 * broken.length) / (12 - broken.length));
   for (const model of every)
     if (!broken.includes(model)) native.rows.set(model, donors(model, outside));
@@ -517,22 +495,20 @@ test("Aviation fails a run whose sweep slice is cut to one card per model even w
   expect(failed.callbacks).toBe(0);
 });
 
-test("Aviation re-reads a surplus page that a sweep read cut to its badge", async () => {
+test("Aviation re-reads a surplus page that a daily read cut to its badge", async () => {
   // Model m's badge counts four donors while its healthy page lists five, as on
-  // 32 live models. A sweep read that loses one real donor lists exactly the
-  // badge, so the page must not be carried as healthy for the next six days.
+  // 32 live models. A read that loses one real donor lists exactly the badge,
+  // so the page must not be stored as healthy.
   const native = yard();
-  const day = sweepDay(600);
-  expect(day).toBeLessThan(600 + MODEL_CENSUS_SWEEP_DAYS);
-  const m = sweep(day)[0];
-  if (m === undefined) throw new Error("Expected a non-empty sweep");
+  const day = 601;
+  const m = 3;
   native.badges.set(m, 4);
   const cold = await census(native, 600, null);
   expect(cold.vins).toEqual(allVins(native));
   const healthy = native.rows.get(m) ?? [];
   native.rows.set(m, healthy.slice(0, 4));
   const dropped = await census(native, day, cold.terminal);
-  // The sweep read and closing's confirmation re-read of the cut page.
+  // The daily read and closing's confirmation re-read of the cut page.
   expect(dropped.models.filter((i) => i === m)).toHaveLength(2);
   const terminal = AviationCursor.parse(JSON.stringify(dropped.terminal));
   if (terminal.phase !== "complete" || !terminal.census)
@@ -540,11 +516,13 @@ test("Aviation re-reads a surplus page that a sweep read cut to its badge", asyn
   const evidence = terminal.census.models.find((e) => e.key === key(m));
   expect(evidence?.expected).toBe(5);
   expect(evidence?.confirmed).toBe(false);
-  // The donor was transiently missing; the next run reads m outside its slice.
+  // The donor was transiently missing; the next run reads m as short (and
+  // closing re-reads it again, since it lists more than its badge).
   native.rows.set(m, healthy);
   const next = await census(native, day + 1, dropped.terminal);
-  expect(sweep(day + 1)).not.toContain(m);
-  expect(next.models).toContain(m);
-  expect(next.warnings.at(-1)).toContain("short 1");
+  expect(next.models.filter((i) => i === m)).toHaveLength(2);
+  expect(next.warnings.at(-1)).toBe(
+    "Aviation Read 12 of 12 model pages (daily 11, short 1); carried 0.",
+  );
   expect(next.vins).toEqual(allVins(native));
 });

@@ -34,11 +34,7 @@ import {
   serializeDurableSourceCursor,
 } from "./durable-source";
 import type { AviationRecord } from "./aviation-parser";
-import {
-  MODEL_CENSUS_DAY_MS,
-  MODEL_CENSUS_SWEEP_DAYS,
-  ModelCensus,
-} from "./model-census";
+import { MODEL_CENSUS_DAY_MS } from "./model-census";
 import { runWithQueuedHost } from "./provider-host-test-support";
 
 const originalFetch = globalThis.fetch;
@@ -453,14 +449,8 @@ test("Aviation confirms a model read with fewer cards than its badge at closing"
     aviationFixtureModel.path,
     aviationFixtureModel.label,
   ]);
-  // Cold on day, incremental on day + 1 and a carry on day + 2, which must not
-  // be the fixture model's sweep day.
-  const day = Array.from(
-    { length: MODEL_CENSUS_SWEEP_DAYS },
-    (_, i) => 600 + i,
-  ).find((d) => ModelCensus.slice(key) !== (d + 2) % MODEL_CENSUS_SWEEP_DAYS);
-  if (day === undefined)
-    throw new Error("Expected a day whose second successor carries the model");
+  // Cold on day, then incremental on day + 1 and day + 2.
+  const day = 600;
   const now = () => day * MODEL_CENSUS_DAY_MS;
   const confirmed = (cursor: AviationCursor) => {
     if (cursor.phase !== "complete" || !cursor.census)
@@ -524,17 +514,29 @@ test("Aviation confirms a model read with fewer cards than its badge at closing"
   );
   expect(confirmed(shortRead.cursor)).toBe(true);
 
-  // A carried short page was confirmed on the run that read it and is not
-  // re-read at closing.
-  const carriedFrom = native.urls.length;
-  const carried = await run(AviationCursor.initial, shortRead.cursor, day + 2);
-  expect(carried.status).toBe("complete");
-  expect(native.urls.slice(carriedFrom)).not.toContain(modelUrl);
-  expect(native.urls.length - carriedFrom).toBe(7);
-  expect(carried.warnings).toContain(
-    "Aviation Read 0 of 1 model pages; carried 1.",
+  // A confirmed short page is still read the next day (an unchanged badge
+  // proves nothing about its cards), and closing re-reads it again: the same
+  // nine requests as a full read.
+  const dailyFrom = native.urls.length;
+  const dailyPaused = await run(
+    AviationCursor.initial,
+    shortRead.cursor,
+    day + 2,
   );
-  expect(confirmed(carried.cursor)).toBe(true);
+  expect(dailyPaused.status).toBe("paused");
+  expect(dailyPaused.pagesProcessed).toBe(8);
+  const daily = await run(dailyPaused.cursor, shortRead.cursor, day + 2);
+  expect(daily.status).toBe("complete");
+  expect(daily.pagesProcessed).toBe(1);
+  expect(native.urls.length - dailyFrom).toBe(9);
+  expect(
+    native.urls.slice(dailyFrom).filter((url) => url === modelUrl),
+  ).toHaveLength(2);
+  expect(native.urls.at(-1)).toBe(modelUrl);
+  expect(daily.warnings).toContain(
+    "Aviation Read 1 of 1 model pages (daily 1); carried 0.",
+  );
+  expect(confirmed(daily.cursor)).toBe(true);
 
   // A short page that does not repeat at closing is never accepted.
   const opening = await run(AviationCursor.initial, null, day);
