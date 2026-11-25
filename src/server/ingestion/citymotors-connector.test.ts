@@ -10,6 +10,7 @@ import {
 } from "effect";
 import { validationRejectionKind } from "./ingestion-validation";
 import {
+  CITYMOTORS_BROWSER_REQUEST_TIMEOUT_MS,
   CITYMOTORS_REQUEST_BUDGET_MS,
   CitymotorsTransientFailure,
   fetchCitymotorsPage,
@@ -24,7 +25,16 @@ import {
 import { CitymotorsCursor, CitymotorsCursorSchema } from "./citymotors-cursor";
 import type { CitymotorsCanonicalVehicle } from "./citymotors-transform";
 import { CITYMOTORS_CATALOG } from "./citymotors-yard-metadata";
+import {
+  DocumentTransport,
+  type LazyDocumentTransport,
+} from "./document-transport";
 import { DURABLE_SOURCE_DEFINITIONS } from "./durable-source";
+import {
+  ProviderCapacityDeferred,
+  ProviderChunkClock,
+  ProviderTurnDeferred,
+} from "./provider-chunk-clock";
 import {
   citymotorsFixtureCatalog,
   citymotorsFixtureDetail,
@@ -198,6 +208,150 @@ test("City Motors pause/serialize/resume retains exact prefixes and emits nothin
   expect(requests).toHaveLength(12);
   expect((await run(cursor)).pagesProcessed).toBe(0);
   expect(requests).toHaveLength(12);
+});
+
+/** A browser transport that records its lease, opens and GETs, reading each
+ * document from the mocked native fetch. `leaseWaitMs` is added to the
+ * spied clock while the lease is taken, as a busy session lease would. */
+function recordingBrowser(
+  events: string[],
+  options: { leaseWaitMs?: number; advance?: (ms: number) => void } = {},
+): LazyDocumentTransport {
+  const documents: DocumentTransport = (url, init) => {
+    events.push("get " + url);
+    return DocumentTransport.native(url, init);
+  };
+  return {
+    // The real lease reports its wait to the chunk clock as queue time.
+    lease: ProviderChunkClock.queued(
+      Effect.sync(() => {
+        events.push("lease");
+        options.advance?.(options.leaseWaitMs ?? 0);
+      }),
+    ),
+    open: Effect.sync(() => {
+      events.push("open");
+      return documents;
+    }),
+  };
+}
+
+test("City Motors reads every document through its browser transport after taking the session lease", async () => {
+  const requests = mockInventory();
+  const events: string[] = [];
+  const result = await Effect.runPromise(
+    streamCitymotorsInventoryWithRequestGate(
+      { maxPages: 32, onBatch: () => Effect.void },
+      gate,
+      recordingBrowser(events),
+    ),
+  );
+  expect(result).toMatchObject({ status: "complete", pagesProcessed: 12 });
+  expect(events[0]).toBe("lease");
+  expect(events.filter((event) => event === "lease")).toHaveLength(1);
+  expect(
+    events.filter((event) => event.startsWith("get ")).map((e) => e.slice(4)),
+  ).toEqual(requests);
+  expect(requests).toHaveLength(12);
+});
+
+test("City Motors takes no browser session lease for a complete cursor", async () => {
+  const events: string[] = [];
+  const result = await Effect.runPromise(
+    streamCitymotorsInventoryWithRequestGate(
+      {
+        startCursor: { source: "citymotors", version: 1, phase: "complete" },
+        onBatch: () => Effect.void,
+      },
+      gate,
+      recordingBrowser(events),
+    ),
+  );
+  expect(result.status).toBe("complete");
+  expect(events).toEqual([]);
+});
+
+test("City Motors does not count waiting for the browser session lease against its GET budget", async () => {
+  const requests = mockInventory();
+  let now = 0;
+  const clock = spyOn(Date, "now").mockImplementation(() => now);
+  try {
+    const result = await Effect.runPromise(
+      streamCitymotorsInventoryWithRequestGate(
+        { maxPages: 32, onBatch: () => Effect.void },
+        (request) =>
+          request.pipe(
+            Effect.ensuring(
+              Effect.sync(() => {
+                now += CITYMOTORS_WORST_CASE_REQUEST_MS;
+              }),
+            ),
+          ),
+        recordingBrowser([], {
+          leaseWaitMs: CITYMOTORS_CHUNK_DEADLINE_MS,
+          advance: (ms) => {
+            now += ms;
+          },
+        }),
+      ),
+    );
+    const fitting = Math.floor(
+      (CITYMOTORS_CHUNK_DEADLINE_MS - CITYMOTORS_COMPLETION_RESERVE_MS) /
+        CITYMOTORS_WORST_CASE_REQUEST_MS,
+    );
+    expect(result).toMatchObject({ status: "paused", pagesProcessed: fitting });
+    expect(requests).toHaveLength(fitting);
+  } finally {
+    clock.mockRestore();
+  }
+});
+
+test.each([
+  new ProviderCapacityDeferred({
+    provider: "The Kernel spend guard",
+    detail: "City Motors has spent its daily Kernel cap.",
+  }),
+  new ProviderTurnDeferred({
+    host: "Kernel session lease",
+    stage: "wait",
+    elapsedMs: 1,
+    queuedMs: 1,
+  }),
+])(
+  "City Motors passes a browser deferral through unwrapped so the source retries its cursor (%#)",
+  async (deferral) => {
+    const requests = mockInventory();
+    const error = await Effect.runPromise(
+      streamCitymotorsInventoryWithRequestGate(
+        { maxPages: 32, onBatch: () => Effect.void },
+        gate,
+        { lease: Effect.fail(deferral), open: Effect.fail(deferral) },
+      ),
+    ).then(
+      () => null,
+      (cause: unknown) => cause,
+    );
+    expect(ProviderChunkClock.deferralOf(error)).toBe(deferral);
+    expect(requests).toHaveLength(0);
+  },
+);
+
+test("City Motors ends each GET before its browser's own request timeout, so a slow page stays a transient failure", () => {
+  expect(CITYMOTORS_REQUEST_BUDGET_MS).toBeLessThan(
+    CITYMOTORS_BROWSER_REQUEST_TIMEOUT_MS,
+  );
+});
+
+test("City Motors names a Cloudflare challenge in its refusal", async () => {
+  mockInventory({
+    response: {
+      status: 403,
+      headers: { "content-type": "text/html", "cf-mitigated": "challenge" },
+    },
+  });
+  await expect(run()).rejects.toThrow(
+    /received 403 \(a Cloudflare challenge\).*prior inventory is preserved/,
+  );
 });
 
 test("City Motors durable chunks fit worst-case native GETs inside the chunk deadline", () => {
@@ -429,8 +583,13 @@ test.each([
 );
 
 test("City Motors resends a failed GET only when it still fits the chunk deadline", async () => {
+  // The last GET that fits fails, leaving no time to send it once more.
+  const fitting = Math.floor(
+    (CITYMOTORS_CHUNK_DEADLINE_MS - CITYMOTORS_COMPLETION_RESERVE_MS) /
+      CITYMOTORS_WORST_CASE_REQUEST_MS,
+  );
   const requests = mockInventory({
-    transientFailures: { at: [3], kind: "timeout" },
+    transientFailures: { at: [fitting], kind: "timeout" },
   });
   let now = 0;
   const clock = spyOn(Date, "now").mockImplementation(() => now);
@@ -448,8 +607,11 @@ test("City Motors resends a failed GET only when it still fits the chunk deadlin
           ),
       ),
     );
-    expect(result).toMatchObject({ status: "paused", pagesProcessed: 2 });
-    expect(requests).toHaveLength(3);
+    expect(result).toMatchObject({
+      status: "paused",
+      pagesProcessed: fitting - 1,
+    });
+    expect(requests).toHaveLength(fitting);
   } finally {
     clock.mockRestore();
   }

@@ -15,6 +15,7 @@ export type BrowserSource =
   | "upullitdavie"
   | "upullrparts"
   | "six03"
+  | "citymotors"
   | "michigantruck";
 
 /**
@@ -35,7 +36,8 @@ export const BROWSER_PROVIDERS: Readonly<
   // Kernel caps (KERNEL_DAILY_BUDGET_USD in kernel-usage.ts); on Hyperbrowser
   // they would mint without them.
   upullrparts: "kernel",
-  // 603 is metered against its own Kernel caps too.
+  // 603 and City Motors are metered against their own Kernel caps too.
   six03: "kernel",
+  citymotors: "kernel",
   michigantruck: "hyperbrowser",
 };

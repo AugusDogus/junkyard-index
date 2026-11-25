@@ -8,6 +8,7 @@ import type {
   ConnectorChunkStatus,
 } from "./connector-chunk";
 import {
+  CITYMOTORS_BROWSER_REQUEST_TIMEOUT_MS,
   CITYMOTORS_REQUEST_BUDGET_MS,
   CitymotorsProviderError,
   CitymotorsTransientFailure,
@@ -30,9 +31,17 @@ import {
 } from "./citymotors-transform";
 import {
   CITYMOTORS_CATALOG,
+  CITYMOTORS_ORIGIN,
   CITYMOTORS_YARD,
   type CitymotorsYard,
 } from "./citymotors-yard-metadata";
+import { Config, Database } from "./context";
+import {
+  DocumentTransport,
+  type BrowserSessions,
+  type LazyDocumentTransport,
+} from "./document-transport";
+import { ProviderChunkClock } from "./provider-chunk-clock";
 import type { ProviderRequestGate } from "./provider-http-client";
 
 interface CitymotorsOptions<E, R> {
@@ -174,9 +183,12 @@ function advance(cursor: CitymotorsProgress, raw: string): CitymotorsProgress {
     }
   }
 }
+/** `transport` is native fetch by default; production reads through the
+ * chunk's browser (`streamCitymotorsInventory`). */
 export function streamCitymotorsInventoryWithRequestGate<E, R>(
   options: CitymotorsOptions<E, R>,
   gate: ProviderRequestGate,
+  transport: LazyDocumentTransport = DocumentTransport.nativeLazy,
 ) {
   return Effect.gen(function* () {
     const maxPages = options.maxPages ?? 8;
@@ -209,9 +221,13 @@ export function streamCitymotorsInventoryWithRequestGate<E, R>(
     if (cursor.phase === "complete")
       return { ...summary, status: "complete" as const };
     const started = Date.now();
+    // Time spent waiting for the browser session lease is queue time, which
+    // the chunk deadline does not count either.
+    let queuedMs = 0;
     const requestFits = (waitMs = 0) =>
       Date.now() -
-        started +
+        started -
+        queuedMs +
         waitMs +
         CITYMOTORS_WORST_CASE_REQUEST_MS +
         CITYMOTORS_COMPLETION_RESERVE_MS <=
@@ -239,6 +255,14 @@ export function streamCitymotorsInventoryWithRequestGate<E, R>(
         CitymotorsCursor.resume(waited),
       );
     }
+    // The browser opens before the first GET is weighed, so the time its
+    // session takes to start counts against the GETs that follow.
+    if (requestFits()) {
+      const leasing = Date.now();
+      yield* transport.lease;
+      queuedMs += Date.now() - leasing;
+      yield* transport.open;
+    }
     while (summary.pagesProcessed < maxPages && cursor.phase !== "complete") {
       if (!requestFits()) break;
       const current: CitymotorsProgress = cursor;
@@ -250,7 +274,11 @@ export function streamCitymotorsInventoryWithRequestGate<E, R>(
       // request still fit. If it still fails, a chunk that already validated
       // pages returns that checkpoint so the next chunk resumes there; one
       // that has not fails without advancing.
-      let fetched = yield* Effect.either(fetchCitymotorsPage(url, gate));
+      // Already open: this only hands back the chunk's transport.
+      const documents = yield* transport.open;
+      let fetched = yield* Effect.either(
+        fetchCitymotorsPage(url, gate, documents),
+      );
       const waitMs =
         Either.isLeft(fetched) &&
         fetched.left instanceof CitymotorsTransientFailure
@@ -259,7 +287,9 @@ export function streamCitymotorsInventoryWithRequestGate<E, R>(
       const resent = waitMs !== null && requestFits(waitMs);
       if (resent) {
         if (waitMs > 0) yield* Effect.sleep(waitMs);
-        fetched = yield* Effect.either(fetchCitymotorsPage(url, gate));
+        fetched = yield* Effect.either(
+          fetchCitymotorsPage(url, gate, documents),
+        );
       }
       if (Either.isLeft(fetched)) {
         const failure = fetched.left;
@@ -345,7 +375,8 @@ export function streamCitymotorsInventoryWithRequestGate<E, R>(
       status: cursor.phase === "complete" ? "complete" : "paused",
     } satisfies CitymotorsStreamResult;
   }).pipe(
-    Effect.timeoutFail({
+    // Waiting for the browser session lease is not provider work.
+    ProviderChunkClock.deadline({
       duration: CITYMOTORS_CHUNK_DEADLINE_MS,
       onTimeout: () =>
         new CitymotorsProviderError({
@@ -356,10 +387,50 @@ export function streamCitymotorsInventoryWithRequestGate<E, R>(
     }),
   );
 }
+/**
+ * Where each chunk's browser lands before its first document: Cloudflare's
+ * edge answers it in about 0.2 seconds without reaching the site. The origin
+ * caches pages per Accept header, so a navigation's browser Accept misses the
+ * cache that the in-page reads share and renders the page again (10 seconds
+ * for a donor page whose in-page read took 0.4, November 25, 2026).
+ */
+export const CITYMOTORS_BROWSER_LANDING = CITYMOTORS_ORIGIN + "/cdn-cgi/trace";
+
+/**
+ * Cloudflare answers every City Motors path from Vercel's network with a
+ * managed challenge (HTTP 403, `cf-mitigated: challenge`, November 25, 2026),
+ * whatever the request headers, so each chunk reads through one Kernel
+ * browser: it lands on `CITYMOTORS_BROWSER_LANDING`, reads every document by
+ * same-origin fetch and loads no subresource that reaches the site. The
+ * browser opens on the first GET under its provider's session lease, stops
+ * when the chunk ends and is metered against City Motors' own Kernel caps
+ * (`kernel-usage.ts`). `sessions` defaults to City Motors' provider in
+ * `BROWSER_PROVIDERS`.
+ */
 export function streamCitymotorsInventory<E, R>(
   options: CitymotorsOptions<E, R>,
+  sessions?: BrowserSessions,
 ) {
   const gate: ProviderRequestGate = (request) =>
     request.pipe(Effect.ensuring(Effect.sleep(CITYMOTORS_REQUEST_GAP_MS)));
-  return streamCitymotorsInventoryWithRequestGate(options, gate);
+  return Effect.scoped(
+    Effect.gen(function* () {
+      const transport = yield* DocumentTransport.acquireBrowser(
+        sessions ??
+          DocumentTransport.meteredSourceSessions(
+            "citymotors",
+            yield* Config,
+            yield* Database,
+            "none",
+          ),
+        { fetchAfter: CITYMOTORS_BROWSER_LANDING },
+        CITYMOTORS_BROWSER_REQUEST_TIMEOUT_MS,
+      );
+      return yield* streamCitymotorsInventoryWithRequestGate(
+        options,
+        gate,
+        transport,
+      );
+    }),
+  );
 }

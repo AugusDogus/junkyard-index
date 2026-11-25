@@ -127,6 +127,7 @@ test("sources run headless with direct egress, except U Pull R Parts: headful, w
     bigd: HEADLESS_DIRECT,
     northwest: HEADLESS_DIRECT,
     six03: HEADLESS_DIRECT,
+    citymotors: HEADLESS_DIRECT,
     michigantruck: HEADLESS_DIRECT,
     vanderhaags: HEADLESS_DIRECT,
     upullitdavie: HEADLESS_DIRECT,

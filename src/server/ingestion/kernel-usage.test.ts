@@ -198,9 +198,9 @@ describe("KernelUsage.metered", () => {
   });
 
   test("opens no browser once the month's spend reaches the budget, until the next month", async () => {
-    // $3.30 at $0.48 an hour is 24,750 headful seconds.
-    expect(KERNEL_MONTHLY_BUDGET_USD.upullrparts).toBe(3.3);
-    await insertUsage("spent", "2026-11-02T00:00:00Z", "2026-11-02T06:52:30Z");
+    // $2.10 at $0.48 an hour is 15,750 headful seconds.
+    expect(KERNEL_MONTHLY_BUDGET_USD.upullrparts).toBe(2.1);
+    await insertUsage("spent", "2026-11-02T00:00:00Z", "2026-11-02T04:22:30Z");
     const { sessions, calls } = fakeSessions();
     let now = at("2026-11-20T07:00:00Z");
     const metered = KernelUsage.metered(sessions, {
@@ -217,7 +217,7 @@ describe("KernelUsage.metered", () => {
     expect(
       String(refused instanceof KernelBudgetSpent && refused.message),
     ).toBe(
-      "U Pull R Parts has spent $3.30 of its $3.30 monthly Kernel budget since 2026-11-01 (kernel_browser_usage), so no browser was opened and the other Kernel sources keep the rest of Kernel's credit. Its chunks defer, opening no browser, until 2026-12-01, and a run still deferred after three hours fails, so the source shows as failing until then; raise KERNEL_MONTHLY_BUDGET_USD in kernel-usage.ts only if the Kernel dashboard shows credit to spare.",
+      "U Pull R Parts has spent $2.10 of its $2.10 monthly Kernel budget since 2026-11-01 (kernel_browser_usage), so no browser was opened and the other Kernel sources keep the rest of Kernel's credit. Its chunks defer, opening no browser, until 2026-12-01, and a run still deferred after three hours fails, so the source shows as failing until then; raise KERNEL_MONTHLY_BUDGET_USD in kernel-usage.ts only if the Kernel dashboard shows credit to spare.",
     );
 
     now = at("2026-12-01T07:00:00Z");
@@ -279,8 +279,9 @@ describe("KernelUsage.metered", () => {
 describe("603 Kernel caps", () => {
   test("each metered source spends only its own budgets, which add up to $3.90 of the $5 monthly credit", async () => {
     expect(KERNEL_MONTHLY_BUDGET_USD).toEqual({
-      upullrparts: 3.3,
+      upullrparts: 2.1,
       six03: 0.6,
+      citymotors: 1.2,
     });
     expect(
       Object.values(KERNEL_MONTHLY_BUDGET_USD).reduce((a, b) => a + b, 0),
@@ -288,6 +289,7 @@ describe("603 Kernel caps", () => {
     expect(KERNEL_DAILY_BUDGET_USD).toEqual({
       upullrparts: 0.25,
       six03: 0.15,
+      citymotors: 0.15,
     });
     // U Pull R Parts has spent its whole daily cap; 603 has spent nothing.
     await insertUsage("today", "2026-11-24T07:00:00Z", "2026-11-24T07:31:15Z");
@@ -413,4 +415,33 @@ describe("DocumentTransport.meteredSourceSessions", () => {
       );
     },
   );
+});
+
+describe("City Motors Kernel caps", () => {
+  test("City Motors opens no browser once its UTC day's headless spend reaches its daily cap", async () => {
+    // $0.15 at $0.06 an hour is 9,000 headless seconds.
+    await insertUsage(
+      "retried-census",
+      "2026-11-25T07:00:00Z",
+      "2026-11-25T09:30:00Z",
+      "citymotors",
+      "headless",
+    );
+    const { sessions, calls } = fakeSessions();
+    const metered = KernelUsage.metered(sessions, {
+      database: drizzle(client),
+      source: "citymotors",
+      now: () => at("2026-11-25T10:00:00Z"),
+    });
+    const refused = await metered.create().then(
+      () => null,
+      (error: unknown) => error,
+    );
+    expect(calls).toEqual([]);
+    expect(
+      String(refused instanceof KernelBudgetSpent && refused.message),
+    ).toBe(
+      "City Motors has spent $0.15 of its $0.15 daily Kernel cap since 2026-11-25 00:00 UTC (kernel_browser_usage), so no browser was opened; a full day's crawl costs about $0.01 to $0.04, so its chunks are most likely failing and retrying. Its chunks defer, opening no browser, until the cap resets at 2026-11-26 00:00 UTC; a run still deferred after three hours fails and the next scheduled run tries again, and prior inventory is preserved. Read the run's errors in /admin before raising KERNEL_DAILY_BUDGET_USD in kernel-usage.ts.",
+    );
+  });
 });

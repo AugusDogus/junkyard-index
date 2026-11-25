@@ -11,6 +11,7 @@ test("every live browser source opens Kernel browsers; the retired Michigan Truc
     upullitdavie: "kernel",
     upullrparts: "kernel",
     six03: "kernel",
+    citymotors: "kernel",
     michigantruck: "hyperbrowser",
   });
 });
