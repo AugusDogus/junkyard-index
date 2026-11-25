@@ -220,11 +220,13 @@ async function withRedis(
 }
 
 test("a waiter sleeps longer between polls the more turns stand ahead of it", async () => {
-  // Behind three turns of its lane twice, then behind two ready lanes for one
-  // of four group places, then at the front of a held lane.
+  // Behind three turns of its lane twice, then behind six ready lanes for one
+  // of four group places, then among the first four ready lanes, then at the
+  // front of a held lane.
   const places = [
     HostReservation.queued(3, 0),
     HostReservation.queued(3, 0),
+    HostReservation.queued(0, 6),
     HostReservation.queued(0, 2),
     HostReservation.queued(0, 0),
     HostReservation.granted,
@@ -258,11 +260,12 @@ test("a waiter sleeps longer between polls the more turns stand ahead of it", as
     }).pipe(Effect.provide(TestContext.TestContext)),
   );
   // Each turn ahead holds the lane for at least the 3.5 s gap, and four
-  // places share the ready lanes' turns. Sleeps stop at 10 s, so a waiter
-  // renews its 30 s queue deadline in time.
+  // places share the ready lanes' turns. The first four releases can come at
+  // any moment, so a ready lane among the first four polls every pollMs.
+  // Sleeps stop at 10 s, so a waiter renews its 30 s queue deadline in time.
   expect(
     polledAt.slice(1).map((at, index) => at - (polledAt[index] ?? 0)),
-  ).toEqual([10_000, 10_000, 2_750, 1_000]);
+  ).toEqual([10_000, 10_000, 2_750, 1_000, 1_000]);
 });
 
 test("a waiter never sleeps past the end of its wait", async () => {

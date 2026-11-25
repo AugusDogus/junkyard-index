@@ -13,7 +13,8 @@ export type HostReservation =
       /** Waiters ahead of this one in its lane. */
       readonly laneAhead: number;
       /** Ready lanes that take a group place before this one, counting the
-       * release it waits for when every place is taken. */
+       * release it waits for when every place is taken. Waiters within the
+       * group's first activeLanes poll every pollMs. */
       readonly readyAhead: number;
     };
 
@@ -59,9 +60,13 @@ export const HostReservation = {
     reservation: Extract<HostReservation, { _tag: "Queued" }>,
   ): number {
     const turnMs = Math.max(policy.pollMs, policy.gapMs ?? 0);
+    // The first activeLanes releases have no lower bound on when they come,
+    // so a ready lane among them polls every pollMs; only releases beyond
+    // those wait at least a turn per activeLanes.
+    const lanes = policy.group?.activeLanes ?? 1;
     const ahead =
       reservation.laneAhead +
-      reservation.readyAhead / (policy.group?.activeLanes ?? 1);
+      Math.max(0, reservation.readyAhead - lanes) / lanes;
     return Math.min(MAX_POLL_MS, policy.pollMs + ahead * turnMs);
   },
 } as const;
