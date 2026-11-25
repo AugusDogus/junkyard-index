@@ -191,6 +191,19 @@ interrupted or timed-out waiters remove their queue entries. HTP's existing leas
 key is retained for rolling-deployment compatibility. Its wait budget increases
 to five minutes so two bounded requests can complete ahead of a third source.
 
+Upstash bills every command a reservation script runs, so waiting is what the
+Redis bill pays for. A reservation replies with how many waiters stand ahead in
+the lane and how many ready lanes stand ahead for a group place. A waiter at the
+front polls every `pollMs`. One further back sleeps `pollMs` plus one turn per
+waiter ahead, where a turn is the larger of `pollMs` and the policy gap, since
+each holder keeps the lease for at least the gap. A ready lane waits a turn
+divided by the group's active lanes per ready lane ahead, since the group's
+places free up in parallel. Sleeps stop at 10 seconds, so every live waiter
+renews its 30-second deadline in time. A request that finds no queue and a free
+lane (and, for a group, a free place) takes the lease without joining a queue.
+In a model of the Nov 19 to 25 load, these rules cut billed commands from about
+1.1 million a day to about 0.38 million, with the same crawl length.
+
 Redis configuration, reservation, timeout and release failures remain failures.
 There is no deployed in-process fallback. An uncertain acquired lease expires
 rather than being unsafely removed. Local development keeps the existing HTP

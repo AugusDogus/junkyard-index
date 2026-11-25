@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { Redis } from "@upstash/redis";
 import { Effect, Fiber, TestClock, TestContext } from "effect";
 import {
+  HostReservation,
   RELEASE_HOST_SLOT,
   RESERVE_HOST_SLOT,
   ProviderHostKeyspace,
@@ -122,7 +123,7 @@ test("an interrupted waiter cancels its queue entry without releasing an uncerta
         withProviderHostSlot(
           policy,
           {
-            reserve: async () => false,
+            reserve: async () => HostReservation.queued(0, 0),
             release: async () => {
               releases++;
               return true;
@@ -155,7 +156,7 @@ test("shared backend retains its lease through response completion and the failu
           withProviderHostSlot(
             policy,
             {
-              reserve: async () => true,
+              reserve: async () => HostReservation.granted,
               release: async () => {
                 release = true;
                 return true;
@@ -218,6 +219,185 @@ async function withRedis(
   }
 }
 
+test("a waiter sleeps longer between polls the more turns stand ahead of it", async () => {
+  // Behind three turns of its lane twice, then behind two ready lanes for one
+  // of four group places, then at the front of a held lane.
+  const places = [
+    HostReservation.queued(3, 0),
+    HostReservation.queued(3, 0),
+    HostReservation.queued(0, 2),
+    HostReservation.queued(0, 0),
+    HostReservation.granted,
+  ];
+  let now = 0;
+  const polledAt: number[] = [];
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const fiber = yield* Effect.fork(
+        withProviderHostSlot(
+          { ...policy, waitMs: 60_000, group: { key: "g", activeLanes: 4 } },
+          {
+            reserve: async () => {
+              polledAt.push(now);
+              return places[polledAt.length - 1] ?? HostReservation.granted;
+            },
+            release: async () => true,
+            cancel: async () => true,
+          },
+          Effect.void,
+        ),
+      );
+      // The first poll happens before the clock moves.
+      yield* TestClock.adjust("0 millis");
+      while (polledAt.length < places.length) {
+        now += 250;
+        yield* TestClock.adjust("250 millis");
+      }
+      yield* TestClock.adjust("10 seconds");
+      yield* Fiber.join(fiber);
+    }).pipe(Effect.provide(TestContext.TestContext)),
+  );
+  // Each turn ahead holds the lane for at least the 3.5 s gap, and four
+  // places share the ready lanes' turns. Sleeps stop at 10 s, so a waiter
+  // renews its 30 s queue deadline in time.
+  expect(
+    polledAt.slice(1).map((at, index) => at - (polledAt[index] ?? 0)),
+  ).toEqual([10_000, 10_000, 2_750, 1_000]);
+});
+
+test("a waiter never sleeps past the end of its wait", async () => {
+  const polls: number[] = [];
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const fiber = yield* Effect.fork(
+        Effect.either(
+          withProviderHostSlot(
+            { ...policy, waitMs: 15_000 },
+            {
+              reserve: async () => {
+                polls.push(polls.length);
+                return HostReservation.queued(5, 0);
+              },
+              release: async () => true,
+              cancel: async () => true,
+            },
+            Effect.void,
+          ),
+        ),
+      );
+      yield* TestClock.adjust("15 seconds");
+      expect((yield* Fiber.join(fiber))._tag).toBe("Left");
+    }).pipe(Effect.provide(TestContext.TestContext)),
+  );
+  // Polls at 0 s, 10 s (capped sleep) and 15 s (the end of the wait).
+  expect(polls).toHaveLength(3);
+});
+
+/** Billed Upstash commands for `run`: each script plus every command it ran. */
+function billedCommands(
+  command: (...args: string[]) => string,
+  run: () => void,
+) {
+  command("CONFIG", "RESETSTAT");
+  run();
+  return command("INFO", "commandstats")
+    .split("\n")
+    .filter(
+      (line) =>
+        line.startsWith("cmdstat_") && !line.startsWith("cmdstat_config"),
+    )
+    .reduce(
+      (total, line) => total + Number(/calls=(\d+)/.exec(line)?.[1] ?? 0),
+      0,
+    );
+}
+
+const reply = (output: string) => output.split("\n").map(Number);
+/** The flag a store sends with each reservation: "1" on a token's first. */
+function firstAttempts() {
+  const seen = new Set<string>();
+  return (token: string) => {
+    const flag = seen.has(token) ? "0" : "1";
+    seen.add(token);
+    return flag;
+  };
+}
+/** "1" when a raw reservation reply granted the lease, else "0". */
+const granted = (output: string) => String(reply(output)[0]);
+
+test.skipIf(!hasRedis)(
+  "an uncontended reservation runs few billed commands and a waiter learns how many turns stand ahead of it",
+  () =>
+    withRedis((command) => {
+      const lane = (name: string) => [
+        `{g}:lane:${name}`,
+        `{g}:lane:${name}:queue`,
+        `{g}:lane:${name}:deadlines`,
+        `{g}:lane:${name}:sequence`,
+      ];
+      const group = [
+        "{g}:ready",
+        "{g}:ready-deadlines",
+        "{g}:ready-sequence",
+        "{g}:active",
+      ];
+      const first = firstAttempts();
+      const reserveGrouped = (name: string, token: string) =>
+        reply(
+          command(
+            "EVAL",
+            RESERVE_HOST_SLOT,
+            "8",
+            ...lane(name),
+            ...group,
+            token,
+            "90000",
+            "1",
+            first(token),
+          ),
+        );
+      const keys = ["{h}:lease", "{h}:queue", "{h}:deadlines", "{h}:sequence"];
+      const reserve = (token: string) =>
+        reply(
+          command(
+            "EVAL",
+            RESERVE_HOST_SLOT,
+            "4",
+            ...keys,
+            token,
+            "90000",
+            first(token),
+          ),
+        );
+
+      let result: number[] = [];
+      expect(
+        billedCommands(command, () => (result = reserve("a"))),
+      ).toBeLessThanOrEqual(3);
+      expect(result).toEqual([1, 0, 0]);
+      expect(reserve("b")).toEqual([0, 0, 0]);
+      expect(reserve("c")).toEqual([0, 1, 0]);
+      // Repolling behind another waiter.
+      expect(
+        billedCommands(command, () => (result = reserve("c"))),
+      ).toBeLessThanOrEqual(6);
+      expect(result).toEqual([0, 1, 0]);
+
+      expect(
+        billedCommands(command, () => (result = reserveGrouped("x", "x1"))),
+      ).toBeLessThanOrEqual(9);
+      expect(result).toEqual([1, 0, 0]);
+      // The group's one place is taken: y1 and z1 wait for it in turn.
+      expect(reserveGrouped("y", "y1")).toEqual([0, 0, 1]);
+      expect(reserveGrouped("z", "z1")).toEqual([0, 0, 2]);
+      expect(
+        billedCommands(command, () => (result = reserveGrouped("z", "z1"))),
+      ).toBeLessThanOrEqual(13);
+      expect(result).toEqual([0, 0, 2]);
+      expect(reserveGrouped("x", "x2")).toEqual([0, 0, 0]);
+    }),
+);
+
 // Runs the production Lua, not an in-memory imitation. Redis is optional for
 // the normal unit suite; the launch runbook records the explicit local command.
 test.skipIf(!hasRedis)(
@@ -230,8 +410,19 @@ test.skipIf(!hasRedis)(
         "{host}:deadlines",
         "{host}:sequence",
       ] as const;
+      const first = firstAttempts();
       const reserve = (token: string) =>
-        command("EVAL", RESERVE_HOST_SLOT, "4", ...keys, token, "90000");
+        granted(
+          command(
+            "EVAL",
+            RESERVE_HOST_SLOT,
+            "4",
+            ...keys,
+            token,
+            "90000",
+            first(token),
+          ),
+        );
       expect(reserve("cstruck-1")).toBe("1");
       expect(reserve("heavytruckparts")).toBe("0");
       expect(reserve("bigtruckpage")).toBe("0");
@@ -268,17 +459,21 @@ test.skipIf(!hasRedis)(
         `${group}:ready-sequence`,
       ];
       const active = `${group}:active`;
+      const first = firstAttempts();
       const reserve = (name: string, token: string) =>
-        command(
-          "EVAL",
-          RESERVE_HOST_SLOT,
-          "8",
-          ...lane(name),
-          ...ready,
-          active,
-          token,
-          "90000",
-          "2",
+        granted(
+          command(
+            "EVAL",
+            RESERVE_HOST_SLOT,
+            "8",
+            ...lane(name),
+            ...ready,
+            active,
+            token,
+            "90000",
+            "2",
+            first(token),
+          ),
         );
       const release = (name: string, token: string) =>
         command(
@@ -331,7 +526,9 @@ test.skipIf(!hasRedis)(
       const passthrough = globalThis.fetch;
       const run = (body: unknown) => {
         if (!Array.isArray(body)) throw new Error("Expected a Redis command");
-        return { result: Number(command(...body.map(String))) };
+        const output = reply(command(...body.map(String)));
+        // Multi-line output is a script's array reply.
+        return { result: output.length === 1 ? output[0] : output };
       };
       globalThis.fetch = Object.assign(
         async (_input: RequestInfo | URL, init?: RequestInit) => {
@@ -362,19 +559,27 @@ test.skipIf(!hasRedis)(
           "production",
         );
         const tag = "{ingestion:host-group:urg:v1}";
-        expect(await first.reserve("first-1", 90_000)).toBe(true);
-        expect(await second.reserve("second-1", 90_000)).toBe(false);
+        expect(await first.reserve("first-1", 90_000)).toEqual(
+          HostReservation.granted,
+        );
+        expect(await second.reserve("second-1", 90_000)).toEqual(
+          HostReservation.queued(0, 1),
+        );
         expect(command("ZCARD", `${tag}:ready`)).toBe("1");
         await second.cancel("second-1");
         expect(command("ZCARD", `${tag}:ready`)).toBe("0");
         expect(command("ZCARD", `${tag}:lane:urg:second:queue`)).toBe("0");
         expect(await first.release("first-1")).toBe(true);
         expect(command("ZCARD", `${tag}:active`)).toBe("0");
-        expect(await second.reserve("second-2", 90_000)).toBe(true);
+        expect(await second.reserve("second-2", 90_000)).toEqual(
+          HostReservation.granted,
+        );
         expect(command("GET", `${tag}:lane:urg:second`)).toBe("second-2");
         // Ungrouped lanes keep their existing keys.
         const plain = redisProviderHostStore(policy, redis, "production");
-        expect(await plain.reserve("plain-1", 90_000)).toBe(true);
+        expect(await plain.reserve("plain-1", 90_000)).toEqual(
+          HostReservation.granted,
+        );
         expect(command("GET", "ingestion:host:offline:v1")).toBe("plain-1");
         expect(await plain.release("plain-1")).toBe(true);
       } finally {
