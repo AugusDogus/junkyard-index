@@ -266,6 +266,32 @@ describe("yard check records", () => {
     }
   });
 
+  test("a car that stays missing changes its yard only on the run that first misses it", async () => {
+    const { client, publish, checks } = await harness();
+    try {
+      const fetched: YardCheckReport[] = [
+        { locationCode: "tulsa", outcome: "fetched" },
+      ];
+      const keep = car("A-1", "tulsa");
+      const pyp = (vehicles: CanonicalVehicle[]): SourceRun[] => [
+        {
+          source: "pyp",
+          acceptance: "accepted",
+          vehicles,
+          yardChecks: fetched,
+        },
+      ];
+      await publish("run-1", first, pyp([keep, car("A-2", "tulsa")]));
+      await publish("run-2", second, pyp([keep]));
+      await publish("run-3", third, pyp([keep]));
+      expect((await checks()).map((check) => check.lastChangedAt)).toEqual([
+        second.getTime(),
+      ]);
+    } finally {
+      client.close();
+    }
+  });
+
   test("a rejected source's reports write nothing", async () => {
     const { client, publish, checks } = await harness();
     try {

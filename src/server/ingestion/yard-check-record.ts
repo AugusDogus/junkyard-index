@@ -7,8 +7,10 @@ import type { YardCheckReports } from "~/lib/yard-check";
  * ones it reported and the ones it still lists after this batch refreshed
  * `yard_inventory`; a listed yard it did not report is "unreported". Only a
  * "fetched" result advances `last_checked_at`; every other result counts
- * toward `consecutive_unchecked_runs`. A yard changed when this run queued a
- * change for one of its vehicles, which also bounds its newest arrival.
+ * toward `consecutive_unchecked_runs`. A yard changed when this run upserted
+ * one of its vehicles or first marked one missing; a vehicle already missing
+ * is re-queued each run until it is deleted, which is no change. Its changed
+ * vehicles also bound its newest arrival.
  * `guard` is the publication batch's run guard and its args.
  */
 export function yardCheckRecordStatement(params: {
@@ -46,6 +48,7 @@ export function yardCheckRecordStatement(params: {
         from vehicle_change_v2 change
         join vehicle on vehicle.vin = change.vin
         where change.run_id = ?
+          and (change.change_type = 'upsert' or vehicle.missing_since_at = ?)
         group by vehicle.source, vehicle.location_code
       )
       insert into yard_check (
@@ -90,6 +93,7 @@ export function yardCheckRecordStatement(params: {
       ...reported.flat(),
       ...params.acceptedSources,
       params.runId,
+      at,
       at,
       params.runId,
       at,

@@ -8,6 +8,7 @@ import {
   INVENTORY_STALE_AFTER_HOURS,
   InventoryStaleness,
   OUTAGE_STALE_SHARE,
+  UNKNOWN_CHECK_LABEL,
 } from "./inventory-staleness";
 
 const now = Date.parse("2026-11-24T12:00:00.000Z");
@@ -231,6 +232,24 @@ describe("InventoryStaleness.checkedAt", () => {
         now,
       ),
     ).toBeNull();
+  });
+
+  test("a yard reported on but never proven fetched never borrows its source's current date", () => {
+    const unproven = {
+      sources: { urgiis: iso(hoursAgo(4)) },
+      yards: { "urgiis:norbs": null },
+    };
+    expect(
+      InventoryStaleness.checkedAt(unproven, "urgiis", "norbs"),
+    ).toBeNull();
+    expect(InventoryStaleness.labelFor(unproven, "urgiis", "norbs", now)).toBe(
+      UNKNOWN_CHECK_LABEL,
+    );
+    const stale = InventoryStaleness.staleOnly(unproven, now);
+    expect(stale).toEqual({ sources: {}, yards: { "urgiis:norbs": null } });
+    expect(InventoryStaleness.labelFor(stale, "urgiis", "norbs", now)).toBe(
+      UNKNOWN_CHECK_LABEL,
+    );
   });
 });
 

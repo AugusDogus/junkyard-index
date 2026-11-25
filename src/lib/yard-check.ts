@@ -87,8 +87,8 @@ export const YardCheck = {
 
   /**
    * Each yard's last proven check as an ISO string, keyed `source:code`, for
-   * "Last checked" labels. A yard never checked since tracking began is left
-   * out, so it takes its source's date.
+   * "Last checked" labels. A yard never proven fetched is null, so it never
+   * borrows its source's date.
    */
   checkDates(
     rows: Iterable<{
@@ -96,11 +96,10 @@ export const YardCheck = {
       code: string;
       lastCheckedAt: Date | null;
     }>,
-  ): Record<string, string> {
-    const dates: Record<string, string> = {};
+  ): Record<string, string | null> {
+    const dates: Record<string, string | null> = {};
     for (const { source, code, lastCheckedAt } of rows)
-      if (lastCheckedAt !== null)
-        dates[`${source}:${code}`] = lastCheckedAt.toISOString();
+      dates[`${source}:${code}`] = lastCheckedAt?.toISOString() ?? null;
     return dates;
   },
 

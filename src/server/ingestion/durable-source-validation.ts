@@ -16,6 +16,7 @@ import { parseIngestionErrors } from "./durable-ingestion-repository";
 import type { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import { cursorYardChecks, loadSourceSnapshot } from "./run-snapshot-inventory";
 import { YardCheck } from "~/lib/yard-check";
+import { YARD_CHECK_POLICIES } from "./yard-check-policy";
 import { SourcePublication } from "./source-publication";
 import { validateCars4PartsPublishedYardInventory } from "./cars4parts-published-inventory";
 import {
@@ -407,12 +408,19 @@ export async function validateDurableSourceRuns(params: {
 
 /** The warning for an accepted source's yards that have cars but no result. */
 export function unreportedYardsWarning(
-  source: string,
+  source: IngestionSource,
   codes: readonly string[],
 ): string {
   const shown = codes.slice(0, 20).join(", ");
   const more = codes.length > 20 ? ` and ${codes.length - 20} more` : "";
-  return `${source} was accepted with ${codes.length} ${codes.length === 1 ? "yard" : "yards"} that list vehicles but reported no check result: ${shown}${more}. They publish as "unreported", so their "Last checked" date does not advance and /api/status lists them once it is 36 hours old. Make the connector report a per-yard result (yardChecks) or declare the source in YARD_CHECK_POLICIES.`;
+  const policy = YARD_CHECK_POLICIES[source];
+  const cause =
+    policy.kind === "cursor"
+      ? `Its final cursor names no result for them, so they are outside its per-yard derivation (run-snapshot-inventory.ts cursorYardChecks); add them there.`
+      : policy.kind === "unreported"
+        ? `It does not report per-yard results yet (${policy.reason}).`
+        : `Its policy is "${policy.kind}", which reports every yard a chunk lists, so these chunks were staged without per-yard results, most likely by a run that started before yard_check tracking was deployed. The next run reports them; if it does not, inspect how this source's chunks are checkpointed.`;
+  return `${source} was accepted with ${codes.length} ${codes.length === 1 ? "yard" : "yards"} that list vehicles but reported no check result: ${shown}${more}. They publish as "unreported", so their "Last checked" date does not advance and /api/status lists them once it is 36 hours old. Their inventory is published as usual. ${cause}`;
 }
 
 /**

@@ -35,7 +35,7 @@ describe("yard check reports", () => {
     ).toEqual(["a", "b"]);
   });
 
-  test("label dates leave out yards never checked", () => {
+  test("label dates keep yards never proven fetched as null", () => {
     expect(
       YardCheck.checkDates([
         {
@@ -45,6 +45,6 @@ describe("yard check reports", () => {
         },
         { source: "pyp", code: "b", lastCheckedAt: null },
       ]),
-    ).toEqual({ "pyp:a": "2026-11-25T07:00:00.000Z" });
+    ).toEqual({ "pyp:a": "2026-11-25T07:00:00.000Z", "pyp:b": null });
   });
 });
