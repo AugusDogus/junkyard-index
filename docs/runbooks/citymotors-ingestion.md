@@ -139,7 +139,7 @@ budget nor the three-minute limit. A busy lease, the plan's concurrent browser
 limit or a spent City Motors cap defers the chunk, which retries its cursor.
 
 City Motors is metered against its own Kernel caps (`kernel-usage.ts`):
-$0.15 a UTC day and $1.20 a month. A census costs about $0.01 to $0.04 of Kernel
+$0.15 a UTC day and $1.50 a month. A census costs about $0.01 to $0.04 of Kernel
 time, depending on how many donor pages the origin's cache holds.
 
 ## Saved verification

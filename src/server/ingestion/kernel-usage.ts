@@ -26,16 +26,17 @@ export const KERNEL_USD_PER_SECOND: Readonly<
  * browsers, by source. The organization's $5 monthly credit is shared with
  * the unmetered Big D, Northwest, Vander Haags and U Pull It Davie (about
  * $0.94 a month together), so the metered budgets stay within about $4: U
- * Pull R Parts may spend at most $2.10 of it (a healthy month is $0.60 to
+ * Pull R Parts may spend at most $1.80 of it (a healthy month is $0.60 to
  * $0.95), 603 $0.60 (a warm month is about $0.30, and each cold census after
- * a missed or failed run adds about $0.05) and City Motors $1.20 (a full
+ * a missed or failed run adds about $0.05) and City Motors $1.50 (a full
  * census costs about $0.01 to $0.04, depending on how many donor pages the
- * origin's cache holds), whatever their crawls cost.
+ * origin's cache holds, so an uncached 31-day month is about $1.24 and the
+ * rest covers retries), whatever their crawls cost.
  */
 export const KERNEL_MONTHLY_BUDGET_USD = {
-  upullrparts: 2.1,
+  upullrparts: 1.8,
   six03: 0.6,
-  citymotors: 1.2,
+  citymotors: 1.5,
 } as const satisfies Partial<Record<KernelSource, number>>;
 export type MeteredKernelSource = keyof typeof KERNEL_MONTHLY_BUDGET_USD;
 

@@ -198,9 +198,9 @@ describe("KernelUsage.metered", () => {
   });
 
   test("opens no browser once the month's spend reaches the budget, until the next month", async () => {
-    // $2.10 at $0.48 an hour is 15,750 headful seconds.
-    expect(KERNEL_MONTHLY_BUDGET_USD.upullrparts).toBe(2.1);
-    await insertUsage("spent", "2026-11-02T00:00:00Z", "2026-11-02T04:22:30Z");
+    // $1.80 at $0.48 an hour is 13,500 headful seconds.
+    expect(KERNEL_MONTHLY_BUDGET_USD.upullrparts).toBe(1.8);
+    await insertUsage("spent", "2026-11-02T00:00:00Z", "2026-11-02T03:45:00Z");
     const { sessions, calls } = fakeSessions();
     let now = at("2026-11-20T07:00:00Z");
     const metered = KernelUsage.metered(sessions, {
@@ -217,7 +217,7 @@ describe("KernelUsage.metered", () => {
     expect(
       String(refused instanceof KernelBudgetSpent && refused.message),
     ).toBe(
-      "U Pull R Parts has spent $2.10 of its $2.10 monthly Kernel budget since 2026-11-01 (kernel_browser_usage), so no browser was opened and the other Kernel sources keep the rest of Kernel's credit. Its chunks defer, opening no browser, until 2026-12-01, and a run still deferred after three hours fails, so the source shows as failing until then; raise KERNEL_MONTHLY_BUDGET_USD in kernel-usage.ts only if the Kernel dashboard shows credit to spare.",
+      "U Pull R Parts has spent $1.80 of its $1.80 monthly Kernel budget since 2026-11-01 (kernel_browser_usage), so no browser was opened and the other Kernel sources keep the rest of Kernel's credit. Its chunks defer, opening no browser, until 2026-12-01, and a run still deferred after three hours fails, so the source shows as failing until then; raise KERNEL_MONTHLY_BUDGET_USD in kernel-usage.ts only if the Kernel dashboard shows credit to spare.",
     );
 
     now = at("2026-12-01T07:00:00Z");
@@ -279,9 +279,9 @@ describe("KernelUsage.metered", () => {
 describe("603 Kernel caps", () => {
   test("each metered source spends only its own budgets, which add up to $3.90 of the $5 monthly credit", async () => {
     expect(KERNEL_MONTHLY_BUDGET_USD).toEqual({
-      upullrparts: 2.1,
+      upullrparts: 1.8,
       six03: 0.6,
-      citymotors: 1.2,
+      citymotors: 1.5,
     });
     expect(
       Object.values(KERNEL_MONTHLY_BUDGET_USD).reduce((a, b) => a + b, 0),
