@@ -24,7 +24,7 @@ test.each([
     mock.module('./src/workflows/vehicle-steps', () => ({
       searchPublicationModeStep: async () => 'inline',
       warmVinCacheBatchStep: async state => { if(writer) throw new Error('vPIC called under writer lock'); events.push('decode'); return {status:'${status}',state:{...state,accepted:${accepted}}}; },
-      initializeSearchIndexMigrationStep: async force => { if (force !== ${accepted > 0}) throw new Error('new cached identities must trigger projection'); events.push('initialize'); return {status:'pending',state:{}}; },
+      initializeSearchIndexMigrationStep: async force => { if (force !== false) throw new Error('new cached identities must not force a full rewrite'); events.push('initialize'); return {status:'pending',state:{}}; },
       runSearchIndexMigrationBatchStep: async state => { if(!writer) throw new Error('publication lacks writer lock'); events.push('project'); return {done:true,state}; },
       finalizeSearchIndexMigrationStep: async () => { events.push('finalize'); return {}; },
       expireInventoryAfterMigrationStep: async () => { events.push('expire'); },
