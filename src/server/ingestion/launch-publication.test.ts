@@ -1,7 +1,12 @@
 import { RECONCILIATION_TEST_SCHEMA } from "./durable-reconciliation-test-fixtures";
 import { expect, test } from "bun:test";
 import { drizzle } from "drizzle-orm/libsql";
-import { vehicle, ingestionRun, ingestionSourceRun } from "~/schema";
+import {
+  vehicle,
+  ingestionRun,
+  ingestionSourceRun,
+  yardInventory,
+} from "~/schema";
 import {
   compileAlertFilters,
   scanAlertMatchPages,
@@ -153,6 +158,20 @@ test("a quarantined Ario yard keeps its inventory and missing counters while hea
         missingRunCount: missing,
       });
     }
+    // Quarantined today after yesterday's accepted publication, so it is
+    // still inside the 7-day window a preserved yard keeps its inventory.
+    await database.insert(yardInventory).values({
+      source: "autorecycler",
+      locationCode: "bad-yard",
+      locationName: base.locationName,
+      locationCity: base.locationCity,
+      stateAbbr: base.stateAbbr,
+      lat: base.lat,
+      lng: base.lng,
+      vehicleCount: 2,
+      lastPublishedAt: new Date(now.getTime() - 86400_000),
+      updatedAt: now,
+    });
     await database.insert(ingestionRun).values({
       id: "ario",
       source: "autorecycler",

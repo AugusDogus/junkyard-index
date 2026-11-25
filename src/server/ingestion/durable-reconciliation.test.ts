@@ -1916,6 +1916,164 @@ test("source-scoped missing scans preserve observations of another source's VIN 
   }
 });
 
+test("a direct provider's observations never revive AutoRecycler mirrors of its yards", async () => {
+  // Paul's left AutoRecycler for hollanderstores. Hollander rejects these
+  // VINs' rows but still observes them; that must not restore the mirror the
+  // autorecycler run just marked missing, or it never departs.
+  const client = createClient({ url: ":memory:" });
+  try {
+    await client.executeMultiple(TEST_SCHEMA);
+    const database = drizzle(client);
+    const store = IngestionSnapshotStore.memory();
+    const startedAt = new Date("2026-11-25T11:22:39.000Z");
+    await database.insert(ingestionRun).values({
+      id: "hollander-observes",
+      source: "hollanderstores",
+      status: "running",
+      stage: "reconcile_missing",
+      activeSlot: 1,
+      acceptedSources: '["hollanderstores"]',
+      startedAt,
+      lastProgressAt: startedAt,
+    });
+    const pathname = await store.put({
+      runId: "hollander-observes",
+      source: "hollanderstores",
+      chunk: { vehicles: [], observedVins: ["MIRROR", "OTHER"] },
+    });
+    await database.insert(ingestionSourceRun).values({
+      id: "hollander-observes:hollanderstores",
+      runId: "hollander-observes",
+      source: "hollanderstores",
+      status: "success",
+      acceptanceStatus: "accepted",
+      snapshotChunks: JSON.stringify([pathname]),
+      startedAt,
+    });
+    const missingSince = startedAt.getTime() - 17 * 60 * 1000;
+    await client.executeMultiple(`
+      insert into vehicle (vin, source, year, make, model, location_code, location_name, location_city, state, state_abbr, lat, lng, first_seen_at, last_seen_at, missing_since_at, missing_run_count)
+      values ('MIRROR', 'autorecycler', 2000, 'Ford', 'Focus', '1348695171700984260__LOOKUP__1761069152080x996853889979226500', 'Paul''s - Lake Station', 'Lake Station', 'Indiana', 'IN', 0, 0, 0, 0, ${missingSince}, 1),
+             ('OTHER', 'autorecycler', 2000, 'Ford', 'Focus', '1348695171700984260__LOOKUP__1726602417880x199387504054651780', 'EZ Pull N Pay Columbus', 'Columbus', 'Georgia', 'GA', 0, 0, 0, 0, ${missingSince}, 1);
+    `);
+    for (let batch = 0; batch < 3; batch += 1) {
+      const result = await reconcileDurableIngestionRun({
+        runId: "hollander-observes",
+        database,
+        batchClient: client,
+        snapshotStore: store,
+        budgetMs: 0,
+      });
+      if (result.status === "complete") break;
+    }
+    expect(
+      (
+        await client.execute(
+          "select vin, missing_since_at, missing_run_count from vehicle order by vin",
+        )
+      ).rows,
+    ).toMatchObject([
+      { vin: "MIRROR", missing_since_at: missingSince, missing_run_count: 1 },
+      { vin: "OTHER", missing_since_at: null, missing_run_count: 0 },
+    ]);
+  } finally {
+    client.close();
+  }
+});
+
+test("a preserved yard keeps its inventory only until the 7-day hide window passes", async () => {
+  // A&S Auto Wrecking sat in AutoRecycler's preserved list from Nov 21 on with
+  // no accepted publication, so its last row never departed.
+  const client = createClient({ url: ":memory:" });
+  try {
+    await client.executeMultiple(TEST_SCHEMA);
+    const database = drizzle(client);
+    const store = IngestionSnapshotStore.memory();
+    const startedAt = new Date("2026-11-25T11:05:51.000Z");
+    const day = 24 * 60 * 60 * 1000;
+    await database.insert(ingestionRun).values({
+      id: "preserved-window",
+      source: "autorecycler",
+      status: "running",
+      stage: "reconcile_missing",
+      activeSlot: 1,
+      acceptedSources: '["autorecycler"]',
+      startedAt,
+      lastProgressAt: startedAt,
+    });
+    const pathname = await store.put({
+      runId: "preserved-window",
+      source: "autorecycler",
+      chunk: { vehicles: [], observedVins: [] },
+    });
+    await database.insert(ingestionSourceRun).values({
+      id: "preserved-window:autorecycler",
+      runId: "preserved-window",
+      source: "autorecycler",
+      status: "success",
+      acceptanceStatus: "accepted",
+      snapshotChunks: JSON.stringify([pathname]),
+      nextCursor: serializeDurableSourceCursor({
+        source: "autorecycler",
+        phase: "complete",
+        freshness: {
+          asOf: startedAt.getTime(),
+          legacy: {},
+          eligibleYards: [],
+          preservedYards: ["recent", "expired", "never"],
+        },
+      }),
+      startedAt,
+    });
+    await client.executeMultiple(`
+      insert into vehicle (vin, source, year, make, model, location_code, location_name, location_city, state, state_abbr, lat, lng, first_seen_at, last_seen_at, missing_since_at, missing_run_count)
+      values ('RECENT', 'autorecycler', 2000, 'Ford', 'Focus', 'recent', 'Yard', 'City', 'California', 'CA', 0, 0, 0, 0, null, 0),
+             ('EXPIRED', 'autorecycler', 2000, 'Ford', 'Focus', 'expired', 'Yard', 'City', 'California', 'CA', 0, 0, 0, 0, null, 0),
+             ('NEVER', 'autorecycler', 2000, 'Ford', 'Focus', 'never', 'Yard', 'City', 'California', 'CA', 0, 0, 0, 0, null, 0);
+      insert into yard_inventory (source, location_code, location_name, location_city, state_abbr, lat, lng, vehicle_count, updated_at, last_published_at)
+      values ('autorecycler', 'recent', 'Yard', 'City', 'CA', 0, 0, 1, 0, ${startedAt.getTime() - 6 * day}),
+             ('autorecycler', 'expired', 'Yard', 'City', 'CA', 0, 0, 1, 0, ${startedAt.getTime() - 8 * day}),
+             ('autorecycler', 'never', 'Yard', 'City', 'CA', 0, 0, 1, 0, null);
+    `);
+    for (let batch = 0; batch < 3; batch += 1) {
+      const result = await reconcileDurableIngestionRun({
+        runId: "preserved-window",
+        database,
+        batchClient: client,
+        snapshotStore: store,
+        budgetMs: 0,
+      });
+      if (result.status === "complete") break;
+    }
+    expect(
+      (
+        await client.execute(
+          "select vin, missing_since_at from vehicle order by vin",
+        )
+      ).rows,
+    ).toMatchObject([
+      { vin: "EXPIRED", missing_since_at: startedAt.getTime() },
+      { vin: "NEVER", missing_since_at: startedAt.getTime() },
+      { vin: "RECENT", missing_since_at: null },
+    ]);
+    // Preserved yards are never stamped as published by the run.
+    expect(
+      (
+        await client.execute(
+          "select location_code, last_published_at from yard_inventory order by location_code",
+        )
+      ).rows,
+    ).toMatchObject([
+      {
+        location_code: "recent",
+        last_published_at: startedAt.getTime() - 6 * day,
+      },
+    ]);
+  } finally {
+    client.close();
+  }
+});
+
 describe("skipped search publication", () => {
   async function stagedRun(params: {
     client: ReturnType<typeof createClient>;

@@ -40,10 +40,12 @@ import {
 } from "./reconciliation-policy";
 import {
   forgetRunSnapshotInventory,
+  holdsPreservedYard,
   loadRunSnapshotInventory,
   type RunSnapshotInventory,
 } from "./run-snapshot-inventory";
 import { normalizeCanonicalVehicle } from "./normalization";
+import { AutorecyclerSourcePolicy } from "./autorecycler-source-policy";
 import type { CanonicalVehicle } from "./types";
 import {
   yardInventoryRefreshStatements,
@@ -889,14 +891,20 @@ async function runMissingBatch(
     ...sourceRows.filter((row) => candidateSet.has(row.vin)),
     ...observedRows,
   ];
-  const presentVins = new Set(
-    rows
-      .map((row) => row.vin)
-      .filter(
-        (vin) => inventory.vehicles.has(vin) || inventory.observedVins.has(vin),
+  // A direct provider owns the yards AutoRecycler used to mirror. Its
+  // rejected-row observations must not keep those retired mirrors alive.
+  const restoreRows = rows.filter(
+    (row) =>
+      inventory.observedVins.has(row.vin) &&
+      !(
+        row.source === "autorecycler" &&
+        AutorecyclerSourcePolicy.isDirectProviderYard(row.locationCode)
       ),
   );
-  const restoreRows = rows.filter((row) => inventory.observedVins.has(row.vin));
+  const presentVins = new Set([
+    ...rows.map((row) => row.vin).filter((vin) => inventory.vehicles.has(vin)),
+    ...restoreRows.map((row) => row.vin),
+  ]);
   const observedSet = new Set(restoreRows.map((row) => row.vin));
   const restoredRows = rows.filter(
     (row) =>
@@ -907,7 +915,13 @@ async function runMissingBatch(
   const transitions = planMissingVehicleTransitions({
     presentVins,
     existingRows: rows.filter(
-      (row) => !inventory.preservedYards.get(row.source)?.has(row.locationCode),
+      (row) =>
+        !holdsPreservedYard(
+          inventory,
+          row.source,
+          row.locationCode,
+          params.runTimestamp.getTime(),
+        ),
     ),
     runTimestamp: params.runTimestamp,
     acceptedSources: reconciled,
