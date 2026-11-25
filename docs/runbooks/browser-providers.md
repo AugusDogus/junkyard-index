@@ -178,9 +178,9 @@ in `source_control`), stays on Hyperbrowser and has no Kernel cap.
 
 | Source         | Mode     | Daily cap | Monthly cap | Normal day                         |
 | -------------- | -------- | --------: | ----------: | ---------------------------------- |
-| U Pull R Parts | headful  |     $0.25 |       $2.10 | about $0.02 to $0.03               |
+| U Pull R Parts | headful  |     $0.25 |       $1.80 | about $0.02 to $0.03               |
 | 603            | headless |     $0.15 |       $0.60 | about $0.01 warm, about $0.05 cold |
-| City Motors    | headless |     $0.15 |       $1.20 | about $0.01 to $0.04               |
+| City Motors    | headless |     $0.15 |       $1.50 | about $0.01 to $0.04               |
 
 A count-only soak of 603 on Kernel from a workstation on November 24, 2026,
 with direct egress, as recorded by the soak's local `kernel_browser_usage`:

@@ -314,7 +314,7 @@ up Kernel refuses every browser with HTTP 403, so all of them stop.
   - **$0.25 a UTC day** (`KERNEL_DAILY_BUDGET_USD`), about ten healthy
     crawls, so a day of failing retries stops long before it can eat the
     month. It resets at 00:00 UTC.
-  - **$2.10 a UTC month** (`KERNEL_MONTHLY_BUDGET_USD`; $3.50 until November 24, 2026, when 603 took its own caps, and $3.30 until November 25, when City Motors took its own), so the other Kernel
+  - **$1.80 a UTC month** (`KERNEL_MONTHLY_BUDGET_USD`; $3.50 until November 24, 2026, when 603 took its own caps, and $3.30 until November 25, when City Motors took its own), so the other Kernel
     sources keep the rest of the credit. It resets on the 1st.
 
   A deferral fails its run after three hours, as any deferral does, so the
@@ -328,7 +328,7 @@ up Kernel refuses every browser with HTTP 403, so all of them stop.
   | A healthy day (3 search chunks, measured below)   | about $0.02 to $0.03                  |
   | A healthy month (30 or 31 days)                   | about $0.60 to $0.95                  |
   | Any day, with the daily cap                       | $0.25 plus at most one browser: $0.31 |
-  | A month that fails every day, with both caps      | $2.10 plus at most one browser: $2.16 |
+  | A month that fails every day, with both caps      | $1.80 plus at most one browser: $1.86 |
 
 - To check spend: `select sum((coalesce(ended_at, started_at + 420000) - started_at) / 1000.0) * 0.0001333 from kernel_browser_usage where source = 'upullrparts' and started_at >= <start of the day or month, ms>`.
   The caps count only production's browsers; a local soak records its own in
