@@ -187,8 +187,8 @@ patterns. The full hosted migration returns the actual retired-alias count as
 ## Rollout and replay
 
 No owner-run step is required. Deployment runs the normal Drizzle migration.
-The scheduled workflow first fills the pattern cache in bounded 100-vehicle
-steps, outside the shared Algolia writer lock and ingestion commit. Only after
+The scheduled workflow first fills the pattern cache in bounded 1,000-vehicle
+steps (at most 100 vPIC patterns each), outside the shared Algolia writer lock and ingestion commit. Only after
 that phase does it acquire the writer and run the cache-only schema-12
 backfill, index projection and inventory refresh. Daily ingestion reads the
 cache only and never calls vPIC.

@@ -71,7 +71,7 @@ probe, at most 3 passes (about 1,566 browses at worst). Turso reads every
 vehicle once in the load and looks up every live objectID in the sweep. At
 the Nov 21 copy rate (about 8 s per step), expect about 2.3 h of load and
 15 to 30 min of sweep. The run holds the commit and the shared Algolia write
-lock throughout, so queued runs, alert checks and the 06:00 search-index
+lock throughout, so queued runs, alert checks and the 03:00 search-index
 migration wait.
 
 Browse pages count as Algolia search requests. On the free plan (10K a

@@ -21,7 +21,12 @@ import {
 } from "./search-index-validation";
 import { configureAlgoliaIndex, syncToAlgolia } from "./sync-algolia";
 
-const DEFAULT_BATCH_SIZE = 100;
+// One workflow step per batch. The run also holds the VIN cache pass and
+// each step adds three events, so batches must stay large enough to cover
+// the whole inventory well inside the run's 25,000-event limit. Enrichment
+// no longer calls vPIC here, so a batch is a few Turso reads and one Algolia
+// save.
+const DEFAULT_BATCH_SIZE = 1000;
 const VALIDATION_SAMPLE_SIZE = 3;
 
 export { SearchIndexMigrationValidationError } from "./search-index-validation";

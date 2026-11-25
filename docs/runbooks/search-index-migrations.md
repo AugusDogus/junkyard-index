@@ -32,7 +32,10 @@ to Algolia or deliver alerts after losing the lock.
 
 1. Merge the PR to `main`.
 2. Vercel deploys the application and Workflow SDK entry points together.
-3. Vercel Cron starts `searchIndexMigrationWorkflow` at 06:00 UTC each day. The
+3. Vercel Cron starts `searchIndexMigrationWorkflow` at 03:00 UTC each day,
+   four hours before the 07:00 ingestion pass. Ingestion runs hold their
+   commit while they wait for the shared Algolia writer, so a migration still
+   writing at 07:00 holds every morning publication behind it. The
    migration exits immediately after schema version `10` is ready.
 4. The migration configures Algolia, backfills one durable vehicle batch per
    Workflow step, validates exact VIN and Boolean token filters, then writes
@@ -199,13 +202,15 @@ Its journal `when` (1795536000000) equals the last migration applied by the
 shared preview and development database, which got this schema from an earlier
 draft, so previews skip what they already have and production applies it.
 Before acquiring the shared Algolia writer lock, the scheduled workflow fills
-only the VIN pattern cache in bounded 100-vehicle steps. It stops the decode
+only the VIN pattern cache. Each step reads up to 1,000 vehicles and requests
+at most 100 uncached patterns; when more are pending it stops at the last
+vehicle it decoded, so none is skipped. It stops the decode
 pass when a vPIC batch exhausts its retries, returns an invalid service body
 or requests a long cooldown. No shared publication or ingestion commit lock
 is held during network enrichment. Cache errors also defer the optional phase.
 
 The migration then acquires the writer, reads only cached decodes, and walks
-existing vehicles in 100-row steps. It updates make/model/source-name/trim,
+existing vehicles in 1,000-row steps. It updates make/model/source-name/trim,
 rewrites the same object IDs, refreshes snapshots and advances readiness to 12.
 Finalization records version 12 for the index in the Turso
 `search_index_schema` table before writing the Algolia marker. Reconciliation
@@ -245,6 +250,13 @@ Pre-1981 serials, forbidden characters and inconsistent year codes never request
 vPIC. Only error codes 0 and 1 (check digit), with a matching model year and
 nonempty make/model, produce canonical identity. Source names stay in
 `source_make`/`source_model`; source trim takes precedence over vPIC trim.
+
+Both passes run in one workflow run. Each step adds three events and Vercel
+fails a run past 25,000 (`MAX_EVENTS_EXCEEDED`), so steps cover 1,000
+vehicles: about 500 steps per pass for 494,411 vehicles (Nov 25), plus one
+step per 100 newly decoded patterns. With 100-vehicle steps the run passed
+the limit about two thirds through the backfill, held the writer until
+10:53 UTC, and started over the next day.
 
 Each cache-warming step requests at most 100 new patterns. Requests are serial,
 50 VINs per POST, with a one-second minimum delay, eight-second timeout and
