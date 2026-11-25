@@ -164,6 +164,106 @@ describe("bounded durable reconciliation", () => {
       client.close();
     }
   });
+  test("an update that changes no indexed column sets none, so no index entry is rewritten", async () => {
+    const client = createClient({ url: ":memory:" });
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const database = drizzle(client);
+      const store = IngestionSnapshotStore.memory();
+      const upserts: string[] = [];
+      const batchClient: typeof client = Object.assign(Object.create(client), {
+        batch: (
+          statements: Parameters<typeof client.batch>[0],
+          mode?: Parameters<typeof client.batch>[1],
+        ) => {
+          for (const statement of statements) {
+            const sql =
+              typeof statement === "string"
+                ? statement
+                : Array.isArray(statement)
+                  ? statement[0]
+                  : statement.sql;
+            if (sql.includes("insert into vehicle (")) upserts.push(sql);
+          }
+          return client.batch(statements, mode);
+        },
+      });
+      const runs = [
+        { id: "first", vehicle: snapshot("row52", "Blue") },
+        // Only an unindexed field changes.
+        { id: "recolor", vehicle: snapshot("row52", "Red") },
+        // The yard changes, which vehicle_yard_live_idx and others cover.
+        {
+          id: "move",
+          vehicle: { ...snapshot("row52", "Red"), locationCode: "yard-2" },
+        },
+      ];
+      for (const run of runs) {
+        const now = new Date();
+        await database.insert(ingestionRun).values({
+          id: run.id,
+          source: "row52",
+          status: "running",
+          stage: "reconcile_upsert",
+          activeSlot: 1,
+          commitStartedAt: now,
+          acceptedSources: JSON.stringify(["row52"]),
+          startedAt: now,
+          lastProgressAt: now,
+        });
+        await database.insert(ingestionSourceRun).values({
+          id: `${run.id}:row52`,
+          runId: run.id,
+          source: "row52",
+          status: "success",
+          acceptanceStatus: "accepted",
+          uniqueVehicles: 1,
+          startedAt: now,
+        });
+        await stageSnapshots({
+          client,
+          store,
+          runId: run.id,
+          vehicles: [run.vehicle],
+        });
+        await reconcileDurableIngestionRun({
+          runId: run.id,
+          database,
+          batchClient,
+          snapshotStore: store,
+        });
+        await database
+          .update(ingestionRun)
+          .set({ activeSlot: null })
+          .where(eq(ingestionRun.id, run.id));
+      }
+      expect(upserts).toHaveLength(3);
+      const [, recolor, move] = upserts.map((sql) =>
+        sql.slice(sql.indexOf("do update set")),
+      );
+      for (const indexed of [
+        "source",
+        "make",
+        "model",
+        "location_code",
+        "state_abbr",
+        "missing_since_at",
+        "missing_run_count",
+      ]) {
+        const set = new RegExp(`(^|[\\s,])${indexed} =`);
+        expect(recolor).not.toMatch(set);
+        expect(move).toMatch(set);
+      }
+      expect(recolor).toContain("color = excluded.color");
+      expect(recolor).toContain("last_seen_at = excluded.last_seen_at");
+      expect(
+        (await client.execute("select color, location_code from vehicle"))
+          .rows[0],
+      ).toMatchObject({ color: "Red", location_code: "yard-2" });
+    } finally {
+      client.close();
+    }
+  });
   test("keeps backfills unknown per yard across batches and records only later arrivals", async () => {
     const client = createClient({ url: ":memory:" });
     try {
