@@ -62,6 +62,7 @@ export async function GET(request: Request) {
  * Expires the inventory caches when a source passed 36 hours (its listings
  * gain "Last checked") or 7 days (it hides), or an ingestion outage began or
  * ended, since the last classification stored; no publication does then. A
+ * source coming back to current is left to its publication's refresh. A
  * failure here leaves the consumer to run as usual; those labels and hides
  * then wait for the next tick, publication or the caches' daily expiry.
  */
@@ -73,6 +74,12 @@ async function expireAtStalenessBoundary(): Promise<void> {
       revalidate: () => revalidateTag(INVENTORY_CACHE_TAG, "max"),
     });
     if (check.status === "unchanged") return;
+    if (check.status === "recovered") {
+      console.info(
+        `Left the "${INVENTORY_CACHE_TAG}" cache tag to the inventory refresh: ${check.sources.join(", ")} published and came back to current, and that publication's refresh expires the caches.`,
+      );
+      return;
+    }
     console.info(
       check.changed === "unknown"
         ? `Expired the "${INVENTORY_CACHE_TAG}" cache tag because no readable staleness classification was stored (checkpoint "${StalenessBoundary.checkpointName}"); it is stored now.`

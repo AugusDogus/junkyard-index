@@ -17,12 +17,15 @@ const CHECKPOINT_NAME = "inventory-staleness";
 
 /**
  * One hourly check. Unchanged: every source is in the class the caches were
- * last expired for. Expired: the caches were expired because `changed`
- * sources moved class, or because no readable classification was stored
- * ("unknown").
+ * last expired for. Recovered: only `sources` changed, each back to current;
+ * the new class is stored without expiring the caches, since each of them
+ * published, and the inventory refresh for that publication expires them.
+ * Expired: the caches were expired because `changed` sources moved class, or
+ * because no readable classification was stored ("unknown").
  */
 export type StalenessBoundaryCheck =
   | { status: "unchanged" }
+  | { status: "recovered"; sources: IngestionSource[] }
   | { status: "expired"; changed: IngestionSource[] | "unknown" };
 
 /** The stored classification, or null when none is stored or it is unreadable. */
@@ -53,7 +56,12 @@ export const StalenessBoundary = {
    * hours (its listings gain "Last checked") or 7 days (it hides), or when
    * an ingestion outage began or ended (held sources show or hide), since
    * the classification stored last time. A source going stale publishes
-   * nothing, so no publication expires them then. Compares with the stored
+   * nothing, so no publication expires them then. A source coming back to
+   * current did publish, and the inventory refresh for that publication
+   * (at most 3 hours later) expires the caches with its new inventory, so a
+   * check whose changes are all recoveries only stores them: every page
+   * would otherwise regenerate up to twice for one publication. Compares
+   * with the stored
    * classification, not a time window, so a late or missed tick still
    * catches every change. When `revalidate` throws, nothing is stored and
    * the error propagates, so the next tick tries again.
@@ -82,7 +90,10 @@ export const StalenessBoundary = {
         : InventoryStaleness.changedClasses(previous, classes);
     if (changed !== "unknown" && changed.length === 0)
       return { status: "unchanged" };
-    params.revalidate();
+    const recovered =
+      changed !== "unknown" &&
+      changed.every((source) => classes[source] === undefined);
+    if (!recovered) params.revalidate();
     const state = {
       kind: "staleness",
       jobCursor: JSON.stringify(classes),
@@ -96,6 +107,8 @@ export const StalenessBoundary = {
         target: ingestionProjectorCheckpoint.name,
         set: state,
       });
-    return { status: "expired", changed };
+    return recovered
+      ? { status: "recovered", sources: changed }
+      : { status: "expired", changed };
   },
 } as const;
