@@ -13,8 +13,8 @@ import {
 // LKQ mirrors and unsupported legacy yards in the initial migration baseline.
 const customerYards = new Set([
   ...ARIO_CUSTOMER_YARDS.map(arioLocationCode),
-  `${AUTORECYCLER_LOOKUP_PREFIX}1672882562847x152496749538181120`, // JDM
-  `${AUTORECYCLER_LOOKUP_PREFIX}1727808874603x499378618447920300`, // A-1
+  `${AUTORECYCLER_LOOKUP_PREFIX}1672882562847x152496749538181120`, // A-1 Metals
+  `${AUTORECYCLER_LOOKUP_PREFIX}1727808874603x499378618447920300`, // JDM
 ]);
 
 /** Check each eligible yard and bound stale customer removals against the prior
