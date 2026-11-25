@@ -312,6 +312,7 @@ mock.module("../../src/workflows/vehicle-steps", () => ({
     return batch;
   },
   finalizeSearchIndexMigrationStep: async () => ({}),
+  expireInventoryAfterMigrationStep: async () => {},
 }));
 mock.module("../../src/workflows/search-projector", () => ({
   searchProjectorWorkflow: async () => {},
