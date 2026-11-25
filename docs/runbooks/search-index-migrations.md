@@ -36,9 +36,10 @@ to Algolia or deliver alerts after losing the lock.
    four hours before the 07:00 ingestion pass. Ingestion runs hold their
    commit while they wait for the shared Algolia writer, so a migration still
    writing at 07:00 holds every morning publication behind it. Once the
-   current schema version is ready, the migration still rewrites every
-   vehicle on days its VIN cache pass accepts a new decode (most days);
-   otherwise it exits immediately.
+   current schema version is ready, it only warms the VIN cache and exits:
+   newly cached decodes reach each vehicle through ingestion's
+   canonicalization on its source's next run, because rewriting all ~494K
+   records daily would exceed Algolia's indexing-operation limits.
 4. The migration configures Algolia, backfills one durable vehicle batch per
    Workflow step, validates exact VIN and Boolean token filters, then writes
    search schema version `10` to the index settings. A retried batch safely
