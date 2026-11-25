@@ -228,3 +228,19 @@ describe("TursoUsage.pace", () => {
     expect(report.status).toBe("on_pace");
   });
 });
+
+describe("TursoUsage.readDatabase", () => {
+  test("reads totals nested under database, as Turso's reference shows", async () => {
+    const { fetch } = fakeFetch(200, {
+      database: { uuid: "x", total: { rows_read: 7, rows_written: 3 } },
+    });
+    expect(
+      await TursoUsage.readDatabase(
+        PRODUCTION,
+        new Date("2026-11-15T00:00:00Z"),
+        new Date("2026-11-16T00:00:00Z"),
+        fetch,
+      ),
+    ).toEqual({ rowsRead: 7, rowsWritten: 3 });
+  });
+});
