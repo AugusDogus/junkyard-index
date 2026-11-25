@@ -85,6 +85,18 @@ export type AutorecyclerSourcePolicy = (
 >;
 
 export const AutorecyclerSourcePolicy = {
+  /**
+   * Whether an AutoRecycler yard code belongs to an organization a direct
+   * provider reads. AutoRecycler rows there are retired mirrors: the direct
+   * provider owns those cars, so its observations must not keep the mirror
+   * alive. Pull-A-Part children resolve only through the live parent lookup,
+   * which this static check does not make.
+   */
+  isDirectProviderYard(locationCode: string): boolean {
+    const id = reference.safeParse(locationCode);
+    return id.success && DIRECT_PROVIDER_ORGANIZATIONS.has(id.data);
+  },
+
   create(
     fetchRecords: (ids: string[]) => Promise<unknown> = (ids) =>
       postAutorecyclerElasticsearchMget(buildMgetBody(ids)),

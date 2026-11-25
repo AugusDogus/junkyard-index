@@ -5,13 +5,14 @@ import {
   hollanderstoresYardChecks,
 } from "./hollanderstores-durable-cursor";
 import { autorecyclerYardChecks } from "./autorecycler-yard-checks";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import {
   isIngestionSource,
   type IngestionSource,
 } from "~/lib/ingestion-source";
-import { ingestionSourceRun } from "~/schema";
+import { InventoryStaleness } from "~/lib/inventory-staleness";
+import { ingestionSourceRun, yardInventory } from "~/schema";
 import { parseSnapshotChunks } from "./durable-ingestion-repository";
 import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import { reconciliationSourcePriority } from "./reconciliation-policy";
@@ -49,6 +50,57 @@ export interface RunSnapshotInventory {
   /** Each accepted source's reported per-yard results, preserved yards
    * included. A yard it lists but did not report is unreported. */
   readonly yardChecks: ReadonlyMap<string, YardCheckReports>;
+  /** Last accepted publication (epoch ms) of each preserved yard that has
+   * one, by source and yard code. */
+  readonly preservedYardPublishedAt: ReadonlyMap<
+    string,
+    ReadonlyMap<string, number>
+  >;
+}
+
+/**
+ * Whether a preserved yard keeps its previous inventory at `at`. It does only
+ * while the site would still list it: within INVENTORY_HIDDEN_AFTER_DAYS of
+ * its last accepted publication, showing "Last checked" after 36 hours. A
+ * yard with no publication, or an older one, reconciles like any other, so
+ * vehicles no source listed go missing and depart instead of freezing.
+ */
+export function holdsPreservedYard(
+  inventory: RunSnapshotInventory,
+  source: string,
+  code: string,
+  at: number,
+): boolean {
+  if (!inventory.preservedYards.get(source)?.has(code)) return false;
+  const publishedAt =
+    inventory.preservedYardPublishedAt.get(source)?.get(code) ?? null;
+  return InventoryStaleness.of(publishedAt, at).kind !== "hidden";
+}
+
+async function loadPreservedYardPublishedAt(
+  database: LibSQLDatabase,
+  preserved: ReadonlyMap<string, ReadonlySet<string>>,
+): Promise<ReadonlyMap<string, ReadonlyMap<string, number>>> {
+  const published = new Map<string, Map<string, number>>();
+  for (const [source, codes] of preserved) {
+    if (codes.size === 0) continue;
+    const rows = await database
+      .select({
+        code: yardInventory.locationCode,
+        at: yardInventory.lastPublishedAt,
+      })
+      .from(yardInventory)
+      .where(
+        and(
+          eq(yardInventory.source, source),
+          inArray(yardInventory.locationCode, [...codes]),
+        ),
+      );
+    const yards = new Map<string, number>();
+    for (const row of rows) if (row.at) yards.set(row.code, row.at.getTime());
+    published.set(source, yards);
+  }
+  return published;
 }
 
 export async function loadSourceSnapshot(
@@ -199,6 +251,10 @@ export async function loadRunSnapshotInventory(params: {
     acceptedSources: new Set(accepted.map((row) => row.source)),
     preservedYards,
     yardChecks,
+    preservedYardPublishedAt: await loadPreservedYardPublishedAt(
+      params.database,
+      preservedYards,
+    ),
   };
   lastInventory.set(params.store, { runId: params.runId, key, inventory });
   return inventory;

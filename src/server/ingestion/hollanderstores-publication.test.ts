@@ -19,6 +19,10 @@ const drifted = HOLLANDERSTORES_YARDS.find(
   (yard) => yard.code === "strickerauto",
 );
 
+// A day before the run: preserved yards keep inventory only within the
+// 7-day hide window of their last publication.
+const previousPublication = Date.now() - 24 * 60 * 60 * 1000;
+
 async function setup(preserved: readonly string[]) {
   if (!healthy || !drifted) throw new Error("Missing Hollander yard fixture");
   const client = createClient({ url: ":memory:" });
@@ -75,9 +79,14 @@ async function setup(preserved: readonly string[]) {
     });
   await client.execute({
     sql: `insert into yard_inventory (source, location_code, location_name, location_city, state_abbr, lat, lng, vehicle_count, last_published_at, updated_at)
-      values ('hollanderstores', ?, 'Saved Yard', 'City', 'VT', 1, 1, 1, 5, 5),
-             ('hollanderstores', ?, 'Saved Yard', 'City', 'VT', 1, 1, 1, 5, 5)`,
-    args: [drifted.code, healthy.code],
+      values ('hollanderstores', ?, 'Saved Yard', 'City', 'VT', 1, 1, 1, ?, 5),
+             ('hollanderstores', ?, 'Saved Yard', 'City', 'VT', 1, 1, 1, ?, 5)`,
+    args: [
+      drifted.code,
+      previousPublication,
+      healthy.code,
+      previousPublication,
+    ],
   });
   return { client, database, snapshotStore, runId };
 }
@@ -124,8 +133,8 @@ test("a preserved Hollander yard keeps its inventory and publication time while 
     const published = new Map(
       yards.rows.map((row) => [row.location_code, row.last_published_at]),
     );
-    expect(published.get(drifted.code)).toBe(5);
-    expect(published.get(healthy.code)).not.toBe(5);
+    expect(published.get(drifted.code)).toBe(previousPublication);
+    expect(published.get(healthy.code)).not.toBe(previousPublication);
   } finally {
     client.close();
   }
