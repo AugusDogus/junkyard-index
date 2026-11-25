@@ -15,6 +15,7 @@ import {
   ProviderTurnDeferred,
 } from "./provider-chunk-clock";
 import {
+  HostReservation,
   providerHostLease,
   providerHostSlot,
   providerHostTurn,
@@ -47,9 +48,9 @@ function busyUntil(freeAt: () => boolean) {
   let reservations = 0;
   const store: ProviderHostStore = {
     reserve: async () => {
-      if (!freeAt()) return false;
+      if (!freeAt()) return HostReservation.queued(0, 0);
       reservations++;
-      return true;
+      return HostReservation.granted;
     },
     release: async () => true,
     cancel: async () => true,
@@ -324,7 +325,7 @@ test("a reservation still in flight when the turn's wait budget ends is never le
     reserve: async () => {
       await new Promise((resolve) => setTimeout(resolve, 20));
       granted = true;
-      return true;
+      return HostReservation.granted;
     },
     release: async () => {
       released = true;
@@ -414,7 +415,7 @@ test("a lease is never awaited inside a shared host turn, so a turn holder canno
   const store: ProviderHostStore = {
     reserve: async (token) => {
       reserved.push(token);
-      return true;
+      return HostReservation.granted;
     },
     release: async () => true,
     cancel: async () => true,

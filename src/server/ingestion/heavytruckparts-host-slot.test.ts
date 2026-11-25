@@ -5,6 +5,7 @@ import {
   withHeavyTruckPartsHostSlot,
   type HeavyTruckPartsHostStore,
 } from "./heavytruckparts-host-slot";
+import { HostReservation } from "./provider-host-slot";
 
 test("deployed clients fail before requesting when Redis configuration is missing", async () => {
   const vercel = process.env.VERCEL;
@@ -36,9 +37,9 @@ function fakeStore() {
   const store: HeavyTruckPartsHostStore = {
     reserve: async (token, ttl) => {
       expect(ttl).toBe(90_000);
-      if (owner !== null) return false;
+      if (owner !== null) return HostReservation.queued(0, 0);
       owner = token;
-      return true;
+      return HostReservation.granted;
     },
     cancel: async () => true,
     release: async (token) => {
@@ -106,7 +107,10 @@ test("a Redis reservation failure never executes the host request", async () => 
 
 test("a busy host times out without executing a request", async () => {
   let requested = false;
-  const store = { ...fakeStore(), reserve: async () => false };
+  const store = {
+    ...fakeStore(),
+    reserve: async () => HostReservation.queued(0, 0),
+  };
   await Effect.runPromise(
     Effect.gen(function* () {
       const fiber = yield* Effect.fork(
@@ -139,14 +143,14 @@ test("the request deadline releases the lease only after its completed gap", asy
         ),
       );
       yield* TestClock.adjust("65 seconds");
-      expect(yield* Effect.promise(() => store.reserve("other", 90_000))).toBe(
-        false,
-      );
+      expect(
+        yield* Effect.promise(() => store.reserve("other", 90_000)),
+      ).toEqual(HostReservation.queued(0, 0));
       yield* TestClock.adjust("4 seconds");
       expect((yield* Fiber.join(fiber))._tag).toBe("Left");
-      expect(yield* Effect.promise(() => store.reserve("other", 90_000))).toBe(
-        true,
-      );
+      expect(
+        yield* Effect.promise(() => store.reserve("other", 90_000)),
+      ).toEqual(HostReservation.granted);
     }).pipe(Effect.provide(TestContext.TestContext)),
   );
 });
@@ -180,14 +184,14 @@ test("interruption retains the reservation until the completed gap then releases
       yield* TestClock.adjust("1 millis");
       const interrupted = yield* Effect.fork(Fiber.interrupt(first));
       yield* TestClock.adjust("3999 millis");
-      expect(yield* Effect.promise(() => store.reserve("other", 90_000))).toBe(
-        false,
-      );
+      expect(
+        yield* Effect.promise(() => store.reserve("other", 90_000)),
+      ).toEqual(HostReservation.queued(0, 0));
       yield* TestClock.adjust("1 millis");
       yield* Fiber.join(interrupted);
-      expect(yield* Effect.promise(() => store.reserve("other", 90_000))).toBe(
-        true,
-      );
+      expect(
+        yield* Effect.promise(() => store.reserve("other", 90_000)),
+      ).toEqual(HostReservation.granted);
     }).pipe(Effect.provide(TestContext.TestContext)),
   );
 });

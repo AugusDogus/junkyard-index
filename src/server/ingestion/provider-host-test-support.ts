@@ -45,11 +45,14 @@ export async function runWithQueuedHost<A, E>(
     if (script.includes("ZRANGEBYSCORE")) {
       const asked = firstAsked.get(token) ?? now;
       firstAsked.set(token, asked);
-      if (holder !== null || now - asked < turnWait(turns.length)) return 0;
+      // RESERVE_HOST_SLOT replies [granted, laneAhead, readyAhead]; the
+      // simulated waiter is always at the front of its lane.
+      if (holder !== null || now - asked < turnWait(turns.length))
+        return [0, 0, 0];
       holder = token;
       firstAsked.delete(token);
       turns.push({ acquiredAt: now, releasedAt: null, leaseMs });
-      return 1;
+      return [1, 0, 0];
     }
     if (script.includes("'DEL'")) {
       if (holder !== token) return 0;

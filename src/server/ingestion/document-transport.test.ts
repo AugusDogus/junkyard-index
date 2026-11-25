@@ -52,7 +52,7 @@ import {
   ProviderChunkClock,
   ProviderTurnDeferred,
 } from "./provider-chunk-clock";
-import { withProviderHostLease } from "./provider-host-slot";
+import { HostReservation, withProviderHostLease } from "./provider-host-slot";
 import { runWithQueuedHost } from "./provider-host-test-support";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { fetchSix03Page } from "./six03-client";
@@ -1112,7 +1112,7 @@ test("Northwest takes the session lease before its URG turn and opens the sessio
       {
         reserve: async () => {
           events.push("lease");
-          return true;
+          return HostReservation.granted;
         },
         release: async () => {
           events.push("release");

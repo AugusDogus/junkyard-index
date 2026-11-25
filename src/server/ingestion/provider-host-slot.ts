@@ -5,8 +5,69 @@ import {
   type ProviderTurnDeferred,
 } from "./provider-chunk-clock";
 
+/** A reservation attempt: the lease, or where the waiter stands in line. */
+export type HostReservation =
+  | { readonly _tag: "Granted" }
+  | {
+      readonly _tag: "Queued";
+      /** Waiters ahead of this one in its lane. */
+      readonly laneAhead: number;
+      /** Ready lanes that take a group place before this one, counting the
+       * release it waits for when every place is taken. */
+      readonly readyAhead: number;
+    };
+
+/** Longest sleep between polls. Each poll renews the waiter's 30 s queue
+ * deadline, and a store call may take 5 s, so this keeps a live waiter in
+ * line. */
+const MAX_POLL_MS = 10_000;
+
+const GRANTED: HostReservation = { _tag: "Granted" };
+const isCount = (value: unknown): value is number =>
+  typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+
+export const HostReservation = {
+  granted: GRANTED,
+  queued: (laneAhead: number, readyAhead: number): HostReservation => ({
+    _tag: "Queued",
+    laneAhead,
+    readyAhead,
+  }),
+
+  /** Reads a `RESERVE_HOST_SLOT` reply: `{granted, laneAhead, readyAhead}`. */
+  parse(reply: unknown): HostReservation {
+    if (Array.isArray(reply) && reply.length === 3) {
+      const [granted, laneAhead, readyAhead]: unknown[] = reply;
+      if (granted === 1) return GRANTED;
+      if (granted === 0 && isCount(laneAhead) && isCount(readyAhead))
+        return HostReservation.queued(laneAhead, readyAhead);
+    }
+    throw new Error(
+      `Host reservation script replied ${JSON.stringify(reply)}, expected [granted, laneAhead, readyAhead]. The reservation state is unknown, so the waiter gives up its place.`,
+    );
+  },
+
+  /**
+   * How long a queued waiter sleeps before it polls again. Every turn ahead of
+   * it in its lane holds the lease for at least the policy gap (or one poll
+   * for a lease without a gap), and the group's places share the ready lanes'
+   * turns. A waiter ahead that gives up its place early only delays this one
+   * by the difference, never past `MAX_POLL_MS`.
+   */
+  pollDelayMs(
+    policy: Pick<ProviderHostPolicy, "pollMs" | "group"> & { gapMs?: number },
+    reservation: Extract<HostReservation, { _tag: "Queued" }>,
+  ): number {
+    const turnMs = Math.max(policy.pollMs, policy.gapMs ?? 0);
+    const ahead =
+      reservation.laneAhead +
+      reservation.readyAhead / (policy.group?.activeLanes ?? 1);
+    return Math.min(MAX_POLL_MS, policy.pollMs + ahead * turnMs);
+  },
+} as const;
+
 export interface ProviderHostStore {
-  reserve(token: string, leaseMs: number): Promise<boolean>;
+  reserve(token: string, leaseMs: number): Promise<HostReservation>;
   release(token: string): Promise<boolean>;
   cancel(token: string): Promise<boolean>;
 }
@@ -57,44 +118,94 @@ const slotError = (
  * with their lease.
  *
  * All keys share one Redis hash tag for cluster-safe scripts.
+ *
+ * Replies `{granted, laneAhead, readyAhead}` (see `HostReservation`), so a
+ * waiter far back can poll less often. Upstash bills every command a script
+ * runs, so a waiter's repoll runs only what keeps its place: queue TTLs are
+ * renewed only once they fall below the 30 s waiter deadline, and a request
+ * nobody is queued for takes the lease without joining a queue. Older
+ * deployments run the previous script on the same keys during a rollout;
+ * both keep the same FIFO order, group cap and expiry.
  */
 export const RESERVE_HOST_SLOT = `
-local now = redis.call('TIME')
-local ms = now[1] * 1000 + math.floor(now[2] / 1000)
-local function front(queue, deadlines, sequence)
-  local expired = redis.call('ZRANGEBYSCORE', deadlines, '-inf', ms)
+-- The last argument is '1' on a token's first attempt, which alone may find
+-- every queue empty and skip them.
+local first = ARGV[#ARGV] == '1'
+local ms
+local function clock()
+  if not ms then
+    local now = redis.call('TIME')
+    ms = now[1] * 1000 + math.floor(now[2] / 1000)
+  end
+  return ms
+end
+-- Registers ARGV[1] at the back of a FIFO queue once, renews its deadline,
+-- and returns how many waiters stand ahead of it.
+local function place(queue, deadlines, sequence)
+  local expired = redis.call('ZRANGEBYSCORE', deadlines, '-inf', clock())
   for _, token in ipairs(expired) do
     redis.call('ZREM', queue, token)
     redis.call('ZREM', deadlines, token)
   end
-  if not redis.call('ZSCORE', queue, ARGV[1]) then
+  local rank = redis.call('ZRANK', queue, ARGV[1])
+  if not rank then
     redis.call('ZADD', queue, redis.call('INCR', sequence), ARGV[1])
+    rank = redis.call('ZRANK', queue, ARGV[1])
   end
-  redis.call('ZADD', deadlines, ms + 30000, ARGV[1])
-  redis.call('PEXPIRE', queue, 60000)
-  redis.call('PEXPIRE', deadlines, 60000)
-  redis.call('PEXPIRE', sequence, 60000)
-  return redis.call('ZRANGE', queue, 0, 0)[1] == ARGV[1]
+  redis.call('ZADD', deadlines, clock() + 30000, ARGV[1])
+  -- The three keys are always renewed together, so one TTL stands for all.
+  if redis.call('PTTL', deadlines) < 30000 then
+    redis.call('PEXPIRE', queue, 60000)
+    redis.call('PEXPIRE', deadlines, 60000)
+    redis.call('PEXPIRE', sequence, 60000)
+  end
+  return rank
 end
-if not front(KEYS[2], KEYS[3], KEYS[4]) then return 0 end
+local function leave(queue, deadlines)
+  redis.call('ZREM', queue, ARGV[1])
+  redis.call('ZREM', deadlines, ARGV[1])
+end
 if #KEYS == 4 then
-  if not redis.call('SET', KEYS[1], ARGV[1], 'NX', 'PX', ARGV[2]) then return 0 end
-else
-  if redis.call('EXISTS', KEYS[1]) == 1 then return 0 end
-  redis.call('ZREMRANGEBYSCORE', KEYS[8], '-inf', ms)
-  front(KEYS[5], KEYS[6], KEYS[7])
-  local places = tonumber(ARGV[3]) - redis.call('ZCARD', KEYS[8])
-  if places <= 0 or redis.call('ZRANK', KEYS[5], ARGV[1]) >= places then return 0 end
-  local ttl = tonumber(ARGV[2])
-  redis.call('SET', KEYS[1], ARGV[1], 'PX', ttl)
-  redis.call('ZADD', KEYS[8], ms + ttl, ARGV[1])
-  if redis.call('PTTL', KEYS[8]) < ttl then redis.call('PEXPIRE', KEYS[8], ttl) end
-  redis.call('ZREM', KEYS[5], ARGV[1])
-  redis.call('ZREM', KEYS[6], ARGV[1])
+  -- A missing queue key means nobody waits for the lane.
+  if first and redis.call('EXISTS', KEYS[2]) == 0 then
+    if redis.call('SET', KEYS[1], ARGV[1], 'NX', 'PX', ARGV[2]) then return {1, 0, 0} end
+    place(KEYS[2], KEYS[3], KEYS[4])
+    return {0, 0, 0}
+  end
+  local ahead = place(KEYS[2], KEYS[3], KEYS[4])
+  if ahead > 0 then return {0, ahead, 0} end
+  if not redis.call('SET', KEYS[1], ARGV[1], 'NX', 'PX', ARGV[2]) then return {0, 0, 0} end
+  leave(KEYS[2], KEYS[3])
+  return {1, 0, 0}
 end
-redis.call('ZREM', KEYS[2], ARGV[1])
-redis.call('ZREM', KEYS[3], ARGV[1])
-return 1
+local ttl = tonumber(ARGV[2])
+local active
+local function places()
+  if not active then
+    redis.call('ZREMRANGEBYSCORE', KEYS[8], '-inf', clock())
+    active = redis.call('ZCARD', KEYS[8])
+  end
+  return math.max(0, tonumber(ARGV[3]) - active)
+end
+local function take()
+  redis.call('SET', KEYS[1], ARGV[1], 'PX', ttl)
+  redis.call('ZADD', KEYS[8], clock() + ttl, ARGV[1])
+  if redis.call('PTTL', KEYS[8]) < ttl then redis.call('PEXPIRE', KEYS[8], ttl) end
+  return {1, 0, 0}
+end
+-- Nobody waits for the lane or for a place, and the lane is free.
+local idle = first and redis.call('EXISTS', KEYS[2], KEYS[1], KEYS[5]) == 0
+if idle and places() > 0 then return take() end
+local ahead = place(KEYS[2], KEYS[3], KEYS[4])
+if ahead > 0 then return {0, ahead, 0} end
+if not idle and redis.call('EXISTS', KEYS[1]) == 1 then return {0, 0, 0} end
+local free = places()
+local rank = place(KEYS[5], KEYS[6], KEYS[7])
+if rank >= free then return {0, 0, rank - free + 1} end
+take()
+leave(KEYS[5], KEYS[6])
+leave(KEYS[2], KEYS[3])
+return {1, 0, 0}
 `;
 
 /** Releases KEYS[1] if ARGV[1] still owns it, and its group place (KEYS[2],
@@ -174,13 +285,24 @@ export function redisProviderHostStore(
     policy,
     keyspace,
   );
+  // Tokens this store has queued, whose later attempts are repolls.
+  const queued = new Set<string>();
   return {
-    reserve: async (owner, ttl) =>
-      (await redis.eval(
-        RESERVE_HOST_SLOT,
-        policy.group ? [...lane, ...ready, readySequence, active] : lane,
-        policy.group ? [owner, ttl, policy.group.activeLanes] : [owner, ttl],
-      )) === 1,
+    reserve: async (owner, ttl) => {
+      const first = queued.has(owner) ? 0 : 1;
+      queued.add(owner);
+      const reservation = HostReservation.parse(
+        await redis.eval(
+          RESERVE_HOST_SLOT,
+          policy.group ? [...lane, ...ready, readySequence, active] : lane,
+          policy.group
+            ? [owner, ttl, policy.group.activeLanes, first]
+            : [owner, ttl, first],
+        ),
+      );
+      if (reservation._tag === "Granted") queued.delete(owner);
+      return reservation;
+    },
     release: async (owner) =>
       (await redis.eval(
         RELEASE_HOST_SLOT,
@@ -188,6 +310,7 @@ export function redisProviderHostStore(
         [owner],
       )) === 1,
     cancel: async (owner) => {
+      queued.delete(owner);
       // A timed-out Redis response may have acquired the lease. Keep that
       // lease until expiry; cancellation removes only its queued registration.
       await redis.eval(
@@ -201,10 +324,10 @@ export function redisProviderHostStore(
 }
 
 /** One store call, bounded so a stalled Redis fails instead of hanging. */
-const storeCall = (
+const storeCall = <A>(
   policy: ProviderLeasePolicy,
   operation: string,
-  run: () => Promise<boolean>,
+  run: () => Promise<A>,
 ) =>
   Effect.tryPromise({
     try: run,
@@ -215,6 +338,29 @@ const storeCall = (
       onTimeout: () => slotError(policy, operation, "Redis deadline exceeded"),
     }),
   );
+
+/**
+ * Sleeps until a queued waiter's next poll (`HostReservation.pollDelayMs`),
+ * or returns false once its wait has ended. The wait ends between polls,
+ * never during a reservation that Redis may still grant, which would leave
+ * the lease held.
+ */
+const awaitNextPoll = (
+  policy: Parameters<typeof HostReservation.pollDelayMs>[0],
+  reservation: Extract<HostReservation, { _tag: "Queued" }>,
+  waitUntil: number,
+) =>
+  Effect.gen(function* () {
+    const now = yield* Clock.currentTimeMillis;
+    if (now + policy.pollMs > waitUntil) return false;
+    yield* Effect.sleep(
+      Math.min(
+        HostReservation.pollDelayMs(policy, reservation),
+        waitUntil - now,
+      ),
+    );
+    return true;
+  });
 
 /** How long a lease holder may wait and then hold the lease. */
 interface LeaseTerms<W, T> {
@@ -232,7 +378,7 @@ function withHostLease<A, E, R, W, T>(
   request: Effect.Effect<A, E, R>,
   terms: LeaseTerms<W, T>,
 ): Effect.Effect<A, E | Error | W | T, R> {
-  const call = (operation: string, run: () => Promise<boolean>) =>
+  const call = <B>(operation: string, run: () => Promise<B>) =>
     storeCall(policy, operation, run);
   // The lease outlives the request by the policy's usual margin.
   const leaseMargin = policy.leaseMs - policy.requestMs;
@@ -246,15 +392,12 @@ function withHostLease<A, E, R, W, T>(
             while (true) {
               const leaseMs =
                 terms.hold(yield* Clock.currentTimeMillis).ms + leaseMargin;
-              if (
-                yield* call("reservation", () => store.reserve(token, leaseMs))
-              )
-                return;
-              // The wait ends between polls, never during a reservation that
-              // Redis may still grant, which would leave the lease held.
-              if ((yield* Clock.currentTimeMillis) + policy.pollMs > waitUntil)
+              const reservation = yield* call("reservation", () =>
+                store.reserve(token, leaseMs),
+              );
+              if (reservation._tag === "Granted") return;
+              if (!(yield* awaitNextPoll(policy, reservation, waitUntil)))
                 return yield* Effect.flatMap(terms.onWaitTimeout, Effect.fail);
-              yield* Effect.sleep(policy.pollMs);
             }
           }).pipe(
             // Waiting for a turn is not the chunk's provider work.
@@ -436,19 +579,15 @@ export function withProviderHostLease(
         restore(
           Effect.gen(function* () {
             while (true) {
-              if (
-                yield* storeCall(policy, "reservation", () =>
-                  store.reserve(token, policy.leaseMs),
-                )
-              )
-                return;
-              // As in a turn, the wait ends between polls, never during a
-              // reservation Redis may still grant.
-              if ((yield* Clock.currentTimeMillis) + policy.pollMs > waitUntil)
+              const reservation = yield* storeCall(policy, "reservation", () =>
+                store.reserve(token, policy.leaseMs),
+              );
+              if (reservation._tag === "Granted") return;
+              // As in a turn, the wait ends between polls.
+              if (!(yield* awaitNextPoll(policy, reservation, waitUntil)))
                 return yield* Effect.flip(
                   ProviderChunkClock.deferred(policy.label, "wait"),
                 );
-              yield* Effect.sleep(policy.pollMs);
             }
           }).pipe(ProviderChunkClock.queued),
         ),
