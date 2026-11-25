@@ -139,3 +139,40 @@ for (const source of ["meeks"] as const)
       client.close();
     }
   });
+
+test("states and colors come from the stored snapshot when it has them, without reading vehicles", async () => {
+  const client = createClient({ url: ":memory:" });
+  try {
+    await client.executeMultiple(`
+      create table vehicle (source text, location_code text, location_name text,
+        location_city text, state text, state_abbr text, lat real, lng real,
+        color text, missing_since_at integer, details_url text);
+    `);
+    await client.executeMultiple(migration("0007_yard_metadata.sql"));
+    await client.executeMultiple(migration("0016_yard_inventory.sql"));
+    await client.executeMultiple(migration("0020_inventory_snapshot.sql"));
+    // The migrations read vehicle; from here any read of it fails the test.
+    await client.execute("drop table vehicle");
+    await client.execute({
+      sql: "insert into inventory_snapshot (key, data, updated_at) values (?, ?, 0), (?, ?, 0)",
+      args: [
+        "v4:make-source-counts",
+        JSON.stringify([["Ford", "pyp", 1]]),
+        "v4:source-filter-values",
+        JSON.stringify([
+          ["pyp", ["California"], ["Red"]],
+          ["meeks", ["Virginia"], ["Teal"]],
+          ["upullitne", ["Nebraska"], ["Gold"]],
+        ]),
+      ],
+    });
+    expect(
+      await SearchFilterOptions.load(
+        drizzle(client),
+        HiddenSources.of(["meeks"]),
+      ),
+    ).toMatchObject({ colors: ["Red"], states: ["California"] });
+  } finally {
+    client.close();
+  }
+});
