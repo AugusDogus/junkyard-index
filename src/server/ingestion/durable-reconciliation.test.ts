@@ -1922,70 +1922,116 @@ test("source-scoped missing scans preserve observations of another source's VIN 
   }
 });
 
-test("a direct provider's observations never revive AutoRecycler mirrors of its yards", async () => {
-  // Paul's left AutoRecycler for hollanderstores. Hollander rejects these
-  // VINs' rows but still observes them; that must not restore the mirror the
-  // autorecycler run just marked missing, or it never departs.
-  const client = createClient({ url: ":memory:" });
-  try {
-    await client.executeMultiple(TEST_SCHEMA);
-    const database = drizzle(client);
-    const store = IngestionSnapshotStore.memory();
-    const startedAt = new Date("2026-11-25T11:22:39.000Z");
-    await database.insert(ingestionRun).values({
-      id: "hollander-observes",
-      source: "hollanderstores",
-      status: "running",
-      stage: "reconcile_missing",
-      activeSlot: 1,
-      acceptedSources: '["hollanderstores"]',
-      startedAt,
-      lastProgressAt: startedAt,
-    });
-    const pathname = await store.put({
-      runId: "hollander-observes",
-      source: "hollanderstores",
-      chunk: { vehicles: [], observedVins: ["MIRROR", "OTHER"] },
-    });
-    await database.insert(ingestionSourceRun).values({
-      id: "hollander-observes:hollanderstores",
-      runId: "hollander-observes",
-      source: "hollanderstores",
-      status: "success",
-      acceptanceStatus: "accepted",
-      snapshotChunks: JSON.stringify([pathname]),
-      startedAt,
-    });
-    const missingSince = startedAt.getTime() - 17 * 60 * 1000;
-    await client.executeMultiple(`
-      insert into vehicle (vin, source, year, make, model, location_code, location_name, location_city, state, state_abbr, lat, lng, first_seen_at, last_seen_at, missing_since_at, missing_run_count)
-      values ('MIRROR', 'autorecycler', 2000, 'Ford', 'Focus', '1348695171700984260__LOOKUP__1761069152080x996853889979226500', 'Paul''s - Lake Station', 'Lake Station', 'Indiana', 'IN', 0, 0, 0, 0, ${missingSince}, 1),
-             ('OTHER', 'autorecycler', 2000, 'Ford', 'Focus', '1348695171700984260__LOOKUP__1726602417880x199387504054651780', 'EZ Pull N Pay Columbus', 'Columbus', 'Georgia', 'GA', 0, 0, 0, 0, ${missingSince}, 1);
-    `);
-    for (let batch = 0; batch < 3; batch += 1) {
-      const result = await reconcileDurableIngestionRun({
-        runId: "hollander-observes",
-        database,
-        batchClient: client,
-        snapshotStore: store,
-        budgetMs: 0,
+test.each([
+  ["after AutoRecycler marked it missing", true],
+  ["before AutoRecycler's run", false],
+] as const)(
+  "a direct provider's observation retires an AutoRecycler mirror of its yard without a departure, %s",
+  async (_order, markedMissing) => {
+    // Paul's left AutoRecycler for hollanderstores. Hollander rejects these
+    // VINs' rows but still observes them, so the cars never left: the mirror
+    // is deleted without a departure, and must not be revived either.
+    const client = createClient({ url: ":memory:" });
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const database = drizzle(client);
+      const store = IngestionSnapshotStore.memory();
+      const startedAt = new Date("2026-11-25T11:22:39.000Z");
+      await database.insert(ingestionRun).values({
+        id: "hollander-observes",
+        source: "hollanderstores",
+        status: "running",
+        stage: "reconcile_missing",
+        activeSlot: 1,
+        acceptedSources: '["hollanderstores"]',
+        startedAt,
+        lastProgressAt: startedAt,
       });
-      if (result.status === "complete") break;
+      const pathname = await store.put({
+        runId: "hollander-observes",
+        source: "hollanderstores",
+        chunk: { vehicles: [], observedVins: ["MIRROR", "OTHER"] },
+      });
+      await database.insert(ingestionSourceRun).values({
+        id: "hollander-observes:hollanderstores",
+        runId: "hollander-observes",
+        source: "hollanderstores",
+        status: "success",
+        acceptanceStatus: "accepted",
+        snapshotChunks: JSON.stringify([pathname]),
+        startedAt,
+      });
+      const paulsYard =
+        "1348695171700984260__LOOKUP__1761069152080x996853889979226500";
+      const missingSince = startedAt.getTime() - 17 * 60 * 1000;
+      const mirrorMissing = markedMissing ? missingSince : null;
+      await client.execute({
+        sql: `insert into vehicle (vin, source, year, make, model, location_code, location_name, location_city, state, state_abbr, lat, lng, first_seen_at, last_seen_at, missing_since_at, missing_run_count)
+          values ('MIRROR', 'autorecycler', 2000, 'Ford', 'Focus', ?, 'Paul''s - Lake Station', 'Lake Station', 'Indiana', 'IN', 0, 0, 0, 0, ?, ?),
+                 ('UNSEEN', 'autorecycler', 2000, 'Ford', 'Focus', ?, 'Paul''s - Lake Station', 'Lake Station', 'Indiana', 'IN', 0, 0, 0, 0, null, 0),
+                 ('OTHER', 'autorecycler', 2000, 'Ford', 'Focus', '1348695171700984260__LOOKUP__1726602417880x199387504054651780', 'EZ Pull N Pay Columbus', 'Columbus', 'Georgia', 'GA', 0, 0, 0, 0, ?, 1)`,
+        args: [
+          paulsYard,
+          mirrorMissing,
+          markedMissing ? 1 : 0,
+          paulsYard,
+          missingSince,
+        ],
+      });
+      await client.execute({
+        sql: "insert into yard_inventory (source, location_code, location_name, location_city, state_abbr, lat, lng, vehicle_count, updated_at) values ('autorecycler', ?, 'Paul''s - Lake Station', 'Lake Station', 'IN', 0, 0, 2, 0)",
+        args: [paulsYard],
+      });
+      // The hourly capture records a departure for every missing vehicle.
+      if (markedMissing)
+        await client.execute({
+          sql: "insert into vehicle_departure (vin, source, location_code, year, make, model, first_seen_at, departed_at, recorded_at) values ('MIRROR', 'autorecycler', ?, 2000, 'Ford', 'Focus', 0, ?, ?)",
+          args: [paulsYard, missingSince, missingSince],
+        });
+      for (let batch = 0; batch < 3; batch += 1) {
+        const result = await reconcileDurableIngestionRun({
+          runId: "hollander-observes",
+          database,
+          batchClient: client,
+          snapshotStore: store,
+          budgetMs: 0,
+        });
+        if (result.status === "complete") break;
+      }
+      expect(
+        (
+          await client.execute(
+            "select vin, missing_since_at, missing_run_count from vehicle order by vin",
+          )
+        ).rows,
+      ).toMatchObject([
+        { vin: "OTHER", missing_since_at: null, missing_run_count: 0 },
+        // A mirror Hollander does not list is AutoRecycler's run to retire.
+        { vin: "UNSEEN", missing_since_at: null, missing_run_count: 0 },
+      ]);
+      expect(
+        (await client.execute("select vin from vehicle_departure")).rows,
+      ).toEqual([]);
+      expect(
+        (
+          await client.execute(
+            "select vin, change_type from vehicle_change_v2 where vin = 'MIRROR'",
+          )
+        ).rows,
+      ).toMatchObject([{ vin: "MIRROR", change_type: "delete" }]);
+      expect(
+        (
+          await client.execute({
+            sql: "select vehicle_count from yard_inventory where source = 'autorecycler' and location_code = ?",
+            args: [paulsYard],
+          })
+        ).rows,
+      ).toMatchObject([{ vehicle_count: 1 }]);
+    } finally {
+      client.close();
     }
-    expect(
-      (
-        await client.execute(
-          "select vin, missing_since_at, missing_run_count from vehicle order by vin",
-        )
-      ).rows,
-    ).toMatchObject([
-      { vin: "MIRROR", missing_since_at: missingSince, missing_run_count: 1 },
-      { vin: "OTHER", missing_since_at: null, missing_run_count: 0 },
-    ]);
-  } finally {
-    client.close();
-  }
-});
+  },
+);
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
