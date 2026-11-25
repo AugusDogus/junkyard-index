@@ -22,6 +22,11 @@ export const env = createEnv({
       .default("development"),
     TURSO_DATABASE_URL: z.string().url(),
     TURSO_AUTH_TOKEN: z.string(),
+    // Turso Platform API token and organization slug for the daily usage
+    // guard (src/server/turso-usage.ts). Unset: the guard reports itself
+    // unconfigured instead of measuring.
+    TURSO_PLATFORM_API_TOKEN: z.string().min(1).optional(),
+    TURSO_ORGANIZATION: z.string().min(1).optional(),
     BETTER_AUTH_SECRET: z.string().min(32),
     OAUTH_PROXY_SECRET: z.string().min(32),
     POLAR_ACCESS_TOKEN: z.string(),
@@ -115,6 +120,8 @@ export const env = createEnv({
     NODE_ENV: process.env.NODE_ENV,
     TURSO_DATABASE_URL: process.env.TURSO_DATABASE_URL,
     TURSO_AUTH_TOKEN: process.env.TURSO_AUTH_TOKEN,
+    TURSO_PLATFORM_API_TOKEN: process.env.TURSO_PLATFORM_API_TOKEN,
+    TURSO_ORGANIZATION: process.env.TURSO_ORGANIZATION,
     BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
     OAUTH_PROXY_SECRET: process.env.OAUTH_PROXY_SECRET,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,

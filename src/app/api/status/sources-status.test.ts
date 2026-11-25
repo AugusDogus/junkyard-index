@@ -56,6 +56,12 @@ function statusFor(
         }));
       },
     }));
+    mock.module("~/server/turso-usage-runtime", () => ({
+      cachedTursoUsage: async () => ({
+        kind: "unconfigured",
+        missing: ["TURSO_PLATFORM_API_TOKEN"],
+      }),
+    }));
     const { SourceControl } = await import("./src/server/source-control/source-control.ts");
     mock.module("~/server/source-control/source-control-repository", () => ({
       SourceControlRepository: {
@@ -119,6 +125,10 @@ test("all-sources status is 200 when every active source is fresh", () => {
         unreported: [],
         frozen: [],
         autoHide: { status: "applied", yards: [] },
+      },
+      databaseUsage: {
+        kind: "unconfigured",
+        missing: ["TURSO_PLATFORM_API_TOKEN"],
       },
     },
   });
