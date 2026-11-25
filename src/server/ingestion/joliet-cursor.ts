@@ -29,6 +29,9 @@ const stockFields = {
 };
 const seenSchema = z.discriminatedUnion("status", [
   z.object({ ...stockFields, status: z.literal("available"), vin }).strict(),
+  // A valid official stock whose native row or set date disagrees with the
+  // table. It supplies presence only and counts as a stock disagreement.
+  z.object({ ...stockFields, status: z.literal("conflict"), vin }).strict(),
   z
     .object({
       ...stockFields,

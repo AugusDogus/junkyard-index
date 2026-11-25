@@ -507,6 +507,116 @@ test.each([
   },
 );
 
+/** Nov 25 07:00 UTC: Joliet re-set STK076422 (same stock, year and VIN) on
+ * Nov 24. During the overnight publish the official table still showed its
+ * earlier set date while the API showed the re-set date, which rejected the
+ * whole yard at the first conflicting stock. */
+function resetStockReplay(conflicts: number) {
+  const reset = {
+    ...jolietTestRecord,
+    stock: "STK076422",
+    year: 2013,
+    make: "CHEVROLET",
+    model: "CRUZE",
+    vin: "1G1PC5SBXD7195726",
+    vehicleRow: "75",
+  };
+  const others = Array.from({ length: 99 }, (_, index) => ({
+    ...jolietTestRecord,
+    stock: "STK" + String(75000 + index).padStart(6, "0"),
+    vin: "1FAHP2J89EG" + String(117500 + index),
+    model: index < 50 ? "A" : "Z",
+  }));
+  const records = [reset, ...others];
+  // The fixture table renders every set date as 08.19.26. The API reports
+  // the re-set date for the first `conflicts` stocks.
+  const resetDate = <T extends JolietRecord>(record: T) => ({
+    ...record,
+    dateAdded: "2026-11-24T16:57:21.410",
+  });
+  const api = records.map((record, index) =>
+    index < conflicts ? resetDate(record) : record,
+  );
+  const searches = new Map(
+    [...new Set(records.map((record) => jolietPairKey(record)))].map((key) => [
+      key,
+      api.filter((record) => jolietPairKey(record) === key),
+    ]),
+  );
+  // The re-set stock also matches an overlapping query, so its quarantine must
+  // agree across repeats.
+  const overlapping = jolietPairKey({ make: "FORD", model: "A" });
+  searches.set(overlapping, [
+    ...(searches.get(overlapping) ?? []),
+    resetDate(reset),
+  ]);
+  mock({ records, searches });
+  return reset;
+}
+
+test("Joliet quarantines a re-set stock whose set date conflicts across a durable crawl", async () => {
+  const reset = resetStockReplay(1);
+  const vehicles: JolietCanonicalVehicle[] = [];
+  const result = await soakJolietInventory((cursor) =>
+    run(
+      JolietCursorSchema.parse(JSON.parse(JSON.stringify(cursor))),
+      1,
+      (batch) =>
+        Effect.sync(() => {
+          vehicles.push(...batch);
+        }),
+    ),
+  );
+  expect(result.status).toBe("complete");
+  expect(result.count).toBe(99);
+  expect(result.accounting).toEqual({
+    recordsProcessed: 101,
+    recordsExcluded: 2,
+    recordsRejected: 0,
+    duplicateVehicles: 0,
+  });
+  expect(vehicles).toHaveLength(99);
+  expect(vehicles.some((vehicle) => vehicle.stockNumber === reset.stock)).toBe(
+    false,
+  );
+  // Presence keeps its prior published listing without changing its fields.
+  expect(result.observedVins).toEqual([reset.vin]);
+  expect(result.warnings?.join(" ")).toContain(
+    "STK076422 (table row 75, set 08.19.26; API row 75, set 11.24.26)",
+  );
+});
+
+test("Joliet quarantines a native row conflict the same way", async () => {
+  mock({
+    searches: new Map([
+      [jolietPairKey(second), [{ ...second, vehicleRow: "77" }]],
+    ]),
+    records: [
+      jolietTestRecord,
+      second,
+      ...Array.from({ length: 30 }, (_, index) => ({
+        ...jolietTestRecord,
+        stock: "STK" + String(76000 + index).padStart(6, "0"),
+        vin: "1FAHP2J89EG" + String(118000 + index),
+      })),
+    ],
+  });
+  const result = await run();
+  expect(result.status).toBe("complete");
+  expect(result.count).toBe(31);
+  expect(result.observedVins).toEqual([second.vin]);
+  expect(result.warnings?.join(" ")).toContain(
+    "STK075103 (table row 99, set 08.19.26; API row 77, set 08.19.26)",
+  );
+});
+
+test("Joliet still fails when conflicting stocks exceed the 5% disagreement limit", async () => {
+  resetStockReplay(6);
+  await expect(
+    soakJolietInventory((cursor, budget) => run(cursor, budget)),
+  ).rejects.toThrow("Stocks exceed the 5% disagreement limit");
+});
+
 test("Joliet preserves native API YMM when table representations differ", async () => {
   mock({
     searches: new Map([

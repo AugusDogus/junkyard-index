@@ -96,6 +96,10 @@ function resumeOrRestart(
 
 /** Native model matching overlaps. An agreeing repeat supplies coverage only;
  * missing HTML stocks are reconciled against the complete API union at terminal.
+ * The table and API publish separately, so a stock the yard re-set or moved can
+ * show different rows or set dates for a while. That stock is quarantined:
+ * its VIN keeps the prior listing present and the terminal 5% disagreement
+ * limit counts it, so a systematic mismatch still fails.
  */
 function applySearch(
   context: JolietContext,
@@ -108,6 +112,7 @@ function applySearch(
   const vehicles: JolietCanonicalVehicle[] = [];
   const observedVins: string[] = [];
   const apiOnlyStocks: string[] = [];
+  const conflicts: string[] = [];
   let excluded = 0,
     rejected = 0,
     newStocks = 0;
@@ -123,27 +128,37 @@ function applySearch(
     const renderedDate = date
       ? date.slice(5, 7) + "." + date.slice(8, 10) + "." + date.slice(2, 4)
       : null;
-    if (
-      (row?.row && nativeRow && row.row !== nativeRow) ||
-      (row?.sourceSetDate && renderedDate && row.sourceSetDate !== renderedDate)
-    )
-      throw new Error(
-        "Native position or set date conflicts with official stock " +
-          record.stock,
-      );
+    const conflict =
+      row &&
+      ((row.row && nativeRow && row.row !== nativeRow) ||
+        (row.sourceSetDate &&
+          renderedDate &&
+          row.sourceSetDate !== renderedDate))
+        ? record.stock +
+          " (table row " +
+          (row.row ?? "none") +
+          ", set " +
+          (row.sourceSetDate ?? "none") +
+          "; API row " +
+          (nativeRow ?? "none") +
+          ", set " +
+          (renderedDate ?? "none") +
+          ")"
+        : null;
     const hash = jolietHash(jolietRecordIdentity(record));
     const transformed = transformJolietRecord(record);
     const vin =
       transformed.status === "available"
         ? transformed.vehicle.vin
         : transformed.vin;
+    // Invalid required identity rejects the donor whatever its position.
+    const status =
+      transformed.status === "available" && conflict
+        ? "conflict"
+        : transformed.status;
     const prior = seen.get(record.stock);
     if (prior) {
-      if (
-        prior.hash !== hash ||
-        prior.vin !== vin ||
-        prior.status !== transformed.status
-      )
+      if (prior.hash !== hash || prior.vin !== vin || prior.status !== status)
         throw new Error(
           "Repeated native stock changed its stable record or required identity: " +
             record.stock,
@@ -155,7 +170,19 @@ function applySearch(
     if (stockForVin && stockForVin !== record.stock)
       throw new Error("Different native stocks reuse valid VIN/serial " + vin);
     if (vin) vins.set(vin, record.stock);
-    if (transformed.status === "available") {
+    if (transformed.status === "available" && conflict) {
+      seen.set(record.stock, {
+        stock: record.stock,
+        year: record.year,
+        hash,
+        firstQuery: index,
+        status: "conflict",
+        vin: transformed.vehicle.vin,
+      });
+      excluded++;
+      observedVins.push(transformed.vehicle.vin);
+      conflicts.push(conflict);
+    } else if (transformed.status === "available") {
       seen.set(record.stock, {
         stock: record.stock,
         year: record.year,
@@ -192,6 +219,7 @@ function applySearch(
     rejected,
     newStocks,
     apiOnlyStocks,
+    conflicts,
   };
 }
 
@@ -338,6 +366,11 @@ export function streamJolietInventoryWithRequestGate<E, R>(
           "Joliet excluded API-only stocks absent from HTML: " +
             result.apiOnlyStocks.join(", "),
         );
+      if (result.conflicts.length)
+        warnings.push(
+          "Joliet quarantined stocks whose native row or set date conflicts with the official table; their prior listings stay published: " +
+            result.conflicts.join(", "),
+        );
       nextQuery++;
       summary.pagesProcessed++;
     }
@@ -372,15 +405,21 @@ export function streamJolietInventoryWithRequestGate<E, R>(
           .filter((row) => !seen.has(row.stock))
           .map((row) => row.stock);
         const apiOnly = [...seen.keys()].filter((stock) => !rows.has(stock));
+        const conflicting = [...seen.values()]
+          .filter((entry) => entry.status === "conflict")
+          .map((entry) => entry.stock);
         if (
-          (htmlOnly.length + apiOnly.length) / context.rows.length >
+          (htmlOnly.length + apiOnly.length + conflicting.length) /
+            context.rows.length >
           JOLIET_MAX_DISAGREEMENT_RATIO
         )
           throw new Error(
             "Stocks exceed the 5% disagreement limit; HTML-only: " +
               htmlOnly.join(", ") +
               "; API-only: " +
-              apiOnly.join(", "),
+              apiOnly.join(", ") +
+              "; row or set date conflicts: " +
+              conflicting.join(", "),
           );
         if (
           JSON.stringify(jolietYearCounts(seen.values())) !==
@@ -397,8 +436,9 @@ export function streamJolietInventoryWithRequestGate<E, R>(
               htmlOnly.join(", "),
           );
         }
-        const shared = [...seen.values()].filter((entry) =>
-          rows.has(entry.stock),
+        // Quarantined conflicts cannot dilute the rejection denominator.
+        const shared = [...seen.values()].filter(
+          (entry) => rows.has(entry.stock) && entry.status !== "conflict",
         );
         const totalRejected = shared.filter(
           (entry) => entry.status === "incomplete",
