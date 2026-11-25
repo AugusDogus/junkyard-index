@@ -22,7 +22,8 @@ async function database() {
     create table vehicle (
       vin text primary key, source text, location_code text, location_name text,
       location_city text, state_abbr text, lat real, lng real, details_url text,
-      year integer, make text, model text, missing_since_at integer
+      year integer, make text, model text, missing_since_at integer,
+      state text, color text
     );
     create table ingestion_run (id text primary key, publication_sequence integer);
     create table ingestion_projector_checkpoint (
@@ -44,9 +45,13 @@ async function database() {
     [source, code]: [string, string],
     [year, make, model]: [number, string, string],
     missingSinceAt: number | null = null,
+    color: string | null = null,
   ) =>
     client.execute({
-      sql: "insert into vehicle values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      sql: `insert into vehicle (vin, source, location_code, location_name,
+        location_city, state_abbr, lat, lng, details_url, year, make, model,
+        missing_since_at, state, color)
+        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         vin,
         source,
@@ -61,6 +66,8 @@ async function database() {
         make,
         model,
         missingSinceAt,
+        source === "pyp" ? "California" : "Oklahoma",
+        color,
       ],
     });
   const updatedAt = async (key: string) =>
@@ -184,6 +191,7 @@ test("leaves other versions' snapshots to the deployments that read them", async
       "v4:make-counts",
       "v4:make-models:HONDA",
       "v4:make-source-counts",
+      "v4:source-filter-values",
     ]);
   } finally {
     client.close();
@@ -219,6 +227,7 @@ test("the live projection retires versions before the previous one once its own 
       "v4:make-counts",
       "v4:make-models:HONDA",
       "v4:make-source-counts",
+      "v4:source-filter-values",
       "v5:make-counts",
     ]);
     expect(checkpoints.rows.map((row) => row.name)).toEqual([
@@ -387,6 +396,32 @@ test("hiding or showing a source applies to make totals and model lists with no 
       { make: "Honda", count: 1 },
     ]);
     expect(await sources(pypHidden)).toEqual(["meeks"]);
+  } finally {
+    client.close();
+  }
+});
+
+test("stores each source's states and colors for the search filters, leaving hidden sources out when read", async () => {
+  const { client, db, add } = await database();
+  try {
+    await add("A", PYP, [2004, "Honda", "Civic"], null, "Red");
+    await add("B", PYP, [2008, "Honda", "Civic"], null, null);
+    await add("C", PYP, [2010, "Ford", "Focus"], 1, "Green");
+    await add("D", ROW52, [2015, "VW", "Jetta"], null, "Blue");
+    expect(
+      await InventorySnapshot.filterValues(db, HiddenSources.none),
+    ).toBeNull();
+    await InventorySnapshot.project(db, first);
+
+    expect(
+      await InventorySnapshot.filterValues(db, HiddenSources.none),
+    ).toEqual({
+      states: ["California", "Oklahoma"],
+      colors: ["Blue", "Red"],
+    });
+    expect(
+      await InventorySnapshot.filterValues(db, HiddenSources.of(["row52"])),
+    ).toEqual({ states: ["California"], colors: ["Red"] });
   } finally {
     client.close();
   }

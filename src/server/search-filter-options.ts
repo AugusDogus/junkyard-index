@@ -25,15 +25,37 @@ function sorted(values: Iterable<string>): string[] {
  *   `vehicle.make`, normalized as the index projection normalizes them;
  * - yards come from `yard_inventory` and `yard` metadata, named with
  *   `getYardDetails` as `projectSearchVehicles` names them;
- * - states and colors read the vehicle table once, in table order.
+ * - states and colors come from the stored snapshot too, which the same
+ *   projection pass fills; a snapshot stored before it held them makes this
+ *   read the vehicle table once, in table order, until the next projection.
  * Retired and hidden sources are left out, as on the homepage.
- * The table scan is why callers cache this with the daily inventory.
  */
+/** States and colors from one read of every vehicle, in table order. */
+async function scanFilterValues(
+  database: LibSQLDatabase,
+  hidden: HiddenSources,
+): Promise<{ states: string[]; colors: string[] }> {
+  const pairs = stateColorSchema.parse(
+    await database.all(sql`
+      select distinct state, color from vehicle not indexed
+      where missing_since_at is null
+        and source not in (${sql.join(
+          HiddenSources.unlisted(hidden).map((source) => sql`${source}`),
+          sql`, `,
+        )})
+    `),
+  );
+  return {
+    states: pairs.map(({ state }) => state),
+    colors: pairs.flatMap(({ color }) => (color ? [color] : [])),
+  };
+}
+
 async function load(
   database: LibSQLDatabase,
   hidden: HiddenSources,
 ): Promise<InventoryFilterOptions> {
-  const [makeCounts, yards, stateColors] = await Promise.all([
+  const [makeCounts, yards, filterValues] = await Promise.all([
     InventorySnapshot.makeCounts(database, hidden),
     database
       .select({
@@ -58,24 +80,18 @@ async function load(
       .where(
         notInArray(yardInventory.source, [...HiddenSources.unlisted(hidden)]),
       ),
-    database.all(sql`
-      select distinct state, color from vehicle not indexed
-      where missing_since_at is null
-        and source not in (${sql.join(
-          HiddenSources.unlisted(hidden).map((source) => sql`${source}`),
-          sql`, `,
-        )})
-    `),
+    InventorySnapshot.filterValues(database, hidden).then(
+      (stored) => stored ?? scanFilterValues(database, hidden),
+    ),
   ]);
-  const pairs = stateColorSchema.parse(stateColors);
   return {
     makes: sorted(
       makeCounts
         .filter(({ count }) => count > 0)
         .map(({ make }) => normalizeCanonicalMake(make)),
     ),
-    colors: sorted(pairs.flatMap(({ color }) => (color ? [color] : []))),
-    states: sorted(pairs.map(({ state }) => state)),
+    colors: sorted(filterValues.colors),
+    states: sorted(filterValues.states),
     salvageYards: sorted(
       yards.map(({ metadata, ...yard }) => getYardDetails(yard, metadata).name),
     ),

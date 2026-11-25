@@ -24,6 +24,15 @@ export type InventorySnapshot = {
   makeSourceCounts: MakeSourceCount[];
   /** Each make's rollup rows, by make key. */
   makeModels: ReadonlyMap<string, MakeRollupRow[]>;
+  /** The states and colors each source's live vehicles list. */
+  sourceFilterValues: SourceFilterValues[];
+};
+
+/** The states and colors one source's live vehicles list, sorted. */
+type SourceFilterValues = {
+  source: string;
+  states: string[];
+  colors: string[];
 };
 
 /** Live vehicles under one raw make spelling at one source. */
@@ -49,6 +58,9 @@ const CHECKPOINT_NAME = `${CHECKPOINT_PREFIX}${SNAPSHOT_VERSION}`;
 // Totals with every source, the shape `modelUrls` reads across versions.
 const MAKE_COUNTS_KEY = `${SNAPSHOT_VERSION}:make-counts`;
 const MAKE_SOURCE_COUNTS_KEY = `${SNAPSHOT_VERSION}:make-source-counts`;
+// Added within v4: a v4 snapshot projected before it has no such row, and
+// readers fall back to scanning vehicles until the next projection.
+const SOURCE_FILTER_VALUES_KEY = `${SNAPSHOT_VERSION}:source-filter-values`;
 function makeModelsKey(makeKey: string): string {
   return `${SNAPSHOT_VERSION}:make-models:${makeKey}`;
 }
@@ -73,6 +85,10 @@ type MakeModelTuple = z.infer<typeof makeModelsSchema>[number];
 // [make, source, count], as tuples for the same reason.
 const makeSourceCountsSchema = z.array(
   z.tuple([z.string(), z.string(), z.number().int()]),
+);
+// [source, states, colors].
+const sourceFilterValuesSchema = z.array(
+  z.tuple([z.string(), z.array(z.string()), z.array(z.string())]),
 );
 
 function toTuple(row: MakeRollupRow): MakeModelTuple {
@@ -172,7 +188,20 @@ async function compute(database: LibSQLDatabase): Promise<InventorySnapshot> {
   const counts = new Map<string, number>();
   const sourceCounts = new Map<string, Map<string, number>>();
   const makeModels = new Map<string, MakeRollupRow[]>();
-  for (const row of await InventoryRollup.models(database)) {
+  const filterValues = new Map<
+    string,
+    { states: Set<string>; colors: Set<string> }
+  >();
+  for (const { states, colors, ...row } of await InventoryRollup.models(
+    database,
+  )) {
+    const values = filterValues.get(row.source) ?? {
+      states: new Set<string>(),
+      colors: new Set<string>(),
+    };
+    for (const state of states) values.states.add(state);
+    for (const color of colors) values.colors.add(color);
+    filterValues.set(row.source, values);
     addCount(counts, row.make, row.count);
     const bySource = sourceCounts.get(row.make) ?? new Map<string, number>();
     addCount(bySource, row.source, row.count);
@@ -187,7 +216,14 @@ async function compute(database: LibSQLDatabase): Promise<InventorySnapshot> {
   const makeSourceCounts = [...sourceCounts].flatMap(([make, bySource]) =>
     [...bySource].map(([source, count]) => ({ make, source, count })),
   );
-  return { makeCounts, makeSourceCounts, makeModels };
+  const sourceFilterValues = [...filterValues]
+    .map(([source, values]) => ({
+      source,
+      states: [...values.states].sort(),
+      colors: [...values.colors].sort(),
+    }))
+    .sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+  return { makeCounts, makeSourceCounts, makeModels, sourceFilterValues };
 }
 
 /**
@@ -235,6 +271,17 @@ async function write(
           make,
           source,
           count,
+        ]),
+      ),
+      updatedAt: now,
+    },
+    {
+      key: SOURCE_FILTER_VALUES_KEY,
+      data: JSON.stringify(
+        snapshot.sourceFilterValues.map(({ source, states, colors }) => [
+          source,
+          states,
+          colors,
         ]),
       ),
       updatedAt: now,
@@ -364,6 +411,31 @@ export const InventorySnapshot = {
       }
     }
     return [...paths];
+  },
+
+  /**
+   * The states and colors live vehicles list, leaving out hidden and
+   * retired sources, for the search filters. Null when this snapshot was
+   * stored before it held them; the caller then reads vehicles.
+   */
+  async filterValues(
+    database: LibSQLDatabase,
+    hidden: HiddenSources,
+  ): Promise<{ states: string[]; colors: string[] } | null> {
+    const data = await storedData(database, SOURCE_FILTER_VALUES_KEY);
+    if (data === null) return null;
+    const unlisted = new Set<string>(HiddenSources.unlisted(hidden));
+    const shownValues = parse(
+      SOURCE_FILTER_VALUES_KEY,
+      data,
+      sourceFilterValuesSchema,
+    ).filter(([source]) => !unlisted.has(source));
+    return {
+      states: [...new Set(shownValues.flatMap(([, states]) => states))].sort(),
+      colors: [
+        ...new Set(shownValues.flatMap(([, , colors]) => colors)),
+      ].sort(),
+    };
   },
 
   /** The publication the stored snapshot reflects; 0 before the first. */
