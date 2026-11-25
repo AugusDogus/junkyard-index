@@ -114,20 +114,22 @@ export async function rememberModelRedirects(
     fromPath,
     toPath,
   }));
+  // An ambiguous label keeps its parent destination across later batches.
+  const toPath = sql`case
+    when ${vehicleModelRedirect.toPath} = '' or ${vehicleModelRedirect.toPath} = excluded.to_path then excluded.to_path
+    when instr(substr(${vehicleModelRedirect.fromPath}, 7), '/') > 0
+      then substr(${vehicleModelRedirect.fromPath}, 1, 5 + instr(substr(${vehicleModelRedirect.fromPath}, 7), '/'))
+    else '/cars' end`;
   if (entries.length)
     await database
       .insert(vehicleModelRedirect)
       .values(entries)
       .onConflictDoUpdate({
         target: vehicleModelRedirect.fromPath,
-        set: {
-          // An ambiguous label keeps its parent destination across later batches.
-          toPath: sql`case
-            when ${vehicleModelRedirect.toPath} = '' or ${vehicleModelRedirect.toPath} = excluded.to_path then excluded.to_path
-            when instr(substr(${vehicleModelRedirect.fromPath}, 7), '/') > 0
-              then substr(${vehicleModelRedirect.fromPath}, 1, 5 + instr(substr(${vehicleModelRedirect.fromPath}, 7), '/'))
-            else '/cars' end`,
-        },
+        set: { toPath },
+        // Most batches repeat stored redirects; leaving those rows alone
+        // saves a write each (about 10-50 per batch, every batch).
+        setWhere: sql`${vehicleModelRedirect.toPath} is not ${toPath}`,
       });
 }
 
