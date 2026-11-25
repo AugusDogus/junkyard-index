@@ -13,11 +13,12 @@ requests, 37 total with eleven requests below the 48/hour cap.
 ## Preserved yards (November 25)
 
 Preserved yards (undated legacy yards and quarantined Ario yards) keep their
-inventory while they lag AutoRecycler's previous accepted publication by at
-most 7 days. Days without an accepted AutoRecycler publication do not count,
-so an outage never releases a yard. A yard with no publication date is measured
-from its cars' newest sighting instead. Once released, its unlisted cars go
-missing and depart.
+inventory until they miss more than 7 of AutoRecycler's publication days: UTC
+days with an accepted AutoRecycler publication after the yard's own
+`last_published_at`. Days without an accepted publication do not count, so an
+outage never ages a yard, on the first run after it or any later one. A yard
+with no publication date is measured from its cars' newest sighting instead.
+Once released, its unlisted cars go missing and depart.
 
 ## November 18 failure isolation
 

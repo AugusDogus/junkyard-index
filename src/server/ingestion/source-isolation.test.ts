@@ -116,12 +116,6 @@ test.each(
       select 'BLOCKED-' || n, ?, 2000, 'Ford', 'Focus', ?, 'Saved Yard', 'City', 'California', 'CA', 1, 1, 1, 1, 0 from numbers`,
         args: [source, preserved],
       });
-      // Published yesterday, so the preserved yard is inside the 7-day window
-      // in which it keeps its inventory.
-      await client.execute({
-        sql: "insert into yard_inventory (source, location_code, location_name, location_city, state_abbr, lat, lng, vehicle_count, last_published_at, updated_at) values (?, ?, 'Saved Yard', 'City', 'CA', 1, 1, 501, ?, 1)",
-        args: [source, preserved, Date.now() - 24 * 60 * 60 * 1000],
-      });
       const priorHealthy = guard === "drift" ? count * 2 + 1 : 2;
       await client.execute({
         sql: `with recursive numbers(n) as (select 1 union all select n+1 from numbers where n < ?)

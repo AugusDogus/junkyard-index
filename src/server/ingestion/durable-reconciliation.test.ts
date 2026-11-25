@@ -573,12 +573,6 @@ describe("bounded durable reconciliation", () => {
           args: [vin, code, missing, runs],
         });
       }
-      // Published yesterday, so the blocked yard is inside the 7-day window in
-      // which a preserved yard keeps its inventory.
-      await client.execute({
-        sql: "insert into yard_inventory (source, location_code, location_name, location_city, state_abbr, lat, lng, vehicle_count, last_published_at, updated_at) values ('urgiis', ?, 'Yard', 'City', 'OK', 1, 1, 1, ?, 1)",
-        args: [blocked.yard.code, Date.now() - 24 * 60 * 60 * 1000],
-      });
       const validation = await validateDurableSourceRuns({
         runId,
         database,
@@ -2037,12 +2031,17 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Reconciles one accepted AutoRecycler run that preserves every yard in
- * `yards`, each holding one listed car. A published yard with no cars sets
- * the source's previous accepted publication to `sourcePublishedAt`.
+ * `yards`, each holding one listed car. `publications` are the timestamps of
+ * AutoRecycler's earlier accepted publications, which stamped the yards they
+ * published; `rejected` are earlier runs that validation rejected. Each
+ * committed 13 hours after it started, past midnight UTC. `siblings` are
+ * published yards with no cars.
  */
 async function reconcilePreservedYards(params: {
   startedAt: Date;
-  sourcePublishedAt: number;
+  publications: readonly number[];
+  rejected?: readonly number[];
+  siblings: ReadonlyArray<{ code: string; publishedAt: number }>;
   yards: ReadonlyArray<{
     code: string;
     publishedAt: number | null;
@@ -2089,10 +2088,37 @@ async function reconcilePreservedYards(params: {
       }),
       startedAt,
     });
-    await client.execute({
-      sql: "insert into yard_inventory (source, location_code, location_name, location_city, state_abbr, lat, lng, vehicle_count, updated_at, last_published_at) values ('autorecycler', 'published', 'Yard', 'City', 'CA', 0, 0, 1, 0, ?)",
-      args: [params.sourcePublishedAt],
-    });
+    const earlier = [
+      ...params.publications.map((at) => ({ at, accepted: true })),
+      ...(params.rejected ?? []).map((at) => ({ at, accepted: false })),
+    ];
+    for (const [index, { at, accepted }] of earlier.entries()) {
+      const id = `earlier-${index}`;
+      await database.insert(ingestionRun).values({
+        id,
+        source: "autorecycler",
+        status: "success",
+        stage: "released",
+        acceptedSources: accepted ? '["autorecycler"]' : "[]",
+        startedAt: new Date(at - 2 * 60 * 60 * 1000),
+        commitStartedAt: new Date(at),
+        lastProgressAt: new Date(at + 13 * 60 * 60 * 1000),
+        inventoryPublishedAt: new Date(at + 13 * 60 * 60 * 1000),
+      });
+      await database.insert(ingestionSourceRun).values({
+        id: `${id}:autorecycler`,
+        runId: id,
+        source: "autorecycler",
+        status: "success",
+        acceptanceStatus: accepted ? "accepted" : "rejected",
+        startedAt: new Date(at - 2 * 60 * 60 * 1000),
+      });
+    }
+    for (const sibling of params.siblings)
+      await client.execute({
+        sql: "insert into yard_inventory (source, location_code, location_name, location_city, state_abbr, lat, lng, vehicle_count, updated_at, last_published_at) values ('autorecycler', ?, 'Yard', 'City', 'CA', 0, 0, 1, 0, ?)",
+        args: [sibling.code, sibling.publishedAt],
+      });
     for (const yard of params.yards) {
       await client.execute({
         sql: "insert into vehicle (vin, source, year, make, model, location_code, location_name, location_city, state, state_abbr, lat, lng, first_seen_at, last_seen_at, missing_since_at, missing_run_count) values (?, 'autorecycler', 2000, 'Ford', 'Focus', ?, 'Yard', 'City', 'California', 'CA', 0, 0, 0, ?, null, 0)",
@@ -2130,15 +2156,27 @@ async function reconcilePreservedYards(params: {
   }
 }
 
-test("a preserved yard keeps its inventory only while it lags its source's publications by 7 days", async () => {
+/** The run timestamps of a daily publication `days` days before `run`. */
+const daysBefore = (run: number, days: readonly number[]) =>
+  days.map((day) => run - day * DAY_MS);
+
+const range = (from: number, to: number) =>
+  Array.from({ length: to - from + 1 }, (_, index) => from + index);
+
+test("a preserved yard keeps its inventory until it misses more than 7 of its source's publication days", async () => {
   // A&S Auto Wrecking sat in AutoRecycler's preserved list from Nov 12 on with
   // no accepted publication, so its last row never departed.
   const startedAt = new Date("2026-11-25T11:05:51.000Z");
   const run = startedAt.getTime();
+  // Daily publications for 9 days, and a second one yesterday: a day counts
+  // once however many runs published in it.
+  const yesterdayRerun = run - DAY_MS + 2 * 60 * 60 * 1000;
   const { vehicles, yards } = await reconcilePreservedYards({
     startedAt,
-    sourcePublishedAt: run - DAY_MS,
+    publications: [...daysBefore(run, range(1, 9)), yesterdayRerun],
+    siblings: [{ code: "published", publishedAt: yesterdayRerun }],
     yards: [
+      // Published 8 days ago, so it missed the 7 publication days since.
       { code: "recent", publishedAt: run - 8 * DAY_MS, lastSeenAt: 0 },
       { code: "expired", publishedAt: run - 9 * DAY_MS, lastSeenAt: 0 },
       // No publication date: the yard's newest sighting stands in for it.
@@ -2159,18 +2197,42 @@ test("a preserved yard keeps its inventory only while it lags its source's publi
   ]);
 });
 
-test("an outage does not age a preserved yard", async () => {
-  // Neither the source nor the yard published for 10 days. The first accepted
-  // run back preserves the yard, which lags its source by nothing.
-  const startedAt = new Date("2026-11-25T11:05:51.000Z");
-  const run = startedAt.getTime();
-  const { vehicles } = await reconcilePreservedYards({
-    startedAt,
-    sourcePublishedAt: run - 10 * DAY_MS,
-    yards: [{ code: "blocked", publishedAt: run - 10 * DAY_MS, lastSeenAt: 0 }],
-  });
-  expect(vehicles).toMatchObject([{ vin: "BLOCKED", missing_since_at: null }]);
-});
+test.each([
+  // The source and the yard last published 10 days ago; validation rejected
+  // every run since. The first accepted run back preserves the yard.
+  ["first", range(10, 20), [], range(1, 9)],
+  // The source published 11 days ago, then nothing until yesterday's run,
+  // which published only a sibling yard and preserved this one. The yard has
+  // missed 1 publication day, not 10.
+  ["second", range(11, 20), [1], range(2, 10)],
+] as const)(
+  "an outage does not age a preserved yard on the %s accepted run after it",
+  async (_run, before, after, rejected) => {
+    const startedAt = new Date("2026-11-25T11:05:51.000Z");
+    const run = startedAt.getTime();
+    const publications = daysBefore(run, [...after, ...before]);
+    const [newest] = publications;
+    const [yardDay] = before;
+    if (newest === undefined || yardDay === undefined)
+      throw new Error("No earlier publication.");
+    const { vehicles } = await reconcilePreservedYards({
+      startedAt,
+      publications,
+      rejected: daysBefore(run, rejected),
+      siblings: [{ code: "sibling", publishedAt: newest }],
+      yards: [
+        {
+          code: "blocked",
+          publishedAt: run - yardDay * DAY_MS,
+          lastSeenAt: run - yardDay * DAY_MS,
+        },
+      ],
+    });
+    expect(vehicles).toMatchObject([
+      { vin: "BLOCKED", missing_since_at: null },
+    ]);
+  },
+);
 
 describe("skipped search publication", () => {
   async function stagedRun(params: {

@@ -14,6 +14,7 @@ import {
 import { INVENTORY_HIDDEN_AFTER_DAYS } from "~/lib/inventory-staleness";
 import { ingestionSourceRun, vehicle, yardInventory } from "~/schema";
 import { parseSnapshotChunks } from "./durable-ingestion-repository";
+import { SourcePublication } from "./source-publication";
 import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import { reconciliationSourcePriority } from "./reconciliation-policy";
 import type { CanonicalVehicle } from "./types";
@@ -50,66 +51,58 @@ export interface RunSnapshotInventory {
   /** Each accepted source's reported per-yard results, preserved yards
    * included. A yard it lists but did not report is unreported. */
   readonly yardChecks: ReadonlyMap<string, YardCheckReports>;
-  /** How far (ms) each preserved yard that has cars lags its source's
-   * previous accepted publication, by source and yard code. */
-  readonly preservedYardLagMs: ReadonlyMap<string, ReadonlyMap<string, number>>;
+  /** Preserved yards that missed more than INVENTORY_HIDDEN_AFTER_DAYS of
+   * their source's publication days, by source. */
+  readonly releasedPreservedYards: ReadonlyMap<string, ReadonlySet<string>>;
 }
-
-const PRESERVED_YARD_MAX_LAG_MS =
-  INVENTORY_HIDDEN_AFTER_DAYS * 24 * 60 * 60 * 1000;
 
 /**
  * Whether a preserved yard keeps its previous inventory this run. It does
- * while it lags its source by at most INVENTORY_HIDDEN_AFTER_DAYS: the
- * source's previous accepted publication minus the yard's own. Days in which
- * the source published nothing (an outage) do not count, so the first
- * accepted run after one cannot release a yard it preserves. A yard preserved
- * through 7 days of its source's publications reconciles like any other, so
- * vehicles no source listed go missing and depart instead of freezing.
+ * until it has missed more than INVENTORY_HIDDEN_AFTER_DAYS of its source's
+ * publication days: UTC days with an accepted publication of the source after
+ * the yard's own. Days without one (an outage) never count, however long it
+ * lasts and however many runs follow it. A released yard reconciles like any
+ * other, so vehicles no source listed go missing and depart instead of
+ * freezing.
  */
 export function holdsPreservedYard(
   inventory: RunSnapshotInventory,
   source: string,
   code: string,
 ): boolean {
-  if (!inventory.preservedYards.get(source)?.has(code)) return false;
-  const lag = inventory.preservedYardLagMs.get(source)?.get(code);
-  return lag !== undefined && lag <= PRESERVED_YARD_MAX_LAG_MS;
+  return (
+    (inventory.preservedYards.get(source)?.has(code) ?? false) &&
+    !(inventory.releasedPreservedYards.get(source)?.has(code) ?? false)
+  );
 }
 
 /**
- * Each preserved yard's lag behind its source, measured before this run
- * publishes. A yard's date is its last accepted publication. One without
- * (never published, or its summary row was rebuilt after all its cars went
- * missing) uses its cars' newest sighting instead: the last time an accepted
- * run listed or observed one of them. So a yard whose cars a run just saw is
- * held, and one whose cars nobody has seen in over 7 source publications is
- * released. A source with no previous publication holds every yard: none of
- * its publication days have passed.
+ * The preserved yards to release, measured before this run publishes. A
+ * yard's date is its last accepted publication. One without (never published,
+ * or its summary row was rebuilt after all its cars went missing) uses its
+ * cars' newest sighting instead: the last time an accepted run listed or
+ * observed one of them. A yard dated before the last publication of the
+ * source's 8th newest publication day missed at least 8 days and is
+ * released, as is one with no date and no cars. A source with at most 7
+ * publication days holds every yard. Runs are kept 90 days, so this counts
+ * only days in that window.
  */
-async function loadPreservedYardLags(
+async function loadReleasedPreservedYards(
   database: LibSQLDatabase,
   preserved: ReadonlyMap<string, ReadonlySet<string>>,
-): Promise<ReadonlyMap<string, ReadonlyMap<string, number>>> {
-  const sources = [...preserved]
-    .filter(([, codes]) => codes.size > 0)
-    .map(([source]) => source);
-  const lags = new Map<string, Map<string, number>>();
-  if (sources.length === 0) return lags;
-  const sourcePublishedAt = new Map(
-    (
-      await database
-        .select({
-          source: yardInventory.source,
-          at: sql<number | null>`max(${yardInventory.lastPublishedAt})`,
-        })
-        .from(yardInventory)
-        .where(inArray(yardInventory.source, sources))
-        .groupBy(yardInventory.source)
-    ).map((row) => [row.source, row.at] as const),
-  );
-  for (const source of sources) {
-    const codes = [...(preserved.get(source) ?? [])];
+): Promise<ReadonlyMap<string, ReadonlySet<string>>> {
+  const released = new Map<string, ReadonlySet<string>>();
+  for (const [source, preservedCodes] of preserved) {
+    if (preservedCodes.size === 0) continue;
+    const cutoff = (
+      await SourcePublication.latestDays(
+        database,
+        source,
+        INVENTORY_HIDDEN_AFTER_DAYS + 1,
+      )
+    )[INVENTORY_HIDDEN_AFTER_DAYS];
+    if (cutoff === undefined) continue;
+    const codes = [...preservedCodes];
     const yardAt = new Map<string, number>();
     const published = await database
       .select({
@@ -142,18 +135,16 @@ async function loadPreservedYardLags(
         .groupBy(vehicle.locationCode);
       for (const row of sighted) yardAt.set(row.code, row.at);
     }
-    const sourceAt = sourcePublishedAt.get(source) ?? null;
-    lags.set(
+    released.set(
       source,
-      new Map(
-        [...yardAt].map(([code, at]) => [
-          code,
-          sourceAt === null ? 0 : Math.max(0, sourceAt - at),
-        ]),
+      new Set(
+        codes.filter(
+          (code) => (yardAt.get(code) ?? -Infinity) < cutoff.getTime(),
+        ),
       ),
     );
   }
-  return lags;
+  return released;
 }
 
 export async function loadSourceSnapshot(
@@ -304,7 +295,7 @@ export async function loadRunSnapshotInventory(params: {
     acceptedSources: new Set(accepted.map((row) => row.source)),
     preservedYards,
     yardChecks,
-    preservedYardLagMs: await loadPreservedYardLags(
+    releasedPreservedYards: await loadReleasedPreservedYards(
       params.database,
       preservedYards,
     ),
