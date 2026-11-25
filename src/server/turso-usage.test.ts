@@ -52,6 +52,23 @@ describe("TursoUsage.read", () => {
   });
 });
 
+/** Answers the organization and database usage reads by URL. */
+function usageFetch(month: [number, number], day: [number, number]) {
+  const urls: string[] = [];
+  return {
+    urls,
+    fetch: async (url: string) => {
+      urls.push(url);
+      const body = url.includes("/databases/")
+        ? { total: { rows_read: day[0], rows_written: day[1] } }
+        : orgUsage(...month);
+      return new Response(JSON.stringify(body), { status: 200 });
+    },
+  };
+}
+
+const PRODUCTION = { ...ACCESS, database: "example-db" };
+
 describe("TursoUsage.check", () => {
   const now = new Date("2026-11-16T00:00:00Z");
 
@@ -59,7 +76,7 @@ describe("TursoUsage.check", () => {
     const { fetch, calls } = fakeFetch(200, orgUsage(0, 0));
     expect(
       await TursoUsage.check(
-        { token: undefined, organization: "x" },
+        { token: undefined, organization: "x", database: "y" },
         now,
         fetch,
       ),
@@ -69,53 +86,101 @@ describe("TursoUsage.check", () => {
 
   test("a failed read is unavailable, not on pace", async () => {
     const { fetch } = fakeFetch(500, {});
-    const check = await TursoUsage.check(ACCESS, now, fetch);
+    const check = await TursoUsage.check(PRODUCTION, now, fetch);
     expect(check.kind).toBe("unavailable");
   });
 
-  test("a read is measured against the plan", async () => {
-    const { fetch } = fakeFetch(200, orgUsage(1_100_000_000, 1_000));
-    const check = await TursoUsage.check(ACCESS, now, fetch);
-    expect(check.kind === "measured" && check.status).toBe("over_pace");
+  test("paces the month and reads the database's last 24 hours", async () => {
+    const { fetch, urls } = usageFetch(
+      [1_100_000_000, 1_000],
+      [40_000_000, 3_000_000],
+    );
+    const check = await TursoUsage.check(PRODUCTION, now, fetch);
+    if (check.kind !== "measured")
+      throw new Error(`Expected measured, got ${check.kind}`);
+    expect(check.status).toBe("over_pace");
+    expect(check.lastDay).toEqual({
+      rowsRead: 40_000_000,
+      rowsWritten: 3_000_000,
+      spiking: ["rowsWritten"],
+    });
+    expect(urls).toContain(
+      "https://api.turso.tech/v1/organizations/example-org/databases/example-db/usage?from=2026-11-15T00%3A00%3A00.000Z&to=2026-11-16T00%3A00%3A00.000Z",
+    );
   });
 });
 
-describe("TursoUsage.alert", () => {
-  const now = new Date("2026-11-16T00:00:00Z");
-
-  test("on pace raises nothing", () => {
-    const check = {
-      kind: "measured" as const,
-      ...TursoUsage.pace({ rowsRead: 1, rowsWritten: 1 }, now),
-    };
-    expect(TursoUsage.alert(check)).toBeNull();
+describe("TursoUsage.databaseName", () => {
+  test("reads the database from a Turso host in the organization", () => {
+    expect(
+      TursoUsage.databaseName(
+        "libsql://junkyardindex-example-org.aws-us-east-1.turso.io",
+        "example-org",
+      ),
+    ).toBe("junkyardindex");
   });
 
-  test("over pace warns with the projection", () => {
-    const check = {
-      kind: "measured" as const,
-      ...TursoUsage.pace({ rowsRead: 1_100_000_000, rowsWritten: 0 }, now),
-    };
-    const alert = TursoUsage.alert(check);
+  test("is null for a host in another organization or no URL", () => {
+    expect(
+      TursoUsage.databaseName("libsql://db-other.turso.io", "example-org"),
+    ).toBeNull();
+    expect(TursoUsage.databaseName("file:local.db", "example-org")).toBeNull();
+  });
+});
+
+describe("TursoUsage.alerts", () => {
+  const now = new Date("2026-11-16T00:00:00Z");
+  const quiet = TursoUsage.lastDay({
+    rowsRead: 40_000_000,
+    rowsWritten: 300_000,
+  });
+  const measured = (
+    month: { rowsRead: number; rowsWritten: number },
+    lastDay = quiet,
+  ) => ({ kind: "measured" as const, ...TursoUsage.pace(month, now), lastDay });
+
+  test("on pace with a quiet day raises nothing", () => {
+    expect(
+      TursoUsage.alerts(measured({ rowsRead: 1, rowsWritten: 1 }), {
+        pace: true,
+      }),
+    ).toEqual([]);
+  });
+
+  test("over pace warns with the projection, once a day", () => {
+    const check = measured({ rowsRead: 1_100_000_000, rowsWritten: 0 });
+    const [alert] = TursoUsage.alerts(check, { pace: true });
+    expect(alert?.kind).toBe("pace");
     expect(alert?.level).toBe("warning");
     expect(alert?.message).toContain("2.20B of 2.50B rows read");
+    expect(TursoUsage.alerts(check, { pace: false })).toEqual([]);
   });
 
   test("over quota is an error", () => {
-    const check = {
-      kind: "measured" as const,
-      ...TursoUsage.pace({ rowsRead: 0, rowsWritten: 26_000_000 }, now),
-    };
-    expect(TursoUsage.alert(check)?.level).toBe("error");
+    const [alert] = TursoUsage.alerts(
+      measured({ rowsRead: 0, rowsWritten: 26_000_000 }),
+      { pace: true },
+    );
+    expect(alert?.level).toBe("error");
   });
 
-  test("an unconfigured guard warns, since nothing is watching the bill", () => {
-    expect(
-      TursoUsage.alert({
-        kind: "unconfigured",
-        missing: ["TURSO_ORGANIZATION"],
-      })?.level,
-    ).toBe("warning");
+  test("a spike in the last 24 hours warns every hour it is seen", () => {
+    const check = measured(
+      { rowsRead: 1, rowsWritten: 1 },
+      TursoUsage.lastDay({ rowsRead: 320_000_000, rowsWritten: 100_000 }),
+    );
+    const alerts = TursoUsage.alerts(check, { pace: false });
+    expect(alerts.map((alert) => alert.kind)).toEqual(["spike"]);
+    expect(alerts[0]?.message).toContain("0.32B rows read");
+  });
+
+  test("an unconfigured guard warns once a day, since nothing is watching the bill", () => {
+    const check = {
+      kind: "unconfigured" as const,
+      missing: ["TURSO_ORGANIZATION"],
+    };
+    expect(TursoUsage.alerts(check, { pace: true })[0]?.level).toBe("warning");
+    expect(TursoUsage.alerts(check, { pace: false })).toEqual([]);
   });
 });
 

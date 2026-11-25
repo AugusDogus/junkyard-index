@@ -4,9 +4,12 @@ import { TursoUsage } from "~/server/turso-usage";
 import { checkTursoUsage } from "~/server/turso-usage-runtime";
 import { hasValidCronAuthorization } from "~/server/workflows/cron-authorization";
 
-// Daily: compares this month's Turso rows read and written with the
-// Developer plan quota at the month-to-date pace, and raises a Sentry issue
-// when the month is on track to pass 80% of it. Reads no database rows.
+// Hourly: raises a Sentry issue when the production database used more than
+// TURSO_DAILY_SPIKE rows in the last 24 hours (a runaway operation), and
+// once a day, at 07 UTC, when the month is on track to pass 80% of the
+// Developer plan quota at its month-to-date pace. Reads no database rows.
+const PACE_HOUR_UTC = 7;
+
 export async function GET(request: Request) {
   if (
     !hasValidCronAuthorization(
@@ -16,19 +19,22 @@ export async function GET(request: Request) {
   ) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const check = await checkTursoUsage();
-  const alert = TursoUsage.alert(check);
-  if (alert !== null) {
+  const now = new Date();
+  const check = await checkTursoUsage(now);
+  const alerts = TursoUsage.alerts(check, {
+    pace: now.getUTCHours() === PACE_HOUR_UTC,
+  });
+  for (const alert of alerts) {
     Sentry.captureMessage(alert.message, {
       level: alert.level,
-      fingerprint: [
-        "turso-usage",
-        check.kind === "measured" ? check.status : check.kind,
-      ],
+      fingerprint: ["turso-usage", alert.kind],
       tags: { failure_category: "turso-usage" },
       extra: { check },
     });
-    await Sentry.flush(2_000);
   }
-  return Response.json({ databaseUsage: check, alerted: alert !== null });
+  if (alerts.length > 0) await Sentry.flush(2_000);
+  return Response.json({
+    databaseUsage: check,
+    alerted: alerts.map((alert) => alert.kind),
+  });
 }
