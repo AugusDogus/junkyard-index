@@ -20,7 +20,11 @@ const urgLane = (server: string): ProviderHostPolicy => ({
   leaseMs: 130_000,
   requestMs: 110_000,
   waitMs: 30 * 60_000,
-  pollMs: 1_000,
+  // A waiter at the front of its lane repolls every pollMs, each a script of
+  // about 6 to 16 Redis commands. Two seconds halves those repolls on the
+  // contended AWS lanes for about half a second more idle lane time per
+  // contended turn.
+  pollMs: 2_000,
   gapMs: 3_500,
   group: URG_HOST_GROUP,
 });
@@ -42,8 +46,9 @@ const URG_SERVERS: Readonly<Record<string, readonly string[]>> = {
   // Its five sources read about 2,800 model pages a day; one lane took about
   // 7 hours, so two lanes of about 1,400 GETs each split them. The balancer
   // then sees at most two of our requests at once, each lane still with its
-  // own gap.
-  "aws-1": ["aviationauto.com", "caltonautoparts.com", "hondapartsused.com"],
+  // own gap. The first lane keeps the single lane's key (`urg:aws`), so runs
+  // still on an older deployment queue with it during a rolling deploy.
+  aws: ["aviationauto.com", "caltonautoparts.com", "hondapartsused.com"],
   "aws-2": ["centralautoliq.com", "jimsimport.com"],
   // Vultr 66.42.115.19 (Cloudways).
   "66.42.115.19": ["lambertsalvage.com", "prattsautosalvage.com"],

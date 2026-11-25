@@ -156,7 +156,7 @@ Pick-A-Part VA, All-N-1, Grandpa John's, Midway and Allied use Redis-backed host
 queues, one per verified origin server:
 
 - URG's own AWS load balancer (six shared IPs, `x-urg-storage` header), as
-  two queues: Aviation, Calton and Scotts (`urg:aws-1`); Central and Jim's
+  two queues: Aviation, Calton and Scotts (`urg:aws`); Central and Jim's
   Import (`urg:aws-2`);
 - Vultr 66.42.115.19: Lambert and Pratt;
 - Vultr 149.28.120.41: Chaz (Metro also lives there but is not a source);
@@ -176,6 +176,13 @@ deployment that started them, so a URG run started before the change keeps the
 old lease and does not see the new queues or their cap. Until such runs finish,
 one origin server can receive a request from each scheme at once. Deploy the
 change when no URG source run is in flight, or accept that overlap.
+
+The AWS split kept the single AWS queue's key, `urg:aws`, for Aviation, Calton
+and Scotts, and added `urg:aws-2` for Central and Jim's Import. During a rolling
+deploy, runs on the older deployment still queue all five sources on
+`urg:aws`, so the balancer sees at most two of our requests at once (one per
+key), the same as after the deploy. Renaming both keys would have let it see
+three.
 
 Each URG queue holds an exclusive lease through the entire response and an
 additional 3.5-second gap, including failures. A client's own pacing gate (1.6
@@ -242,6 +249,19 @@ renews its 30-second deadline in time. A request that finds no queue and a free
 lane (and, for a group, a free place) takes the lease without joining a queue.
 In a model of the Nov 19 to 25 load, these rules cut billed commands from about
 1.1 million a day to about 0.38 million, with the same crawl length.
+
+Expected Redis cost of the daily model-page reads (Upstash pay-as-you-go, $0.20
+per 100,000 commands, counting every command a script runs): under the
+reservation script before the polling above, each URG GET cost about 40
+commands, and 75 to 110 on the contended AWS queues with one-second polls, so
+the about 4,000 extra GETs a day came to about 250,000 to 300,000 commands a
+day, $14 to $18 a month. Two changes lower that: the position-based polling
+above, and a two-second `pollMs` on URG queues, which halves how often a waiter
+at the front of its lane repolls (about 6 to 16 commands each). The longer poll
+adds about half a second of idle queue time per contended turn, up to about 12
+minutes a day on the busier AWS queue's ~1,465 GETs. The combined cost has not
+been remodeled: check the Upstash daily command count in the first week after
+deploy.
 
 Redis configuration, reservation, timeout and release failures remain failures.
 There is no deployed in-process fallback. An uncertain acquired lease expires
