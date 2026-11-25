@@ -7,7 +7,6 @@ const original = globalThis.fetch;
 afterEach(() => {
   globalThis.fetch = original;
 });
-const gate = <A, E, R>(request: Effect.Effect<A, E, R>) => request;
 
 test("Scotts refuses denial, rate limit, redirect, partial body and invalid UTF-8 without retry", async () => {
   const responses = [
@@ -37,7 +36,7 @@ test("Scotts refuses denial, rate limit, redirect, partial body and invalid UTF-
       { preconnect: original.preconnect },
     );
     await expect(
-      Effect.runPromise(fetchScottsPage(SCOTTS_ROOT, gate)),
+      Effect.runPromise(fetchScottsPage(SCOTTS_ROOT)),
     ).rejects.toThrow("prior inventory is preserved");
     expect(requests).toBe(1);
   }
@@ -60,7 +59,7 @@ test("Scotts never fetches held arrivals, hidden APIs, donor leaves, images or f
     SCOTTS_ROOT + "used-parts/ACURA?all=1",
     "https://example.com/used-parts/ACURA",
   ])
-    await expect(Effect.runPromise(fetchScottsPage(url, gate))).rejects.toThrow(
+    await expect(Effect.runPromise(fetchScottsPage(url))).rejects.toThrow(
       "outside the finite",
     );
   expect(requests).toBe(0);
@@ -86,7 +85,7 @@ test("Scotts interruption aborts transport and releases a stalled response reade
     },
     { preconnect: original.preconnect },
   );
-  const fiber = Effect.runFork(fetchScottsPage(SCOTTS_ROOT, gate));
+  const fiber = Effect.runFork(fetchScottsPage(SCOTTS_ROOT));
   await fetched;
   await Effect.runPromise(Fiber.interrupt(fiber));
   expect(signal).toMatchObject({ aborted: true });

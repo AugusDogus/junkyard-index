@@ -7,7 +7,6 @@ const original = globalThis.fetch;
 afterEach(() => {
   globalThis.fetch = original;
 });
-const gate = <A, E, R>(request: Effect.Effect<A, E, R>) => request;
 
 test("Central preserves the HTTP refusal when unread-body cleanup also fails", async () => {
   const stream = new ReadableStream<Uint8Array>({
@@ -24,7 +23,7 @@ test("Central preserves the HTTP refusal when unread-body cleanup also fails", a
     { preconnect: original.preconnect },
   );
   const result = await Effect.runPromise(
-    Effect.either(fetchCentralPage(CENTRAL_ROOT, gate)),
+    Effect.either(fetchCentralPage(CENTRAL_ROOT)),
   );
   expect(result._tag).toBe("Left");
   if (result._tag !== "Left")
@@ -61,7 +60,7 @@ test("Central interruption aborts transport and releases a stalled body reader b
     },
     { preconnect: original.preconnect },
   );
-  const fiber = Effect.runFork(fetchCentralPage(CENTRAL_ROOT, gate));
+  const fiber = Effect.runFork(fetchCentralPage(CENTRAL_ROOT));
   await fetched;
   await Effect.runPromise(Fiber.interrupt(fiber));
   expect(signals[0]?.aborted).toBe(true);
@@ -95,7 +94,7 @@ test("Central interruption aborts a pending header request without retry", async
     },
     { preconnect: original.preconnect },
   );
-  const fiber = Effect.runFork(fetchCentralPage(CENTRAL_ROOT, gate));
+  const fiber = Effect.runFork(fetchCentralPage(CENTRAL_ROOT));
   await fetched;
   await Effect.runPromise(Fiber.interrupt(fiber));
   expect(cancelled).toBe(true);
@@ -123,7 +122,7 @@ test("Central cancels unread bodies when refusing redirect, partial or foreign M
       { preconnect: original.preconnect },
     );
     await expect(
-      Effect.runPromise(fetchCentralPage(CENTRAL_ROOT, gate)),
+      Effect.runPromise(fetchCentralPage(CENTRAL_ROOT)),
     ).rejects.toThrow("Expected complete");
     expect(cancelled).toBe(true);
     expect(stream.locked).toBe(false);
@@ -152,7 +151,7 @@ test("Central cancels streaming bodies at the actual 2 MiB boundary without retr
     { preconnect: original.preconnect },
   );
   await expect(
-    Effect.runPromise(fetchCentralPage(CENTRAL_ROOT, gate)),
+    Effect.runPromise(fetchCentralPage(CENTRAL_ROOT)),
   ).rejects.toThrow("exceeds 2 MiB");
   expect(requests).toBe(1);
   expect(cancelled).toBe(true);
@@ -192,7 +191,7 @@ test("Central refuses redirects, partial bodies, foreign MIME and malformed UTF-
       { preconnect: original.preconnect },
     );
     await expect(
-      Effect.runPromise(fetchCentralPage(CENTRAL_ROOT, gate)),
+      Effect.runPromise(fetchCentralPage(CENTRAL_ROOT)),
     ).rejects.toThrow("prior inventory is preserved");
     expect(requests).toBe(1);
   }
@@ -213,8 +212,8 @@ test("Central does not fetch hidden inventory failures, donor details, images or
     "https://example.com/parts/",
     "https://centralautoliq.com/used-parts/ACURA?all=1",
   ])
-    await expect(
-      Effect.runPromise(fetchCentralPage(url, gate)),
-    ).rejects.toThrow("outside the finite");
+    await expect(Effect.runPromise(fetchCentralPage(url))).rejects.toThrow(
+      "outside the finite",
+    );
   expect(requests).toBe(0);
 });

@@ -41,9 +41,9 @@ export function dentonSlashRedirect(from: string, to: string) {
   );
 }
 const serial = Effect.runSync(Effect.makeSemaphore(1));
-export const dentonRequestGate: ProviderRequestGate = (request) =>
+export const dentonRequestGate: ProviderRequestGate = (paced) =>
   serial.withPermits(1)(
-    request.pipe(Effect.ensuring(Effect.sleep("1600 millis"))),
+    paced.pipe(Effect.ensuring(Effect.sleep("1600 millis"))),
   );
 
 async function request(
@@ -101,58 +101,55 @@ async function request(
     : { kind: "document", url, body };
 }
 
-/** Exactly one physical GET and bounded body, with no retry or hidden redirect. */
-export function readDentonPage(
-  url: string,
-  gate: ProviderRequestGate = dentonRequestGate,
-) {
-  return gate(
-    Effect.suspend(() => {
-      if (!dentonRequestUrl(url))
-        return Effect.fail(
-          DentonError.create(
-            "request destination",
-            "URL is outside the owned catalog: " + url,
-          ),
+/** Exactly one physical GET and bounded body, with no retry or hidden redirect.
+ * Callers pace it with `dentonRequestGate` outside the shared host turn, so
+ * the gate does not hold the lane. */
+export function readDentonPage(url: string) {
+  return Effect.suspend(() => {
+    if (!dentonRequestUrl(url))
+      return Effect.fail(
+        DentonError.create(
+          "request destination",
+          "URL is outside the owned catalog: " + url,
+        ),
+      );
+    const lifetime = new AbortController();
+    const deadline = AbortSignal.timeout(DENTON_REQUEST_TIMEOUT_MS);
+    let pending: Promise<DentonResponse> | null = null;
+    return Effect.tryPromise({
+      try: (interrupted) => {
+        pending = request(
+          url,
+          AbortSignal.any([lifetime.signal, interrupted, deadline]),
         );
-      const lifetime = new AbortController();
-      const deadline = AbortSignal.timeout(DENTON_REQUEST_TIMEOUT_MS);
-      let pending: Promise<DentonResponse> | null = null;
-      return Effect.tryPromise({
-        try: (interrupted) => {
-          pending = request(
-            url,
-            AbortSignal.any([lifetime.signal, interrupted, deadline]),
-          );
-          return pending;
-        },
-        catch: (cause) =>
+        return pending;
+      },
+      catch: (cause) =>
+        DentonError.create(
+          "request/body " + url,
+          cause instanceof Error ? cause.message : String(cause),
+        ),
+    }).pipe(
+      Effect.ensuring(
+        Effect.promise(async () => {
+          lifetime.abort();
+          if (pending)
+            await pending.then(
+              () => undefined,
+              () => undefined,
+            );
+        }),
+      ),
+      Effect.timeoutFail({
+        duration: "20 seconds",
+        onTimeout: () =>
           DentonError.create(
             "request/body " + url,
-            cause instanceof Error ? cause.message : String(cause),
+            "Combined request and body deadline exceeded 20 seconds",
           ),
-      }).pipe(
-        Effect.ensuring(
-          Effect.promise(async () => {
-            lifetime.abort();
-            if (pending)
-              await pending.then(
-                () => undefined,
-                () => undefined,
-              );
-          }),
-        ),
-        Effect.timeoutFail({
-          duration: "20 seconds",
-          onTimeout: () =>
-            DentonError.create(
-              "request/body " + url,
-              "Combined request and body deadline exceeded 20 seconds",
-            ),
-        }),
-      );
-    }),
-  ).pipe(
+      }),
+    );
+  }).pipe(
     sharedProviderHostSlot(url),
     Effect.mapError((cause) =>
       cause instanceof Error

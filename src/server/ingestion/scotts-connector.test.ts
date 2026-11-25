@@ -21,7 +21,10 @@ import {
   SCOTTS_ORIGIN,
   SCOTTS_ROOT,
 } from "./scotts-yard-metadata";
-import { runWithQueuedHost } from "./provider-host-test-support";
+import {
+  queuedHostPacing,
+  runWithQueuedHost,
+} from "./provider-host-test-support";
 
 const original = globalThis.fetch;
 afterEach(() => {
@@ -287,6 +290,27 @@ test("Scotts closing rejects a make directory that adds, drops, relabels or reor
     ).rejects.toThrow("make graph changed");
   }
 });
+
+test("Scotts's own 5 s gate runs after its shared host lease", async () => {
+  // Several sources share a URG lane. A gate inside the lease idled the lane
+  // after every request on top of its 3.5 s host gap.
+  fixture();
+  const chunk = await runWithQueuedHost(
+    streamScottsInventory({
+      startCursor: ScottsCursor.initial,
+      maxPages: 6,
+      onBatch: () => Effect.void,
+    }),
+    { turnWaitMs: 0 },
+  );
+  if (Either.isLeft(chunk.result)) throw chunk.result.left;
+  expect(chunk.requests.length).toBeGreaterThan(2);
+  const pacing = queuedHostPacing(chunk);
+  // The request (instant here) and the 3.5 s gap, in whole test seconds.
+  expect(pacing.longestLeaseMs).toBeLessThanOrEqual(4_000);
+  // The gap and the gate still both pass before the source's next request.
+  expect(pacing.shortestGapMs).toBeGreaterThanOrEqual(8_000);
+}, 60_000);
 
 test("Scotts completes a full crawl when every request waits two minutes for a shared host turn", async () => {
   // Production URG queue on 2026-11-19: about 20 sources shared one lease, so

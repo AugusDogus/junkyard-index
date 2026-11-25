@@ -1,3 +1,4 @@
+import type { ProviderRequestGate } from "./provider-http-client";
 import {
   ingestionValidation,
   transientRejection,
@@ -6,6 +7,7 @@ import { Effect, Option } from "effect";
 import type { ConnectorChunkAccounting } from "./connector-chunk";
 import {
   JimsimportProviderError,
+  jimsimportRequestGate,
   readJimsimportPage,
 } from "./jimsimport-client";
 import {
@@ -52,6 +54,9 @@ export interface JimsimportOptions<E, R> {
   now?: () => number;
   maxPages?: number;
   readPage: (url: string) => Effect.Effect<string, JimsimportProviderError>;
+  /** Pacing around each page's shared host turn, after its lease is released.
+   * Saved fixtures need none. */
+  gate?: ProviderRequestGate;
   onBatch: (vehicles: JimsimportVehicle[]) => Effect.Effect<void, E, R>;
   onYards?: (yards: JimsimportYard[]) => Effect.Effect<void, E, R>;
 }
@@ -211,12 +216,11 @@ export function streamJimsimportInventory<E, R>(
         );
       // The terminal owner re-read is its own turn: the cursor holds
       // owner-closing, so a chunk resumed there completes with one turn.
-      const page = yield* options
-        .readPage(url)
-        .pipe(
-          sharedProviderHostTurn(url),
-          ProviderChunkClock.unlessDeferred(summary.pagesProcessed > 0),
-        );
+      // The gate runs after the turn releases the shared lane.
+      const turn = options.readPage(url).pipe(sharedProviderHostTurn(url));
+      const page = yield* (options.gate ? options.gate(turn) : turn).pipe(
+        ProviderChunkClock.unlessDeferred(summary.pagesProcessed > 0),
+      );
       if (Option.isNone(page)) break;
       const raw = page.value;
       summary.pagesProcessed++;
@@ -418,5 +422,6 @@ export function streamJimsimportInventoryFromProvider<E, R>(
   return streamJimsimportInventory({
     ...options,
     readPage: readJimsimportPage,
+    gate: jimsimportRequestGate,
   });
 }

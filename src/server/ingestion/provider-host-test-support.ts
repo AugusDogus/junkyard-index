@@ -15,6 +15,26 @@ export interface QueuedHostRun<A, E> {
 }
 
 /**
+ * The longest lease and the shortest gap between one request's end and the
+ * next one's start. A client's own gate belongs after its lease, so the lease
+ * covers only the request and the host gap while the source still waits its
+ * gate before its next request. The test clock moves in whole seconds.
+ */
+export function queuedHostPacing<A, E>(run: QueuedHostRun<A, E>) {
+  const leases = run.turns.flatMap((turn) =>
+    turn.releasedAt === null ? [] : [turn.releasedAt - turn.acquiredAt],
+  );
+  const gaps = run.requests.slice(1).flatMap((request, index) => {
+    const previous = run.requests[index];
+    return previous ? [request.startedAt - previous.endedAt] : [];
+  });
+  return {
+    longestLeaseMs: Math.max(...leases),
+    shortestGapMs: Math.min(...gaps),
+  };
+}
+
+/**
  * Runs `effect` on the test clock as production does on Vercel, with the
  * Upstash REST endpoint replaced by one simulated shared host queue: each
  * waiter gets the lease `turnWaitMs` after it first asks (as if requests from

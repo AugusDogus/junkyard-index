@@ -4,6 +4,7 @@ import type { ProviderRequestGate } from "./provider-http-client";
 import { ProviderChunkClock } from "./provider-chunk-clock";
 import { sharedProviderHostTurn } from "./shared-provider-host";
 import {
+  dentonRequestGate,
   readDentonPage,
   DENTON_MAX_BODY_BYTES,
   type DentonResponse,
@@ -39,6 +40,9 @@ export interface DentonOptions<E, R> {
   /** One unit is one physical GET, including the native slash HTTP 301. */
   maxPages?: number;
   readPage: (url: string) => Effect.Effect<DentonResponse, DentonError>;
+  /** Pacing around each GET's shared host turn, after its lease is released.
+   * Saved fixtures need none. */
+  gate?: ProviderRequestGate;
   onBatch: (vehicles: DentonCanonicalVehicle[]) => Effect.Effect<void, E, R>;
   onYards?: (yards: (typeof DENTON_YARD)[]) => Effect.Effect<void, E, R>;
 }
@@ -172,12 +176,11 @@ export function streamDentonInventory<E, R>(options: DentonOptions<E, R>) {
         const url = yield* unwrap(dentonNextUrl(cursor));
         // A native slash 301 takes its own turn: the cursor holds it as a
         // pending redirect, so either GET advances the chunk.
-        const response = yield* options
-          .readPage(url)
-          .pipe(
-            sharedProviderHostTurn(url),
-            ProviderChunkClock.unlessDeferred(summary.pagesProcessed > 0),
-          );
+        // The gate runs after the turn releases the shared lane.
+        const turn = options.readPage(url).pipe(sharedProviderHostTurn(url));
+        const response = yield* (options.gate ? options.gate(turn) : turn).pipe(
+          ProviderChunkClock.unlessDeferred(summary.pagesProcessed > 0),
+        );
         if (Option.isNone(response)) break;
         cursor = yield* unwrap(
           DentonCursor.advance(
@@ -209,7 +212,11 @@ export function streamDentonInventory<E, R>(options: DentonOptions<E, R>) {
 export function streamDentonInventoryFromProvider<E, R>(
   options: Omit<DentonOptions<E, R>, "readPage">,
 ) {
-  return streamDentonInventory({ ...options, readPage: readDentonPage });
+  return streamDentonInventory({
+    ...options,
+    readPage: readDentonPage,
+    gate: dentonRequestGate,
+  });
 }
 
 export function streamDentonInventoryWithRequestGate<E, R>(
@@ -218,6 +225,7 @@ export function streamDentonInventoryWithRequestGate<E, R>(
 ) {
   return streamDentonInventory({
     ...options,
-    readPage: (url) => readDentonPage(url, gate),
+    readPage: readDentonPage,
+    gate,
   });
 }
