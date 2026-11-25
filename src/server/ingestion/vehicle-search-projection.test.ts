@@ -289,6 +289,7 @@ test("reads only the batch's yards, by primary key", async () => {
     expect(details).toContain(
       "USING INDEX sqlite_autoindex_yard_1 (source=? AND code=?)",
     );
+    expect(details).not.toContain("SCAN yard");
     const read = await client.execute({
       sql: query.sql,
       args: query.params.map((param) =>
@@ -296,6 +297,28 @@ test("reads only the batch's yards, by primary key", async () => {
       ),
     });
     expect(read.rows.length).toBe(2);
+  } finally {
+    client.close();
+  }
+});
+
+test("projects a batch listing more yards than SQLite's expression depth", async () => {
+  const client = createClient({ url: ":memory:" });
+  try {
+    await client.executeMultiple(
+      readFileSync(
+        new URL("../../../drizzle/0007_yard_metadata.sql", import.meta.url),
+        "utf8",
+      ),
+    );
+    const rows = Array.from({ length: 1_500 }, (_, index) => ({
+      ...legacy,
+      vin: `VIN-${index}`,
+      source: index % 2 === 0 ? "pullapart" : "row52",
+      locationCode: String(index),
+    }));
+    const records = await projectSearchVehicles(drizzle(client), rows);
+    expect(records).toHaveLength(1_500);
   } finally {
     client.close();
   }

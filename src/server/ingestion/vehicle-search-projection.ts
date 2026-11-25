@@ -1,5 +1,5 @@
 import { YardService } from "~/lib/yard-service";
-import { and, eq, or } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { getYardDetails } from "~/lib/yard-details";
 import { vehicle, yard } from "~/schema";
@@ -13,20 +13,22 @@ export async function projectSearchVehicles(
   if (!rows.length) return [];
   // Each yard the batch lists, by primary key. Reading by source alone read
   // every yard of every source in the batch: a 100-VIN migration batch spans
-  // most sources, so about 1-2.5K yard rows per batch.
-  const yards = new Map(
-    rows.map((row) => [
-      JSON.stringify([row.source, row.locationCode]),
-      { source: row.source, code: row.locationCode },
-    ]),
-  );
+  // most sources, so about 1-2.5K yard rows per batch. One OR term per
+  // source keeps the expression shallow (SQLite allows a depth of 1,000)
+  // however many yards a 5,000-change projector batch lists.
+  const codesBySource = new Map<string, Set<string>>();
+  for (const row of rows) {
+    const codes = codesBySource.get(row.source) ?? new Set<string>();
+    codes.add(row.locationCode);
+    codesBySource.set(row.source, codes);
+  }
   const metadata = await database
     .select()
     .from(yard)
     .where(
       or(
-        ...[...yards.values()].map(({ source, code }) =>
-          and(eq(yard.source, source), eq(yard.code, code)),
+        ...[...codesBySource].map(([source, codes]) =>
+          and(eq(yard.source, source), inArray(yard.code, [...codes])),
         ),
       ),
     );
