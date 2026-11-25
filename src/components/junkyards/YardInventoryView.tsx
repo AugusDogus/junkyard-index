@@ -6,7 +6,10 @@ import { isIngestionSource } from "~/lib/ingestion-source";
 import { ArrowUpRight, MapPin, Phone } from "lucide-react";
 import Link from "next/link";
 import { FreshnessBadge } from "~/components/inventory/FreshnessBadge";
-import { InventoryStaleness } from "~/lib/inventory-staleness";
+import {
+  InventoryStaleness,
+  UNKNOWN_CHECK_LABEL,
+} from "~/lib/inventory-staleness";
 import { VehicleRow } from "~/components/inventory/VehicleRow";
 import { AlertsCallout } from "~/components/junkyards/AlertsCallout";
 import { Breadcrumbs } from "~/components/junkyards/Breadcrumbs";
@@ -58,6 +61,7 @@ export function YardInventoryView({
   makeSlugs,
   publishedAt,
   checkedAt,
+  checkUnknown,
   nearby,
   chain,
   filter,
@@ -80,6 +84,8 @@ export function YardInventoryView({
    * say so; a source past 7 days is hidden, so its yard has no page.
    */
   checkedAt: string | null;
+  /** No run has proven a live fetch of this yard: it reads UNKNOWN_CHECK_LABEL. */
+  checkUnknown: boolean;
   nearby: readonly NearbyYard[];
   /** The chain the yard belongs to, when it has other yards we track. */
   chain: { name: string; href: string; yards: number } | null;
@@ -107,7 +113,9 @@ export function YardInventoryView({
   const shownFrom = inventory.firstIndex + 1;
   const shownTo = inventory.firstIndex + inventory.vehicles.length;
   const showMakes = inventory.page === 1 && makes.length > 1;
-  const lastChecked = InventoryStaleness.label(checkedAt, Date.now());
+  const lastChecked = checkUnknown
+    ? UNKNOWN_CHECK_LABEL
+    : InventoryStaleness.label(checkedAt, Date.now());
   const newDisplay = YardInventory.newDisplay(newArrivals);
   // Nothing is "new" next to "Last checked": a stale yard's newest cars are
   // only new as of its last check.
