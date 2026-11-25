@@ -138,6 +138,7 @@ import {
 } from "./tap-inventory-connector";
 import { streamUpullitDavieInventory } from "./upullit-davie-connector";
 import type { CanonicalVehicle } from "./types";
+import { YardCheckPolicy } from "./yard-check-policy";
 
 type OnVehicleBatch = (
   vehicles: CanonicalVehicle[],
@@ -175,6 +176,7 @@ function toFetchedChunk<Source extends DurableIngestionSource, Cursor>(
     vehicles: [...vehiclesByVin.values()],
     yards: [...yardsByCode.values()],
     observedVins: result.observedVins ?? [],
+    yardChecks: result.yardChecks,
     checkpointState: result.checkpointState,
     restart: result.restart,
     failureKind: result.failureKind,
@@ -1816,11 +1818,17 @@ export async function fetchDurableSourceChunk<
       }
     });
   const maxPages = getDurableSourceDefinition(cursor.source).maxPagesPerChunk;
-  return getDurableSourceFetcher(cursor.source)(cursor, {
+  const fetched = await getDurableSourceFetcher(cursor.source)(cursor, {
     maxPages,
     onBatch,
     onYards,
     yardsByCode,
     vehiclesByVin,
   });
+  return {
+    ...fetched,
+    yardChecks:
+      fetched.yardChecks ??
+      YardCheckPolicy.chunkReports(cursor.source, fetched.vehicles),
+  };
 }

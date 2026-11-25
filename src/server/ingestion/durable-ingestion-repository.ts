@@ -718,6 +718,7 @@ export function createDurableIngestionRepository(
           }),
         ),
       ];
+      const yardChecks = params.fetched.yardChecks ?? [];
       const id = sourceRunId(params.runId, source);
       const [current] = await database
         .select()
@@ -807,6 +808,7 @@ export function createDurableIngestionRepository(
         if (
           params.fetched.vehicles.length > 0 ||
           observedVins.length > 0 ||
+          yardChecks.length > 0 ||
           params.fetched.restart
         ) {
           staged.push(
@@ -816,6 +818,7 @@ export function createDurableIngestionRepository(
               chunk: {
                 vehicles: params.fetched.vehicles,
                 observedVins,
+                ...(yardChecks.length > 0 ? { yardChecks } : {}),
                 ...(params.fetched.restart ? { restart: true } : {}),
               },
             }),

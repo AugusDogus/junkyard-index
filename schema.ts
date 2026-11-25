@@ -10,6 +10,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 import { FirstSighting } from "./src/lib/first-sighting";
+import { YARD_CHECK_OUTCOMES } from "./src/lib/yard-check";
 
 export const user = sqliteTable("user", {
   id: text("id").primaryKey(),
@@ -329,6 +330,44 @@ export const yardArrivalBaseline = sqliteTable(
     }).notNull(),
   },
   (table) => [primaryKey({ columns: [table.source, table.locationCode] })],
+);
+
+/**
+ * What each accepted run learned about each yard, so "Last checked" names a
+ * check we can prove. `outcome` is the latest accepted run's result for the
+ * yard (`YardCheckOutcome`); `lastCheckedAt` advances only when that result
+ * is "fetched", a live request this run. A null `lastCheckedRunId` beside a
+ * date marks one inherited from `yard_inventory.last_published_at` when the
+ * table was added. `lastChangedAt` is the last run that changed the yard's
+ * inventory and `lastArrivalAt` its newest first sighting.
+ */
+export const yardCheck = sqliteTable(
+  "yard_check",
+  {
+    source: text("source").notNull(),
+    locationCode: text("location_code").notNull(),
+    outcome: text("outcome", { enum: YARD_CHECK_OUTCOMES }).notNull(),
+    reportedAt: integer("reported_at", { mode: "timestamp_ms" }).notNull(),
+    reportedRunId: text("reported_run_id"),
+    lastCheckedAt: integer("last_checked_at", { mode: "timestamp_ms" }),
+    lastCheckedRunId: text("last_checked_run_id"),
+    lastChangedAt: integer("last_changed_at", { mode: "timestamp_ms" }),
+    lastArrivalAt: integer("last_arrival_at", { mode: "timestamp_ms" }),
+    consecutiveUncheckedRuns: integer("consecutive_unchecked_runs")
+      .default(0)
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.source, table.locationCode] }),
+    check(
+      "yard_check_outcome_check",
+      sql`${table.outcome} in ('fetched', 'preserved', 'blocked', 'replayed', 'unreported')`,
+    ),
+    check(
+      "yard_check_checked_run_check",
+      sql`${table.lastCheckedRunId} is null or ${table.lastCheckedAt} is not null`,
+    ),
+  ],
 );
 
 /** Pattern identities only; failed attempts have no canonical fields and expire. */

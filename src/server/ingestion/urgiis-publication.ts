@@ -1,6 +1,7 @@
 import { URGIIS_TENANTS } from "./urgiis-configuration";
 import { UrgiisCursor } from "./urgiis-cursor";
 import { UrgiisTenant } from "./urgiis-tenant";
+import type { YardCheckReport } from "~/lib/yard-check";
 
 /** A terminal blocked tenant is deliberately outside reconciliation, including
  * its floor and previous-run baseline. Its prior rows remain untouched. */
@@ -31,4 +32,27 @@ export function urgiisPublication(cursor: UrgiisCursor) {
     minimumByYard,
     minimum: [...minimumByYard.values()].reduce((n, v) => n + v, 0),
   };
+}
+
+/**
+ * Each yard's result in a run's cursor, by its tenant's verdict. An accepted
+ * tenant read its owner page, makes, menus and arrivals live this run and
+ * reread them at closing; its census carries only model pages whose live
+ * badge counts did not change, so its yards are "fetched". A blocked tenant
+ * (a provider block or a quarantine stop; the cursor keeps only free text)
+ * published nothing, so its yards are "blocked".
+ */
+export function urgiisYardChecks(
+  cursor: Pick<UrgiisCursor, "completed">,
+): YardCheckReport[] {
+  const verdicts = new Map(cursor.completed.map((c) => [c.code, c] as const));
+  return URGIIS_TENANTS.flatMap((tenant) => {
+    const verdict = verdicts.get(tenant.code);
+    if (verdict === undefined) return [];
+    const outcome = "blocked" in verdict ? "blocked" : "fetched";
+    return UrgiisTenant.yards(tenant).map((yard) => ({
+      locationCode: yard.code,
+      outcome,
+    }));
+  });
 }

@@ -30,7 +30,8 @@ import {
 import { getSourceFreshness } from "~/server/ingestion/source-freshness";
 import { StateNewArrivals } from "~/server/state-new-arrivals";
 import { cacheShownInventory } from "~/server/source-control/hidden-sources-loader";
-import { vehicle, yardInventory } from "~/schema";
+import { vehicle, yardCheck, yardInventory } from "~/schema";
+import { YardCheck } from "~/lib/yard-check";
 
 async function loadYardVehicles(
   source: string,
@@ -248,6 +249,26 @@ export const getYardPublishedAt = cacheInventory(async (): Promise<
 }, ["yard-published-at-v1"]);
 
 /**
+ * When each yard was last proven checked: the last accepted run that fetched
+ * it live (`yard_check`). A blocked, preserved, replayed or unreported yard
+ * keeps its earlier date, so its "Last checked" label ages. One row per
+ * yard, so it stays cheap at build.
+ */
+export const getYardCheckedAt = cacheInventory(
+  async (): Promise<Readonly<Record<string, string>>> =>
+    YardCheck.checkDates(
+      await db
+        .select({
+          source: yardCheck.source,
+          code: yardCheck.locationCode,
+          lastCheckedAt: yardCheck.lastCheckedAt,
+        })
+        .from(yardCheck),
+    ),
+  ["yard-checked-at-v1"],
+);
+
+/**
  * New arrivals per state, from the summary ingestion keeps with each publish:
  * one small cached query serves every state page, at build and on refresh.
  */
@@ -334,14 +355,14 @@ export async function inventoryFreshness(
 }
 
 /**
- * When every source and yard last had an accepted publication, for the
- * "Last checked" labels on listings. Both reads are cached with the daily
- * inventory.
+ * When every source last had an accepted publication and every yard was last
+ * fetched live, for the "Last checked" labels on listings. Both reads are
+ * cached with the daily inventory.
  */
 export async function getInventoryCheckDates(): Promise<InventoryCheckDates> {
   const [sources, yards] = await Promise.all([
     getSourcePublishedAt(),
-    getYardPublishedAt(),
+    getYardCheckedAt(),
   ]);
   return { sources, yards };
 }

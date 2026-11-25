@@ -1,3 +1,4 @@
+import type { YardCheckReport } from "~/lib/yard-check";
 import type { ConnectorChunkStatus } from "./connector-chunk";
 import type { IngestionSource } from "~/lib/ingestion-source";
 import type {
@@ -90,6 +91,8 @@ export interface FetchedDurableSourceChunk<
   vehicles: CanonicalVehicle[];
   yards: Yard[];
   observedVins?: string[];
+  /** See `ConnectorChunkResult.yardChecks`. */
+  yardChecks?: YardCheckReport[];
   checkpointState?: unknown;
   /** See `ConnectorChunkResult.restart`. */
   restart?: true;

@@ -2,6 +2,10 @@ import { gunzipSync, gzipSync } from "node:zlib";
 import { BlobServiceRateLimited, del, get, put } from "@vercel/blob";
 import { z } from "zod";
 import { INGESTION_SOURCES } from "~/lib/ingestion-source";
+import {
+  REPORTED_YARD_CHECK_OUTCOMES,
+  type YardCheckReport,
+} from "~/lib/yard-check";
 import type { DurableIngestionSource } from "./durable-source";
 import type { CanonicalVehicle } from "./types";
 
@@ -13,6 +17,8 @@ import type { CanonicalVehicle } from "./types";
 export interface IngestionSnapshotChunk {
   vehicles: CanonicalVehicle[];
   observedVins: string[];
+  /** Per-yard results; chunks staged before they existed have none. */
+  yardChecks?: YardCheckReport[];
   checkpointState?: unknown;
   /** The source crawl started over here: earlier chunks of this source run
    * no longer describe its inventory. */
@@ -106,6 +112,14 @@ const CanonicalVehicleSchema = z.object({
 const SnapshotChunkSchema = z.object({
   vehicles: z.array(CanonicalVehicleSchema),
   observedVins: z.array(z.string().min(1)),
+  yardChecks: z
+    .array(
+      z.object({
+        locationCode: z.string().min(1),
+        outcome: z.enum(REPORTED_YARD_CHECK_OUTCOMES),
+      }),
+    )
+    .optional(),
   checkpointState: z.unknown().optional(),
   restart: z.literal(true).optional(),
 });

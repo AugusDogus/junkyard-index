@@ -72,4 +72,5 @@ ${readFileSync(new URL("../../../drizzle/0026_vin_canonical_models.sql", import.
 ${readFileSync(new URL("../../../drizzle/0027_vehicle_first_sighting.sql", import.meta.url), "utf8").replaceAll("--> statement-breakpoint", "")}
 ${readFileSync(new URL("../../../drizzle/0030_source_control.sql", import.meta.url), "utf8").replaceAll("--> statement-breakpoint", "")}
 ${readFileSync(new URL("../../../drizzle/0032_state_recent_arrival.sql", import.meta.url), "utf8").replaceAll("--> statement-breakpoint", "")}
+${readFileSync(new URL("../../../drizzle/0033_yard_check.sql", import.meta.url), "utf8").replaceAll("--> statement-breakpoint", "")}
 `;

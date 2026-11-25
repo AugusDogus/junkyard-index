@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { YardCheckReport } from "~/lib/yard-check";
 import { HollanderstoresCursor } from "./hollanderstores-cursor";
 import { HOLLANDERSTORES_MAX_REQUESTS } from "./hollanderstores-limits";
 import { HOLLANDERSTORES_YARDS } from "./hollanderstores-yard-metadata";
@@ -108,4 +109,20 @@ export function hollanderstoresPreservedYards(
   cursor: HollanderstoresDurableCursor,
 ): ReadonlySet<string> {
   return new Set(cursor.phase === "complete" ? (cursor.preserved ?? []) : []);
+}
+
+/**
+ * Each yard's result in a terminal reference: a complete census read every
+ * yard's opening and closing roster live in this run, so each is "fetched"
+ * unless it keeps its previous inventory. Empty for any other reference.
+ */
+export function hollanderstoresYardChecks(
+  cursor: HollanderstoresDurableCursor,
+): YardCheckReport[] {
+  if (cursor.phase !== "complete") return [];
+  const preserved = hollanderstoresPreservedYards(cursor);
+  return HOLLANDERSTORES_YARDS.map(({ code }) => ({
+    locationCode: code,
+    outcome: preserved.has(code) ? "preserved" : "fetched",
+  }));
 }
