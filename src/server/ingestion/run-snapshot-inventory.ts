@@ -1,6 +1,10 @@
 import { parseDurableSourceCursor } from "./durable-cursor";
-import { urgiisPublication } from "./urgiis-publication";
-import { hollanderstoresPreservedYards } from "./hollanderstores-durable-cursor";
+import { urgiisPublication, urgiisYardChecks } from "./urgiis-publication";
+import {
+  hollanderstoresPreservedYards,
+  hollanderstoresYardChecks,
+} from "./hollanderstores-durable-cursor";
+import { autorecyclerYardChecks } from "./autorecycler-yard-checks";
 import { and, eq } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import {
@@ -12,11 +16,19 @@ import { parseSnapshotChunks } from "./durable-ingestion-repository";
 import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import { reconciliationSourcePriority } from "./reconciliation-policy";
 import type { CanonicalVehicle } from "./types";
+import {
+  YardCheck,
+  type ReportedYardCheckOutcome,
+  type YardCheckReport,
+  type YardCheckReports,
+} from "~/lib/yard-check";
 
 export interface SourceSnapshot {
   /** First snapshot of each VIN in checkpoint order. */
   vehicles: Map<string, CanonicalVehicle>;
   observedVins: Set<string>;
+  /** Each reported yard's least proven result across the run's chunks. */
+  yardChecks: Map<string, ReportedYardCheckOutcome>;
 }
 
 /**
@@ -34,6 +46,9 @@ export interface RunSnapshotInventory {
   /** Yards of accepted sources that keep their previous inventory and
    * publication time this run, by source. */
   readonly preservedYards: ReadonlyMap<string, ReadonlySet<string>>;
+  /** Each accepted source's reported per-yard results, preserved yards
+   * included. A yard it lists but did not report is unreported. */
+  readonly yardChecks: ReadonlyMap<string, YardCheckReports>;
 }
 
 export async function loadSourceSnapshot(
@@ -43,6 +58,7 @@ export async function loadSourceSnapshot(
   const snapshot: SourceSnapshot = {
     vehicles: new Map(),
     observedVins: new Set(),
+    yardChecks: new Map(),
   };
   for (const pathname of parseSnapshotChunks(snapshotChunks)) {
     // Checkpoint state carries no inventory. Chunks staged before it moved to
@@ -52,13 +68,39 @@ export async function loadSourceSnapshot(
     if (chunk.restart) {
       snapshot.vehicles.clear();
       snapshot.observedVins.clear();
+      snapshot.yardChecks.clear();
     }
     for (const vehicle of chunk.vehicles)
       if (!snapshot.vehicles.has(vehicle.vin))
         snapshot.vehicles.set(vehicle.vin, vehicle);
     for (const vin of chunk.observedVins) snapshot.observedVins.add(vin);
+    YardCheck.merge(snapshot.yardChecks, chunk.yardChecks ?? []);
   }
   return snapshot;
+}
+
+/** Per-yard results of the sources whose final cursor holds them. */
+export function cursorYardChecks(
+  source: IngestionSource,
+  nextCursor: string | null,
+  snapshot: SourceSnapshot,
+): YardCheckReport[] {
+  if (nextCursor === null) return [];
+  switch (source) {
+    case "urgiis":
+      return urgiisYardChecks(parseDurableSourceCursor("urgiis", nextCursor));
+    case "autorecycler":
+      return autorecyclerYardChecks(
+        parseDurableSourceCursor("autorecycler", nextCursor),
+        [...snapshot.vehicles.values()].map((vehicle) => vehicle.locationCode),
+      );
+    case "hollanderstores":
+      return hollanderstoresYardChecks(
+        parseDurableSourceCursor("hollanderstores", nextCursor),
+      );
+    default:
+      return [];
+  }
 }
 
 /**
@@ -112,6 +154,7 @@ export async function loadRunSnapshotInventory(params: {
   const vehicles = new Map<string, CanonicalVehicle>();
   const observedVins = new Set<string>();
   const preservedYards = new Map<IngestionSource, ReadonlySet<string>>();
+  const yardChecks = new Map<IngestionSource, YardCheckReports>();
   for (const row of accepted) {
     if (row.source === "urgiis" && row.nextCursor)
       preservedYards.set(
@@ -138,6 +181,15 @@ export async function loadRunSnapshotInventory(params: {
     for (const [vin, vehicle] of snapshot.vehicles)
       if (!vehicles.has(vin)) vehicles.set(vin, vehicle);
     for (const vin of snapshot.observedVins) observedVins.add(vin);
+    YardCheck.merge(
+      snapshot.yardChecks,
+      cursorYardChecks(row.source, row.nextCursor, snapshot),
+    );
+    YardCheck.merge(
+      snapshot.yardChecks,
+      YardCheck.all(preservedYards.get(row.source) ?? [], "preserved"),
+    );
+    yardChecks.set(row.source, snapshot.yardChecks);
   }
   const inventory: RunSnapshotInventory = {
     vehicles,
@@ -146,6 +198,7 @@ export async function loadRunSnapshotInventory(params: {
     observedVinOrder: [...observedVins].sort(),
     acceptedSources: new Set(accepted.map((row) => row.source)),
     preservedYards,
+    yardChecks,
   };
   lastInventory.set(params.store, { runId: params.runId, key, inventory });
   return inventory;

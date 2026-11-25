@@ -47,6 +47,7 @@ import {
   yardInventoryRefreshStatements,
   yardPublicationStatement,
 } from "./yard-inventory";
+import { yardCheckRecordStatement } from "./yard-check-record";
 
 const RECONCILIATION_BATCH_SIZE = 500;
 const MISSING_DELETE_AFTER_MS = 3 * 24 * 60 * 60 * 1000;
@@ -989,6 +990,17 @@ async function runMissingBatch(
       params.runTimestamp.getTime(),
     );
     if (publication) statements.push(publication);
+    const checks = yardCheckRecordStatement({
+      reports: inventory.yardChecks,
+      acceptedSources: params.acceptedSources,
+      runId: params.runId,
+      runTimestamp: params.runTimestamp.getTime(),
+      guard: {
+        sql: guardSql("reconcile_missing"),
+        args: [params.runId, params.cursor],
+      },
+    });
+    if (checks) statements.push(checks);
   }
   // Only the publication batch establishes a baseline. Earlier upsert batches
   // (including resumed ones) must not make their own backfill look new.

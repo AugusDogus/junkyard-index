@@ -14,7 +14,8 @@ import {
 import { ingestionRun, ingestionSourceRun, vehicle } from "~/schema";
 import { parseIngestionErrors } from "./durable-ingestion-repository";
 import type { IngestionSnapshotStore } from "./ingestion-snapshot-store";
-import { loadSourceSnapshot } from "./run-snapshot-inventory";
+import { cursorYardChecks, loadSourceSnapshot } from "./run-snapshot-inventory";
+import { YardCheck } from "~/lib/yard-check";
 import { SourcePublication } from "./source-publication";
 import { validateCars4PartsPublishedYardInventory } from "./cars4parts-published-inventory";
 import {
@@ -94,11 +95,27 @@ export async function validateDurableSourceRuns(params: {
   // Floors and drift baselines over only the yards a source publishes.
   const scopedLimits = new Map<string, { minimum: number; previous: number }>();
   const autorecyclerBaselines = new Map<string, number>();
+  const unreportedYards = new Map<string, string[]>();
   for (const row of sourceRows) {
     const snapshot = await loadSourceSnapshot(
       params.snapshotStore,
       row.snapshotChunks,
     );
+    if (
+      isIngestionSource(row.source) &&
+      row.status === "success" &&
+      isDurableSourceCursorTerminal(row.source, row.nextCursor)
+    ) {
+      const reports = new Map(snapshot.yardChecks);
+      YardCheck.merge(
+        reports,
+        cursorYardChecks(row.source, row.nextCursor, snapshot),
+      );
+      unreportedYards.set(
+        row.source,
+        YardCheck.unreported(snapshot.vehicles.values(), reports),
+      );
+    }
     snapshotBySource.set(row.source, {
       uniqueVehicles: snapshot.vehicles.size,
       newestVehicleDate: newestVehicleArrival(
@@ -294,6 +311,13 @@ export async function validateDurableSourceRuns(params: {
   const acceptedSources = validations
     .filter((validation) => validation.status === "accepted")
     .map((validation) => validation.source);
+  // A yard without a result never rejects its source: one yard must not
+  // hold back every other yard's arrivals. It publishes as unreported, so
+  // its "Last checked" date stops advancing and /api/status lists it.
+  for (const source of acceptedSources) {
+    const codes = unreportedYards.get(source) ?? [];
+    if (codes.length > 0) console.warn(unreportedYardsWarning(source, codes));
+  }
   const rejectedSources = validations
     .filter((validation) => validation.status === "rejected")
     .map(({ source, errors }) => ({ source, errors }));
@@ -379,6 +403,16 @@ export async function validateDurableSourceRuns(params: {
   return acceptedSources.length === 0
     ? { status: "released", acceptedSources: [], rejectedSources }
     : { status: "ready", acceptedSources, rejectedSources };
+}
+
+/** The warning for an accepted source's yards that have cars but no result. */
+export function unreportedYardsWarning(
+  source: string,
+  codes: readonly string[],
+): string {
+  const shown = codes.slice(0, 20).join(", ");
+  const more = codes.length > 20 ? ` and ${codes.length - 20} more` : "";
+  return `${source} was accepted with ${codes.length} ${codes.length === 1 ? "yard" : "yards"} that list vehicles but reported no check result: ${shown}${more}. They publish as "unreported", so their "Last checked" date does not advance and /api/status lists them once it is 36 hours old. Make the connector report a per-yard result (yardChecks) or declare the source in YARD_CHECK_POLICIES.`;
 }
 
 /**

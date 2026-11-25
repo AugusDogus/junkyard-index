@@ -43,6 +43,7 @@ const LEGACY_SCHEMA = `
     details_url text,
     available_date text,
     first_seen_at integer not null default 0,
+    last_seen_at integer not null default 0,
     missing_since_at integer
   );
   create table ingestion_run (
@@ -284,6 +285,90 @@ describe("migration chain", () => {
       expect(await sightings("vehicle_departure")).toEqual([
         ["gone-arrival", "arrival"],
         ["gone-backfill", "yard_backfill"],
+      ]);
+    } finally {
+      client.close();
+      await rm(folder, { recursive: true, force: true });
+    }
+  });
+
+  test("backfills yard checks with inherited dates and each yard's last change", async () => {
+    const client = createClient({ url: ":memory:" });
+    const folder = await mkdtemp(join(tmpdir(), "junkyard-migrations-"));
+    try {
+      const journal = z
+        .object({
+          entries: z.array(z.object({ tag: z.string() }).passthrough()),
+        })
+        .passthrough()
+        .parse(
+          JSON.parse(
+            await readFile(
+              join(MIGRATIONS_FOLDER, "meta/_journal.json"),
+              "utf8",
+            ),
+          ),
+        );
+      const through = journal.entries.findIndex(
+        (entry) => entry.tag === "0033_yard_check",
+      );
+      expect(through).toBeGreaterThan(0);
+      await cp(MIGRATIONS_FOLDER, folder, { recursive: true });
+      await writeFile(
+        join(folder, "meta/_journal.json"),
+        JSON.stringify({
+          ...journal,
+          entries: journal.entries.slice(0, through),
+        }),
+      );
+      await client.executeMultiple(LEGACY_SCHEMA);
+      await migrate(drizzle(client), { migrationsFolder: folder });
+      await client.executeMultiple(`
+        insert into yard_inventory (source, location_code, location_name,
+          location_city, state_abbr, lat, lng, vehicle_count, updated_at,
+          last_published_at) values
+          ('pyp', 'tulsa', 'Tulsa', 'Tulsa', 'OK', 0, 0, 2, 900, 800),
+          ('pyp', 'okc', 'OKC', 'OKC', 'OK', 0, 0, 1, 900, null);
+        insert into vehicle (vin, source, location_code, first_seen_at,
+          last_seen_at, missing_since_at) values
+          ('a', 'pyp', 'tulsa', 100, 300, null),
+          ('b', 'pyp', 'tulsa', 200, 250, 400),
+          ('c', 'pyp', 'okc', 150, 150, null);
+      `);
+      await migrate(drizzle(client), { migrationsFolder: MIGRATIONS_FOLDER });
+      expect(
+        (
+          await client.execute(
+            "select * from yard_check order by location_code",
+          )
+        ).rows.map((row) => ({
+          yard: row.location_code,
+          outcome: row.outcome,
+          reportedAt: row.reported_at,
+          lastCheckedAt: row.last_checked_at,
+          lastCheckedRunId: row.last_checked_run_id,
+          lastChangedAt: row.last_changed_at,
+          lastArrivalAt: row.last_arrival_at,
+        })),
+      ).toEqual([
+        {
+          yard: "okc",
+          outcome: "unreported",
+          reportedAt: 900,
+          lastCheckedAt: null,
+          lastCheckedRunId: null,
+          lastChangedAt: 150,
+          lastArrivalAt: 150,
+        },
+        {
+          yard: "tulsa",
+          outcome: "unreported",
+          reportedAt: 800,
+          lastCheckedAt: 800,
+          lastCheckedRunId: null,
+          lastChangedAt: 400,
+          lastArrivalAt: 200,
+        },
       ]);
     } finally {
       client.close();

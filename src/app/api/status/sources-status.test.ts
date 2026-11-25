@@ -2,10 +2,21 @@ import { expect, test } from "bun:test";
 import { ACTIVE_INGESTION_SOURCES } from "~/lib/ingestion-source";
 
 // Isolate module mocks so the full suite still exercises real ingestion code.
+type YardRow = {
+  source: string;
+  locationCode: string;
+  vehicleCount: number;
+  outcome: string | null;
+  lastCheckedHoursAgo: number | null;
+  lastChangedHoursAgo: number | null;
+  consecutiveUncheckedRuns: number;
+};
+
 function statusFor(
   published: Record<string, number>,
   paused: string[],
   pausedHere: string[] | "read fails" = [],
+  yards: YardRow[] | "read fails" = [],
 ) {
   const result = Bun.spawnSync(
     [
@@ -16,6 +27,7 @@ function statusFor(
     const published = ${JSON.stringify(published)};
     const paused = ${JSON.stringify(paused)};
     const pausedHere = ${JSON.stringify(pausedHere)};
+    const yards = ${JSON.stringify(yards)};
     const sources = ${JSON.stringify(ACTIVE_INGESTION_SOURCES)};
     mock.module("next/cache", () => ({ unstable_cache: (load) => load }));
     mock.module("~/server/ingestion/source-freshness", () => ({
@@ -32,6 +44,18 @@ function statusFor(
       },
     }));
     mock.module("~/lib/db", () => ({ db: {} }));
+    mock.module("~/server/ingestion/yard-check-rows", () => ({
+      loadYardCheckRows: async () => {
+        if (yards === "read fails") throw new Error("SQLITE_BUSY: yard_check");
+        const hoursAgo = (hours) =>
+          hours === null ? null : Date.now() - hours * 60 * 60 * 1000;
+        return yards.map(({ lastCheckedHoursAgo, lastChangedHoursAgo, ...row }) => ({
+          ...row,
+          lastCheckedAt: hoursAgo(lastCheckedHoursAgo),
+          lastChangedAt: hoursAgo(lastChangedHoursAgo),
+        }));
+      },
+    }));
     const { SourceControl } = await import("./src/server/source-control/source-control.ts");
     mock.module("~/server/source-control/source-control-repository", () => ({
       SourceControlRepository: {
@@ -87,6 +111,126 @@ test("all-sources status is 200 when every active source is fresh", () => {
       outageAfterStale: Math.ceil(ACTIVE_INGESTION_SOURCES.length * 0.2),
       paused: [],
       stale: [],
+      yards: {
+        status: "ok",
+        staleAfterHours: 36,
+        checked: 0,
+        notChecked: [],
+        unreported: [],
+        frozen: [],
+        autoHide: { status: "applied", yards: [] },
+      },
+    },
+  });
+});
+
+const yard = {
+  source: "pyp",
+  locationCode: "tulsa",
+  vehicleCount: 150,
+  outcome: "fetched",
+  lastCheckedHoursAgo: 3,
+  lastChangedHoursAgo: 3,
+  consecutiveUncheckedRuns: 0,
+};
+
+test("all-sources status is 200 degraded and lists a yard no run fetched in 36 hours", () => {
+  expect(
+    statusFor(
+      allFresh,
+      [],
+      [],
+      [
+        yard,
+        {
+          ...yard,
+          locationCode: "norbs",
+          outcome: "blocked",
+          lastCheckedHoursAgo: 50,
+          consecutiveUncheckedRuns: 2,
+        },
+        {
+          ...yard,
+          source: "aero",
+          locationCode: "shreveport",
+          outcome: "unreported",
+          lastCheckedHoursAgo: null,
+        },
+      ],
+    ),
+  ).toMatchObject({
+    status: 200,
+    body: {
+      status: "degraded",
+      stale: [],
+      yards: {
+        status: "ok",
+        checked: 3,
+        notChecked: [
+          {
+            source: "pyp",
+            name: "LKQ Pick Your Part",
+            code: "norbs",
+            outcome: "blocked",
+            lastCheckedAt: expect.any(String),
+            consecutiveUncheckedRuns: 2,
+          },
+        ],
+        unreported: [
+          { source: "aero", code: "shreveport", lastCheckedAt: null },
+        ],
+        frozen: [],
+      },
+    },
+  });
+});
+
+test("all-sources status lists a checked but frozen yard as information only", () => {
+  expect(
+    statusFor(
+      allFresh,
+      [],
+      [],
+      [
+        { ...yard, lastChangedHoursAgo: 4 * 24 },
+        {
+          ...yard,
+          locationCode: "small",
+          vehicleCount: 99,
+          lastChangedHoursAgo: 4 * 24,
+        },
+      ],
+    ),
+  ).toMatchObject({
+    status: 200,
+    body: {
+      status: "healthy",
+      yards: {
+        notChecked: [],
+        frozen: [{ source: "pyp", code: "tulsa", vehicleCount: 150 }],
+      },
+    },
+  });
+});
+
+test("all-sources status ignores yards of a paused source", () => {
+  expect(
+    statusFor(allFresh, ["pyp"], [], [{ ...yard, lastCheckedHoursAgo: 50 }]),
+  ).toMatchObject({
+    body: { yards: { checked: 0, notChecked: [] } },
+  });
+});
+
+test("all-sources status still checks sources when the yard read fails", () => {
+  expect(statusFor(allFresh, [], [], "read fails")).toMatchObject({
+    status: 200,
+    body: {
+      status: "healthy",
+      yards: {
+        status: "unavailable",
+        error: expect.stringContaining("yard_check"),
+        detail: "SQLITE_BUSY: yard_check",
+      },
     },
   });
 });

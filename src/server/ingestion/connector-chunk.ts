@@ -1,5 +1,6 @@
 import type { PipelineSourceName } from "./pipeline-policy";
 import type { ValidationRejectionKind } from "./ingestion-validation";
+import type { YardCheckReport } from "~/lib/yard-check";
 
 export type ConnectorChunkStatus = "paused" | "complete" | "failed";
 
@@ -25,6 +26,10 @@ export interface ConnectorChunkResult<
   warnings?: string[];
   /** VINs seen in inventory without enough metadata to emit a full vehicle. */
   observedVins?: string[];
+  /** What this chunk learned about each yard it covered. Report "fetched"
+   * only after a live request for that yard in this run; inventory from a
+   * census, cursor, cache or replay is "replayed". */
+  yardChecks?: YardCheckReport[];
   /** Opaque, validated provider progress, stored privately with this checkpoint.
    * Cursors using this protocol have a statePath field replaced atomically. */
   checkpointState?: unknown;

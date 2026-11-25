@@ -80,9 +80,10 @@ export type StalenessClasses = Partial<
 >;
 
 /**
- * When each source and yard last had an accepted publication, as ISO
- * strings. `yards` is keyed `source:code` and holds only yards with a date
- * of their own; the rest take their source's date.
+ * When each source last had an accepted publication and each yard was last
+ * fetched live by an accepted run (`yard_check`), as ISO strings. `yards` is
+ * keyed `source:code` and holds only yards with a date of their own; the
+ * rest take their source's date.
  */
 export type InventoryCheckDates = {
   sources: Readonly<Partial<Record<string, string>>>;
