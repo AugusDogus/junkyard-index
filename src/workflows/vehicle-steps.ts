@@ -2,10 +2,9 @@ import type { DurableWorkflowCursor } from "~/server/ingestion/durable-workflow-
 import { warmVinCacheBatch } from "~/server/ingestion/vin-cache-warmer";
 import type { VinCachePassState } from "~/server/ingestion/vin-cache-pass";
 import { FatalError, getStepMetadata } from "workflow";
-import { revalidateTag } from "next/cache";
 import { formatError, throwRetryableStepError } from "./step-errors";
 import { resumeHook } from "workflow/api";
-import { INVENTORY_CACHE_TAG } from "~/lib/inventory-cache";
+import { expireInventoryCaches } from "~/lib/inventory-cache-expiry";
 import { db } from "~/lib/db";
 import { SearchPublicationFlag } from "~/server/ingestion/search-publication-flag";
 import * as Sentry from "@sentry/nextjs";
@@ -422,7 +421,8 @@ export async function finalizeSearchIndexMigrationStep(
 
   try {
     const result = await finalizeSearchIndexMigration(state);
-    revalidateTag(INVENTORY_CACHE_TAG, "max");
+    // The migration rewrote identities on every source's vehicles.
+    expireInventoryCaches({ kind: "all" });
     console.info("[Workflow] Completed search index schema migration", result);
     return result;
   } catch (error) {

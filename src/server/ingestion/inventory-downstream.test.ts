@@ -380,6 +380,7 @@ describe("inventory-downstream consumer", () => {
         database,
         source: cacheSource,
         revalidate,
+        now: at(0),
       }),
     ).toEqual({ status: "refreshed", publicationSequence: 2 });
     expect(
@@ -395,6 +396,7 @@ describe("inventory-downstream consumer", () => {
           database,
           source: cacheSource,
           revalidate,
+          now: at(0),
         });
         expect(refresh).toEqual({ status: "current" });
         return { status: "ok" };

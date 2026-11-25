@@ -1,6 +1,7 @@
 import { createClient, type Client } from "@libsql/client";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { drizzle } from "drizzle-orm/libsql";
+import type { ChangedInventorySources } from "~/lib/inventory-cache";
 import { InventoryCacheRefresh } from "./inventory-cache-refresh";
 
 let client: Client;
@@ -9,6 +10,10 @@ beforeEach(async () => {
   client = createClient({ url: ":memory:" });
   await client.executeMultiple(`
     create table ingestion_run (id text primary key, publication_sequence integer);
+    create table yard_inventory (
+      source text not null, location_code text not null, updated_at integer not null,
+      primary key (source, location_code)
+    );
     create table ingestion_projector_checkpoint (
       name text primary key not null,
       kind text default 'publication' not null,
@@ -53,20 +58,33 @@ async function refreshedSequence() {
   return result.rows[0]?.last_processed_change_id ?? null;
 }
 
+const NOW = new Date("2026-11-25T14:10:00Z");
+const HOUR = 60 * 60 * 1000;
+
+async function yardChanged(source: string, at: number) {
+  await client.execute({
+    sql: "insert into yard_inventory (source, location_code, updated_at) values (?, ?, ?)",
+    args: [source, `${source}-1`, at],
+  });
+}
+
 /** A refresh whose stored data starts out reflecting `projected`. */
 function refresh(
   options: {
     projected?: number;
     project?: () => Promise<void>;
     revalidate?: () => void;
+    now?: Date;
   } = {},
 ) {
   let projected = options.projected ?? 0;
   const calls: Array<"project" | "revalidate"> = [];
+  const expired: ChangedInventorySources[] = [];
   return {
     run: () =>
       InventoryCacheRefresh.run({
         database: drizzle(client),
+        now: options.now ?? NOW,
         source: {
           projectedThrough: async () => projected,
           project: async () => {
@@ -75,19 +93,61 @@ function refresh(
             projected = await latestPublication();
           },
         },
-        revalidate: () => {
+        revalidate: (changed) => {
           calls.push("revalidate");
           options.revalidate?.();
+          expired.push(changed);
         },
       }),
     calls: () => calls,
+    expired: () => expired,
   };
 }
 
 describe("InventoryCacheRefresh.run", () => {
+  test("expires only the sources whose yards changed since the last refresh read them", async () => {
+    await publish(1, 2);
+    await InventoryCacheRefresh.record(
+      drizzle(client),
+      1,
+      new Date(NOW.getTime() - 3 * HOUR),
+    );
+    await yardChanged("pyp", NOW.getTime() - HOUR);
+    // A batch that stamped its time before the last read but committed after
+    // it is inside the margin.
+    await yardChanged("row52", NOW.getTime() - 3 * HOUR - 10 * 60 * 1000);
+    await yardChanged("pullapart", NOW.getTime() - 6 * HOUR);
+    const caches = refresh({ projected: 1 });
+
+    expect((await caches.run()).status).toBe("refreshed");
+
+    expect(caches.expired()).toEqual([
+      { kind: "sources", sources: ["pyp", "row52"] },
+    ]);
+    // The next refresh counts changes from this one's read.
+    await publish(3);
+    await yardChanged("calton", NOW.getTime() + HOUR);
+    const next = refresh({
+      projected: 3,
+      now: new Date(NOW.getTime() + 2 * HOUR),
+    });
+    await next.run();
+    expect(next.expired()).toEqual([{ kind: "sources", sources: ["calton"] }]);
+  });
+
+  test("expires every source when no earlier read is recorded", async () => {
+    await publish(1);
+    await yardChanged("pyp", NOW.getTime() - HOUR);
+    const caches = refresh();
+
+    await caches.run();
+
+    expect(caches.expired()).toEqual([{ kind: "all" }]);
+  });
+
   test("does nothing when the caches and their data show the latest publication", async () => {
     await publish(1, 2, null);
-    await InventoryCacheRefresh.record(drizzle(client), 2);
+    await InventoryCacheRefresh.record(drizzle(client), 2, NOW);
     const caches = refresh({ projected: 2 });
 
     expect(await caches.run()).toEqual({ status: "current" });
@@ -98,7 +158,7 @@ describe("InventoryCacheRefresh.run", () => {
 
   test("stores the data, then revalidates once for a newer publication", async () => {
     await publish(1, 2);
-    await InventoryCacheRefresh.record(drizzle(client), 1);
+    await InventoryCacheRefresh.record(drizzle(client), 1, NOW);
     const caches = refresh({ projected: 1 });
 
     expect(await caches.run()).toEqual({
@@ -113,7 +173,7 @@ describe("InventoryCacheRefresh.run", () => {
 
   test("only revalidates when a deploy already stored the newer data", async () => {
     await publish(1, 2);
-    await InventoryCacheRefresh.record(drizzle(client), 1);
+    await InventoryCacheRefresh.record(drizzle(client), 1, NOW);
     const caches = refresh({ projected: 2 });
 
     expect(await caches.run()).toEqual({
@@ -125,7 +185,7 @@ describe("InventoryCacheRefresh.run", () => {
 
   test("stores the data when another deployment refreshed the caches without it", async () => {
     await publish(1, 2);
-    await InventoryCacheRefresh.record(drizzle(client), 2);
+    await InventoryCacheRefresh.record(drizzle(client), 2, NOW);
     const caches = refresh({ projected: 1 });
 
     expect(await caches.run()).toEqual({
@@ -160,7 +220,7 @@ describe("InventoryCacheRefresh.run", () => {
 
   test("reports a failed store without revalidating, leaving the checkpoint behind", async () => {
     await publish(1, 2);
-    await InventoryCacheRefresh.record(drizzle(client), 1);
+    await InventoryCacheRefresh.record(drizzle(client), 1, NOW);
     const failure = new Error("Turso is unavailable");
     const caches = refresh({
       projected: 1,
@@ -181,7 +241,7 @@ describe("InventoryCacheRefresh.run", () => {
 
   test("retries only the revalidation after it fails, without storing the data again", async () => {
     await publish(1, 2);
-    await InventoryCacheRefresh.record(drizzle(client), 1);
+    await InventoryCacheRefresh.record(drizzle(client), 1, NOW);
     const failure = new Error("revalidateTag is unavailable");
     let fail = true;
     const caches = refresh({
@@ -210,8 +270,8 @@ describe("InventoryCacheRefresh.run", () => {
 
 describe("InventoryCacheRefresh.record", () => {
   test("never moves the checkpoint backward or touches other checkpoints", async () => {
-    await InventoryCacheRefresh.record(drizzle(client), 5);
-    await InventoryCacheRefresh.record(drizzle(client), 3);
+    await InventoryCacheRefresh.record(drizzle(client), 5, NOW);
+    await InventoryCacheRefresh.record(drizzle(client), 3, NOW);
 
     expect(await refreshedSequence()).toBe(5);
     const others = await client.execute(
