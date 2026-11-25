@@ -251,11 +251,12 @@ export const getYardPublishedAt = cacheInventory(async (): Promise<
 /**
  * When each yard was last proven checked: the last accepted run that fetched
  * it live (`yard_check`). A blocked, preserved, replayed or unreported yard
- * keeps its earlier date, so its "Last checked" label ages. One row per
- * yard, so it stays cheap at build.
+ * keeps its earlier date, so its "Last checked" label ages; one never proven
+ * fetched is null and reads "Last check unknown". One row per yard, so it
+ * stays cheap at build.
  */
 export const getYardCheckedAt = cacheInventory(
-  async (): Promise<Readonly<Record<string, string>>> =>
+  async (): Promise<Readonly<Record<string, string | null>>> =>
     YardCheck.checkDates(
       await db
         .select({
@@ -265,7 +266,7 @@ export const getYardCheckedAt = cacheInventory(
         })
         .from(yardCheck),
     ),
-  ["yard-checked-at-v1"],
+  ["yard-checked-at-v2"],
 );
 
 /**

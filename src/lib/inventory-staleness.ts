@@ -82,13 +82,17 @@ export type StalenessClasses = Partial<
 /**
  * When each source last had an accepted publication and each yard was last
  * fetched live by an accepted run (`yard_check`), as ISO strings. `yards` is
- * keyed `source:code` and holds only yards with a date of their own; the
- * rest take their source's date.
+ * keyed `source:code`. A yard runs have reported on holds its own date, or
+ * null when no run has proven a live fetch of it; it never takes its
+ * source's date. Yards no run has reported on yet take their source's date.
  */
 export type InventoryCheckDates = {
   sources: Readonly<Partial<Record<string, string>>>;
-  yards: Readonly<Partial<Record<string, string>>>;
+  yards: Readonly<Partial<Record<string, string | null>>>;
 };
+
+/** The label for a yard no run has proven it fetched. */
+export const UNKNOWN_CHECK_LABEL = "Last check unknown";
 
 function of(lastPublishedAt: number | null, now: number): InventoryStaleness {
   if (lastPublishedAt === null) return { kind: "hidden", checkedAt: null };
@@ -134,7 +138,8 @@ function checkedAt(
   source: string,
   code: string,
 ): string | null {
-  return dates.yards[`${source}:${code}`] ?? dates.sources[source] ?? null;
+  const own = dates.yards[`${source}:${code}`];
+  return own !== undefined ? own : (dates.sources[source] ?? null);
 }
 
 /** How current a set of yards' inventory is. */
@@ -239,12 +244,16 @@ export const InventoryStaleness = {
     return { latest, current, total: yards.length };
   },
 
-  /** When a yard was last checked: its own date, else its source's. */
+  /**
+   * When a yard was last checked: its own date (null when no run proved a
+   * live fetch of it), else its source's for a yard no run reported on.
+   */
   checkedAt,
 
   /**
    * "Last checked N days ago" for a yard at `now`, by its own date else its
-   * source's, or null while it is current. Pass the server's clock so a
+   * source's, or null while it is current. A yard runs reported on but never
+   * proved fetched reads UNKNOWN_CHECK_LABEL. Pass the server's clock so a
    * client component renders the same label the server did.
    */
   labelFor(
@@ -253,6 +262,7 @@ export const InventoryStaleness = {
     code: string,
     now: number,
   ): string | null {
+    if (dates.yards[`${source}:${code}`] === null) return UNKNOWN_CHECK_LABEL;
     return InventoryStaleness.label(checkedAt(dates, source, code), now);
   },
 
@@ -266,10 +276,13 @@ export const InventoryStaleness = {
       Object.entries(dates.sources).filter(([, at]) => isStale(at, now)),
     );
     const yards = Object.fromEntries(
-      // A yard dated after its stale source keeps its own date.
+      // A yard dated after its stale source keeps its own date, and a yard
+      // never proven fetched keeps its null.
       Object.entries(dates.yards).filter(
         ([key, at]) =>
-          isStale(at, now) || key.slice(0, key.indexOf(":")) in sources,
+          at === null ||
+          isStale(at, now) ||
+          key.slice(0, key.indexOf(":")) in sources,
       ),
     );
     return { sources, yards };
