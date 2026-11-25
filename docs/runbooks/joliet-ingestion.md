@@ -62,8 +62,18 @@ Each query must return every stock belonging to its exact official table pair,
 including stocks already found in an overlapping search. Each returned stock
 must join the official table at the same source year. Missing or foreign stocks,
 within-response duplicate stocks, conflicting valid VINs and changed stable
-records block the snapshot. Optional position and rendered calendar dates must
-agree when both sources publish usable values.
+records block the snapshot.
+
+Optional position and rendered calendar dates should agree when both sources
+publish usable values. The table and API publish separately, so a vehicle the
+yard re-sets or moves can show a different row or set date in each for a while.
+On November 25, 2026, STK076422 (2013 Chevrolet Cruze, re-set on November 24)
+disagreed during the overnight publish and rejected the whole yard. A stock with
+a valid identity and such a conflict is now quarantined: it is not published,
+its VIN supplies presence so its prior listing stays unchanged, and a warning
+names both values. Quarantined stocks count toward the 5% stock disagreement
+limit with HTML-only and API-only stocks, and are left out of the rejection
+denominator. A year or VIN conflict still blocks the snapshot.
 
 Each chunk validates five public contexts in order: the root's active
 self-service ownership, contact ownership, complete inventory table,
@@ -133,6 +143,9 @@ Strict cursors have `start`, `queries`, `restart` and `complete` phases. A
 `restart` cursor holds only the restart count. A query cursor stores the
 owner/scope digest, restart count, next query index, pair count, native response
 receipts and cumulative per-stock identity/status/fingerprint/first-query state.
+Status is `available`, `incomplete` or `conflict`. Code that predates `conflict`
+rejects a cursor holding one, so a rollback fails that run and keeps prior
+inventory; the next scheduled run starts clean.
 Query and `complete` cursors omit the restart count at zero, so checkpoints
 written before restarts resume unchanged.
 
