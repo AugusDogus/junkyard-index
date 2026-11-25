@@ -414,6 +414,17 @@ export async function runSearchIndexMigrationBatchStep(
 }
 runSearchIndexMigrationBatchStep.maxRetries = 2;
 
+/**
+ * Expires every inventory cache after a search-index migration stopped
+ * partway: its batches already rewrote identities on some vehicles, and
+ * only a finished migration expires them otherwise.
+ */
+export async function expireInventoryAfterMigrationStep() {
+  "use step";
+
+  expireInventoryCaches({ kind: "all" });
+}
+
 export async function finalizeSearchIndexMigrationStep(
   state: SearchIndexMigrationState,
 ) {

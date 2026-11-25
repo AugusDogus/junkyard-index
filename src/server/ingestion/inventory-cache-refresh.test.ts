@@ -9,7 +9,10 @@ let client: Client;
 beforeEach(async () => {
   client = createClient({ url: ":memory:" });
   await client.executeMultiple(`
-    create table ingestion_run (id text primary key, publication_sequence integer);
+    create table ingestion_run (
+      id text primary key, publication_sequence integer, active_slot integer,
+      accepted_sources text, completed_at integer
+    );
     create table yard_inventory (
       source text not null, location_code text not null, updated_at integer not null,
       primary key (source, location_code)
@@ -133,6 +136,36 @@ describe("InventoryCacheRefresh.run", () => {
     });
     await next.run();
     expect(next.expired()).toEqual([{ kind: "sources", sources: ["calton"] }]);
+  });
+
+  test("also expires the sources of a run that ended without rebuilding its yards", async () => {
+    await publish(1, 2);
+    await InventoryCacheRefresh.record(
+      drizzle(client),
+      1,
+      new Date(NOW.getTime() - 3 * HOUR),
+    );
+    // Abandoned after writing some of its vehicles, before its yards.
+    await client.execute({
+      sql: "insert into ingestion_run (id, accepted_sources, completed_at) values ('abandoned', ?, ?)",
+      args: [JSON.stringify(["calton", "not-a-source"]), NOW.getTime() - HOUR],
+    });
+    // Still running, and ended long ago: neither counts.
+    await client.execute({
+      sql: "insert into ingestion_run (id, active_slot, accepted_sources, completed_at) values ('running', 1, ?, null), ('old', null, ?, ?)",
+      args: [
+        JSON.stringify(["pyp"]),
+        JSON.stringify(["row52"]),
+        NOW.getTime() - 9 * HOUR,
+      ],
+    });
+    const caches = refresh({ projected: 1 });
+
+    await caches.run();
+
+    expect(caches.expired()).toEqual([
+      { kind: "sources", sources: ["calton"] },
+    ]);
   });
 
   test("expires every source when no earlier read is recorded", async () => {

@@ -27,6 +27,7 @@ test.each([
       initializeSearchIndexMigrationStep: async force => { if (force !== ${accepted > 0}) throw new Error('new cached identities must trigger projection'); events.push('initialize'); return {status:'pending',state:{}}; },
       runSearchIndexMigrationBatchStep: async state => { if(!writer) throw new Error('publication lacks writer lock'); events.push('project'); return {done:true,state}; },
       finalizeSearchIndexMigrationStep: async () => { events.push('finalize'); return {}; },
+      expireInventoryAfterMigrationStep: async () => { events.push('expire'); },
     }));
     const {searchIndexMigrationWorkflow} = await import('./src/workflows/search-index-migration');
     await searchIndexMigrationWorkflow();
@@ -75,6 +76,7 @@ for (const { mode, expected } of [
       initializeSearchIndexMigrationStep: async () => { events.push('initialize'); return {status:'pending',state:{}}; },
       runSearchIndexMigrationBatchStep: async state => { if(!writer) throw new Error('publication lacks writer lock'); events.push('project'); return {done:true,state}; },
       finalizeSearchIndexMigrationStep: async () => { events.push('finalize'); return {}; },
+      expireInventoryAfterMigrationStep: async () => { events.push('expire'); },
     }));
     const {searchIndexMigrationWorkflow} = await import('./src/workflows/search-index-migration');
     console.log(JSON.stringify({ result: await searchIndexMigrationWorkflow(), events }));
@@ -115,6 +117,7 @@ test("frozen search publication skips the migration before the writer lock", () 
       initializeSearchIndexMigrationStep: async () => { throw new Error('Algolia settings read while search is frozen'); },
       runSearchIndexMigrationBatchStep: async () => { throw new Error('Algolia rewrite while search is frozen'); },
       finalizeSearchIndexMigrationStep: async () => { throw new Error('Algolia marker write while search is frozen'); },
+      expireInventoryAfterMigrationStep: async () => { throw new Error('expired caches for a skipped migration'); },
     }));
     const {searchIndexMigrationWorkflow} = await import('./src/workflows/search-index-migration');
     for (const force of [false, true]) {
@@ -133,4 +136,41 @@ test("frozen search publication skips the migration before the writer lock", () 
     "decode",
     "flag",
   ]);
+});
+
+test("a migration that fails after rewriting vehicles expires every inventory cache, then fails", () => {
+  const script = `
+    import { mock } from 'bun:test';
+    const events = [];
+    mock.module('workflow', () => ({
+      sleep: async () => {},
+      createHook: () => ({ getConflict: async () => null, [Symbol.dispose]() {} }),
+    }));
+    mock.module('./src/workflows/search-projector-steps', () => ({
+      searchRebuildInFlightStep: async () => false,
+    }));
+    mock.module('./src/workflows/vehicle-steps', () => ({
+      searchPublicationModeStep: async () => 'inline',
+      warmVinCacheBatchStep: async state => ({status:'complete',state:{...state,accepted:1}}),
+      initializeSearchIndexMigrationStep: async () => ({status:'pending',state:{cursor:null,batchesProcessed:0,recordsProcessed:0,validationVins:[]}}),
+      runSearchIndexMigrationBatchStep: async state => {
+        if (state.batchesProcessed > 0) throw new Error('batch failed');
+        events.push('project');
+        return {done:false,state:{...state,batchesProcessed:1}};
+      },
+      finalizeSearchIndexMigrationStep: async () => { events.push('finalize'); return {}; },
+      expireInventoryAfterMigrationStep: async () => { events.push('expire'); },
+    }));
+    const {searchIndexMigrationWorkflow} = await import('./src/workflows/search-index-migration');
+    const error = await searchIndexMigrationWorkflow().then(() => null, (e) => e.message);
+    console.log(JSON.stringify({ error, events }));
+  `;
+  const result = Bun.spawnSync([process.execPath, "--eval", script], {
+    cwd: process.cwd(),
+  });
+  expect(result.stderr.toString()).toBe("");
+  expect(JSON.parse(result.stdout.toString())).toEqual({
+    error: "batch failed",
+    events: ["project", "expire"],
+  });
 });
