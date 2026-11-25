@@ -12,7 +12,11 @@ import {
   ProviderTurnDeferred,
 } from "./provider-chunk-clock";
 import { UrgiisCursor, URGIIS_MAX_CURSOR_BYTES } from "./urgiis-cursor";
-import { URGIIS_DAY_MS as DAY, UrgiisCensus } from "./urgiis-census";
+import {
+  URGIIS_DAY_MS as DAY,
+  URGIIS_MODEL_FAILURE_STREAK,
+  UrgiisCensus,
+} from "./urgiis-census";
 import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import type { UrgiisControl, UrgiisRecord } from "./urgiis-schema";
 import type { CanonicalVehicle } from "./types";
@@ -21,6 +25,8 @@ const qualified = URGIIS_TENANTS.find((t) => t.code === "eagle");
 if (!qualified) throw new Error("Missing Eagle qualification");
 const tenant = { ...qualified, minimumInventory: 1, requestTimeoutMs: 90_000 };
 const tenants = [tenant];
+// Enough saved models to fail a whole streak with one more left over.
+const fixtureModels = URGIIS_MODEL_FAILURE_STREAK + 2;
 const store = IngestionSnapshotStore.memory();
 const start = Date.UTC(2026, 10, 16);
 const models: {
@@ -58,9 +64,11 @@ const cards = (records: UrgiisRecord[]) =>
           .join("")}</div>`,
       )
     : empty;
+const listed = (paths: string | readonly string[] | undefined, path: string) =>
+  typeof paths === "string" ? paths === path : !!paths?.includes(path);
 interface Day {
   previous?: unknown;
-  emptyReads?: { path: string; times: number };
+  emptyReads?: { path: string | readonly string[]; times: number };
   specialCount?: number;
   closingSpecialCount?: number;
   closingOrdinary?: string;
@@ -70,7 +78,7 @@ interface Day {
   failTenant?: string;
   now?: number;
   arrivals?: UrgiisRecord[];
-  badge?: string;
+  badge?: string | readonly string[];
   badgeCount?: number;
   replace?: { path: string; records: UrgiisRecord[] };
   fail?: string | readonly string[];
@@ -164,7 +172,7 @@ async function run(day: Day = {}) {
                         day.closingSpecialCount !== undefined &&
                         reads.filter((u) => u === url).length > 1
                       ? day.closingSpecialCount
-                      : m.model.path === day.badge
+                      : listed(day.badge, m.model.path)
                         ? (day.badgeCount ?? m.model.count + 1)
                         : m.model.count +
                           (Array.isArray(day.fail) &&
@@ -178,7 +186,8 @@ async function run(day: Day = {}) {
           }
           const model = active.find((m) => m.model.path === path);
           if (
-            day.emptyReads?.path === path &&
+            day.emptyReads &&
+            listed(day.emptyReads.path, path) &&
             (!day.emptyTenant || currentTenant.code === day.emptyTenant) &&
             reads.filter((u) => u === url).length <= day.emptyReads.times
           )
@@ -297,11 +306,11 @@ beforeAll(async () => {
           continue;
         validateUrgiisSnapshot(snapshot, tenant);
         models.push({ make, model, raw, records });
-        if (models.length === 7) break;
+        if (models.length === fixtureModels) break;
       }
-      if (models.length === 7) break;
+      if (models.length === fixtureModels) break;
     }
-    expect(models).toHaveLength(7);
+    expect(models).toHaveLength(fixtureModels);
     baseline = await run({ now: start });
   } finally {
     archive.close();
@@ -309,7 +318,7 @@ beforeAll(async () => {
 });
 
 test("first census reads every saved model; unchanged day reads only ownership, menus and arrivals", async () => {
-  expect(readModels(baseline)).toHaveLength(7);
+  expect(readModels(baseline)).toHaveLength(models.length);
   const unchanged = await run({ previous: baseline.cursor });
   expect(readModels(unchanged)).toEqual([]);
   expect(unchanged.vehicles).toEqual(baseline.vehicles);
@@ -371,10 +380,10 @@ test("rolling slices refresh every model within six days, reserving a day to pub
           .map((m) => tenant.origin + m.model.path),
       );
     swept.push(...readModels(result));
-    if (day === 6) expect(new Set(swept).size).toBe(7);
+    if (day === 6) expect(new Set(swept).size).toBe(models.length);
     previous = result.cursor;
   }
-  expect(new Set(swept).size).toBe(7);
+  expect(new Set(swept).size).toBe(models.length);
 });
 test("missing, corrupt, incompatible or missing-Blob history falls back to full census", async () => {
   const missing = UrgiisCursor.checkpoint(
@@ -388,7 +397,7 @@ test("missing, corrupt, incompatible or missing-Blob history falls back to full 
     missing,
   ]) {
     const result = await run({ previous });
-    expect(readModels(result)).toHaveLength(7);
+    expect(readModels(result)).toHaveLength(models.length);
     expect(result.vehicles).toEqual(baseline.vehicles);
   }
   const badPath = await store.put({
@@ -409,7 +418,7 @@ test("missing, corrupt, incompatible or missing-Blob history falls back to full 
         ),
       }),
     ),
-  ).toHaveLength(7);
+  ).toHaveLength(models.length);
 });
 test("failed model carries its donors, persists a retry, and cannot reset the read age", async () => {
   const path = target().model.path;
@@ -674,7 +683,7 @@ test("shifted model slices refresh six-day evidence before the seven-day accepta
     now,
     remove: removed.model.path,
   });
-  expect(readModels(result)).toHaveLength(6);
+  expect(readModels(result)).toHaveLength(models.length - 1);
 });
 
 test("late chunk retries share the run clock and reserve a full day for acceptance", async () => {
@@ -684,7 +693,7 @@ test("late chunk retries share the run clock and reserve a full day for acceptan
     now,
     clock: (chunk) => now + (chunk === 0 ? 0 : 2 * 3600_000),
   });
-  expect(readModels(result)).toHaveLength(7);
+  expect(readModels(result)).toHaveLength(models.length);
   expect(result.cursor.asOf).toBe(now);
   const reads: string[] = [];
   await expectBlocked(
@@ -693,7 +702,7 @@ test("late chunk retries share the run clock and reserve a full day for acceptan
   );
 });
 
-test("model deferrals checkpoint individually and a second distinct failure stops the tenant", async () => {
+test("model deferrals checkpoint individually and consecutive distinct failures stop the tenant", async () => {
   const first = await run({
     previous: baseline.cursor,
     badge: target().model.path,
@@ -702,9 +711,13 @@ test("model deferrals checkpoint individually and a second distinct failure stop
   });
   const deferred = first.checkpoints.find((c) => c.deferred > 0);
   expect(deferred?.pages).toBe(1);
-  const failures = models.slice(0, 3).map((m) => m.model.path);
+  // An outage fails every page, so the tenant stops after this many in a row.
+  expect(URGIIS_MODEL_FAILURE_STREAK).toBeLessThan(models.length);
+  const failures = models
+    .slice(0, URGIIS_MODEL_FAILURE_STREAK + 1)
+    .map((m) => m.model.path);
   const reads: string[] = [];
-  await expectBlocked(
+  const blocked = await expectBlocked(
     {
       previous: baseline.cursor,
       now: start + DAY,
@@ -712,11 +725,69 @@ test("model deferrals checkpoint individually and a second distinct failure stop
       reads,
       maxPages: 3,
     },
-    "distinct model pages",
+    `${URGIIS_MODEL_FAILURE_STREAK} model pages failed in a row`,
   );
+  expect(blocked.cursor.completed[0]).not.toMatchObject({
+    blocked: expect.stringContaining("no eligible prior model evidence"),
+  });
   expect(
     reads.filter((url) => failures.includes(new URL(url).pathname)),
-  ).toHaveLength(2);
+  ).toHaveLength(URGIIS_MODEL_FAILURE_STREAK);
+});
+
+test("model failures separated by successful reads each carry their donors", async () => {
+  // Norb's backend times out on its largest models while the rest load.
+  const [a, b, c] = models;
+  if (!a || !b || !c) throw new Error("Missing three captured models");
+  const result = await run({
+    previous: baseline.cursor,
+    badge: b.model.path,
+    fail: [a.model.path, c.model.path],
+    maxPages: 3,
+  });
+  expect(result.cursor.completed[0]).toHaveProperty("accepted");
+  expect(result.vehicles).toEqual(baseline.vehicles);
+  expect(readModels(result)).toEqual(
+    [a, b, c].map((m) => tenant.origin + m.model.path),
+  );
+  expect(result.checkpoints.some((c) => c.deferred === 2)).toBe(true);
+});
+
+test("explicit empties persisting through their later retries each carry their donors", async () => {
+  // The November 25 Norb's run: Equinox and another large model rendered
+  // "No Results Found" twice, and the second deferral blocked the tenant.
+  const [a, b, c] = models;
+  if (!a || !b || !c) throw new Error("Missing three captured models");
+  const empties = [a.model.path, c.model.path];
+  const result = await run({
+    previous: baseline.cursor,
+    badge: [a.model.path, b.model.path, c.model.path],
+    emptyReads: { path: empties, times: 2 },
+  });
+  expect(result.cursor.completed[0]).toHaveProperty("accepted");
+  expect(result.vehicles).toEqual(baseline.vehicles);
+  for (const path of empties)
+    expect(result.reads.filter((u) => u === tenant.origin + path)).toHaveLength(
+      2,
+    );
+  expect(result.checkpoints.some((c) => c.deferred === 2)).toBe(true);
+});
+
+test("consecutive explicit empties stop the tenant before the later retries", async () => {
+  const empties = models
+    .slice(0, URGIIS_MODEL_FAILURE_STREAK + 1)
+    .map((m) => m.model.path);
+  const result = await expectBlocked(
+    {
+      previous: baseline.cursor,
+      badge: empties,
+      emptyReads: { path: empties, times: 2 },
+    },
+    `${URGIIS_MODEL_FAILURE_STREAK} model pages failed in a row`,
+  );
+  expect(
+    result.reads.filter((url) => empties.includes(new URL(url).pathname)),
+  ).toHaveLength(URGIIS_MODEL_FAILURE_STREAK);
 });
 
 test("broken model route rule recognizes native punctuation and ampersand slugs only", () => {

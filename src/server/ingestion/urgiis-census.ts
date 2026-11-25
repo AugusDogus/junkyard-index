@@ -238,6 +238,24 @@ export function urgiisCarry(
     freshness: { ...before.entry.freshness, kind: "carried" },
   };
 }
+/** Model pages that may fail in a row before the tenant stops, so an outage
+ * is not probed page by page. A failure that follows a successful model read
+ * defers like the first. Norb's backend times out on its largest models while
+ * the rest load. On November 25, 2026, 19 of its 53 models with 50 or more
+ * donors failed; its six-day crawl order puts at most five of them in a row.
+ * This allows more than twice that. */
+export const URGIIS_MODEL_FAILURE_STREAK = 12;
+/** Failed model reads since this tenant's last successful one. Frontier model
+ * entries are appended in request order; carried entries made no request. */
+export function urgiisModelFailureStreak(entries: readonly UrgiisEntry[]) {
+  let streak = 0;
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const entry = entries[i];
+    if (entry?.kind !== "model" || entry.freshness.kind === "read") break;
+    if (entry.freshness.kind !== "carried") streak++;
+  }
+  return streak;
+}
 export function urgiisDefer(
   task: UrgiisTask,
   entries: readonly UrgiisEntry[],
