@@ -39,7 +39,12 @@ const base = {
     .array(
       z.union([
         z
-          .object({ code: z.string(), accepted: z.number().int().positive() })
+          .object({
+            code: z.string(),
+            accepted: z.number().int().positive(),
+            // Model pages that failed this run and reused prior listings.
+            deferred: z.number().int().positive().optional(),
+          })
           .strict(),
         z.object({ code: z.string(), blocked: z.string().min(1) }).strict(),
       ]),

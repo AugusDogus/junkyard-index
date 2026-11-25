@@ -354,10 +354,17 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
         result.warnings.push(
           `${tenant.yard.name}: ${count} accepted, ${snapshot.accounting.recordsRejected} rejected, ${snapshot.accounting.recordsExcluded} explicitly excluded.`,
         );
+        const deferred = cursor.entries.filter(
+          (e) => e.kind === "model" && e.freshness.kind === "deferred",
+        ).length;
         cursor = yield* boundary("next tenant checkpoint", () =>
           UrgiisCursor.nextTenant(
             cursor,
-            { code: tenant.code, accepted: count },
+            {
+              code: tenant.code,
+              accepted: count,
+              ...(deferred > 0 ? { deferred } : {}),
+            },
             tenants,
             urgiisFingerprint(census),
           ),

@@ -57,6 +57,20 @@ describe("cursor-derived yard checks", () => {
     ]);
   });
 
+  test("URG reports a tenant that reused listings after failed model reads as replayed", () => {
+    const [deferredTenant] = URGIIS_TENANTS;
+    if (!deferredTenant) throw new Error("URG needs a tenant");
+    const cursor = {
+      completed: [{ code: deferredTenant.code, accepted: 500, deferred: 19 }],
+    } satisfies Pick<UrgiisCursor, "completed">;
+    expect(urgiisYardChecks(cursor)).toEqual(
+      UrgiisTenant.yards(deferredTenant).map((yard) => ({
+        locationCode: yard.code,
+        outcome: "replayed" as const,
+      })),
+    );
+  });
+
   test("AutoRecycler reports eligible and listed yards fetched and preserved yards preserved", () => {
     expect(
       autorecyclerYardChecks(

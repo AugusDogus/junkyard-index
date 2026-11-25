@@ -38,7 +38,9 @@ export function urgiisPublication(cursor: UrgiisCursor) {
  * Each yard's result in a run's cursor, by its tenant's verdict. An accepted
  * tenant read its owner page, makes, menus and arrivals live this run and
  * reread them at closing; its census carries only model pages whose live
- * badge counts did not change, so its yards are "fetched". A blocked tenant
+ * badge counts did not change, so its yards are "fetched". An accepted tenant
+ * that deferred model pages reused prior listings after failed reads, so its
+ * yards are "replayed". A blocked tenant
  * (a provider block or a quarantine stop; the cursor keeps only free text)
  * published nothing, so its yards are "blocked".
  */
@@ -49,7 +51,12 @@ export function urgiisYardChecks(
   return URGIIS_TENANTS.flatMap((tenant) => {
     const verdict = verdicts.get(tenant.code);
     if (verdict === undefined) return [];
-    const outcome = "blocked" in verdict ? "blocked" : "fetched";
+    const outcome =
+      "blocked" in verdict
+        ? "blocked"
+        : verdict.deferred !== undefined
+          ? "replayed"
+          : "fetched";
     return UrgiisTenant.yards(tenant).map((yard) => ({
       locationCode: yard.code,
       outcome,
