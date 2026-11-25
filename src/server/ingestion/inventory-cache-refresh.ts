@@ -1,9 +1,24 @@
-import { eq, max, sql } from "drizzle-orm";
+import { asc, eq, gt, max, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
-import { ingestionProjectorCheckpoint, ingestionRun } from "~/schema";
+import type { ChangedInventorySources } from "~/lib/inventory-cache";
+import {
+  ingestionProjectorCheckpoint,
+  ingestionRun,
+  yardInventory,
+} from "~/schema";
 
-// Holds the highest publication sequence the inventory caches were refreshed for.
+// Holds the highest publication sequence the inventory caches were refreshed
+// for (last_processed_change_id), and when that refresh read which sources'
+// yards had changed (last_success_at).
 const CHECKPOINT_NAME = "inventory-cache-refresh";
+
+/**
+ * How far before the previous refresh's read a yard change still counts.
+ * Reconciliation stamps yard_inventory.updated_at when it builds a batch and
+ * commits it later, so a batch stamped just before that read can commit
+ * after it. Counting a source twice only expires its entries once more.
+ */
+const CHANGE_MARGIN_MS = 30 * 60 * 1000;
 
 /**
  * Refreshing inventory caches after a pass. Current: the caches already show
@@ -36,10 +51,14 @@ export type InventoryCacheSource = {
 };
 
 export const InventoryCacheRefresh = {
-  /** Records that the caches show this publication; never moves backward. */
+  /**
+   * Records that the caches show this publication, with every yard change
+   * read up to `changesReadAt`; never moves backward.
+   */
   async record(
     database: LibSQLDatabase,
     publicationSequence: number,
+    changesReadAt: Date,
   ): Promise<void> {
     const updatedAt = new Date();
     await database
@@ -47,13 +66,42 @@ export const InventoryCacheRefresh = {
       .values({
         name: CHECKPOINT_NAME,
         lastProcessedChangeId: publicationSequence,
+        lastSuccessAt: changesReadAt,
         updatedAt,
       })
       .onConflictDoUpdate({
         target: ingestionProjectorCheckpoint.name,
-        set: { lastProcessedChangeId: publicationSequence, updatedAt },
+        set: {
+          lastProcessedChangeId: publicationSequence,
+          lastSuccessAt: changesReadAt,
+          updatedAt,
+        },
         setWhere: sql`${ingestionProjectorCheckpoint.lastProcessedChangeId} < ${publicationSequence}`,
       });
+  },
+
+  /**
+   * The sources whose yards reconciliation rebuilt since `since` (every
+   * publication rebuilds its sources' yards, and a batch that moves another
+   * source's VINs rebuilds that source's), or all of them when no earlier
+   * read is recorded.
+   */
+  async changedSources(
+    database: LibSQLDatabase,
+    since: Date | null,
+  ): Promise<ChangedInventorySources> {
+    if (since === null) return { kind: "all" };
+    const rows = await database
+      .selectDistinct({ source: yardInventory.source })
+      .from(yardInventory)
+      .where(
+        gt(
+          yardInventory.updatedAt,
+          new Date(since.getTime() - CHANGE_MARGIN_MS),
+        ),
+      )
+      .orderBy(asc(yardInventory.source));
+    return { kind: "sources", sources: rows.map((row) => row.source) };
   },
 
   /**
@@ -63,25 +111,27 @@ export const InventoryCacheRefresh = {
   async run(params: {
     database: LibSQLDatabase;
     source: InventoryCacheSource;
-    revalidate: () => void;
+    /** Expires the caches: all directory entries, and `changed` sources'. */
+    revalidate: (changed: ChangedInventorySources) => void;
+    now: Date;
   }): Promise<InventoryCacheRefresh> {
-    const [[state], projected] = await Promise.all([
+    const [[state], [checkpoint], projected] = await Promise.all([
+      params.database
+        .select({ latest: max(ingestionRun.publicationSequence) })
+        .from(ingestionRun),
       params.database
         .select({
-          latest: max(ingestionRun.publicationSequence),
-          refreshed: sql<number | null>`(
-            select ${ingestionProjectorCheckpoint.lastProcessedChangeId}
-            from ${ingestionProjectorCheckpoint}
-            where ${eq(ingestionProjectorCheckpoint.name, CHECKPOINT_NAME)}
-          )`,
+          refreshed: ingestionProjectorCheckpoint.lastProcessedChangeId,
+          changesReadAt: ingestionProjectorCheckpoint.lastSuccessAt,
         })
-        .from(ingestionRun),
+        .from(ingestionProjectorCheckpoint)
+        .where(eq(ingestionProjectorCheckpoint.name, CHECKPOINT_NAME)),
       params.source.projectedThrough(),
     ]);
     const latest = state?.latest ?? null;
     if (
       latest === null ||
-      (latest <= (state?.refreshed ?? 0) && latest <= projected)
+      (latest <= (checkpoint?.refreshed ?? 0) && latest <= projected)
     ) {
       return { status: "current" };
     }
@@ -98,7 +148,12 @@ export const InventoryCacheRefresh = {
       }
     }
     try {
-      params.revalidate();
+      params.revalidate(
+        await InventoryCacheRefresh.changedSources(
+          params.database,
+          checkpoint?.changesReadAt ?? null,
+        ),
+      );
     } catch (error) {
       return {
         status: "failed",
@@ -107,7 +162,7 @@ export const InventoryCacheRefresh = {
         error,
       };
     }
-    await InventoryCacheRefresh.record(params.database, latest);
+    await InventoryCacheRefresh.record(params.database, latest, params.now);
     return { status: "refreshed", publicationSequence: latest };
   },
 } as const;

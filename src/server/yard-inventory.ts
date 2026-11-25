@@ -8,7 +8,7 @@ import { calculateDistance } from "~/lib/utils";
 import { YardBrand, type Chain } from "~/lib/yard-brand";
 import type { YardPath } from "~/lib/yard-path";
 import { getHomepageInventory } from "~/lib/homepage-inventory";
-import { cacheInventory } from "~/lib/inventory-cache";
+import { cacheInventory, cacheSourceInventory } from "~/lib/inventory-cache";
 import {
   isIngestionSource,
   isRetiredIngestionSource,
@@ -86,11 +86,14 @@ async function loadYardVehicles(
  */
 const readYardVehicles = cache(loadYardVehicles);
 
-/** A yard's count, makes and arrivals. Refreshed with the daily pass. */
-const getYardSummary = cacheInventory(
+/**
+ * A yard's count, makes and arrivals. Under its source's tag, so it is read
+ * again only when that source's yards change (see cacheSourceInventory).
+ */
+const getYardSummary = cacheSourceInventory(
   async (source: string, code: string): Promise<YardSummary> =>
     YardInventory.summary(await readYardVehicles(source, code)),
-  ["yard-summary-v2"],
+  ["yard-summary-v3"],
 );
 
 /** A slice of a yard's vehicles and the fingerprint of the read it came from. */
@@ -102,7 +105,7 @@ type YardSlice = { fingerprint: string; vehicles: YardVehicle[] };
  * these would nest one unstable_cache in another, and Next.js skips the cache
  * for the inner call, so every miss would read the whole yard again.
  */
-const getYardSlice = cacheInventory(
+const getYardSlice = cacheSourceInventory(
   async (source: string, code: string, index: number): Promise<YardSlice> => {
     const vehicles = await readYardVehicles(source, code);
     return {
@@ -110,7 +113,7 @@ const getYardSlice = cacheInventory(
       vehicles: YardInventory.slice(vehicles, index),
     };
   },
-  ["yard-vehicle-slice-v3"],
+  ["yard-vehicle-slice-v4"],
 );
 
 /**

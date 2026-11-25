@@ -24,7 +24,12 @@ that same time and stamps it on success, so an hourly cron refreshes every
 
 1. stores the homepage snapshot (`inventory-snapshot:<version>`) and
    revalidates the `daily-inventory` cache tag (`inventory-cache-refresh`),
-   each only when behind;
+   each only when behind. Yard pages' vehicle entries carry a per-source tag
+   (`inventory-source:<source>`) instead; the refresh expires only the
+   sources whose `yard_inventory` rows changed since the previous refresh
+   read them (`last_success_at`, with a 30-minute margin), or all of them
+   (`inventory-sources`) when that time is unknown or a search-index
+   migration rewrote identities;
 2. requests the pages changed since the last IndexNow announcement, waits
    2 minutes for them to regenerate, and announces them
    (`indexnow-announcement`, production only);

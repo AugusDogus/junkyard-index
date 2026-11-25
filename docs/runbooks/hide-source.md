@@ -75,7 +75,10 @@ classifies each active source as current, stale or hidden
 stored last time in the `inventory-staleness` row of
 `ingestion_projector_checkpoint` (`job_cursor`), and expires the
 `daily-inventory` tag when any source changed class. Labels and hides apply
-within the hour, even after missed ticks. If the expiry fails, the stored
+within the hour, even after missed ticks. A check whose only changes are
+sources coming back to current stores them without expiring the tag: each
+of those sources published, and that publication's refresh (at most 3 hours
+later) expires it with the new inventory. If the expiry fails, the stored
 classification stays as it was, so the next tick tries again. Deleting that
 row makes the next tick expire the tag once and store a new one.
 

@@ -13,6 +13,23 @@ export const INVENTORY_CACHE_TAG = "daily-inventory";
 export const INVENTORY_CACHE_SECONDS = 24 * 60 * 60;
 
 /**
+ * Tags every per-source inventory entry (`cacheSourceInventory`), which the
+ * inventory tag does not cover. Only a change to every source's vehicles,
+ * such as a search-index migration rewriting identities, expires it.
+ */
+export const INVENTORY_SOURCES_TAG = "inventory-sources";
+
+/** Tags one source's per-source inventory entries. */
+export function inventorySourceTag(source: string): string {
+  return `inventory-source:${source}`;
+}
+
+/** The sources whose vehicles may have changed since the caches last expired. */
+export type ChangedInventorySources =
+  | { kind: "all" }
+  | { kind: "sources"; sources: readonly string[] };
+
+/**
  * Caches an inventory loader under `keyParts` and its arguments alone.
  * `unstable_cache` also keys entries on the loader's source text, and each
  * route bundle minifies the same loader differently, so a sitemap and a page
@@ -33,4 +50,28 @@ export function cacheInventory<Args extends unknown[], Result>(
     revalidate: INVENTORY_CACHE_SECONDS,
     tags: [INVENTORY_CACHE_TAG, ...extraTags],
   });
+}
+
+/**
+ * Caches a loader of one source's inventory (its first argument) like
+ * `cacheInventory`, but under that source's tag instead of the inventory
+ * tag. A publication then expires only the sources whose yards changed, and
+ * a staleness change, which changes no vehicle, expires none of them: each
+ * yard's vehicles are read about once a day rather than after every
+ * expiry of the inventory tag (about 13 a day, each reading every yard's
+ * vehicles, 1.4M rows, in November 2026). Bump the version in `keyParts`
+ * whenever the loader's query, result shape or tags change.
+ */
+export function cacheSourceInventory<Rest extends unknown[], Result>(
+  load: (source: string, ...rest: Rest) => Promise<Result>,
+  keyParts: string[],
+): (source: string, ...rest: Rest) => Promise<Result> {
+  const read = (source: string, ...rest: Rest) =>
+    retryTursoRead(() => load(source, ...rest));
+  const bound = read.bind(null);
+  return (source: string, ...rest: Rest) =>
+    unstable_cache(bound, keyParts, {
+      revalidate: INVENTORY_CACHE_SECONDS,
+      tags: [INVENTORY_SOURCES_TAG, inventorySourceTag(source)],
+    })(source, ...rest);
 }

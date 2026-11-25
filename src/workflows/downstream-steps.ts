@@ -1,10 +1,10 @@
 // Steps for the downstream consumers. Nothing here may import a search
 // backend: downstream-consumers-search.test.ts checks this module graph.
-import { revalidateTag } from "next/cache";
 import { deliverDurableAlertIntentsBatch } from "~/server/alerts/durable-alert-delivery-runtime";
 import { db } from "~/lib/db";
 import type { IndexNowSubmission } from "~/lib/indexnow";
 import { INVENTORY_CACHE_TAG } from "~/lib/inventory-cache";
+import { expireInventoryCaches } from "~/lib/inventory-cache-expiry";
 import { env } from "~/env";
 import {
   ConsumerFlags,
@@ -56,7 +56,8 @@ export async function refreshInventoryCachesStep(): Promise<
             olderVersions: "retire",
           }),
       },
-      revalidate: () => revalidateTag(INVENTORY_CACHE_TAG, "max"),
+      revalidate: expireInventoryCaches,
+      now: new Date(),
     });
   } catch (error) {
     // Not retried: a retry would read every vehicle again. The consumer
