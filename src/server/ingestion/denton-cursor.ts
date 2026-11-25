@@ -214,13 +214,16 @@ export function dentonClosingControls(
   const positions = tasks.flatMap((task, index) =>
     task.kind === "model" ? [{ task, index }] : [],
   );
-  const reads = ModelCensus.closingReads({
-    controls: censusControls(positions.map(({ task }) => task)),
-    pages: modelEntries(state.opening),
-    decisions: dentonCensusPlan(state),
-    previous: state.previous,
-    cards: dentonCards,
-  }).flatMap((model) => {
+  const reads = ModelCensus.closingReads(
+    {
+      controls: censusControls(positions.map(({ task }) => task)),
+      pages: modelEntries(state.opening),
+      decisions: dentonCensusPlan(state),
+      previous: state.previous,
+      cards: dentonCards,
+    },
+    dentonFingerprint,
+  ).flatMap((model) => {
     const position = positions[model];
     return position ? [position] : [];
   });

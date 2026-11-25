@@ -463,13 +463,16 @@ describe("ModelCensus", () => {
     expect(dropped.decisions[2]).toEqual({ kind: "read", reason: "short" });
     // Closing must re-read it even though cards equal the badge.
     expect(
-      ModelCensus.closingReads({
-        controls: models,
-        pages: dropped.pages,
-        decisions: dropped.decisions,
-        previous: cold.census,
-        cards,
-      }),
+      ModelCensus.closingReads(
+        {
+          controls: models,
+          pages: dropped.pages,
+          decisions: dropped.decisions,
+          previous: cold.census,
+          cards,
+        },
+        identity,
+      ),
     ).toContain(2);
     expect(dropped.census.models[2]).toMatchObject({
       expected: 4,
@@ -489,13 +492,16 @@ describe("ModelCensus", () => {
     // Pages matching their badge need no closing read; the recovered surplus
     // page differs from its badge, so closing re-reads only it.
     expect(
-      ModelCensus.closingReads({
-        controls: models,
-        pages: next.pages,
-        decisions: next.decisions,
-        previous: dropped.census,
-        cards,
-      }),
+      ModelCensus.closingReads(
+        {
+          controls: models,
+          pages: next.pages,
+          decisions: next.decisions,
+          previous: dropped.census,
+          cards,
+        },
+        identity,
+      ),
     ).toEqual([2]);
   });
 
@@ -527,13 +533,16 @@ describe("ModelCensus", () => {
       listed: new Map([["model-2", 2]]),
     });
     expect(
-      ModelCensus.closingReads({
-        controls: sold,
-        pages: fault.pages,
-        decisions: fault.decisions,
-        previous: census,
-        cards,
-      }),
+      ModelCensus.closingReads(
+        {
+          controls: sold,
+          pages: fault.pages,
+          decisions: fault.decisions,
+          previous: census,
+          cards,
+        },
+        identity,
+      ),
     ).toContain(2);
     expect(run(sold, fault.census, 104).decisions[2]).toEqual({
       kind: "read",
@@ -662,13 +671,16 @@ describe("ModelCensus", () => {
     // Day 109: the arrival's card appears, but a fault drops another card.
     const fault = run(models, census, 109, undefined, { listed: listed(11) });
     expect(
-      ModelCensus.closingReads({
-        controls: models,
-        pages: fault.pages,
-        decisions: fault.decisions,
-        previous: census,
-        cards,
-      }),
+      ModelCensus.closingReads(
+        {
+          controls: models,
+          pages: fault.pages,
+          decisions: fault.decisions,
+          previous: census,
+          cards,
+        },
+        identity,
+      ),
     ).toContain(2);
     expect(fault.census.models[2]).toMatchObject({ expected: 12 });
     expect(run(models, fault.census, 110).decisions[2]).toEqual({
@@ -796,13 +808,16 @@ describe("ModelCensus", () => {
     const fault = run(models, census, 115, new Set(["model-2"]), faulty);
     expect(fault.decisions[2]?.kind).toBe("read");
     expect(
-      ModelCensus.closingReads({
-        controls: models,
-        pages: fault.pages,
-        decisions: fault.decisions,
-        previous: census,
-        cards,
-      }),
+      ModelCensus.closingReads(
+        {
+          controls: models,
+          pages: fault.pages,
+          decisions: fault.decisions,
+          previous: census,
+          cards,
+        },
+        identity,
+      ),
     ).toContain(2);
     // When the page lists the old surplus again, the ceiling clears and the
     // surplus returns.
@@ -850,13 +865,16 @@ describe("ModelCensus", () => {
     // closing-read.
     const fault = run(models, below.census, 116, new Set(["model-2"]), quiet);
     expect(
-      ModelCensus.closingReads({
-        controls: models,
-        pages: fault.pages,
-        decisions: fault.decisions,
-        previous: below.census,
-        cards,
-      }),
+      ModelCensus.closingReads(
+        {
+          controls: models,
+          pages: fault.pages,
+          decisions: fault.decisions,
+          previous: below.census,
+          cards,
+        },
+        identity,
+      ),
     ).toContain(2);
   });
 
@@ -876,13 +894,16 @@ describe("ModelCensus", () => {
       });
       expect(next.decisions[2]?.kind).toBe("read");
       if (
-        ModelCensus.closingReads({
-          controls: models,
-          pages: next.pages,
-          decisions: next.decisions,
-          previous: census,
-          cards,
-        }).includes(2)
+        ModelCensus.closingReads(
+          {
+            controls: models,
+            pages: next.pages,
+            decisions: next.decisions,
+            previous: census,
+            cards,
+          },
+          identity,
+        ).includes(2)
       )
         closingDays.push(day);
       census = next.census;
@@ -975,13 +996,16 @@ describe("ModelCensus", () => {
       if (next.decisions[2]?.kind === "read") readDays.push(day);
       else carried.push([day, next.census.models[2]?.ceiling ?? null]);
       if (
-        ModelCensus.closingReads({
-          controls: models,
-          pages: next.pages,
-          decisions: next.decisions,
-          previous: census,
-          cards,
-        }).includes(2)
+        ModelCensus.closingReads(
+          {
+            controls: models,
+            pages: next.pages,
+            decisions: next.decisions,
+            previous: census,
+            cards,
+          },
+          identity,
+        ).includes(2)
       )
         closingDays.push(day);
       census = next.census;
@@ -1043,13 +1067,16 @@ describe("ModelCensus", () => {
     });
     expect(day.decisions[2]).toEqual({ kind: "read", reason: "count" });
     expect(
-      ModelCensus.closingReads({
-        controls: grown,
-        pages: day.pages,
-        decisions: day.decisions,
-        previous: cold.census,
-        cards,
-      }),
+      ModelCensus.closingReads(
+        {
+          controls: grown,
+          pages: day.pages,
+          decisions: day.decisions,
+          previous: cold.census,
+          cards,
+        },
+        identity,
+      ),
     ).toContain(2);
     expect(day.census.models[2]).toMatchObject({
       expected: 5,
@@ -1294,6 +1321,78 @@ describe("ModelCensus with reuse never", () => {
     expect(ModelCensus.summary(next.decisions)).toBe(
       "Read 13 of 13 model pages (daily 9, count 1, short 1, trigger 1, new 1); carried 0.",
     );
+  });
+
+  test("closing skips a confirmed page read daily only while it repeats its evidence", () => {
+    const models = controls(12, 10);
+    // model-2 is short and model-4 lists a surplus above its badge.
+    const listed = new Map([
+      ["model-2", 3],
+      ["model-4", 12],
+    ]);
+    const cold = run(models, null, 100, undefined, { ...never, listed });
+    // The next incremental run reads both again (short) and closing re-reads
+    // them, even though they repeat the cold run's pages.
+    const first = run(models, cold.census, 101, undefined, {
+      ...never,
+      listed,
+    });
+    expect(first.decisions[2]).toEqual({ kind: "read", reason: "short" });
+    expect(first.decisions[4]).toEqual({ kind: "read", reason: "short" });
+    expect(
+      ModelCensus.closingReads(
+        {
+          controls: models,
+          pages: first.pages,
+          decisions: first.decisions,
+          previous: cold.census,
+          cards,
+        },
+        identity,
+      ),
+    ).toEqual([2, 4]);
+    expect(first.census.models[2]?.confirmed).toBe(true);
+    expect(first.census.models[4]?.surplusConfirmed).toBe(true);
+
+    // Read daily, an identical page is confirmed by the evidence it repeats.
+    const same = run(models, first.census, 102, undefined, {
+      ...never,
+      listed,
+    });
+    expect(same.decisions[2]).toEqual({ kind: "read", reason: "daily" });
+    expect(same.decisions[4]).toEqual({ kind: "read", reason: "daily" });
+    const sameRun = {
+      controls: models,
+      pages: same.pages,
+      decisions: same.decisions,
+      previous: first.census,
+      cards,
+    };
+    expect(ModelCensus.closingReads(sameRun, identity)).toEqual([]);
+    expect(same.census.models[2]?.confirmed).toBe(true);
+    expect(same.census.models[4]?.surplusConfirmed).toBe(true);
+    expect(same.census.models[4]?.expected).toBe(12);
+    // The next run still reads it daily, not as short.
+    expect(
+      run(models, same.census, 103, undefined, { ...never, listed })
+        .decisions[2],
+    ).toEqual({ kind: "read", reason: "daily" });
+
+    // One card different at the same count goes through closing again.
+    const changed = run(models, first.census, 102, undefined, {
+      ...never,
+      listed,
+      tags: new Map([
+        ["model-2", "swapped"],
+        ["model-4", "swapped"],
+      ]),
+    });
+    expect(
+      ModelCensus.closingReads(
+        { ...sameRun, pages: changed.pages, decisions: changed.decisions },
+        identity,
+      ),
+    ).toEqual([2, 4]);
   });
 
   test("a gap still reads every page as a gap run", () => {

@@ -379,10 +379,11 @@ test("OEM labels a trigger once when a departing arrival is missing from its las
     confirmed: true,
   });
   // Day 602: the page still lags under the same badge. It is read again
-  // (confirmed, so labelled daily) and closing re-reads it, since its cards
-  // differ from its badge.
+  // (confirmed, so labelled daily); it repeats its confirmed evidence, so
+  // closing skips its re-read.
   const lagging = await census(native, 602, confirming.wire);
-  expect(lagging.models).toEqual([...MODELS, m]);
+  expect(lagging.models).toEqual(MODELS);
+  expect(lagging.requests).toBe(16);
   expect(lagging.vins).toEqual(allVins(native, [x]));
   expect(lagging.warnings.at(-1)).toBe(summary([["daily", MODELS]]));
   // Day 603: X reaches its page and leaves the arrivals page the same day.
@@ -427,8 +428,9 @@ test("OEM departing arrivals trigger one read even while the page still lags", a
     ]),
   );
   const after = await census(native, 602, departed.wire);
-  // M is read again (closing re-reads its short page), but not as a trigger.
-  expect(after.models).toEqual([...MODELS, m]);
+  // M is read again, but not as a trigger. Its confirmed short page repeats,
+  // so closing skips it.
+  expect(after.models).toEqual(MODELS);
   expect(after.warnings.at(-1)).toBe(summary([["daily", MODELS]]));
 }, 30_000);
 
@@ -587,9 +589,11 @@ test("OEM confirms an explicit empty model under a nonzero badge and keeps readi
     page: { nativeEmpty: true, records: [] },
   });
   expect(evidence.filter((m) => m.confirmed)).toHaveLength(1);
+  // Read daily, the explicit empty repeats its confirmed evidence, so closing
+  // skips its re-read and it stays confirmed.
   const next = await census(native, 602, confirming.wire);
-  expect(next.models).toEqual([...MODELS, empty]);
-  expect(next.requests).toBe(17);
+  expect(next.models).toEqual(MODELS);
+  expect(next.requests).toBe(16);
   expect(next.vins).toEqual(allVins(native));
   expect(next.warnings.at(-1)).toBe(summary([["daily", MODELS]]));
   if (next.terminal.state.phase !== "complete" || !next.terminal.state.census)
@@ -673,8 +677,10 @@ test("OEM fails a steady-state daily run whose page lists one card", async () =>
   let previous = (await census(native, 600, null)).wire;
   for (let day = 601; day <= 610; day++) {
     const run = await census(native, day, previous);
-    // Every page lists 40 of its 44 badge, so closing re-reads each one.
-    expect(run.models).toEqual([...MODELS, ...MODELS]);
+    // Every page lists 40 of its 44 badge. The first incremental run reads
+    // each as short and closing re-reads and confirms it; later runs read
+    // them daily and, as they repeat, closing re-reads none.
+    expect(run.models).toEqual(day === 601 ? [...MODELS, ...MODELS] : MODELS);
     expect(run.vins).toEqual(allVins(native));
     previous = run.wire;
   }
@@ -699,7 +705,8 @@ test("OEM re-reads a surplus page that lost donors down to its unchanged badge",
   // closing re-reads it) instead of accepting the shrunken page. Only a
   // normal incremental run six days after the first low read lowers the
   // surplus to what the page lists; after that it is read daily like the
-  // rest, and closing still re-reads it while its 40-card ceiling stands.
+  // rest, and closing skips it while it repeats the lowering run's evidence,
+  // ceiling or not.
   const native = yard();
   const day = 601;
   const m = 9;
@@ -755,10 +762,11 @@ test("OEM re-reads a surplus page that lost donors down to its unchanged badge",
     // M is short through the lowering day; every other model is read daily.
     const short = today <= lowered ? [m] : [];
     const run = await census(native, today, previous);
-    // Closing re-reads M whenever it lists fewer cards than the 40 expected,
-    // and after the lowering whenever it lists fewer than its 40-card ceiling.
-    expect(run.models).toEqual([...MODELS, m]);
-    expect(run.requests).toBe(17);
+    // Closing re-reads M whenever it is read as short (below the 40
+    // expected). After the lowering it repeats the evidence that run's
+    // closing confirmed, so closing skips it.
+    expect(run.models).toEqual(short.length ? [...MODELS, m] : MODELS);
+    expect(run.requests).toBe(short.length ? 17 : 16);
     expect(run.vins).toEqual(allVins(native));
     expect(run.warnings.at(-1)).toBe(
       summary([

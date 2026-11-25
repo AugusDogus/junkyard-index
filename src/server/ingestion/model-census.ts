@@ -43,7 +43,8 @@ import { z } from "zod";
  * short page, or a surplus page that lost cards without its count dropping)
  * is read again on the next run, so a transient short read is never carried.
  * `closingReads` names the pages a connector's closing must re-read for that
- * confirmation.
+ * confirmation. A page read daily (`reuse: never`) that repeats confirmed
+ * evidence is confirmed by it and skips that re-read.
  *
  * `coverage` separately bounds the whole union of read and carried cards, both
  * against today's published counts (a per-source floor that also holds on cold
@@ -416,23 +417,34 @@ export const ModelCensus = {
 
   /** Indices of pages read this run that closing must re-read and compare:
    * every read page whose cards differ from its published count or fall below
-   * its closing floor. Carried pages were confirmed by the run that read them. */
-  closingReads<Page>({
-    controls,
-    pages,
-    decisions,
-    previous,
-    cards,
-  }: ModelCensusRun<Page>): number[] {
+   * its closing floor. Carried pages were confirmed by the run that read them.
+   * A page read only because the connector never reuses pages (`daily`) is
+   * skipped when `identity` (what the connector's closing compares) matches its
+   * last accepted evidence: `daily` means that evidence holds the same count
+   * and is confirmed, its surplus too, with no recheck, so the page repeats a
+   * page closing already confirmed, exactly as a carried page would. */
+  closingReads<Page>(
+    { controls, pages, decisions, previous, cards }: ModelCensusRun<Page>,
+    identity: (page: Page) => string,
+  ): number[] {
     const floors = closingFloors(controls, previous);
+    const evidence = new Map((previous?.models ?? []).map((m) => [m.key, m]));
     return controls.flatMap((control, index) => {
       const page = pages[index];
-      const listed = page === undefined ? null : cards(page);
-      return decisions[index]?.kind === "read" &&
-        listed !== null &&
-        (listed !== control.count || listed < (floors[index] ?? control.count))
-        ? [index]
-        : [];
+      const decision = decisions[index];
+      if (page === undefined || decision?.kind !== "read") return [];
+      const listed = cards(page);
+      if (
+        listed === control.count &&
+        listed >= (floors[index] ?? control.count)
+      )
+        return [];
+      const before = evidence.get(control.key);
+      return decision.reason === "daily" &&
+        before !== undefined &&
+        identity(before.page) === identity(page)
+        ? []
+        : [index];
     });
   },
 
@@ -441,7 +453,8 @@ export const ModelCensus = {
    * read today below its published count counts as confirmed only when this
    * is a normal incremental run (an accepted census from today or the previous
    * run day) and the connector's closing re-read it identically
-   * (`shortPages: "confirmed"`). A
+   * (`shortPages: "confirmed"`), or, read daily, it repeated its confirmed
+   * evidence, so `closingReads` skipped it. A
    * page that only fell below a higher previous card count is never confirmed:
    * a real change and a transient drop look alike, so the next run re-reads it. */
   accept<Page>(

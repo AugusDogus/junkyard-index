@@ -92,13 +92,16 @@ export function aplusClosingControls(
       ? []
       : aplusCensusPlan(state);
   const mismatched = decisions.length
-    ? ModelCensus.closingReads({
-        controls: aplusCensusControls(state.makes),
-        pages: state.pages,
-        decisions,
-        previous: state.previous,
-        cards: aplusCards,
-      }).flatMap((index) => {
+    ? ModelCensus.closingReads(
+        {
+          controls: aplusCensusControls(state.makes),
+          pages: state.pages,
+          decisions,
+          previous: state.previous,
+          cards: aplusCards,
+        },
+        (page) => page.hash,
+      ).flatMap((index) => {
         const value = models[index];
         return value
           ? [

@@ -8,6 +8,7 @@ import { OEM_ARRIVALS, OEM_MAKES } from "./oem-html";
 import {
   OemCursor,
   OemCursorSchema,
+  oemCardIdentity,
   oemCensus,
   oemCensusPlan,
   oemClosingControls,
@@ -19,13 +20,7 @@ import {
   OEM_MAX_TOTAL_BYTES,
   type OemState,
 } from "./oem-cursor";
-import {
-  oemControlUrl,
-  parseOemDirectory,
-  parseOemDonors,
-  type OemPage,
-} from "./oem-parser";
-import { oemFields } from "./oem-record";
+import { oemControlUrl, parseOemDirectory, parseOemDonors } from "./oem-parser";
 import { OemSnapshot } from "./oem-snapshot";
 import {
   OemLocationSchema,
@@ -67,29 +62,6 @@ const same = (expected: unknown, actual: unknown, subject: string) => {
           " changed; restart a complete capture after reviewing drift",
       ),
     );
-};
-/** Card identity of a model page: which VIN-bearing donors it lists, in any
- * order, plus how many VIN-less cards it lists. The site re-sorts cards of the
- * same year and edits VIN-less placeholders between reads; neither reaches
- * the snapshot. Optional photos and metadata may refresh without changing a
- * card. */
-const cards = (page: OemPage | undefined) => {
-  if (!page) return undefined;
-  const donors = page.records.filter((r) => oemFields(r, "vin").some(Boolean));
-  return {
-    vinless: page.records.length - donors.length,
-    donors: donors
-      .map((r) =>
-        JSON.stringify([
-          r.cardId,
-          r.destinations,
-          r.fields.filter((f) =>
-            ["year", "make/model", "vin", "stock"].includes(f.label),
-          ),
-        ]),
-      )
-      .sort(),
-  };
 };
 export function oemNextUrl(
   state: Exclude<OemState, { phase: "complete" }>,
@@ -175,10 +147,12 @@ export function oemAdvance(input: OemCursor, raw: string): OemCursor {
         parseOemDirectory(raw, { kind: "makes" }),
         "make directory",
       );
-    else
+    else {
+      const first = state.pages[control.index];
+      if (!first) throw new Error("OEM closing model page is missing");
       same(
-        cards(state.pages[control.index]),
-        cards(
+        oemCardIdentity(first),
+        oemCardIdentity(
           parseOemDonors(raw, {
             kind: "model",
             make: control.make,
@@ -187,6 +161,7 @@ export function oemAdvance(input: OemCursor, raw: string): OemCursor {
         ),
         "model " + control.model.label + " cards",
       );
+    }
     next = { ...state, closing: state.closing + 1 };
   }
   return OemCursor.checkpoint({

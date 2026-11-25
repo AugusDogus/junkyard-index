@@ -213,10 +213,10 @@ test("Scotts confirms a short model page only on the run that reads it", async (
   ).toBe(true);
 
   // A confirmed short page is no longer read as short, but it is still read
-  // daily and re-read at closing because its cards differ from its badge.
+  // daily. It repeats its confirmed evidence, so closing skips its re-read.
   const next = await census(native, 602, confirming.terminal);
-  expect(next.models).toEqual([...all, 3]);
-  expect(next.requests).toBe(18);
+  expect(next.models).toEqual(all);
+  expect(next.requests).toBe(17);
   expect(next.vins).toEqual(allVins(native));
   expect(next.warnings.at(-1)).toBe(summary("daily 12"));
   expect(
@@ -459,10 +459,11 @@ test("Scotts stores closing-confirmed short pages as confirmed and reads surplus
     Array.from({ length: 12 }, () => null),
   );
 
-  // The next run reads neither page as short, only daily; closing still
-  // re-reads both because their cards differ from their badges.
+  // The next run reads neither page as short, only daily. Both repeat their
+  // confirmed evidence, so closing re-reads neither.
   const next = await census(native, 602, confirming.terminal);
-  expect(next.models).toEqual([...all, 3, 5]);
+  expect(next.models).toEqual(all);
+  expect(next.requests).toBe(5 + 12);
   expect(next.vins).toEqual(allVins(native));
   expect(next.warnings.at(-1)).toBe(summary("daily 12"));
 });

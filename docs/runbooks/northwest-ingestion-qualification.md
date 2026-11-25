@@ -79,8 +79,9 @@ Northwest specifics:
   last accepted cards, so both floors fail it.
 - Requests per day: every run is a full read, 380 requests on the saved census:
   root, directory, 36 menus and 334 models, then closing root, directory and
-  the six models whose cards differ from their badges, plus a closing re-read
-  for any other page below its expected cards. Cold and gap runs cost the same
+  any of the six models whose cards differ from their badges that changed
+  since their confirmed evidence, plus a closing re-read for any other page
+  below its expected cards. Cold and gap runs cost the same
   and differ only in read reasons and in confirming no short page.
 - Census contract `incremental-model-census-v3`; cursor cap 16 MiB.
 

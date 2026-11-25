@@ -8,6 +8,7 @@ import {
   type OemControl,
   type OemPage,
 } from "./oem-parser";
+import { oemFields } from "./oem-record";
 import {
   ModelCensus,
   type ModelCensusControl,
@@ -114,13 +115,16 @@ export function oemClosingControls(
   const models = oemModels(state.menus);
   return [
     { kind: "makes", url: OEM_MAKES },
-    ...ModelCensus.closingReads({
-      controls: oemCensusControls(state.menus),
-      pages: state.pages,
-      decisions: oemCensusPlan(state),
-      previous: state.previous,
-      cards: oemCards,
-    }).flatMap((index) => {
+    ...ModelCensus.closingReads(
+      {
+        controls: oemCensusControls(state.menus),
+        pages: state.pages,
+        decisions: oemCensusPlan(state),
+        previous: state.previous,
+        cards: oemCards,
+      },
+      oemCardIdentity,
+    ).flatMap((index) => {
       const entry = models[index];
       return entry
         ? [
@@ -199,6 +203,28 @@ export function oemCensusPlan(
 }
 /** Cards a model page lists, as closing compares them with its badge. */
 const oemCards = (page: OemPage) => page.records.length;
+/** Card identity of a model page, what closing compares: which VIN-bearing
+ * donors it lists, in any order, plus how many VIN-less cards it lists. The
+ * site re-sorts cards of the same year and edits VIN-less placeholders between
+ * reads; neither reaches the snapshot. Optional photos and metadata may
+ * refresh without changing a card. */
+export const oemCardIdentity = (page: OemPage) => {
+  const donors = page.records.filter((r) => oemFields(r, "vin").some(Boolean));
+  return oemHash({
+    vinless: page.records.length - donors.length,
+    donors: donors
+      .map((r) =>
+        JSON.stringify([
+          r.cardId,
+          r.destinations,
+          r.fields.filter((f) =>
+            ["year", "make/model", "vin", "stock"].includes(f.label),
+          ),
+        ]),
+      )
+      .sort(),
+  });
+};
 /** Model badges overstate cards because model pages lag arrivals and some
  * models render an explicit empty under a nonzero badge. The November 15
  * census listed 2,167 cards under 2,428 badges (89.25%, each model capped at

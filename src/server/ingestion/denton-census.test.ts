@@ -365,8 +365,8 @@ test("Denton rejects a run whose model cards fall short of today's model badges"
   const small = await census(native, 601, cold.terminal);
   // Its empty page differs from its badge, so closing confirms it once more.
   expect(small.models).toEqual([...models, 3]);
-  // Daily runs through day 604 read every page, and closing re-reads the
-  // confirmed empty page each day.
+  // Daily runs through day 604 read every page. The confirmed empty page
+  // repeats its evidence, so closing no longer re-reads it.
   let previous = small;
   for (const day of [602, 603, 604]) {
     const run = await census(
@@ -375,7 +375,7 @@ test("Denton rejects a run whose model cards fall short of today's model badges"
       previous.terminal,
       previous.vins.length,
     );
-    expect(run.models).toEqual([...models, 3]);
+    expect(run.models).toEqual(models);
     previous = run;
   }
   // On day 605 model 11 renders the native empty result while its badge holds.
@@ -390,11 +390,12 @@ test("Denton rejects a run whose model cards fall short of today's model badges"
     "Denton model pages list 1500 of 1670 cards promised by today's model counts, below the 95% coverage floor",
   );
   expect(native.staged).toHaveLength(staged);
-  // Every page was read, then both empty pages were confirmed at closing (each
-  // differs from its badge), before the union was rejected.
+  // Every page was read, then the newly empty page was re-read at closing
+  // before the union was rejected. The confirmed empty page repeated its
+  // evidence, so closing skipped it.
   expect(
     native.calls.slice(before).filter((url) => /\/M\d+\/$/.test(url)),
-  ).toEqual([...models, 3, 11].map(modelUrl));
+  ).toEqual([...models, 11].map(modelUrl));
 }, 120_000);
 
 test("Denton caps each model's cards at its badge, so surplus pages cannot hide an empty page", async () => {
@@ -452,15 +453,15 @@ test("Denton caps each model's cards at its badge, so surplus pages cannot hide 
   );
   for (const model of others)
     surplusEvidence(confirming.terminal, model, 601, true);
-  // Day 602 reads every page again (surplus pages again at closing) and keeps
-  // the confirmed surplus.
+  // Day 602 reads every page again and keeps the confirmed surplus. The
+  // surplus pages repeat their confirmed evidence, so closing skips them.
   const previous = await census(
     native,
     602,
     confirming.terminal,
     confirming.vins.length,
   );
-  expect(previous.models).toEqual([...models, ...others]);
+  expect(previous.models).toEqual(models);
   expect(previous.vins).toEqual(native.listedVins());
   for (const model of others)
     surplusEvidence(previous.terminal, model, 602, true);
@@ -475,11 +476,12 @@ test("Denton caps each model's cards at its badge, so surplus pages cannot hide 
     `Denton model pages list ${1800 - 150 * broken.length} of 1800 cards`,
   );
   expect(native.staged).toHaveLength(staged);
-  // Every page was read, then each one (surplus or empty) was confirmed at
-  // closing before the union was rejected.
+  // Every page was read, then the newly empty page was re-read at closing
+  // before the union was rejected. The surplus pages repeated their
+  // confirmed evidence, so closing skipped them.
   expect(
     native.calls.slice(before).filter((url) => /\/M\d+\/$/.test(url)),
-  ).toEqual([...models, ...models].map(modelUrl));
+  ).toEqual([...models, ...broken].map(modelUrl));
 }, 120_000);
 
 test("Denton rejects a run whose small model pages are cut to one card each while menus keep their badges", async () => {
@@ -550,16 +552,16 @@ test("Denton confirms a surplus page that falls to its badge at closing and re-r
     surplusConfirmed: true,
     confirmed: false,
   });
-  // Day 602 reads the confirmed surplus page daily; it still lists more than
-  // its badge, so closing re-reads it.
+  // Day 602 reads the confirmed surplus page daily. It still lists more than
+  // its badge, but repeats its confirmed evidence, so closing skips it.
   const steady = await census(
     native,
     602,
     confirming.terminal,
     confirming.vins.length,
   );
-  expect(steady.models).toEqual([...models, model]);
-  expect(steady.requests).toBe(8 + models.length + 1);
+  expect(steady.models).toEqual(models);
+  expect(steady.requests).toBe(8 + models.length);
   expect(steady.warnings.at(-1)).toBe(
     "Denton Read 12 of 12 model pages (daily 12); carried 0.",
   );
@@ -654,8 +656,9 @@ test("Denton confirms a surplus page that falls to its badge at closing and re-r
     confirmed: false,
   });
   // From then on it agrees with its badge and lowered surplus, so it is read
-  // daily like every other page. The lowered surplus stays as a ceiling, so
-  // closing still re-reads the page while it lists less than that.
+  // daily like every other page. The lowered surplus stays as a ceiling, but
+  // the page repeats the evidence closing confirmed on day 609, so closing
+  // does not re-read it.
   previous = lowering;
   for (const day of [610, 611]) {
     const run = await census(
@@ -664,8 +667,8 @@ test("Denton confirms a surplus page that falls to its badge at closing and re-r
       previous.terminal,
       previous.vins.length,
     );
-    expect(run.models).toEqual([...models, model]);
-    expect(run.requests).toBe(8 + models.length + 1);
+    expect(run.models).toEqual(models);
+    expect(run.requests).toBe(8 + models.length);
     expect(run.vins).toEqual(native.vins());
     expect(run.warnings.at(-1)).toBe(
       "Denton Read 12 of 12 model pages (daily 12); carried 0.",

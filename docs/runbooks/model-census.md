@@ -112,9 +112,20 @@ one census entry with a count of one (see its runbook).
   publishes it in place of the first read (see its runbook); a re-read at or
   below its badge must still repeat exactly. Calton has no closing pass, so its short pages are
   never confirmed and are re-read on the next run.
+- A page read only because the connector reads every page daily (reason
+  `daily`) skips that re-read when it repeats its last accepted evidence, by
+  the same identity its closing compares (the card hash, Jim's Import's
+  required donors, OEM's card identity, Denton's page fingerprint). `daily`
+  already means that evidence has the same count, a confirmed short page or
+  surplus, and no recheck, so the page repeats one closing confirmed, exactly
+  as a carried page would. A page that changed still goes through closing.
+  Full daily reads take hours, so re-reading every unchanged short or surplus
+  page turned ordinary arrivals into whole-run rejections (Central three times
+  and Jim's Import and OEM once each on November 21 and 22).
 - A page below its count is stored as `confirmed` only when that closing
-  re-read matched in a normal incremental run (an accepted census from the same
-  day or the day before). Cold, gap and outage runs read every page and
+  re-read matched, or the page repeated its confirmed evidence (above), in a
+  normal incremental run (an accepted census from the same day or the day
+  before). Cold, gap and outage runs read every page and
   confirm nothing, so a fault confined to that one day cannot be carried past
   the next run. Any other page below its expected cards is read again on the
   next run.
@@ -143,7 +154,8 @@ on its own.
 - **Model-page connectors, every day:** opening pages, every make menu, every
   model page and the closing pass, the same as that source's cold census. The
   closing pass re-reads every page whose cards differ from its badge or fall
-  below its floor, so pages that stay short cost two GETs a day.
+  below its floor, except an unchanged confirmed page, so a short page costs a
+  second GET only on the day it is first read or changes.
 - **603:** the catalog, about a sixth of the donor articles plus new and
   changed cards, and its closing reads. The day after a missed, failed or
   rejected run it reads every article.

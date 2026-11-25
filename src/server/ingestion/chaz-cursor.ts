@@ -105,13 +105,16 @@ export function chazClosingControls(
       ? []
       : chazCensusPlan(state);
   const mismatched = decisions.length
-    ? ModelCensus.closingReads({
-        controls: chazCensusControls(state.makes),
-        pages: state.pages,
-        decisions,
-        previous: state.previous,
-        cards: chazCards,
-      }).flatMap((index) => {
+    ? ModelCensus.closingReads(
+        {
+          controls: chazCensusControls(state.makes),
+          pages: state.pages,
+          decisions,
+          previous: state.previous,
+          cards: chazCards,
+        },
+        (page) => page.hash,
+      ).flatMap((index) => {
         const value = models[index];
         return value
           ? [

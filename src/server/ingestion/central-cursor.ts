@@ -96,7 +96,10 @@ export function centralClosingControls(
   return [
     { kind: "root", url: CENTRAL_ROOT },
     { kind: "directory", url: CENTRAL_MAKES },
-    ...ModelCensus.closingReads(centralCensusRun(state)).flatMap((index) => {
+    ...ModelCensus.closingReads(
+      centralCensusRun(state),
+      (page) => page.hash,
+    ).flatMap((index) => {
       const entry = models[index];
       return entry
         ? [

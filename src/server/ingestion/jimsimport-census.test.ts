@@ -326,11 +326,13 @@ test("Jim's Import reads every model page on every incremental run and reads cou
     { ...before, records: before.records.slice(1) },
     before.records.length - 1,
   );
+  // The mismatched pages repeat their confirmed evidence, so closing skips
+  // them.
   const third = await census(native, 602, next.terminal);
   expectFullRead(
     third,
     ALL.map((i) => (i === changed ? "count" : "daily")),
-    MISMATCHED,
+    [],
   );
   expect(third.vins).toEqual(native.vins());
   expect(third.vins).not.toContain(sold.vin);
@@ -385,8 +387,10 @@ test("Jim's Import reads a model whose donor was crushed and replaced under an u
     })[model]?.kind,
   ).toBe("carry");
   // Daily reads read it, publish the arrival and drop the crushed donor.
+  // The swapped page matches its badge, so closing does not re-read it, and
+  // every confirmed mismatched page repeats its evidence.
   const swapped = await census(native, 602, accepted.terminal);
-  expectFullRead(swapped, DAILY, MISMATCHED);
+  expectFullRead(swapped, DAILY, []);
   expect(swapped.vins).toEqual(native.vins());
   expect(swapped.vins).toContain(arrived.vin);
   expect(swapped.vins).not.toContain(gone.vin);
@@ -408,12 +412,12 @@ test("Jim's Import reads every model on every run, even across missed runs", asy
     // confirms no short page and no surplus. Day 604 is the first normal
     // incremental run: it reads the short and surplus pages as short, its
     // closing re-reads them, and those confirmations are stored. Later days
-    // read every page daily; closing still re-reads each page whose cards
-    // differ from its badge.
+    // read every page daily; each mismatched page repeats its confirmed
+    // evidence, so closing re-reads none.
     expectFullRead(
       run,
       day === 603 ? ALL.map(() => "gap") : day === 604 ? AFTER_FULL : DAILY,
-      MISMATCHED,
+      day <= 604 ? MISMATCHED : [],
     );
     expect(run.vins).toEqual(native.vins());
     expect(evidenceOf(run.terminal).every((m) => m.readDay === day)).toBe(true);
@@ -524,7 +528,7 @@ test("Jim's Import fails a run whose read cards fall short of today's badges", a
   expect(urls.at(-1)).toBe(PATHS.at(-1));
 }, 120_000);
 
-test("Jim's Import confirms short pages at closing and still reads them every run", async () => {
+test("Jim's Import confirms short pages at closing, still reads them every run and skips their re-read while they repeat", async () => {
   const native = yard();
   // Badges are not card counts here: only pages with fewer cards than their
   // badge (the explicit-empty SUBARU_PASS. at badge 1) are short.
@@ -550,11 +554,10 @@ test("Jim's Import confirms short pages at closing and still reads them every ru
   expect(terminal.census.models[model]?.readDay).toBe(601);
   const day = 602;
   // Confirmed short evidence is never carried: the page is read again as a
-  // daily read, and closing re-reads it because it still lists fewer cards
-  // than its badge.
+  // daily read. Its required donors repeat its confirmed evidence, so
+  // closing skips it, and every confirmed surplus page likewise.
   const daily = await census(native, day, confirming.terminal);
-  expectFullRead(daily, DAILY, MISMATCHED);
-  expect(daily.rereads).toContain(model);
+  expectFullRead(daily, DAILY, []);
   expect(confirmed(daily.terminal)).toEqual(SHORT);
   expect(unconfirmedSurplus(daily.terminal)).toEqual([]);
   expect(evidenceOf(daily.terminal)[model]?.readDay).toBe(day);
@@ -570,11 +573,13 @@ test("Jim's Import confirms short pages at closing and still reads them every ru
       ),
     },
   });
+  // Read as short, it is re-read at closing again; the confirmed surplus
+  // pages, read daily and unchanged, are not.
   const reread = await census(native, day, unconfirmed);
   expectFullRead(
     reread,
     ALL.map((i) => (i === model ? "short" : "daily")),
-    MISMATCHED,
+    [model],
   );
   expect(reread.vins).toEqual(native.vins());
   expect(unconfirmedSurplus(reread.terminal)).toEqual([]);
@@ -706,17 +711,17 @@ test("Jim's Import re-reads a surplus page that lost donors down to its badge", 
 
   // Daily normal incremental runs read every page. This one reads as short
   // and is re-read at closing until the sixth day after the drop lowers its
-  // surplus to the badge. From then on it is a daily read, and closing keeps
-  // re-reading it against the lowered surplus, kept as a ceiling for twelve
-  // run days, so a one-off fault behind the old surplus still fails the run.
+  // surplus to the badge. From then on it is a daily read. The lowered
+  // surplus stays as a ceiling for twelve run days, but the page repeats the
+  // evidence the lowering run's closing confirmed, so closing skips it. The
+  // other mismatched pages, confirmed on day 601, repeat too.
   let previous = dropped.terminal;
   for (let today = day + 1; today <= day + 7; today++) {
     const reasons = ALL.map((i) =>
       i === model && today <= day + 6 ? "short" : "daily",
     );
     const run = await census(native, today, previous);
-    expectFullRead(run, reasons, MISMATCHED);
-    expect(run.rereads).toContain(model);
+    expectFullRead(run, reasons, today <= day + 6 ? [model] : []);
     expect(run.vins).toEqual(native.vins());
     for (const vin of gone) expect(run.vins).not.toContain(vin);
     expect(confirmed(run.terminal)).toEqual(SHORT);
@@ -736,7 +741,7 @@ test("Jim's Import re-reads a surplus page that lost donors down to its badge", 
           }
         : // lowSince + 6: the normal incremental run lowers the surplus, and
           // with none left the badge-sized page is its own expectation. The
-          // old surplus stays as the ceiling closing re-reads it against.
+          // old surplus stays as a ceiling.
           {
             readDay: today,
             expected: badge,

@@ -444,11 +444,12 @@ test("Northwest confirms a model read with fewer cards than its badge at closing
     Array.from({ length: 12 }, (_, i) => i === 3),
   );
 
-  // A confirmed short page is still read the next day (reason daily) and,
-  // still below its badge, re-read at closing and confirmed again.
+  // A confirmed short page is still read the next day (reason daily). It
+  // repeats its confirmed evidence, so closing skips its re-read and it stays
+  // confirmed.
   const again = await census(native, 602, confirming.terminal);
-  expect(again.models).toEqual([...every, 3]);
-  expect(again.requests).toBe(18);
+  expect(again.models).toEqual(every);
+  expect(again.requests).toBe(17);
   expect(again.vins).toEqual(allVins(native));
   expect(again.warnings.at(-1)).toBe(
     summary(
@@ -776,10 +777,11 @@ test("Northwest re-reads a surplus page that lost cards down to exactly its badg
     });
     terminal = run.terminal;
   }
-  // Once lowered, the page is no longer short and is read as daily, but it
-  // still lists fewer than its count plus the ceiling, so closing re-reads it.
+  // Once lowered, the page is no longer short and is read as daily. It still
+  // lists fewer than its count plus the ceiling, but repeats the evidence the
+  // lowering run's closing confirmed, so closing does not re-read it.
   const after = await census(native, day + 7, terminal);
-  expect(after.models).toEqual([...every, 3]);
+  expect(after.models).toEqual(every);
   expect(after.vins).toEqual(allVins(native));
   expect(after.warnings.at(-1)).toBe(
     summary(

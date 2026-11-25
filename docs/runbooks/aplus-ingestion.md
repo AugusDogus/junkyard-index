@@ -91,11 +91,13 @@ pages, the 97% replay floor and the outage path. A Plus specifics:
   model counts matched model cards exactly in every observed census (1,133 of
   1,133 on 210 models).
 - Closing confirms short pages on normal incremental runs. A confirmed short
-  page is still read on the next run (`daily`) and re-read at closing, so a
-  change on it stops emission.
+  page is still read on the next run (`daily`). Closing skips it while it
+  repeats its confirmed evidence and re-reads it once it changes, so a change
+  on it stops emission.
 - With the November 12 graph (35 makes, 232 models), every run (cold, gap or
   incremental) costs 270 opening GETs (38 fixed opening GETs and 232 model
-  pages) plus two closing GETs and one closing re-read per short page.
+  pages) plus two closing GETs and one closing re-read per short page that is
+  new, unconfirmed or changed.
 
 Chunks perform at most eight serial GETs under a three-minute deadline.
 Each request and complete body share a 20-second deadline. Transport waits

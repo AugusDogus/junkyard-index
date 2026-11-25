@@ -447,8 +447,8 @@ test("Chaz confirms a persistently short model page at closing and keeps reading
   // identically at closing, so the run passes. Only a normal incremental run
   // confirms it: the cold run does not, so D + 1 reads it again (short) and
   // re-reads it at closing. From then on the confirmed page is read like every
-  // other (daily), and still re-read at closing because it lists fewer cards
-  // than its badge, so a dead route costs one closing GET a day.
+  // other (daily). It repeats its confirmed evidence, so closing no longer
+  // re-reads it and a dead route costs no closing GET.
   const native = yard();
   native.rows.set(12, donors(12, 8));
   native.outages.add(12);
@@ -473,8 +473,8 @@ test("Chaz confirms a persistently short model page at closing and keeps reading
   for (let day = D + 2; day <= D + 8; day++) {
     const run = await census(native, day, previous);
     const expected = reads(thirteen, []);
-    expect(run.models).toEqual([...thirteen, 12]);
-    expect(run.requests).toBe(6 + 13 + 1);
+    expect(run.models).toEqual(thirteen);
+    expect(run.requests).toBe(6 + 13);
     expect(run.warnings.at(-1)).toBe(summary(13, expected));
     expect(run.vins).toEqual(live());
     previous = run.terminal;
@@ -635,13 +635,14 @@ test("Chaz fails a Nov 18 run whose lightest slice lists one card per model whil
   expect(cold.requests).toBe(282);
   expect(cold.vins).toHaveLength(1107);
 
-  // Healthy daily runs to D + 4, each a full read at the cold run's cost. D + 1
-  // reads the two dead `&` routes as short (the cold run confirmed nothing);
-  // from D + 2 every page is read as daily.
+  // Healthy daily runs to D + 4, each a full read. D + 1 reads the two dead
+  // `&` routes as short (the cold run confirmed nothing) and re-reads them at
+  // closing; from D + 2 every page is read as daily, and the confirmed dead
+  // routes repeat their evidence, so closing skips them.
   let previous = cold.terminal;
   for (let d = D + 1; d < D + 5; d++) {
     const run = await census(native, d, previous);
-    expect(run.requests).toBe(282);
+    expect(run.requests).toBe(d === D + 1 ? 282 : 280);
     expect(run.warnings.at(-1)).toBe(
       d === D + 1
         ? "Chaz Read 240 of 240 model pages (daily 238, short 2); carried 0."
@@ -666,7 +667,7 @@ test("Chaz fails a Nov 18 run whose lightest slice lists one card per model whil
   native.cut.clear();
   const retry = await census(native, day, previous);
   expect(retry.vins).toEqual(cold.vins);
-  expect(retry.requests).toBe(282);
+  expect(retry.requests).toBe(280);
   expect(retry.warnings.at(-1)).toBe(
     "Chaz Read 240 of 240 model pages (daily 240); carried 0.",
   );
@@ -680,7 +681,9 @@ test("Chaz keeps rejecting a slice cut to one card per model on every retry with
   let previous = (await census(native, D, null)).terminal;
   for (let day = D + 1; day <= D + 10; day++) {
     const run = await census(native, day, previous);
-    expect(run.requests).toBe(282);
+    // The dead `&` routes are re-read at closing only on D + 1, when they are
+    // read as short and confirmed.
+    expect(run.requests).toBe(day === D + 1 ? 282 : 280);
     expect(run.vins).toHaveLength(1107);
     previous = run.terminal;
   }
@@ -707,7 +710,7 @@ test("Chaz keeps rejecting a slice cut to one card per model on every retry with
   native.cut.clear();
   const retry = await census(native, day, previous);
   expect(retry.vins).toHaveLength(1107);
-  expect(retry.requests).toBe(282);
+  expect(retry.requests).toBe(280);
   expect(retry.warnings.at(-1)).toBe(
     "Chaz Read 240 of 240 model pages (daily 240); carried 0.",
   );
@@ -746,18 +749,18 @@ test("Chaz rejects a slice cut to one card per model after a missed run", async 
   );
 }, 300_000);
 
-test("Chaz re-reads a surplus model page that loses a donor down to its badge, at closing and on every run until the surplus lowers", async () => {
+test("Chaz re-reads a surplus model page that loses a donor down to its badge, at closing and on every run until the surplus lowers, and skips unchanged confirmed reads", async () => {
   // A badge of 40 whose page lists 41 (a placeholder or surplus row). The cold
   // run sees the surplus unconfirmed, so the first incremental run reads it
-  // again (reason short) and confirms it. Every daily read of it lists 41,
-  // other than its badge, so closing re-reads it each day. Losing a real donor
+  // again (reason short) and confirms it. Each later daily read lists the same
+  // 41 cards as that confirmed evidence, so closing skips it. Losing a real donor
   // later leaves exactly 40 cards: equal to the badge, but below the 41 last
   // accepted under that badge, so closing re-reads it. The surplus is sticky:
   // one lower read is not the new truth. The page stays expected at 41 and is
   // read as short (and re-read at closing) on every run until a normal
   // incremental run reads it six days after the first lower read, which
-  // lowers the surplus and keeps it as a ceiling. Reads below that ceiling
-  // are still re-read at closing until it expires twelve run days later.
+  // lowers the surplus and keeps it as a ceiling. Daily reads that repeat that
+  // lowered evidence are not re-read at closing, ceiling or not.
   const native = yard();
   const twelve = ids(12);
   const model = 3;
@@ -798,6 +801,13 @@ test("Chaz re-reads a surplus model page that loses a donor down to its badge, a
     expect(run.warnings.at(-1)).toBe(summary(12, expected));
     expect(run.vins).toEqual(allVins(native));
   };
+  /** A daily run that read every model once and re-read none at closing. */
+  const dailyRead = (run: Awaited<ReturnType<typeof census>>) => {
+    expect(run.models).toEqual(twelve);
+    expect(run.requests).toBe(6 + 12);
+    expect(run.warnings.at(-1)).toBe(summary(12, reads(twelve, [])));
+    expect(run.vins).toEqual(allVins(native));
+  };
   native.rows.set(model, donors(model, 41));
   native.surplus.set(model, 1);
   const cold = await census(native, D, null);
@@ -826,15 +836,17 @@ test("Chaz re-reads a surplus model page that loses a donor down to its badge, a
     surplusConfirmed: true,
     confirmed: false,
   });
-  // A confirmed surplus page is read daily and still re-read at closing.
+  // A confirmed surplus page is read daily; while it repeats its evidence,
+  // closing does not re-read it.
   let previous = confirm.terminal;
   for (let day = D + 2; day < D + offset; day++) {
     const run = await census(native, day, previous);
-    closingRead(run, reads(twelve, []));
+    dailyRead(run);
     previous = run.terminal;
   }
   native.rows.set(model, donors(model, 40));
   native.surplus.delete(model);
+  // Its cards changed, so closing re-reads it.
   const dropped = await census(native, D + offset, previous);
   closingRead(dropped, reads(twelve, []));
   // The lower read keeps the surplus and opens its low window.
@@ -878,21 +890,14 @@ test("Chaz re-reads a surplus model page that loses a donor down to its badge, a
     );
     previous = run.terminal;
   }
-  // From then on the lowered page is read daily, and closing re-reads it
-  // below its ceiling until the ceiling expires twelve run days after it was
-  // set (closing on the expiry day still uses the previous evidence's
-  // ceiling, which that run then drops). After that it costs only its daily
-  // read.
+  // From then on the lowered page is read daily. It repeats the evidence
+  // closing confirmed on the lowering day, so closing skips it while the
+  // ceiling stands, until the ceiling expires twelve run days after it was
+  // set.
   const expires = lowered + 2 * MODEL_CENSUS_SWEEP_DAYS;
   for (let day = lowered + 1; day <= expires + 2; day++) {
     const run = await census(native, day, previous);
-    if (day <= expires) closingRead(run, reads(twelve, []));
-    else {
-      expect(run.models).toEqual(twelve);
-      expect(run.requests).toBe(6 + 12);
-      expect(run.warnings.at(-1)).toBe(summary(12, reads(twelve, [])));
-      expect(run.vins).toEqual(allVins(native));
-    }
+    dailyRead(run);
     expect(evidence(run.terminal)).toEqual({
       count: 40,
       expected: 40,

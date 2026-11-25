@@ -16,6 +16,7 @@ import {
   jimsimportCensusPlan,
   jimsimportClosingModels,
   jimsimportCoverageError,
+  jimsimportRequiredDonors,
   type JimsimportCensus,
 } from "./jimsimport-cursor";
 import {
@@ -83,16 +84,6 @@ function stateOf<T extends { checksum: string }>(
   void checksum;
   return state;
 }
-/** Required donor fingerprint of a model page. Optional images may change to
- * null between reads without changing it. */
-const requiredDonors = (page: JimsimportPage) =>
-  jimsimportHash({
-    ...page,
-    records: page.records.map(({ image, ...required }) => {
-      void image;
-      return required;
-    }),
-  });
 /** Appends carried pages up to the next due read. A complete model list must
  * cover today's badges and is validated as a whole snapshot (read and carried
  * pages) before closing. */
@@ -337,7 +328,10 @@ export function streamJimsimportInventory<E, R>(
               throw new Error(
                 `Checkpoint has no opening read for closing model ${closingModel.model.path}, so it is inconsistent; restart the crawl from its opening`,
               );
-            if (requiredDonors(opened) !== requiredDonors(closing))
+            if (
+              jimsimportRequiredDonors(opened) !==
+              jimsimportRequiredDonors(closing)
+            )
               throw transientRejection(
                 new Error(
                   `Native required donors on ${closingModel.model.path} changed during closing (opening ${opened.records.length} cards, closing ${closing.records.length}, badge ${closingModel.model.count}); its short opening page was not confirmed`,
