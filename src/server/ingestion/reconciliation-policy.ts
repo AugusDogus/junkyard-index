@@ -168,6 +168,28 @@ function vehicleNeedsUpsert(
 }
 
 /**
+ * Whether upserting `next` over `existing` must set the columns an index on
+ * vehicle covers: a new vehicle, a change to one of them, or a missing
+ * vehicle coming back (which clears its missing marks). Otherwise the upsert
+ * leaves them as stored, which saves rewriting about 10 index entries.
+ */
+export function upsertSetsIndexedColumns(
+  existing: ExistingVehicle | undefined,
+  next: CanonicalVehicle,
+): boolean {
+  return (
+    !existing ||
+    existing.source !== next.source ||
+    existing.make !== next.make ||
+    existing.model !== next.model ||
+    existing.locationCode !== next.locationCode ||
+    existing.stateAbbr !== next.stateAbbr ||
+    existing.missingSinceAt !== null ||
+    existing.missingRunCount !== 0
+  );
+}
+
+/**
  * Runs reconcile only their own sources, so a VIN another source still lists
  * keeps the higher-priority listing. The owner's own runs retire it when it
  * stops listing the VIN; until then a lower-priority source cannot take it.

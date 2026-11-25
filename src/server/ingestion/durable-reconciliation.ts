@@ -36,6 +36,7 @@ import {
   planChangedVehicleUpserts,
   planMissingVehicleTransitions,
   RELIST_WINDOW_MS,
+  upsertSetsIndexedColumns,
 } from "./reconciliation-policy";
 import {
   forgetRunSnapshotInventory,
@@ -234,9 +235,31 @@ function toVehicleValues(params: {
   ];
 }
 
+/**
+ * Columns an index on vehicle covers, as the upsert sets them. SQLite rewrites
+ * an index's entry for every column in SET, even one set to its own value,
+ * and Turso bills each entry as a row written: setting these on a vehicle
+ * whose listing changed only elsewhere (photo, stock number, location name)
+ * cost about 10 writes instead of 2.
+ */
+const INDEXED_VEHICLE_SET = `
+        source = excluded.source,
+        make = excluded.make,
+        model = excluded.model,
+        location_code = excluded.location_code,
+        state_abbr = excluded.state_abbr,
+        missing_since_at = null,
+        missing_run_count = 0,`;
+
+/**
+ * Inserts new vehicles and updates changed ones. `set` "indexed" also sets
+ * the indexed columns; "unindexed" is for live vehicles whose indexed
+ * columns stay as stored (see `upsertSetsIndexedColumns`).
+ */
 function vehicleUpsertStatement(params: {
   runId: string;
   cursor: string | null;
+  set: "indexed" | "unindexed";
   rows: Array<{
     vehicle: CanonicalVehicle;
     firstSeenAt: Date;
@@ -268,22 +291,17 @@ function vehicleUpsertStatement(params: {
       select ${columns}
       from (values ${placeholders})
       where ${guardSql("reconcile_upsert")}
-      on conflict(vin) do update set
-        source = excluded.source,
+      on conflict(vin) do update set${params.set === "indexed" ? INDEXED_VEHICLE_SET : ""}
         year = excluded.year,
-        make = excluded.make,
-        model = excluded.model,
         source_make = excluded.source_make,
         source_model = excluded.source_model,
         color = excluded.color,
         stock_number = excluded.stock_number,
         image_url = excluded.image_url,
         available_date = excluded.available_date,
-        location_code = excluded.location_code,
         location_name = excluded.location_name,
         location_city = excluded.location_city,
         state = excluded.state,
-        state_abbr = excluded.state_abbr,
         lat = excluded.lat,
         lng = excluded.lng,
         section = excluded.section,
@@ -295,9 +313,7 @@ function vehicleUpsertStatement(params: {
         engine = excluded.engine,
         trim = excluded.trim,
         transmission = excluded.transmission,
-        last_seen_at = excluded.last_seen_at,
-        missing_since_at = null,
-        missing_run_count = 0
+        last_seen_at = excluded.last_seen_at
     `,
     args: [
       ...params.rows.flatMap(toVehicleValues),
@@ -603,15 +619,24 @@ async function runUpsertBatch(
     now,
   });
   if (changes) statements.push(changes);
-  const upserts = vehicleUpsertStatement({
-    runId: params.runId,
-    cursor: params.cursor,
-    rows: changed.map((entry) => ({
-      ...entry,
-      runTimestamp: params.runTimestamp,
-    })),
-  });
-  if (upserts) statements.push(upserts);
+  const existingByVin = new Map(
+    existingRows.map((row) => [row.vin, row] as const),
+  );
+  for (const set of ["indexed", "unindexed"] as const) {
+    const upserts = vehicleUpsertStatement({
+      runId: params.runId,
+      cursor: params.cursor,
+      set,
+      rows: changed
+        .filter(
+          ({ vehicle: next }) =>
+            upsertSetsIndexedColumns(existingByVin.get(next.vin), next) ===
+            (set === "indexed"),
+        )
+        .map((entry) => ({ ...entry, runTimestamp: params.runTimestamp })),
+    });
+    if (upserts) statements.push(upserts);
+  }
   const wasMissing = new Set(
     existingRows
       .filter((row) => row.missingSinceAt !== null)
