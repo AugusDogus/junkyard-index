@@ -195,6 +195,40 @@ describe("durable ingestion repository", () => {
     }
   });
 
+  test("starts AutoRecycler after Ario's morning import and re-plans the pass for it", async () => {
+    const testDatabase = createTestClient();
+    const { client } = testDatabase;
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const repository = createDurableIngestionRepository(
+        drizzle(client),
+        client,
+        IngestionSnapshotStore.memory(),
+      );
+      const early = await repository.prepareWakeup(
+        new Date("2026-11-25T07:00:30.000Z"),
+        ["pyp", "autorecycler"],
+      );
+      const pyp = startedRun(early);
+      expect((await repository.getRun(pyp)).source).toBe("pyp");
+      expect(early).toMatchObject({
+        status: "active",
+        retryAt: Date.parse("2026-11-25T09:15:00.000Z"),
+      });
+      const autorecycler = startedRun(
+        await repository.prepareWakeup(new Date("2026-11-25T09:15:00.000Z"), [
+          "pyp",
+          "autorecycler",
+        ]),
+      );
+      expect((await repository.getRun(autorecycler)).source).toBe(
+        "autorecycler",
+      );
+    } finally {
+      testDatabase.cleanup();
+    }
+  });
+
   test("makes the first v2 ingestion a full reindex without mutating legacy runs", async () => {
     const testDatabase = createTestClient();
     const { client } = testDatabase;

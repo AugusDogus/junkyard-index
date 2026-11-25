@@ -10,6 +10,20 @@ The saved 32-yard opening plus CFC yields 3,295 opening items across all 33 yard
 The full run uses 33 rank windows, one closing check and three discovery/directory
 requests, 37 total with eleven requests below the 48/hour cap.
 
+## Daily start (November 25)
+
+AutoRecycler's first daily attempt starts at 09:15 UTC; every other source
+still starts at 07:00. Ario imports the Ez Pull N Pay and Foss yards at 08:30
+to 08:52 UTC, so a 07:00 crawl published those arrivals a day late (about 2.5
+days after placement instead of 1.5). The other Ario yards sync later in the day
+(mostly 17:00 to 20:30 UTC) and are read the next morning either way. Retries keep the usual
+two-hour cooldown and never start before 09:15.
+
+Preserved yards (undated legacy yards and quarantined Ario yards) keep their
+inventory only within 7 days of their last accepted yard publication. A
+preserved yard with no publication date releases at once, so its unlisted cars
+go missing and depart.
+
 ## November 18 failure isolation
 
 The November 18 production runs did not reconcile AutoRecycler. The 07:00 and
