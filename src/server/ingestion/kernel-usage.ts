@@ -26,13 +26,16 @@ export const KERNEL_USD_PER_SECOND: Readonly<
  * browsers, by source. The organization's $5 monthly credit is shared with
  * the unmetered Big D, Northwest, Vander Haags and U Pull It Davie (about
  * $0.94 a month together), so the metered budgets stay within about $4: U
- * Pull R Parts may spend at most $3.30 of it (a healthy month is $0.60 to
- * $0.95) and 603 $0.60 (a warm month is about $0.30, and each cold census
- * after a missed or failed run adds about $0.05), whatever their crawls cost.
+ * Pull R Parts may spend at most $2.10 of it (a healthy month is $0.60 to
+ * $0.95), 603 $0.60 (a warm month is about $0.30, and each cold census after
+ * a missed or failed run adds about $0.05) and City Motors $1.20 (a full
+ * census costs about $0.01 to $0.04, depending on how many donor pages the
+ * origin's cache holds), whatever their crawls cost.
  */
 export const KERNEL_MONTHLY_BUDGET_USD = {
-  upullrparts: 3.3,
+  upullrparts: 2.1,
   six03: 0.6,
+  citymotors: 1.2,
 } as const satisfies Partial<Record<KernelSource, number>>;
 export type MeteredKernelSource = keyof typeof KERNEL_MONTHLY_BUDGET_USD;
 
@@ -41,6 +44,7 @@ export type MeteredKernelSource = keyof typeof KERNEL_MONTHLY_BUDGET_USD;
 const KERNEL_DAY_CRAWL_COST: Readonly<Record<MeteredKernelSource, string>> = {
   upullrparts: "about $0.03",
   six03: "about $0.01, or about $0.05 for a cold census",
+  citymotors: "about $0.01 to $0.04",
 };
 
 /**
@@ -49,11 +53,13 @@ const KERNEL_DAY_CRAWL_COST: Readonly<Record<MeteredKernelSource, string>> = {
  * retry a bad day needs, while a crawl stuck failing cannot spend the month's
  * budget in a few days. A warm 603 day costs about $0.01 and a cold census
  * (every donor article) about $0.05, so $0.15 fits a cold census with every
- * chunk retried.
+ * chunk retried. A City Motors census costs up to about $0.04 when the
+ * origin's cache holds few donor pages, so $0.15 fits three such attempts.
  */
 export const KERNEL_DAILY_BUDGET_USD = {
   upullrparts: 0.25,
   six03: 0.15,
+  citymotors: 0.15,
 } as const satisfies Record<MeteredKernelSource, number>;
 
 /** The longest a chunk's browser can bill: the chunk ends within its wall

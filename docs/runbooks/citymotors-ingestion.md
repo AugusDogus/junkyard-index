@@ -65,8 +65,9 @@ engine, trim and transmission remain null. Optional fields never repair identity
 one serial native GET. The connector default is eight, with a 32-request
 ceiling. Durable ingestion runs three GETs per chunk so three worst-case
 requests fit the three-minute chunk limit and catalog progress is checkpointed
-every three pages. The qualified census needs 203 GETs: six opening pages, 191
-details, six closing pages. A three-request chunking completes in 68 chunks.
+every three pages. The qualified census needed 203 GETs: six opening pages, 191
+details, six closing pages. Production censuses in November 2026 need 213 GETs
+(seven opening pages, 199 details, seven closing pages), 71 chunks.
 
 The cursor phases are `catalog`, `details`, `closing` and `complete`. Contiguous
 literal page links, page numbers, complete card counts, unique destinations,
@@ -94,16 +95,52 @@ checkpoint as paused and logs a warning naming the URL and cause, and one that
 has not fails without advancing. Prior accepted inventory remains preserved. A
 complete cursor performs no HTTP or callbacks when replayed.
 
-Requests use normal HTTPS, manual redirects, a combined 45-second
-request/body deadline and a 2 MiB document limit. The origin can take 12 to 14
-seconds to first byte, so the earlier 20-second budget failed whole chunks.
-Responses must be complete, unredirected HTTP 200 HTML, without content ranges.
+Requests use manual redirects, a combined 45-second request/body deadline and
+a 2 MiB document limit. The origin can take 12 to 14 seconds to first byte for
+a page its cache does not hold, so the earlier 20-second budget failed whole
+chunks, and a 28-second budget failed one donor page twice in a soak. The
+chunk browser's own document timeout is 50 seconds, so a slow page ends on the
+45-second budget as a transient failure that may be sent once more. Responses
+must be complete, unredirected HTTP 200 HTML, without content ranges. A
+refusal that Cloudflare marks with `cf-mitigated: challenge` says so in the
+error.
 The entire chunk has a three-minute limit. Before each GET the connector pauses
 at the current checkpoint unless one full request budget, its 1,600 ms gap and
 a 10-second completion reserve for census validation and callbacks still fit
 that limit. A 1,600 ms finalizer delay follows success and failure,
 including serialized chunk boundaries. No images, scripts, carts or forms are
 requested.
+
+## Cloudflare and the Kernel browser
+
+The site is behind Cloudflare. Since November 22, 2026 production runs failed
+on timeouts, an HTTP 429, a "fetch failed" and, from November 25, an HTTP 403
+on the first catalog GET. A request from a Vercel Sandbox (AWS egress, the same
+network as the ingestion functions) on November 25 got HTTP 403 with
+`cf-mitigated: challenge` and Cloudflare's "Just a moment..." page for the
+catalog and for `/wp-json/`, with the connector's headers and with full Chrome
+headers alike. Cloudflare challenges the datacenter network itself, so no
+header, endpoint or request-count change can pass it. The WordPress REST API
+does not expose the `/cars/` donor posts either.
+
+Every chunk therefore reads through one Kernel browser (headless, stealth,
+direct egress, `BROWSER_PROVIDERS`). It first navigates to
+`https://citymotorsparts.com/cdn-cgi/trace`, which Cloudflare's edge answers
+in about 0.2 seconds without reaching the site, then reads every document by
+same-origin fetch, loading no subresource that reaches the site
+(`DocumentTransport.acquireBrowser`, `{ fetchAfter }`, `none`). The landing
+matters for cost: the origin's LiteSpeed cache keeps a separate copy per
+Accept header, so a browser navigation to a donor page that the in-page reads
+had cached took 10.3 seconds (a cache miss and a full WordPress render) where
+the in-page read took 0.4. The browser
+opens on the chunk's first GET under the Kernel session lease and is deleted
+when the chunk ends. Time waiting for the lease counts against neither the GET
+budget nor the three-minute limit. A busy lease, the plan's concurrent browser
+limit or a spent City Motors cap defers the chunk, which retries its cursor.
+
+City Motors is metered against its own Kernel caps (`kernel-usage.ts`):
+$0.15 a UTC day and $1.20 a month. A census costs about $0.01 to $0.04 of Kernel
+time, depending on how many donor pages the origin's cache holds.
 
 ## Saved verification
 

@@ -274,6 +274,7 @@ function soakBrowserProvider(source: IngestionSource): BrowserProvider | null {
     case "upullitdavie":
     case "upullrparts":
     case "six03":
+    case "citymotors":
     case "michigantruck":
       return BROWSER_PROVIDERS[source];
     default:
@@ -1092,7 +1093,7 @@ async function main(): Promise<void> {
                   streamCitymotorsInventory({ startCursor, maxPages, onBatch }),
                 ),
               config.maxPages,
-            );
+            ).finally(logKernelUsage("citymotors"));
           case "awap":
             return soakAwapInventory(
               (startCursor, maxPages) =>

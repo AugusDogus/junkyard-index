@@ -3,8 +3,8 @@
 Sources whose sites refuse the deployment's egress read their documents
 through a remote browser. Kernel (kernel.sh) is the long-term provider.
 Hyperbrowser's free credits were a one-time grant and will run out, so every
-live browser source opens Kernel browsers since November 23, 2026, and 603
-since November 24. Only the retired Michigan Truck is still set to
+live browser source opens Kernel browsers since November 23, 2026, 603
+since November 24 and City Motors since November 25. Only the retired Michigan Truck is still set to
 Hyperbrowser, and it stays available as a one-line fallback for any source.
 
 | Provider     | Sessions module                                 | Key                               | Concurrency                                           | Lease group    |
@@ -24,8 +24,9 @@ so a value that is not a whole number from 1 to 999 fails the build.
 
 All sources are chosen in `BROWSER_PROVIDERS` in `browser-providers.ts`. U
 Pull R Parts' Kernel browsers are headful on the stealth proxy. U Pull R
-Parts and 603 are [metered](#metered-sources) against their own daily and
-monthly Kernel caps; moved to Hyperbrowser, they would run without those caps.
+Parts, 603 and City Motors are [metered](#metered-sources) against their own
+daily and monthly Kernel caps; moved to Hyperbrowser, they would run without
+those caps.
 
 | Source               | Page driven by                                    | Provider                                |
 | -------------------- | ------------------------------------------------- | --------------------------------------- |
@@ -34,6 +35,7 @@ monthly Kernel caps; moved to Hyperbrowser, they would run without those caps.
 | Vander Haags         | `vanderhaags-browser-session.ts`                  | Kernel                                  |
 | U Pull It Davie      | `upullit-davie-browser-session.ts`                | Kernel                                  |
 | 603 Auto Salvage     | `DocumentTransport` (navigation, then fetch)      | Kernel, metered                         |
+| City Motors          | `DocumentTransport` (edge landing, then fetch)    | Kernel, metered                         |
 | Michigan Truck Parts | `DocumentTransport` (retired: paused and hidden)  | Hyperbrowser                            |
 | U Pull R Parts       | its Turnstile minter (`upullrparts-turnstile.ts`) | Kernel, headful, stealth proxy, metered |
 
@@ -164,7 +166,7 @@ spend and caps are in [Kernel spend](upullrparts-ingestion.md#kernel-spend).
 
 ### Metered sources
 
-U Pull R Parts and 603 open their Kernel browsers through
+U Pull R Parts, 603 and City Motors open their Kernel browsers through
 `DocumentTransport.meteredSourceSessions`, which records each browser in
 `kernel_browser_usage` (from before its create to its delete) and refuses a
 create, deferring the chunk without a request to Kernel, once the source's
@@ -176,8 +178,9 @@ in `source_control`), stays on Hyperbrowser and has no Kernel cap.
 
 | Source         | Mode     | Daily cap | Monthly cap | Normal day                         |
 | -------------- | -------- | --------: | ----------: | ---------------------------------- |
-| U Pull R Parts | headful  |     $0.25 |       $3.30 | about $0.02 to $0.03               |
+| U Pull R Parts | headful  |     $0.25 |       $2.10 | about $0.02 to $0.03               |
 | 603            | headless |     $0.15 |       $0.60 | about $0.01 warm, about $0.05 cold |
+| City Motors    | headless |     $0.15 |       $1.20 | about $0.01 to $0.04               |
 
 A count-only soak of 603 on Kernel from a workstation on November 24, 2026,
 with direct egress, as recorded by the soak's local `kernel_browser_usage`:
@@ -189,6 +192,17 @@ with direct egress, as recorded by the soak's local `kernel_browser_usage`:
 It matches 603's last accepted production run (November 23: 973). The first
 603 run after a gap of more than a day is a cold census (every donor
 article); later days carry unchanged articles and read about 170 documents.
+
+City Motors reads its whole census (213 GETs in November 2026) every day. Most
+of a census's browser time is the origin rendering donor pages its LiteSpeed
+cache does not hold, about 10 seconds each; cached pages take under half a
+second. Two count-only soaks on November 25, 2026 did not complete, because
+the origin itself stopped answering some donor pages (one page did not answer
+a plain workstation request within 120 seconds either); Cloudflare refused
+none of their browser reads. The first, before the edge landing, spent
+$0.0335 in 30 browsers; the second spent $0.0360 in 45 browsers, most of it
+waiting on those pages. A census on a healthy origin is estimated at about
+$0.01 (cached) to $0.04 (uncached).
 
 To check a metered source's spend: `select sum((coalesce(ended_at, started_at + 420000) - started_at) / 1000.0) * 0.0000166667 from kernel_browser_usage where source = '<source>' and started_at >= <start of the day or month, ms>`
 (use 0.0001333 for U Pull R Parts, which runs headful).

@@ -59,8 +59,17 @@ export type DocumentTransport = (
 
 /** `navigation` loads every document as a top-level page load. `fetch` loads
  * the first document on an origin by navigation, then uses same-origin
- * in-page fetch for later documents on that origin. */
-export type BrowserDocumentMode = "navigation" | "fetch";
+ * in-page fetch for later documents on that origin. `{ fetchAfter }` is
+ * `fetch` that, on a new origin, first navigates to the `fetchAfter` URL on
+ * that origin and then reads every document, the first included, by in-page
+ * fetch. Use it with a URL that is cheap to load and never reaches the site,
+ * such as Cloudflare's edge-only `/cdn-cgi/trace`, when a site caches pages
+ * per Accept header, so a navigation's browser Accept would miss the cache
+ * the in-page reads share. */
+export type BrowserDocumentMode =
+  | "navigation"
+  | "fetch"
+  | { readonly fetchAfter: string };
 
 interface BrowserNavigationRequest {
   redirectedFrom(): BrowserNavigationRequest | null;
@@ -104,7 +113,11 @@ export interface BrowserDocumentPage {
   ): Promise<InPageDocument>;
 }
 
-const BROWSER_REQUEST_TIMEOUT_MS = 30_000;
+/** How long a browser navigation or in-page fetch may take before the
+ * browser fails it, unless the transport is given its own timeout. A client
+ * whose own deadline is shorter keeps owning how a slow document is
+ * classified. */
+export const BROWSER_REQUEST_TIMEOUT_MS = 30_000;
 // Past every client's own limit, so each client's bounded reader still refuses
 // an oversized document; this only keeps the page from buffering without end.
 const IN_PAGE_MAX_BYTES = IPULLUPULL_MAX_RESPONSE_BYTES + 1;
@@ -227,16 +240,32 @@ async function fetchInPage(request: InPageRequest): Promise<InPageDocument> {
 function browser(
   page: BrowserDocumentPage,
   mode: BrowserDocumentMode,
+  requestTimeoutMs = BROWSER_REQUEST_TIMEOUT_MS,
 ): DocumentTransport {
   return (url, init) =>
     abortable(init.signal, async () => {
       const target = new URL(url).origin;
+      if (
+        typeof mode === "object" &&
+        URL.parse(page.url())?.origin !== target
+      ) {
+        if (new URL(mode.fetchAfter).origin !== target)
+          throw new Error(
+            `Browser landing ${mode.fetchAfter} is not on ${target}, so ${url} could not be read by in-page fetch; nothing was requested. Use a landing URL on the documents' origin.`,
+          );
+        // The landing's own status does not matter: the document read that
+        // follows carries any refusal to the client.
+        await page.goto(mode.fetchAfter, {
+          waitUntil: "domcontentloaded",
+          timeout: requestTimeoutMs,
+        });
+      }
       const current = URL.parse(page.url())?.origin;
-      if (mode === "fetch" && current === target) {
+      if (mode !== "navigation" && current === target) {
         const document = await page.evaluate(fetchInPage, {
           url,
           accept: init.headers["Accept"] ?? "text/html",
-          timeoutMs: BROWSER_REQUEST_TIMEOUT_MS,
+          timeoutMs: requestTimeoutMs,
           maximumBytes: IN_PAGE_MAX_BYTES,
         });
         return {
@@ -252,7 +281,7 @@ function browser(
       }
       const response = await page.goto(url, {
         waitUntil: "domcontentloaded",
-        timeout: BROWSER_REQUEST_TIMEOUT_MS,
+        timeout: requestTimeoutMs,
       });
       if (!response)
         throw new Error(
@@ -687,6 +716,7 @@ function openPage(
 function acquireBrowser(
   sessions: BrowserSessions,
   mode: BrowserDocumentMode,
+  requestTimeoutMs = BROWSER_REQUEST_TIMEOUT_MS,
 ): Effect.Effect<LazyDocumentTransport, never, Scope.Scope> {
   return Effect.gen(function* () {
     const scope = yield* Effect.scope;
@@ -707,7 +737,9 @@ function acquireBrowser(
             ? Effect.succeed(keep(current))
             : acquirePage(sessions).pipe(
                 Scope.extend(scope),
-                Effect.map((page) => keep(browser(page, mode))),
+                Effect.map((page) =>
+                  keep(browser(page, mode, requestTimeoutMs)),
+                ),
               ),
         ),
       ),

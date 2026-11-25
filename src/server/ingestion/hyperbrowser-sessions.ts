@@ -29,6 +29,7 @@ export const HYPERBROWSER_SOURCES = [
   "bigd",
   "northwest",
   "six03",
+  "citymotors",
   "michigantruck",
 ] as const;
 export type HyperbrowserSource = (typeof HYPERBROWSER_SOURCES)[number];

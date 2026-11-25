@@ -6,6 +6,7 @@ import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { Config, Database } from "./context";
 import {
+  BROWSER_REQUEST_TIMEOUT_MS,
   DocumentTransport,
   type BrowserDocumentMode,
   type BrowserDocumentPage,
@@ -15,6 +16,17 @@ import {
   type LazyDocumentTransport,
 } from "./document-transport";
 import { BROWSER_PROVIDERS, type BrowserProvider } from "./browser-providers";
+import { CITYMOTORS_BROWSER_REQUEST_TIMEOUT_MS } from "./citymotors-client";
+import {
+  CITYMOTORS_BROWSER_LANDING,
+  streamCitymotorsInventory,
+} from "./citymotors-connector";
+import {
+  citymotorsFixtureCatalog,
+  citymotorsFixtureDetail,
+  citymotorsFixturePost,
+} from "./citymotors-test-fixtures";
+import { CITYMOTORS_CATALOG } from "./citymotors-yard-metadata";
 import { BrowserSessionError } from "./errors";
 import { KernelApiError, KernelKeyMissing } from "./kernel-sessions";
 import { fetchMichigantruckPage } from "./michigantruck-client";
@@ -101,6 +113,7 @@ const stub = (hop: Hop) => ({
 function fakePage(
   mode: BrowserDocumentMode,
   navigate: (url: string) => Navigation | null,
+  requestTimeoutMs?: number,
 ) {
   let current = "about:blank";
   const log: string[] = [];
@@ -114,10 +127,16 @@ function fakePage(
     // Runs the serialized in-page function against the mocked global fetch.
     evaluate: async (run, request) => {
       log.push("fetch " + request.url);
+      timeouts.push(request.timeoutMs);
       return run(request);
     },
   };
-  return { transport: DocumentTransport.browser(page, mode), log };
+  const timeouts: number[] = [];
+  return {
+    transport: DocumentTransport.browser(page, mode, requestTimeoutMs),
+    log,
+    timeouts,
+  };
 }
 
 const ok = (url: string, headers = { "content-type": "text/html" }) =>
@@ -366,6 +385,62 @@ test.each([
     ).rejects.toThrow(message);
   },
 );
+
+test("fetch-after mode lands on its URL once, then reads every document, the first included, by in-page fetch", async () => {
+  spyOn(globalThis, "fetch").mockImplementation(
+    Object.assign(
+      async () =>
+        new Response(html, { headers: { "content-type": "text/html" } }),
+      { preconnect: originalFetch.preconnect },
+    ),
+  );
+  const landing = "https://603autosalvage.com/cdn-cgi/trace";
+  const { transport, log, timeouts } = fakePage(
+    { fetchAfter: landing },
+    (url) => navigation({ status: 200, url, headers: {} }),
+    45_000,
+  );
+  expect(
+    await Effect.runPromise(fetchSix03Page(SIX03_CONTACT, direct, transport)),
+  ).toBe(html);
+  expect(
+    await Effect.runPromise(fetchSix03Page(SIX03_CATALOG, direct, transport)),
+  ).toBe(html);
+  expect(log).toEqual([
+    "goto " + landing,
+    "fetch " + SIX03_CONTACT,
+    "fetch " + SIX03_CATALOG,
+  ]);
+  expect(timeouts).toEqual([45_000, 45_000]);
+});
+
+test("fetch-after mode refuses a landing on another origin without a request", async () => {
+  const { transport, log } = fakePage(
+    { fetchAfter: "https://example.com/cdn-cgi/trace" },
+    ok,
+  );
+  await expect(
+    transport(SIX03_CONTACT, {
+      signal: new AbortController().signal,
+      headers: {},
+    }),
+  ).rejects.toThrow("is not on https://603autosalvage.com");
+  expect(log).toEqual([]);
+});
+
+test("a browser transport without its own timeout keeps the browser default", async () => {
+  spyOn(globalThis, "fetch").mockImplementation(
+    Object.assign(
+      async () =>
+        new Response(html, { headers: { "content-type": "text/html" } }),
+      { preconnect: originalFetch.preconnect },
+    ),
+  );
+  const { transport, timeouts } = fakePage("fetch", ok);
+  await Effect.runPromise(fetchSix03Page(SIX03_CONTACT, direct, transport));
+  await Effect.runPromise(fetchSix03Page(SIX03_CATALOG, direct, transport));
+  expect(timeouts).toEqual([BROWSER_REQUEST_TIMEOUT_MS]);
+});
 
 test("an aborted request settles without waiting for the browser", async () => {
   const page: BrowserDocumentPage = {
@@ -816,6 +891,65 @@ test("603 with a complete checkpoint opens no session", async () => {
   expect(events).toEqual([]);
 });
 
+test("a City Motors chunk lands on Cloudflare's edge once, then reads every document by in-page fetch in one session", async () => {
+  globalThis.fetch = Object.assign(
+    async (input: Parameters<typeof fetch>[0]) => {
+      const url = String(input);
+      const body =
+        url === CITYMOTORS_CATALOG
+          ? citymotorsFixtureCatalog()
+          : url === citymotorsFixturePost.url
+            ? citymotorsFixtureDetail()
+            : null;
+      if (body === null) throw new Error("Unexpected City Motors read " + url);
+      return new Response(body, { headers: { "content-type": "text/html" } });
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  let current = "about:blank";
+  const log: string[] = [];
+  const page: BrowserDocumentPage = {
+    url: () => current,
+    goto: async (url) => {
+      log.push("goto " + url);
+      current = url;
+      return navigation({ status: 200, url, headers: {} });
+    },
+    evaluate: async (run, request) => {
+      log.push(`fetch ${request.url} ${request.timeoutMs}`);
+      return run(request);
+    },
+  };
+  const { sessions, events } = fakeSessions(page);
+  const result = await Effect.runPromise(
+    streamCitymotorsInventory({ maxPages: 2, onBatch: ignore }, sessions).pipe(
+      services,
+    ),
+  );
+  expect(result).toMatchObject({ status: "paused", pagesProcessed: 2 });
+  expect(log).toEqual([
+    "goto " + CITYMOTORS_BROWSER_LANDING,
+    `fetch ${CITYMOTORS_CATALOG} ${CITYMOTORS_BROWSER_REQUEST_TIMEOUT_MS}`,
+    `fetch ${citymotorsFixturePost.url} ${CITYMOTORS_BROWSER_REQUEST_TIMEOUT_MS}`,
+  ]);
+  expect(events).toEqual(lifecycle);
+});
+
+test("City Motors with a complete checkpoint opens no session", async () => {
+  const { sessions, events } = fakeSessions(servingPage());
+  const result = await Effect.runPromise(
+    streamCitymotorsInventory(
+      {
+        startCursor: { source: "citymotors", version: 1, phase: "complete" },
+        onBatch: ignore,
+      },
+      sessions,
+    ).pipe(services),
+  );
+  expect(result.status).toBe("complete");
+  expect(events).toEqual([]);
+});
+
 test("Michigan Truck with a complete checkpoint opens no session", async () => {
   const { sessions, events } = fakeSessions(servingPage());
   const result = await Effect.runPromise(
@@ -1251,6 +1385,7 @@ test("each browser source opens sessions from the provider BROWSER_PROVIDERS nam
     "vanderhaags",
     "upullitdavie",
     "six03",
+    "citymotors",
     "michigantruck",
   ] as const) {
     expect(

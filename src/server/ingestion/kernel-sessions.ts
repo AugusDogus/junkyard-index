@@ -48,6 +48,7 @@ export const KERNEL_SOURCES = [
   "vanderhaags",
   "upullitdavie",
   "six03",
+  "citymotors",
   "michigantruck",
   "upullrparts",
 ] as const;
