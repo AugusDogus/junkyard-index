@@ -100,15 +100,32 @@ export class ProviderCapacityDeferred extends Data.TaggedError(
   }
 }
 
-/** Why a chunk returned without work: no shared host turn in time, or no
- * provider capacity. Either way its cursor is retried later. */
+/**
+ * A provider cannot be read consistently yet: its host is challenging this
+ * client for a while, or public views it publishes separately have not caught
+ * up with each other. Nothing from the chunk was accepted, so the source
+ * retries the same cursor after its usual deferral delay.
+ */
+export class ProviderNotReadyDeferred extends Data.TaggedError(
+  "ProviderNotReadyDeferred",
+)<{ provider: string; detail: string }> {
+  override get message() {
+    return `${this.provider} is not ready to be read: ${this.detail} Nothing from this chunk was accepted and the last validated checkpoint is preserved; the source retries this chunk after its deferral delay.`;
+  }
+}
+
+/** Why a chunk returned without work: no shared host turn in time, no
+ * provider capacity, or a provider not ready to be read. Either way its
+ * cursor is retried later. */
 export type ProviderChunkDeferral =
   | ProviderTurnDeferred
-  | ProviderCapacityDeferred;
+  | ProviderCapacityDeferred
+  | ProviderNotReadyDeferred;
 
 const isDeferral = (error: unknown): error is ProviderChunkDeferral =>
   error instanceof ProviderTurnDeferred ||
-  error instanceof ProviderCapacityDeferred;
+  error instanceof ProviderCapacityDeferred ||
+  error instanceof ProviderNotReadyDeferred;
 
 const queuedMs = (clock: ChunkClock, now: number) =>
   clock.queuedMs + (clock.waiters > 0 ? now - clock.queuedSince : 0);

@@ -14,6 +14,10 @@ import {
 } from "./littleton-test-fixtures";
 import type { LittletonCanonicalVehicle } from "./littleton-transform";
 import { validationRejectionKind } from "./ingestion-validation";
+import {
+  ProviderChunkClock,
+  ProviderNotReadyDeferred,
+} from "./provider-chunk-clock";
 import { runWithQueuedHost } from "./provider-host-test-support";
 import {
   LITTLETON_ANALYTICS_URL,
@@ -289,24 +293,23 @@ test("Littleton marks a yard publishing mid-crawl as transient drift so the sour
       },
       (error: unknown) => error,
     );
-  // The website table and the VinPlus counts publish separately, so one
-  // context read can see the new table with the old counts.
+  mock();
+  const first = await run(undefined, 1);
+  if (first.cursor.phase !== "queries")
+    throw new Error("Expected query checkpoint");
+  // Counts that stop reconciling after the crawl bound its snapshot are drift.
   mock({
     rewrite: (body, kind) =>
       kind === "analytics"
         ? littletonTestAnalytics([littletonTestRecord])
         : body,
   });
-  const unreconciled = await rejection();
+  const unreconciled = await rejection(first.cursor);
   expect(String(unreconciled)).toContain(
     "Official stock/year table (2 stocks) does not reconcile with native active inventory counts (1 stock); year 2005: table 2, counts 1",
   );
   expect(validationRejectionKind(unreconciled)).toBe("transient");
 
-  mock();
-  const first = await run(undefined, 1);
-  if (first.cursor.phase !== "queries")
-    throw new Error("Expected query checkpoint");
   mock({
     rewrite: (body, kind) =>
       kind === "inventory" ? body.replace("<td>35</td>", "<td>36</td>") : body,
@@ -329,6 +332,133 @@ test("Littleton marks a yard publishing mid-crawl as transient drift so the sour
   // to inspect the native source.
   for (const error of [unreconciled, resumed, closing])
     expect(String(error)).not.toContain("Inspect the native source");
+});
+
+const deferral = (cursor?: LittletonCursor) =>
+  run(cursor).then(
+    () => {
+      throw new Error("Expected a deferred Littleton chunk");
+    },
+    (error: unknown) => {
+      const deferred = ProviderChunkClock.deferralOf(error);
+      if (!(deferred instanceof ProviderNotReadyDeferred)) throw error;
+      // A deferral is not a rejection, so it costs none of the day's attempts.
+      expect(validationRejectionKind(error)).toBeNull();
+      return deferred.message;
+    },
+  );
+
+test("Littleton waits to start while VinPlus counts trail the website table (Nov 25 regression)", async () => {
+  // On Nov 25 the website table gained the Nov 24 arrivals and dropped
+  // departures, while the VinPlus year counts kept the earlier snapshot for
+  // over four hours, so every attempt that day was rejected.
+  const arrival = {
+    ...littletonTestRecord,
+    stock: "STK056952",
+    year: 2009,
+    make: "BMW",
+    model: "3 SERIES",
+    vin: "WBAPH57589NL79011",
+  };
+  const departed = { ...second, stock: "STK045001", year: 1992 };
+  const table = [littletonTestRecord, second, arrival];
+  const earlierSnapshot = [littletonTestRecord, second, departed];
+  const requests = mock({
+    records: table,
+    rewrite: (body, kind) =>
+      kind === "analytics" ? littletonTestAnalytics(earlierSnapshot) : body,
+  });
+  let callbacks = 0;
+  const message = await deferral();
+  expect(message).toContain(
+    "Official stock/year table (3 stocks) does not reconcile with native active inventory counts (3 stocks); year 1992: table 0, counts 1; year 2009: table 1, counts 0",
+  );
+  expect(message).toContain("waits for them to agree");
+  expect(message).toContain("retries this chunk after its deferral delay");
+  expect(requests).not.toContain("search");
+
+  // The exact guard still decides: once the counts settle, the crawl runs.
+  mock({ records: table });
+  const result = await run(undefined, 16, () =>
+    Effect.sync(() => {
+      callbacks++;
+    }),
+  );
+  expect(result.status).toBe("complete");
+  expect(result.count).toBe(3);
+  expect(callbacks).toBe(1);
+});
+
+test("Littleton keeps waiting on a truncated table rather than accepting it", async () => {
+  // A table that lost whole make/model pairs is never queried for them, so
+  // only the counts catch it. It never reconciles, so the crawl never starts.
+  const requests = mock({
+    records: [littletonTestRecord],
+    rewrite: (body, kind) =>
+      kind === "analytics"
+        ? littletonTestAnalytics([littletonTestRecord, second])
+        : body,
+  });
+  expect(await deferral()).toContain(
+    "Official stock/year table (1 stock) does not reconcile with native active inventory counts (2 stocks)",
+  );
+  expect(requests).not.toContain("search");
+});
+
+test("Littleton defers a SiteGround bot challenge instead of failing the attempt", async () => {
+  // Nov 22 and Nov 25 07:00: the website answered HTTP 202 mid-crawl and the
+  // step's quick retries all saw the same challenge.
+  // The saved SiteGround page identifies itself in its body; its header is
+  // checked separately.
+  const page = await Bun.file(
+    new URL("./fixtures/pullnsave-yard-list-challenge.html", import.meta.url),
+  ).text();
+  const challenge =
+    (target: Kind, answer: "header" | "page") => (body: string, kind: Kind) =>
+      kind === target
+        ? new Response(
+            answer === "page"
+              ? page
+              : "<html><title>Robot Challenge Screen</title></html>",
+            {
+              status: 202,
+              headers: {
+                "content-type": "text/html",
+                ...(answer === "header" ? { "sg-captcha": "challenge" } : {}),
+              },
+            },
+          )
+        : new Response(body, {
+            headers: {
+              "content-type":
+                kind === "owner" || kind === "inventory"
+                  ? "text/html"
+                  : "application/json",
+            },
+          });
+  mock({ response: challenge("owner", "header") });
+  expect(await deferral()).toContain(
+    "https://littletonupullit.com/ answered with SiteGround's bot challenge (HTTP 202)",
+  );
+  mock();
+  const first = await run(undefined, 1);
+  if (first.cursor.phase !== "queries")
+    throw new Error("Expected query checkpoint");
+  mock({ response: challenge("inventory", "page") });
+  expect(await deferral(first.cursor)).toContain(
+    LITTLETON_INVENTORY_URL + " answered with SiteGround's bot challenge",
+  );
+  // A 202 without SiteGround's challenge marker is still an unexpected answer.
+  mock({
+    response: (body) =>
+      new Response(body, {
+        status: 202,
+        headers: { "content-type": "text/html" },
+      }),
+  });
+  await expect(run()).rejects.toThrow(
+    "received 202 without SiteGround's bot challenge",
+  );
 });
 
 test("Littleton rejects corrupted prior VINs, native fingerprints and receipt hashes before requests", async () => {

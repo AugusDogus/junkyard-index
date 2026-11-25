@@ -3,6 +3,10 @@ import {
   transientRejection,
   validationRejectionKind,
 } from "./ingestion-validation";
+import {
+  ProviderChunkClock,
+  ProviderNotReadyDeferred,
+} from "./provider-chunk-clock";
 import { sharedProviderHostSlot } from "./shared-provider-host";
 import { Data, Effect } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
@@ -56,6 +60,13 @@ export function littletonDrift(message: string): Error {
     ),
   );
 }
+/** The website host sits behind SiteGround's anti-bot layer, which answers
+ * some requests with a 202 "Robot Challenge Screen" for a while instead of
+ * the page. Retrying within seconds sees the same challenge. */
+const SITEGROUND_CHALLENGE_STATUS = 202;
+const siteGroundChallenge = (response: Response, text: string) =>
+  response.headers.get("sg-captcha") === "challenge" ||
+  /\/\.well-known\/(?:sg)?captcha\//.test(text);
 function read(
   url: string,
   mime: string,
@@ -77,6 +88,8 @@ function read(
       requestGate: gate,
       retry: { timeoutMs: 20_000, retryLimit: 0, retryNetworkErrors: false },
       onResponse: (response) => {
+        // Read the body to tell a challenge from any other 202.
+        if (response.status === SITEGROUND_CHALLENGE_STATUS) return;
         if (
           response.status !== 200 ||
           response.headers.has("content-range") ||
@@ -95,7 +108,7 @@ function read(
           );
       },
     });
-    return yield* Effect.tryPromise({
+    const text = yield* Effect.tryPromise({
       try: () =>
         readIPullUPullResponseText(
           response,
@@ -104,14 +117,49 @@ function read(
         ),
       catch: (cause) => cause,
     });
+    if (response.status !== SITEGROUND_CHALLENGE_STATUS) return text;
+    if (siteGroundChallenge(response, text))
+      return yield* new ProviderNotReadyDeferred({
+        provider: "Littleton",
+        detail:
+          url +
+          " answered with SiteGround's bot challenge (HTTP 202) instead of the page.",
+      });
+    return yield* Effect.fail(
+      new Error(
+        "Expected complete HTTP 200 " +
+          mime +
+          " from the verified endpoint, received 202 without SiteGround's bot challenge",
+      ),
+    );
   }).pipe(
     sharedProviderHostSlot(url),
-    Effect.mapError(
-      (cause) => new LittletonProviderError({ operation: url, cause }),
+    Effect.mapError((cause) =>
+      ProviderChunkClock.isDeferral(cause)
+        ? cause
+        : new LittletonProviderError({ operation: url, cause }),
     ),
   );
 }
-export function fetchLittletonContext(gate: ProviderRequestGate) {
+/**
+ * What a context read does when the website table and the VinPlus counts
+ * disagree. The yard publishes them separately, and the counts can trail the
+ * table by hours after the nightly publish.
+ *
+ * - wait: no snapshot is bound yet, so the chunk defers until both agree.
+ * - drift: the crawl is bound to an earlier agreeing snapshot that no longer
+ *   holds, so it is rejected as transient drift and a fresh crawl retries.
+ */
+export type LittletonUnsettledViews = "wait" | "drift";
+const contextError = (cause: unknown) =>
+  new LittletonProviderError({
+    operation: "physical ownership, native scope and current counts",
+    cause,
+  });
+export function fetchLittletonContext(
+  gate: ProviderRequestGate,
+  unsettled: LittletonUnsettledViews,
+) {
   return Effect.gen(function* () {
     const owner = yield* read(LITTLETON_ORIGIN + "/", "text/html", gate);
     const inventory = yield* read(LITTLETON_INVENTORY_URL, "text/html", gate);
@@ -121,7 +169,7 @@ export function fetchLittletonContext(gate: ProviderRequestGate) {
       "application/json",
       gate,
     );
-    return yield* ingestionValidation({
+    const reconciliation = yield* ingestionValidation({
       try: () => {
         parseLittletonOwner(owner);
         const table = parseLittletonInventory(inventory);
@@ -133,43 +181,7 @@ export function fetchLittletonContext(gate: ProviderRequestGate) {
         const tableYears = [...years]
           .map(([year, count]) => ({ year, count }))
           .sort((a, b) => a.year - b.year);
-        // The website table and the VinPlus counts publish separately, so a
-        // read between the two sees one side updated. That passes once the
-        // publish settles.
-        if (
-          counts.count !== table.rows.length ||
-          JSON.stringify(counts.years) !== JSON.stringify(tableYears)
-        ) {
-          // Both sides are sorted unique positive counts, so a mismatch
-          // always differs in at least one year.
-          const counted = new Map(counts.years.map((r) => [r.year, r.count]));
-          const differing = [...new Set([...years.keys(), ...counted.keys()])]
-            .sort((a, b) => a - b)
-            .filter((year) => years.get(year) !== counted.get(year))
-            .map(
-              (year) =>
-                "year " +
-                year +
-                ": table " +
-                (years.get(year) ?? 0) +
-                ", counts " +
-                (counted.get(year) ?? 0),
-            );
-          throw littletonDrift(
-            "Official stock/year table (" +
-              table.rows.length +
-              (table.rows.length === 1 ? " stock" : " stocks") +
-              ") does not reconcile with native active inventory counts (" +
-              counts.count +
-              (counts.count === 1 ? " stock" : " stocks") +
-              "); " +
-              differing.slice(0, 5).join("; ") +
-              (differing.length > 5
-                ? "; and " + (differing.length - 5) + " more years"
-                : ""),
-          );
-        }
-        return {
+        const context = {
           ...table,
           counts,
           hash: littletonHash({
@@ -179,12 +191,60 @@ export function fetchLittletonContext(gate: ProviderRequestGate) {
             yard,
           }),
         };
+        if (
+          counts.count === table.rows.length &&
+          JSON.stringify(counts.years) === JSON.stringify(tableYears)
+        )
+          return { context, unreconciled: null };
+        // Both sides are sorted unique positive counts, so a mismatch
+        // always differs in at least one year.
+        const counted = new Map(counts.years.map((r) => [r.year, r.count]));
+        const differing = [...new Set([...years.keys(), ...counted.keys()])]
+          .sort((a, b) => a - b)
+          .filter((year) => years.get(year) !== counted.get(year))
+          .map(
+            (year) =>
+              "year " +
+              year +
+              ": table " +
+              (years.get(year) ?? 0) +
+              ", counts " +
+              (counted.get(year) ?? 0),
+          );
+        return {
+          context,
+          unreconciled:
+            "Official stock/year table (" +
+            table.rows.length +
+            (table.rows.length === 1 ? " stock" : " stocks") +
+            ") does not reconcile with native active inventory counts (" +
+            counts.count +
+            (counts.count === 1 ? " stock" : " stocks") +
+            "); " +
+            differing.slice(0, 5).join("; ") +
+            (differing.length > 5
+              ? "; and " + (differing.length - 5) + " more years"
+              : ""),
+        };
       },
-      catch: (cause) =>
-        new LittletonProviderError({
-          operation: "physical ownership, native scope and current counts",
-          cause,
-        }),
+      catch: contextError,
+    });
+    if (reconciliation.unreconciled === null) return reconciliation.context;
+    const unreconciled = reconciliation.unreconciled;
+    // The exact match stays the guard: a table that lost whole make/model
+    // pairs is never queried for them, so only the counts can catch it.
+    if (unsettled === "wait")
+      return yield* new ProviderNotReadyDeferred({
+        provider: "Littleton",
+        detail:
+          unreconciled +
+          ". The yard publishes its website table and VinPlus counts separately, and the counts can trail the nightly table publish by hours, so the crawl waits for them to agree before it starts.",
+      });
+    return yield* ingestionValidation({
+      try: () => {
+        throw littletonDrift(unreconciled);
+      },
+      catch: contextError,
     });
   });
 }
