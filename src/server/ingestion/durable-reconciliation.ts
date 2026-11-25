@@ -915,13 +915,7 @@ async function runMissingBatch(
   const transitions = planMissingVehicleTransitions({
     presentVins,
     existingRows: rows.filter(
-      (row) =>
-        !holdsPreservedYard(
-          inventory,
-          row.source,
-          row.locationCode,
-          params.runTimestamp.getTime(),
-        ),
+      (row) => !holdsPreservedYard(inventory, row.source, row.locationCode),
     ),
     runTimestamp: params.runTimestamp,
     acceptedSources: reconciled,
