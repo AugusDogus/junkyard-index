@@ -60,6 +60,12 @@ test("URG hosts share a lane only with hosts on the same origin server, while Vi
   }
   // Distinct servers never share a lane.
   expect(new Set(lanes.map((hosts) => hosts[0]?.key)).size).toBe(lanes.length);
+  // The first AWS lane keeps the single lane's key, so runs on an older
+  // deployment still queue with it during a rolling deploy.
+  expect(lane("aviationauto.com")?.key).toBe("urg:aws");
+  expect(lane("centralautoliq.com")?.key).toBe("urg:aws-2");
+  // Waiters poll every two seconds to bound Redis commands per GET.
+  for (const hosts of lanes) expect(hosts[0]?.pollMs).toBe(2_000);
   expect(URG_HOST_GROUP.activeLanes).toBe(6);
   // Not URG sites: their clients pace them.
   expect(lane("ifipull.com")).toBeNull();
