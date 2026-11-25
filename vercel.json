@@ -27,6 +27,10 @@
       "schedule": "30 8 * * *"
     },
     {
+      "path": "/api/cron/database-usage",
+      "schedule": "15 7 * * *"
+    },
+    {
       "path": "/api/cron/notification-delivery",
       "schedule": "*/15 * * * *"
     },

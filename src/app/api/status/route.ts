@@ -1,6 +1,7 @@
 import { IngestionPause } from "~/server/source-control/ingestion-pause";
 import { SourceHealth } from "~/server/ingestion/source-health";
 import { YardCheckHealth } from "~/server/ingestion/yard-check-health";
+import { cachedTursoUsage } from "~/server/turso-usage-runtime";
 import { getCachedSourceFreshness } from "./source-freshness";
 import { getCachedYardCheckRows } from "./yard-checks";
 
@@ -17,8 +18,12 @@ import { getCachedYardCheckRows } from "./yard-checks";
 // frozen yards (information only). A yard never makes this 503: one large
 // multi-yard provider must not read as an ingestion outage. If the yard read
 // fails, `yards` says so and the source check still answers.
+//
+// `databaseUsage` reports the Turso plan pace and the last day's usage (read
+// at most hourly, no database rows); it never changes the status code, and
+// the hourly database-usage cron raises the Sentry issues.
 export async function GET() {
-  const [recent, enabled, yardRows] = await Promise.all([
+  const [recent, enabled, yardRows, databaseUsage] = await Promise.all([
     getCachedSourceFreshness(),
     IngestionPause.enabledSources().then(
       (sources) => ({ ok: true as const, sources }),
@@ -28,6 +33,7 @@ export async function GET() {
       (rows) => ({ ok: true as const, rows }),
       (error: unknown) => ({ ok: false as const, error }),
     ),
+    cachedTursoUsage(),
   ]);
   if (!enabled.ok) {
     return Response.json(
@@ -66,7 +72,7 @@ export async function GET() {
       ? "degraded"
       : health.status;
   return Response.json(
-    { ...health, status, yards },
+    { ...health, status, yards, databaseUsage },
     {
       status: status === "stale" ? 503 : 200,
       headers: { "Cache-Control": "no-store" },
