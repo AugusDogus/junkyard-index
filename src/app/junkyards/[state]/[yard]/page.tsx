@@ -73,6 +73,7 @@ export default async function YardPage({
         filter={null}
         publishedAt={data.publishedAt}
         checkedAt={data.checkedAt}
+        checkUnknown={data.checkUnknown}
         nearby={data.nearby}
         chain={data.chain}
       />

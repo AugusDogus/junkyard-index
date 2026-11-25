@@ -68,8 +68,10 @@ export function YardList({
       </div>
       <ul className={cn("border-t-2 sm:border-t-0", colours.rule)}>
         {yards.map((yard) => {
-          const lastChecked = InventoryStaleness.label(
-            InventoryStaleness.checkedAt(checkDates, yard.source, yard.code),
+          const lastChecked = InventoryStaleness.labelFor(
+            checkDates,
+            yard.source,
+            yard.code,
             now,
           );
           return (

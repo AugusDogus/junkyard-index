@@ -229,12 +229,10 @@ export default async function MakePage({
               name: YardName.headline(yard.name, yard.operator),
               place: `${yard.city}, ${yard.state}`,
               figure: InventoryFormat.count(count),
-              lastChecked: InventoryStaleness.label(
-                InventoryStaleness.checkedAt(
-                  checkDates,
-                  yard.source,
-                  yard.code,
-                ),
+              lastChecked: InventoryStaleness.labelFor(
+                checkDates,
+                yard.source,
+                yard.code,
                 now,
               ),
             }))}

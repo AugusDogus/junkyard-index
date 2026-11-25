@@ -101,6 +101,7 @@ export default async function YardModelPage({
         hiddenSources={await getHiddenSources()}
         publishedAt={data.publishedAt}
         checkedAt={data.checkedAt}
+        checkUnknown={data.checkUnknown}
         nearby={data.nearby}
         chain={data.chain}
         filter={{

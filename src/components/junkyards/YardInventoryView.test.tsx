@@ -109,6 +109,7 @@ function props(vehicles: YardVehicle[]): Props {
     // Checked just now, so the yard is current and shows its new arrivals;
     // a stale one shows none (see the staleness tests).
     checkedAt: new Date().toISOString(),
+    checkUnknown: false,
     nearby: [],
     chain: null,
     filter: null,
@@ -205,6 +206,18 @@ describe("YardInventoryView staleness", () => {
     );
     expect(html).toContain("Last checked 13 days ago");
     expect(html).not.toContain("Update time unknown");
+  });
+
+  test("says Last check unknown, with no New badges, for a yard no run has proven fetched", async () => {
+    const html = await render({
+      ...props([vehicle("VIN00001", "2026-11-18T00:00:00.000Z")]),
+      publishedAt: null,
+      checkedAt: null,
+      checkUnknown: true,
+    });
+    expect(text(html)).toContain("Last check unknown");
+    expect(text(html)).not.toContain("new this week");
+    expect(badges(html)).toBe(0);
   });
 
   test("labels nothing while current", async () => {

@@ -39,8 +39,10 @@ export function useInventoryCheckLabel(
 ): string | null {
   const check = useContext(InventoryCheckContext);
   if (check === null) return null;
-  return InventoryStaleness.label(
-    InventoryStaleness.checkedAt(check.dates, source, locationCode),
+  return InventoryStaleness.labelFor(
+    check.dates,
+    source,
+    locationCode,
     check.now,
   );
 }

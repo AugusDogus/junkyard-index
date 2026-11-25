@@ -107,6 +107,7 @@ export async function YardMakePage({
         hiddenSources={await getHiddenSources()}
         publishedAt={data.publishedAt}
         checkedAt={data.checkedAt}
+        checkUnknown={data.checkUnknown}
         nearby={data.nearby}
         chain={data.chain}
         filter={{ name: make.name, slug: make.slug }}

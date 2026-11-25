@@ -414,6 +414,7 @@ export const getYardPageData = cache(
         yard.source,
         yard.code,
       ),
+      checkUnknown: checkDates.yards[`${yard.source}:${yard.code}`] === null,
       nearby,
       chain: chain
         ? { name: chain.name, href: chain.href, yards: chain.yards.length }
