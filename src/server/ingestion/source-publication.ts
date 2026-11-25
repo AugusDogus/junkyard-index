@@ -66,6 +66,31 @@ export const SourcePublication = {
   },
 
   /**
+   * The source's newest `limit` UTC days with an accepted publication, newest
+   * first, each as its newest publication's run timestamp: the commit claim,
+   * else the run's start. Reconciliation stamps that timestamp on the yards a
+   * publication covered (`yard_inventory.last_published_at`), so a yard
+   * stamped before a day's timestamp missed that day's publication.
+   */
+  async latestDays(
+    database: LibSQLDatabase,
+    source: string,
+    limit: number,
+  ): Promise<Date[]> {
+    const runAt = sql<number>`coalesce(${ingestionRun.commitStartedAt}, ${ingestionRun.startedAt})`;
+    const day = sql`cast(${runAt} / 86400000 as integer)`;
+    const rows = await database
+      .select({ at: sql<number>`max(${runAt})` })
+      .from(ingestionSourceRun)
+      .innerJoin(ingestionRun, eq(ingestionRun.id, ingestionSourceRun.runId))
+      .where(acceptedPublication(source))
+      .groupBy(day)
+      .orderBy(desc(day))
+      .limit(limit);
+    return rows.map((row) => new Date(row.at));
+  },
+
+  /**
    * The newest accepted publication's terminal cursor, raw as stored (null
    * when that run saved none), or null when the source has no accepted
    * publication. Failed, rejected and unpublished runs never seed a census.
