@@ -573,6 +573,12 @@ describe("bounded durable reconciliation", () => {
           args: [vin, code, missing, runs],
         });
       }
+      // Published yesterday, so the blocked yard is inside the 7-day window in
+      // which a preserved yard keeps its inventory.
+      await client.execute({
+        sql: "insert into yard_inventory (source, location_code, location_name, location_city, state_abbr, lat, lng, vehicle_count, last_published_at, updated_at) values ('urgiis', ?, 'Yard', 'City', 'OK', 1, 1, 1, ?, 1)",
+        args: [blocked.yard.code, Date.now() - 24 * 60 * 60 * 1000],
+      });
       const validation = await validateDurableSourceRuns({
         runId,
         database,

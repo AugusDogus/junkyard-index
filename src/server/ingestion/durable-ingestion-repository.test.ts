@@ -1694,7 +1694,8 @@ test("a fetching native source does not delay AutoRecycler publication; a native
       client,
       IngestionSnapshotStore.memory(),
     );
-    const now = new Date("2026-11-17T08:00:00Z");
+    // After AutoRecycler's 09:15 UTC daily start.
+    const now = new Date("2026-11-17T09:30:00Z");
     const native = startedRun(await repository.prepareWakeup(now, ["pontiac"]));
     const mirror = startedRun(
       await repository.prepareWakeup(now, ["pontiac", "autorecycler"]),
@@ -1736,7 +1737,8 @@ test.each(["autorecycler", "harrys", "budget"] as const)(
         client,
         IngestionSnapshotStore.memory(),
       );
-      const now = new Date("2026-11-17T08:00:00Z");
+      // After AutoRecycler's 09:15 UTC daily start, so every source starts.
+      const now = new Date("2026-11-17T09:30:00Z");
       const wakeup = await repository.prepareWakeup(now);
       if (wakeup.status !== "active")
         throw new Error("Expected first-deploy runs");
