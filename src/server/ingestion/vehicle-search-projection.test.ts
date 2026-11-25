@@ -240,3 +240,63 @@ test("projects the first sighting reconciliation stored on the row", async () =>
     client.close();
   }
 });
+
+test("reads only the batch's yards, by primary key", async () => {
+  const client = createClient({ url: ":memory:" });
+  try {
+    await client.executeMultiple(
+      readFileSync(
+        new URL("../../../drizzle/0007_yard_metadata.sql", import.meta.url),
+        "utf8",
+      ),
+    );
+    const queries: { sql: string; params: unknown[] }[] = [];
+    const database = drizzle(client, {
+      logger: { logQuery: (sql, params) => queries.push({ sql, params }) },
+    });
+    // Other yards of the same source are not read.
+    await database.insert(yard).values(
+      Array.from({ length: 50 }, (_, index) => ({
+        source: "pullapart",
+        code: String(index),
+        name: `Pull-A-Part ${index}`,
+        city: "Birmingham",
+        state: "AL",
+        updatedAt: new Date(),
+      })),
+    );
+    queries.length = 0;
+    const records = await projectSearchVehicles(database, [
+      legacy,
+      { ...legacy, vin: "SECOND", locationCode: "7" },
+      { ...legacy, vin: "SAME-YARD" },
+    ]);
+    expect(records.map((record) => record.locationName)).toEqual([
+      "Pull-A-Part 5",
+      "Pull-A-Part 7",
+      "Pull-A-Part 5",
+    ]);
+    const [query] = queries;
+    if (!query || queries.length !== 1)
+      throw new Error(`Expected one yard read, saw ${queries.length}.`);
+    const plan = await client.execute({
+      sql: `explain query plan ${query.sql}`,
+      args: query.params.map((param) =>
+        typeof param === "number" || typeof param === "string" ? param : null,
+      ),
+    });
+    const details = plan.rows.map((row) => String(row.detail)).join("\n");
+    expect(details).toContain(
+      "USING INDEX sqlite_autoindex_yard_1 (source=? AND code=?)",
+    );
+    const read = await client.execute({
+      sql: query.sql,
+      args: query.params.map((param) =>
+        typeof param === "number" || typeof param === "string" ? param : null,
+      ),
+    });
+    expect(read.rows.length).toBe(2);
+  } finally {
+    client.close();
+  }
+});
