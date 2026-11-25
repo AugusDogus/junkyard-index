@@ -7,7 +7,7 @@ import { Region } from "~/lib/region";
 import { calculateDistance } from "~/lib/utils";
 import { YardBrand, type Chain } from "~/lib/yard-brand";
 import type { YardPath } from "~/lib/yard-path";
-import { getHomepageInventory } from "~/lib/homepage-inventory";
+import { getDirectoryYards } from "~/lib/homepage-inventory";
 import { cacheInventory, cacheSourceInventory } from "~/lib/inventory-cache";
 import {
   isIngestionSource,
@@ -288,10 +288,7 @@ export async function getRegionNewCount(stateAbbr: string): Promise<number> {
 }
 
 /** Every yard with live inventory, with its page path. */
-export const getYardDirectory = cache(async () => {
-  const { yards } = await getHomepageInventory();
-  return yards;
-});
+export const getYardDirectory = cache(getDirectoryYards);
 
 export type DirectoryYard = Awaited<
   ReturnType<typeof getYardDirectory>
