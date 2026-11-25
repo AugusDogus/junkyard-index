@@ -79,8 +79,11 @@ export type TursoUsageAlert = {
 
 type FetchLike = (
   url: string,
-  init: { headers: Record<string, string> },
+  init: { headers: Record<string, string>; signal: AbortSignal },
 ) => Promise<Response>;
+
+/** /api/status waits on this read, so a slow Platform API cannot hold it. */
+const READ_TIMEOUT_MS = 5_000;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -93,7 +96,16 @@ const UsageSchema = z.object({
 const OrganizationUsageSchema = z.object({
   organization: z.object({ usage: UsageSchema }),
 });
-const DatabaseUsageSchema = z.object({ total: UsageSchema });
+// Turso's reference nests the totals under `database`; responses seen in
+// November 2026 also carried them at the top level. Either is read.
+const DatabaseUsageSchema = z
+  .union([
+    z.object({ total: UsageSchema }),
+    z.object({ database: z.object({ total: UsageSchema }) }),
+  ])
+  .transform((usage) =>
+    "total" in usage ? usage.total : usage.database.total,
+  );
 
 async function readUsage<Schema extends z.ZodTypeAny>(
   url: string,
@@ -104,6 +116,7 @@ async function readUsage<Schema extends z.ZodTypeAny>(
 ): Promise<z.infer<Schema>> {
   const response = await fetchImpl(url, {
     headers: { Authorization: `Bearer ${access.token}` },
+    signal: AbortSignal.timeout(READ_TIMEOUT_MS),
   });
   if (!response.ok) {
     throw new Error(
@@ -190,13 +203,10 @@ export const TursoUsage = {
       `https://api.turso.tech/v1/organizations/${encodeURIComponent(access.organization)}/databases/${encodeURIComponent(access.database)}/usage?${query}`,
       access,
       DatabaseUsageSchema,
-      `database "${access.database}" usage (total.rows_read and rows_written)`,
+      `database "${access.database}" usage (total or database.total rows_read and rows_written)`,
       fetchImpl,
     );
-    return {
-      rowsRead: usage.total.rows_read,
-      rowsWritten: usage.total.rows_written,
-    };
+    return { rowsRead: usage.rows_read, rowsWritten: usage.rows_written };
   },
 
   /**
