@@ -25,6 +25,7 @@ import {
 } from "./yard-map-data";
 import { YardDirectory } from "./YardDirectory";
 import { useApproximateLocation } from "~/hooks/use-approximate-location";
+import { useYardMapUrlWrite } from "~/hooks/use-yard-map-url-write";
 import { sortYardsByDistance, type YardLocation } from "~/lib/yard-directory";
 import { cn } from "~/lib/utils";
 import { YardMapUrl } from "~/lib/yard-map-url";
@@ -60,10 +61,11 @@ export function YardMap({ yards, vehicleCount, layout }: YardMapProps) {
   }, [yards]);
 
   const selectedKey = selected && YardPath.key(selected);
-  useEffect(
-    () =>
-      YardMapUrl.schedule((search) => YardMapUrl.withYard(search, selectedKey)),
-    [selectedKey],
+  useYardMapUrlWrite(
+    useCallback(
+      (search) => YardMapUrl.withYard(search, selectedKey),
+      [selectedKey],
+    ),
   );
   const approximateLocation = useApproximateLocation();
   // The location controls report the visitor's chosen location, which falls

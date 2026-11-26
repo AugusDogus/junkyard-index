@@ -3,15 +3,18 @@
 import { nextYardPin } from "~/lib/yard-map-focus";
 import { YardMapMarker } from "~/lib/yard-map-marker";
 import { YardMapUrl } from "~/lib/yard-map-url";
+import { YardPath } from "~/lib/yard-path";
 import { Minus, Plus, Scan } from "lucide-react";
 import { Map, Overlay } from "pigeon-maps";
 import { YardMapTile, YardMapTilesReady } from "./YardMapTile";
 import { yardTileProvider } from "~/lib/yard-map-tiles";
+import { useYardMapUrlWrite } from "~/hooks/use-yard-map-url-write";
 import { useYardMapView } from "~/hooks/use-yard-map-view";
 import { YardMapCluster, YardMapPin } from "./YardMapPin";
 import {
   type CSSProperties,
   memo,
+  useCallback,
   useMemo,
   useEffect,
   useLayoutEffect,
@@ -97,6 +100,26 @@ const YardMapCanvas = memo(function YardMapCanvas({
     ? focusedKey
     : (markers[0]?.key ?? null);
 
+  // Opening a group regroups the markers and removes the focused button.
+  // Hand focus to the marker that now holds the group's first yard.
+  const openedGroupYard = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    const yardKey = openedGroupYard.current;
+    if (yardKey === null) return;
+    openedGroupYard.current = null;
+    const target = markers.find((marker) =>
+      marker.kind === "yard"
+        ? marker.key === yardKey
+        : marker.yards.some((yard) => YardPath.key(yard) === yardKey),
+    );
+    if (!target) return;
+    setFocusedKey(target.key);
+    const active = document.activeElement;
+    if (active === null || active === document.body) {
+      markerRefs.current.get(target.key)?.focus({ preventScroll: true });
+    }
+  }, [markers]);
+
   // Back and shared links return to the same view. Before paint, so a
   // client-side Back never shows the overview first.
   useLayoutEffect(() => {
@@ -104,9 +127,8 @@ const YardMapCanvas = memo(function YardMapCanvas({
     if (restored) syncView(restored);
   }, [syncView]);
 
-  useEffect(
-    () => YardMapUrl.schedule((search) => YardMapUrl.withView(search, view)),
-    [view],
+  useYardMapUrlWrite(
+    useCallback((search) => YardMapUrl.withView(search, view), [view]),
   );
   // Match getYardMapView's narrow or wide overview before the actual size is
   // known. A container query picks the frame, so a wrong size guess does
@@ -316,11 +338,15 @@ const YardMapCanvas = memo(function YardMapCanvas({
                       tabIndex={tabIndex}
                       buttonRef={buttonRef}
                       onFocus={onFocus}
-                      onOpen={() =>
+                      onOpen={() => {
+                        const [first] = marker.yards;
+                        openedGroupYard.current = first
+                          ? YardPath.key(first)
+                          : null;
                         requestView(
                           YardMapMarker.split(marker, size.width, size.height),
-                        )
-                      }
+                        );
+                      }}
                     />
                   )}
                 </Overlay>

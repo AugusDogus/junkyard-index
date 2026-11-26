@@ -33,9 +33,12 @@ const SPLIT_PADDING_PX = 48;
 const pixelsPerUnit = (zoom: number) => 2 ** (zoom - 2);
 
 /**
- * Greedy screen-space grouping in input order: each yard not yet placed
- * gathers the later yards whose pins would overlap its pin. `keep`, the selected
- * yard, always keeps its own pin so the open yard card points at it.
+ * Screen-space grouping: any two markers whose square hit boxes, centered
+ * where they are drawn, would overlap merge into one group drawn at its
+ * yards' average position, until no two overlap. Checking the drawn
+ * position, not the first yard's, keeps a group from landing under a
+ * neighboring pin. `keep`, the selected yard, always keeps its own pin so
+ * the open yard card points at it.
  */
 function group<Yard extends MarkerYard>(
   yards: readonly Yard[],
@@ -43,47 +46,68 @@ function group<Yard extends MarkerYard>(
   keep: Yard | null,
 ): YardMapMarker<Yard>[] {
   const scale = pixelsPerUnit(zoom);
-  const points = yards.map(projectYardLocation);
-  const placed = new Set<number>();
-  const markers: YardMapMarker<Yard>[] = [];
-  yards.forEach((seed, seedIndex) => {
-    if (placed.has(seedIndex)) return;
-    placed.add(seedIndex);
-    const seedPoint = points[seedIndex];
-    const members = [seedIndex];
-    if (seed !== keep && seedPoint && zoom < UNCLUSTERED_ZOOM) {
-      for (let index = seedIndex + 1; index < yards.length; index++) {
-        const point = points[index];
-        if (placed.has(index) || yards[index] === keep || !point) continue;
-        // Square hit boxes overlap when both offsets are under their size.
-        if (
-          Math.abs(point.x - seedPoint.x) * scale < CLUSTER_PX &&
-          Math.abs(point.y - seedPoint.y) * scale < CLUSTER_PX
-        ) {
-          placed.add(index);
-          members.push(index);
-        }
+  type Group = { members: number[]; x: number; y: number; kept: boolean };
+  const groups: Group[] = yards.map((yard, index) => {
+    const point = projectYardLocation(yard);
+    return {
+      members: [index],
+      x: point.x,
+      y: point.y,
+      kept: yard === keep,
+    };
+  });
+  const overlaps = (a: Group, b: Group) =>
+    !a.kept &&
+    !b.kept &&
+    Math.abs(a.x - b.x) * scale < CLUSTER_PX &&
+    Math.abs(a.y - b.y) * scale < CLUSTER_PX;
+
+  // A merge moves its group, which can bring it over a group already
+  // checked, so repeat until a full pass merges nothing.
+  let merged = zoom < UNCLUSTERED_ZOOM;
+  while (merged) {
+    merged = false;
+    for (let i = 0; i < groups.length; i++) {
+      const target = groups[i];
+      if (!target) continue;
+      for (let j = i + 1; j < groups.length; j++) {
+        const other = groups[j];
+        if (!other || !overlaps(target, other)) continue;
+        const count = target.members.length + other.members.length;
+        target.x =
+          (target.x * target.members.length + other.x * other.members.length) /
+          count;
+        target.y =
+          (target.y * target.members.length + other.y * other.members.length) /
+          count;
+        target.members.push(...other.members);
+        groups.splice(j, 1);
+        merged = true;
+        // The group moved: check every later group again.
+        j = i;
       }
     }
+  }
+
+  // Every group holds at least one yard, so none is dropped here.
+  return groups.flatMap((group): YardMapMarker<Yard>[] => {
+    const members = [...group.members]
+      .sort((a, b) => a - b)
+      .flatMap((index) => yards[index] ?? []);
+    const [first] = members;
+    if (!first) return [];
     if (members.length === 1) {
-      markers.push({ kind: "yard", key: YardPath.key(seed), yard: seed });
-      return;
+      return [{ kind: "yard", key: YardPath.key(first), yard: first }];
     }
-    const memberPoints = members.flatMap((index) => points[index] ?? []);
-    const x =
-      memberPoints.reduce((total, point) => total + point.x, 0) /
-      memberPoints.length;
-    const y =
-      memberPoints.reduce((total, point) => total + point.y, 0) /
-      memberPoints.length;
-    markers.push({
-      kind: "cluster",
-      key: `cluster:${YardPath.key(seed)}`,
-      yards: members.flatMap((index) => yards[index] ?? []),
-      center: unprojectYardLocation(x, y),
-    });
+    return [
+      {
+        kind: "cluster",
+        key: `cluster:${YardPath.key(first)}`,
+        yards: members,
+        center: unprojectYardLocation(group.x, group.y),
+      },
+    ];
   });
-  return markers;
 }
 
 /** The view that frames a cluster's yards in a `width` x `height` map. */
