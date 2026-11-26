@@ -54,7 +54,7 @@ async function open(
       row: null, space: null, addedAt: index, addedBy: "first-seen",
       imageUrl: null, detailsUrl: null,
     }));
-    const summary = YardInventory.summary(vehicles);
+    const summary = YardInventory.summary(vehicles, vehicles.map((vehicle) => vehicle.make));
     const path = { region: { slug: "tx" }, slug: "calton", href: "/junkyards/tx/calton" };
     mock.module("~/server/yard-inventory", () => ({
       getYardPageData: async (state, yard) =>
