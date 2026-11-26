@@ -1,11 +1,10 @@
-import { and, eq, gt, isNotNull, isNull, max, ne, or, sql } from "drizzle-orm";
+import { and, eq, gt, isNotNull, isNull, max, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import type { ChangedInventorySources } from "~/lib/inventory-cache";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import {
   ingestionProjectorCheckpoint,
   ingestionRun,
-  yardInventory,
   yardSummary,
 } from "~/schema";
 
@@ -15,12 +14,13 @@ import {
 const CHECKPOINT_NAME = "inventory-cache-refresh";
 
 /**
- * How far before the previous refresh's read a yard change still counts.
- * Reconciliation stamps yard_inventory.updated_at when it builds a batch and
- * commits it later, so a batch stamped just before that read can commit
- * after it. Counting a source twice only expires its entries once more.
+ * How far before the previous refresh's read an ended run still counts, in
+ * case its end committed after a read stamped later. Counting a run twice
+ * only rebuilds and expires its sources' yards once more. Content changes
+ * need no margin: the summary store stamps them with the refresh's own time,
+ * which that refresh records as its read.
  */
-const CHANGE_MARGIN_MS = 30 * 60 * 1000;
+const RUN_MARGIN_MS = 30 * 60 * 1000;
 
 /**
  * Refreshing inventory caches after a pass. Current: the caches already show
@@ -96,76 +96,80 @@ export const InventoryCacheRefresh = {
       });
   },
 
+  /** When the last refresh read which yards had changed, if one did. */
+  async changesReadAt(database: LibSQLDatabase): Promise<Date | null> {
+    const [checkpoint] = await database
+      .select({ changesReadAt: ingestionProjectorCheckpoint.lastSuccessAt })
+      .from(ingestionProjectorCheckpoint)
+      .where(eq(ingestionProjectorCheckpoint.name, CHECKPOINT_NAME));
+    return checkpoint?.changesReadAt ?? null;
+  },
+
   /**
-   * What may have changed since `since`, or everything when no earlier read
-   * is recorded:
-   * - yards whose vehicles changed what their pages show, as the yard
-   *   summary store found when it rebuilt their summaries;
-   * - yards published since whose summary was not rebuilt for that
-   *   publication (the store failed), whose content is unknown;
-   * - every yard of the sources of a run that ended without publishing,
-   *   which may have written some vehicles before stopping.
-   * A publication that changed nothing a yard shows leaves its pages cached.
+   * The sources of runs that ended without publishing since `since`, sorted.
+   * Such a run may have written some vehicles before stopping, while
+   * yard_inventory still names the previous publication.
    */
-  async changedSources(
+  async unpublishedSources(
     database: LibSQLDatabase,
-    since: Date | null,
-  ): Promise<ChangedInventorySources> {
-    if (since === null) return { kind: "all" };
-    const after = new Date(since.getTime() - CHANGE_MARGIN_MS);
-    const [contentChanged, unsummarized, runs] = await Promise.all([
-      database
-        .select({ source: yardSummary.source, code: yardSummary.locationCode })
-        .from(yardSummary)
-        .where(gt(yardSummary.contentChangedAt, after)),
-      database
-        .select({
-          source: yardInventory.source,
-          code: yardInventory.locationCode,
-        })
-        .from(yardInventory)
-        .leftJoin(
-          yardSummary,
-          and(
-            eq(yardSummary.source, yardInventory.source),
-            eq(yardSummary.locationCode, yardInventory.locationCode),
+    since: Date,
+  ): Promise<string[]> {
+    const runs = await database
+      .select({ acceptedSources: ingestionRun.acceptedSources })
+      .from(ingestionRun)
+      .where(
+        and(
+          isNull(ingestionRun.activeSlot),
+          gt(
+            ingestionRun.completedAt,
+            new Date(since.getTime() - RUN_MARGIN_MS),
           ),
-        )
-        .where(
-          and(
-            gt(yardInventory.updatedAt, after),
-            or(
-              isNull(yardSummary.builtFor),
-              ne(yardSummary.builtFor, yardInventory.updatedAt),
-            ),
-          ),
+          isNotNull(ingestionRun.acceptedSources),
+          isNull(ingestionRun.inventoryPublishedAt),
         ),
-      database
-        .select({ acceptedSources: ingestionRun.acceptedSources })
-        .from(ingestionRun)
-        .where(
-          and(
-            isNull(ingestionRun.activeSlot),
-            gt(ingestionRun.completedAt, after),
-            isNotNull(ingestionRun.acceptedSources),
-            isNull(ingestionRun.inventoryPublishedAt),
-          ),
-        ),
-    ]);
+      );
     const sources = new Set<string>();
     for (const { acceptedSources } of runs) {
       for (const source of acceptedSourceList(acceptedSources)) {
         sources.add(source);
       }
     }
+    return [...sources].sort();
+  },
+
+  /**
+   * What may have changed since `since`, or everything when no earlier read
+   * is recorded:
+   * - yards whose vehicles changed what their pages show, as the yard
+   *   summary store found when it rebuilt their summaries;
+   * - every yard of the sources of a run that ended without publishing,
+   *   which may have written some vehicles before stopping (the store
+   *   rebuilds their summaries too).
+   * A publication that changed nothing a yard shows leaves its pages cached.
+   * So does one whose summary the store failed to rebuild: its pages and
+   * stored summary still agree, and the next refresh rebuilds it and finds
+   * what changed.
+   */
+  async changedSources(
+    database: LibSQLDatabase,
+    since: Date | null,
+  ): Promise<ChangedInventorySources> {
+    if (since === null) return { kind: "all" };
+    const [contentChanged, sources] = await Promise.all([
+      database
+        .select({ source: yardSummary.source, code: yardSummary.locationCode })
+        .from(yardSummary)
+        .where(gt(yardSummary.contentChangedAt, since)),
+      InventoryCacheRefresh.unpublishedSources(database, since),
+    ]);
     const yards = new Map(
-      [...contentChanged, ...unsummarized]
-        .filter(({ source }) => !sources.has(source))
+      contentChanged
+        .filter(({ source }) => !sources.includes(source))
         .map((yard) => [`${yard.source}:${yard.code}`, yard] as const),
     );
     return {
       kind: "sources",
-      sources: [...sources].sort(),
+      sources,
       yards: [...yards]
         .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
         .map(([, yard]) => yard),

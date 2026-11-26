@@ -304,8 +304,10 @@ export const yardInventory = sqliteTable(
  * Each yard's page summary (count, makes, arrivals; see YardSummary), stored
  * by the inventory refresh for the publication `built_for` names (the
  * yard_inventory row's updated_at). A cached summary that falls out of the
- * data cache is read back from here, 2 rows, instead of from the yard's
- * vehicles; a row whose `built_for` no longer matches is ignored.
+ * data cache is read back from here, 1 row, instead of from the yard's
+ * vehicles. Pages read the latest stored row even when the yard published
+ * since: it matches the pages still cached until the next refresh rebuilds
+ * it (a `built_for` behind updated_at) and expires them.
  */
 export const yardSummary = sqliteTable(
   "yard_summary",

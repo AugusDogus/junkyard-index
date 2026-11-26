@@ -151,13 +151,18 @@ export const YardSummaryStore = {
   /**
    * Stores a summary for every yard whose stored one is missing or older
    * than its latest publication, and drops those of yards that left
-   * yard_inventory. Reads each such yard once; a yard published since its
-   * read is stored for the publication read and stored again next time.
-   * Returns the yards whose vehicles changed anything their pages show.
+   * yard_inventory. Also rebuilds every yard of `rebuild`: the sources of
+   * runs that ended without publishing since the last refresh (they may
+   * have written vehicles while yard_inventory still names the old
+   * publication), or "all" when that refresh's read is unknown. Reads each
+   * such yard once; a yard published since its read is stored for the
+   * publication read and stored again next time. Returns the yards whose
+   * vehicles changed anything their pages show.
    */
   async refresh(
     database: LibSQLDatabase,
     now: Date,
+    rebuild: readonly string[] | "all",
   ): Promise<YardSummaryRefresh> {
     await database.delete(yardSummary).where(
       notExists(
@@ -174,6 +179,8 @@ export const YardSummaryStore = {
     );
     const stale = (await yardsWithSummaries(database)).filter(
       (yard) =>
+        rebuild === "all" ||
+        rebuild.includes(yard.source) ||
         yard.builtFor === null ||
         yard.builtFor.getTime() !== yard.updatedAt.getTime(),
     );

@@ -45,11 +45,21 @@ export async function refreshInventoryCachesStep(): Promise<
   "use step";
 
   // Before the caches expire, so the pages they rebuild read each yard's
-  // summary back (2 rows) instead of its vehicles. A failure here only costs
-  // those reads: pages read the yard instead, as they do without a summary.
+  // summary back (1 row) instead of its vehicles. Rebuilds the yards of
+  // runs that ended without publishing too, whose caches the refresh
+  // expires. A failure here only costs reads: until the next refresh,
+  // pages whose cached slices disagree with the stored summary read the
+  // yard.
   const now = new Date();
   try {
-    const { stored, changed } = await YardSummaryStore.refresh(db, now);
+    const since = await InventoryCacheRefresh.changesReadAt(db);
+    const { stored, changed } = await YardSummaryStore.refresh(
+      db,
+      now,
+      since === null
+        ? "all"
+        : await InventoryCacheRefresh.unpublishedSources(db, since),
+    );
     console.info(
       `[Workflow] Stored ${stored} yard summaries; ${changed.length} yards changed what their pages show`,
     );
