@@ -53,7 +53,7 @@ test("stores a summary for each yard whose publication it has not seen, and read
   await publish("2", 100);
 
   expect(await YardSummaryStore.read(database, "pyp", "1")).toBeNull();
-  expect(await YardSummaryStore.refresh(database, NOW)).toEqual({
+  expect(await YardSummaryStore.refresh(database, NOW, [])).toEqual({
     stored: 2,
     changed: [
       { source: "pyp", code: "1" },
@@ -61,7 +61,7 @@ test("stores a summary for each yard whose publication it has not seen, and read
     ],
   });
   // Nothing new to store.
-  expect(await YardSummaryStore.refresh(database, NOW)).toEqual({
+  expect(await YardSummaryStore.refresh(database, NOW, [])).toEqual({
     stored: 0,
     changed: [],
   });
@@ -81,7 +81,7 @@ test("serves the summary of the last refresh until the next one replaces it", as
   const database = drizzle(client);
   await addVehicle("A", "1", "HONDA");
   await publish("1", 100);
-  await YardSummaryStore.refresh(database, NOW);
+  await YardSummaryStore.refresh(database, NOW, []);
 
   // Published since: the cached pages still show the last refresh's read,
   // and so does the stored summary, so no page reads the yard.
@@ -89,7 +89,7 @@ test("serves the summary of the last refresh until the next one replaces it", as
   await publish("1", 200);
   expect((await YardSummaryStore.read(database, "pyp", "1"))?.total).toBe(1);
 
-  expect(await YardSummaryStore.refresh(database, NOW)).toEqual({
+  expect(await YardSummaryStore.refresh(database, NOW, [])).toEqual({
     stored: 1,
     changed: [{ source: "pyp", code: "1" }],
   });
@@ -100,12 +100,12 @@ test("clearing drops every stored summary, as identities may have changed", asyn
   const database = drizzle(client);
   await addVehicle("A", "1", "HONDA");
   await publish("1", 100);
-  await YardSummaryStore.refresh(database, NOW);
+  await YardSummaryStore.refresh(database, NOW, []);
 
   await YardSummaryStore.clear(database);
 
   expect(await YardSummaryStore.read(database, "pyp", "1")).toBeNull();
-  expect(await YardSummaryStore.refresh(database, NOW)).toEqual({
+  expect(await YardSummaryStore.refresh(database, NOW, [])).toEqual({
     stored: 1,
     changed: [{ source: "pyp", code: "1" }],
   });
@@ -115,10 +115,10 @@ test("drops summaries of yards that left yard_inventory", async () => {
   const database = drizzle(client);
   await addVehicle("A", "1", "HONDA");
   await publish("1", 100);
-  await YardSummaryStore.refresh(database, NOW);
+  await YardSummaryStore.refresh(database, NOW, []);
   await client.execute("delete from yard_inventory");
 
-  await YardSummaryStore.refresh(database, NOW);
+  await YardSummaryStore.refresh(database, NOW, []);
 
   const left = await client.execute("select count(*) as n from yard_summary");
   expect(Number(left.rows[0]?.n)).toBe(0);
@@ -130,14 +130,14 @@ test("a publication that changed nothing a yard's pages show leaves the yard unc
   await addVehicle("B", "2", "Ford");
   await publish("1", 100);
   await publish("2", 100);
-  await YardSummaryStore.refresh(database, NOW);
+  await YardSummaryStore.refresh(database, NOW, []);
 
   // Both yards publish again; only yard 2's vehicles changed.
   await client.execute("update vehicle set color = 'Red' where vin = 'B'");
   await publish("1", 200);
   await publish("2", 200);
 
-  expect(await YardSummaryStore.refresh(database, NOW)).toEqual({
+  expect(await YardSummaryStore.refresh(database, NOW, [])).toEqual({
     stored: 2,
     changed: [{ source: "pyp", code: "2" }],
   });
@@ -148,9 +148,9 @@ test("records when each yard's content last changed", async () => {
   const database = drizzle(client);
   await addVehicle("A", "1", "HONDA");
   await publish("1", 100);
-  await YardSummaryStore.refresh(database, new Date(1_000));
+  await YardSummaryStore.refresh(database, new Date(1_000), []);
   await publish("1", 200);
-  await YardSummaryStore.refresh(database, new Date(2_000));
+  await YardSummaryStore.refresh(database, new Date(2_000), []);
   const unchanged = await client.execute(
     "select content_changed_at from yard_summary",
   );
@@ -158,7 +158,7 @@ test("records when each yard's content last changed", async () => {
 
   await addVehicle("B", "1", "HONDA");
   await publish("1", 300);
-  await YardSummaryStore.refresh(database, new Date(3_000));
+  await YardSummaryStore.refresh(database, new Date(3_000), []);
   const changed = await client.execute(
     "select content_changed_at from yard_summary",
   );
@@ -170,7 +170,7 @@ test("fills only yards without a summary, as a deploy does", async () => {
   await addVehicle("A", "1", "HONDA");
   await addVehicle("B", "2", "Ford");
   await publish("1", 100);
-  await YardSummaryStore.refresh(database, NOW);
+  await YardSummaryStore.refresh(database, NOW, []);
   await publish("1", 200);
   await publish("2", 100);
 
@@ -178,4 +178,36 @@ test("fills only yards without a summary, as a deploy does", async () => {
   expect(await YardSummaryStore.fill(database, NOW)).toEqual({ stored: 1 });
   expect((await YardSummaryStore.read(database, "pyp", "2"))?.total).toBe(1);
   expect(await YardSummaryStore.fill(database, NOW)).toEqual({ stored: 0 });
+});
+
+test("rebuilds every yard of a source whose run ended without publishing", async () => {
+  const database = drizzle(client);
+  await addVehicle("A", "1", "HONDA");
+  await addVehicle("B", "2", "Ford");
+  await publish("1", 100);
+  await publish("2", 100);
+  await YardSummaryStore.refresh(database, NOW, []);
+
+  // A run wrote a vehicle to yard 1, then ended without publishing, so
+  // yard_inventory still names the old publication.
+  await addVehicle("C", "1", "Ford");
+
+  expect(await YardSummaryStore.refresh(database, NOW, ["pyp"])).toEqual({
+    stored: 2,
+    changed: [{ source: "pyp", code: "1" }],
+  });
+  expect((await YardSummaryStore.read(database, "pyp", "1"))?.total).toBe(2);
+});
+
+test("rebuilds every yard when the last refresh's read is unknown", async () => {
+  const database = drizzle(client);
+  await addVehicle("A", "1", "HONDA");
+  await publish("1", 100);
+  await YardSummaryStore.refresh(database, NOW, []);
+  await addVehicle("B", "1", "HONDA");
+
+  expect(await YardSummaryStore.refresh(database, NOW, "all")).toEqual({
+    stored: 1,
+    changed: [{ source: "pyp", code: "1" }],
+  });
 });

@@ -22,7 +22,8 @@ When `max(ingestion_run.publication_sequence)` is newer than the
 that same time and stamps it on success, so an hourly cron refreshes every
 3 hours, not 4. It:
 
-1. stores each published yard's page summary (`yard_summary`), then the
+1. stores the page summary (`yard_summary`) of each published yard and of
+   every yard of a run that ended without publishing, then the
    homepage snapshot (`inventory-snapshot:<version>`), and revalidates the
    `daily-inventory` cache tag (`inventory-cache-refresh`), each only when
    behind. Yard pages' vehicle entries (summary, slices, per-make lists)
@@ -30,9 +31,10 @@ that same time and stamps it on success, so an hourly cron refreshes every
    `inventory-source:<source>`) instead. The refresh expires only the yards
    whose vehicles changed what their pages show since the previous refresh
    read them (`yard_summary.content_hash` changed, stamped
-   `content_changed_at`; `last_success_at` with a 30-minute margin), yards
-   published since whose summary was not rebuilt, and every yard of a run
-   that ended without publishing. It expires all of them
+   `content_changed_at` after `last_success_at`) and every yard of a run
+   that ended without publishing (30-minute margin). A yard whose summary
+   failed to rebuild stays cached, matching its stored summary, until a
+   later refresh rebuilds it. It expires all of them
    (`inventory-sources`) when that time is unknown or a search-index
    migration rewrote identities, which also clears and refills
    `yard_summary`. Deploys store any missing summary after migrating

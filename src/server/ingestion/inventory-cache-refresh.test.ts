@@ -145,14 +145,16 @@ describe("InventoryCacheRefresh.run", () => {
     // Published with nothing its pages show changed: left cached.
     await yardPublished("row52", published);
     await yardSummarized("row52", published, NOW.getTime() - 30 * HOUR);
-    // Published, but its summary was not rebuilt: what changed is unknown.
+    // Published, but its summary was not rebuilt (the store failed): its
+    // pages and stored summary still agree, so it stays cached until the
+    // next refresh rebuilds the summary and finds what changed.
     await yardPublished("calton", published);
     await yardSummarized(
       "calton",
       published - 24 * HOUR,
       published - 24 * HOUR,
     );
-    // A content change stamped just before the last read is inside the margin.
+    // Changed before the last read, which already expired it.
     await yardPublished("pullapart", published);
     await yardSummarized(
       "pullapart",
@@ -171,11 +173,7 @@ describe("InventoryCacheRefresh.run", () => {
     expect((await caches.run()).status).toBe("refreshed");
 
     expect(caches.expired()).toEqual([
-      {
-        kind: "sources",
-        sources: [],
-        yards: [yard("calton"), yard("pullapart"), yard("pyp")],
-      },
+      { kind: "sources", sources: [], yards: [yard("pyp")] },
     ]);
     // The next refresh counts changes from this one's read.
     await publish(3);
@@ -218,6 +216,12 @@ describe("InventoryCacheRefresh.run", () => {
         NOW.getTime() - 9 * HOUR,
       ],
     });
+    // The summary store, which runs first, rebuilds the same sources' yards.
+    const since = await InventoryCacheRefresh.changesReadAt(drizzle(client));
+    if (since === null) throw new Error("the last read was not recorded");
+    expect(
+      await InventoryCacheRefresh.unpublishedSources(drizzle(client), since),
+    ).toEqual(["calton"]);
     const caches = refresh({ projected: 1 });
 
     await caches.run();
@@ -227,14 +231,37 @@ describe("InventoryCacheRefresh.run", () => {
     ]);
   });
 
+  test("expires a yard once for a change stamped at the refresh's own read", async () => {
+    await publish(1, 2);
+    const read = NOW.getTime() - 3 * HOUR;
+    await InventoryCacheRefresh.record(drizzle(client), 1, new Date(read));
+    // The summary store stamps a change with the refresh's time, which that
+    // refresh records as its read and has already expired.
+    await yardPublished("pyp", read);
+    await yardSummarized("pyp", read, read);
+    const caches = refresh({ projected: 1 });
+
+    await caches.run();
+
+    expect(caches.expired()).toEqual([
+      { kind: "sources", sources: [], yards: [] },
+    ]);
+  });
+
   test("expires every source when no earlier read is recorded", async () => {
     await publish(1);
     await yardPublished("pyp", NOW.getTime() - HOUR);
     const caches = refresh();
+    expect(
+      await InventoryCacheRefresh.changesReadAt(drizzle(client)),
+    ).toBeNull();
 
     await caches.run();
 
     expect(caches.expired()).toEqual([{ kind: "all" }]);
+    expect(await InventoryCacheRefresh.changesReadAt(drizzle(client))).toEqual(
+      NOW,
+    );
   });
 
   test("does nothing when the caches and their data show the latest publication", async () => {
