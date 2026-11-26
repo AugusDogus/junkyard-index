@@ -194,6 +194,45 @@ describe("commit lease", () => {
     expect(await repository.claimCommit("last", at(26 * MINUTE))).toBe("busy");
   });
 
+  test("a release signals only the live waiters next in claim order", async () => {
+    await stagedRun({ id: "holder", source: LOW, readyAt: T0 });
+    expect(await repository.claimCommit("holder", at(MINUTE))).toBe("claimed");
+    // The oldest waiter's workflow died: it is silent past the liveness bound.
+    await stagedRun({ id: "dead", source: HIGH, readyAt: T0 + MINUTE });
+    await stagedRun({
+      id: "second",
+      source: "row52",
+      readyAt: T0 + 3 * MINUTE,
+      lastProgressAt: T0 + 19 * MINUTE,
+    });
+    await stagedRun({
+      id: "first",
+      source: "pyp",
+      readyAt: T0 + 2 * MINUTE,
+      lastProgressAt: T0 + 19 * MINUTE,
+    });
+    await stagedRun({
+      id: "third",
+      source: "lkq",
+      readyAt: T0 + 4 * MINUTE,
+      lastProgressAt: T0 + 19 * MINUTE,
+    });
+    // Still crawling, so it has no place in the queue yet.
+    await client.execute(
+      "insert into ingestion_run (id, source, status, stage, active_slot, started_at, last_progress_at) values ('crawling', 'chaz', 'running', 'sources', 1, 0, 0)",
+    );
+    await release("holder");
+
+    const now = at(20 * MINUTE);
+    expect(await repository.listNextCommitWaiters(now)).toEqual([
+      "first",
+      "second",
+    ]);
+    // The first signaled waiter is the one the claim admits.
+    expect(await repository.claimCommit("second", now)).toBe("busy");
+    expect(await repository.claimCommit("first", now)).toBe("claimed");
+  });
+
   test("stamps each claim a later whole second than the previous holder", async () => {
     await stagedRun({ id: "first", source: LOW, readyAt: T0 });
     await stagedRun({ id: "second", source: HIGH, readyAt: T0 + 1 });

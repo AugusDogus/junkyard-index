@@ -531,17 +531,30 @@ export function createDurableIngestionRepository(
         : "stopped";
     },
 
-    /** Active runs that have not claimed the commit yet. */
-    async listCommitWaiters(): Promise<string[]> {
+    /**
+     * The live waiters that claim the commit next, in claim order. A release
+     * signals only these: the claim admits just the oldest live waiter, so
+     * waking the whole queue made every other waiter run a losing claim. The
+     * second is a spare for a head that turns stale before it claims; waiters
+     * further back claim on their own fallback timer.
+     */
+    async listNextCommitWaiters(now = new Date()): Promise<string[]> {
+      const liveSince = now.getTime() - CommitLease.livenessMs;
+      const readyAt = sql<number>`${sql.raw(CommitLease.readySql("ingestion_run"))}`;
       const rows = await database
         .select({ id: ingestionRun.id })
         .from(ingestionRun)
         .where(
           and(
             eq(ingestionRun.activeSlot, 1),
+            eq(ingestionRun.status, "running"),
             isNull(ingestionRun.commitStartedAt),
+            ne(ingestionRun.stage, "sources"),
+            sql`${ingestionRun.lastProgressAt} >= ${liveSince}`,
           ),
-        );
+        )
+        .orderBy(readyAt, ingestionRun.id)
+        .limit(2);
       return rows.map((row) => row.id);
     },
 
