@@ -69,7 +69,8 @@ URLs are allowed. It never requests donor details, images, hidden routes,
 part searches or an inferred model route. Supplier declarations must all agree
 on `MD08`. Complete document, native owner, address and phone checks apply.
 Redirects, partial content, non-HTML responses, request failures and any other
-non-200 status stop the run without automatic retry. An origin HTTP 502, 503 or
+non-200 status fail the chunk; the workflow step retries it twice within
+seconds, then the source fails until its next daily attempt. An origin HTTP 502, 503 or
 504 instead defers the chunk (`ProviderNotReadyDeferred`): the LiteSpeed origin
 answers these on single pages for minutes while neighbouring pages still answer
 200 (2026-11-26 failed all three daily runs this way). A chunk that already
