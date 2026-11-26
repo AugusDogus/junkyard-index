@@ -19,6 +19,25 @@ const config = {
     // Old directory URL that still gets visits.
     return [{ source: "/yards", destination: "/junkyards", permanent: true }];
   },
+  async headers() {
+    return [
+      {
+        // Yard model pages render on each request (no ISR page), so Vercel's
+        // CDN keeps the finished HTML instead: a repeat visit within an hour
+        // runs no function, and for a day after that it gets the stale page
+        // while one request refreshes it. Next still sends browsers
+        // `private, no-store`. The page reads nothing from the request, and
+        // its header renders the signed-in state in the browser.
+        source: "/junkyards/:state/:yard/make/:make/model/:model",
+        headers: [
+          {
+            key: "Vercel-CDN-Cache-Control",
+            value: "s-maxage=3600, stale-while-revalidate=86400",
+          },
+        ],
+      },
+    ];
+  },
   images: {
     loader: "custom",
     loaderFile: "./src/lib/wsrvLoader.ts",
