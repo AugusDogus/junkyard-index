@@ -14,6 +14,7 @@ import {
 import { vinplusPublicDate } from "./vinplus-public-enrichment";
 import type { VinplusTenant } from "./vinplus-configuration";
 import type { CanonicalVehicle } from "./types";
+import { usAutoSupplyVehiclePhoto } from "./vehicle-photo";
 
 export function vinplusSnapshot(
   tenant: VinplusTenant,
@@ -86,8 +87,10 @@ export function vinplusSnapshot(
       model,
       color: normalizeCanonicalColor(vinplusOptionalText(record.color)),
       stockNumber: record.stock,
-      // These tenants publish no verified stock-bound photo host contract.
-      imageUrl: null,
+      imageUrl:
+        tenant.photos === "us-auto-supply"
+          ? usAutoSupplyVehiclePhoto(record.imageUrl, record.stock)
+          : null,
       availableDate: vinplusPublicDate(record.dateAdded)?.value ?? null,
       locationCode: yard.code,
       locationName: yard.name,

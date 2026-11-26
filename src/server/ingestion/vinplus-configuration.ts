@@ -13,6 +13,9 @@ export interface VinplusTenant {
   label: string;
   timezone: string;
   hiddenSearch: boolean;
+  /** Only US Auto Supply publishes a photo URL bound to the stock number.
+   * YardSmart signs redirects that expire before a page could show them. */
+  photos: "none" | "us-auto-supply";
   inventory:
     | { kind: "crush"; stockDigits: 5 | 6 }
     | { kind: "yardsmart"; yardLocation: string };
@@ -42,6 +45,7 @@ export const VINPLUS_TENANTS: readonly VinplusTenant[] = [
     label: "U Pull Auto Parts Pocatello",
     timezone: "America/Denver",
     hiddenSearch: true,
+    photos: "none",
     inventory: { kind: "crush", stockDigits: 6 },
     minimum: 236,
     yard: yard(
@@ -64,6 +68,7 @@ export const VINPLUS_TENANTS: readonly VinplusTenant[] = [
     label: "Ryan's Pick-A-Part",
     timezone: "America/New_York",
     hiddenSearch: false,
+    photos: "none",
     inventory: { kind: "crush", stockDigits: 6 },
     minimum: 468,
     yard: yard(
@@ -86,6 +91,7 @@ export const VINPLUS_TENANTS: readonly VinplusTenant[] = [
     label: "US Auto Supply",
     timezone: "America/New_York",
     hiddenSearch: false,
+    photos: "us-auto-supply",
     inventory: { kind: "crush", stockDigits: 6 },
     minimum: 360,
     yard: yard(
@@ -108,6 +114,7 @@ export const VINPLUS_TENANTS: readonly VinplusTenant[] = [
     label: "YourPart",
     timezone: "America/New_York",
     hiddenSearch: false,
+    photos: "none",
     inventory: { kind: "crush", stockDigits: 6 },
     minimum: 154,
     yard: yard(
@@ -130,6 +137,7 @@ export const VINPLUS_TENANTS: readonly VinplusTenant[] = [
     label: "195 Used Auto Parts",
     timezone: "America/Chicago",
     hiddenSearch: false,
+    photos: "none",
     inventory: { kind: "crush", stockDigits: 5 },
     minimum: 519,
     yard: yard(
@@ -152,6 +160,7 @@ export const VINPLUS_TENANTS: readonly VinplusTenant[] = [
     label: "Pick Ur Part",
     timezone: "America/Chicago",
     hiddenSearch: false,
+    photos: "none",
     inventory: { kind: "yardsmart", yardLocation: "Lubbock" },
     minimum: 361,
     yard: yard(
@@ -174,6 +183,7 @@ export const VINPLUS_TENANTS: readonly VinplusTenant[] = [
     label: "Indy U-Pull-It",
     timezone: "America/New_York",
     hiddenSearch: false,
+    photos: "none",
     inventory: { kind: "crush", stockDigits: 6 },
     minimum: 400,
     yard: yard(

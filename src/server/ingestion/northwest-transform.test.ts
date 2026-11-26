@@ -111,7 +111,9 @@ test("synthetic valid supplied optional values survive without identity enrichme
   const result = transformNorthwestRecord(
     {
       ...record,
-      imageUrls: ["/images/native.jpg"],
+      imageUrls: [
+        "https://da8h1v3w8q6n5.cloudfront.net/ak01/images/Q367/Q367_0.jpg",
+      ],
       availableDates: ["2024-02-29"],
       colors: ["RED"],
       sections: ["A"],
@@ -123,13 +125,27 @@ test("synthetic valid supplied optional values survive without identity enrichme
   expect(result.status).toBe("candidate");
   if (result.status !== "candidate") return;
   expect(result.candidate).toMatchObject({
-    imageUrl: "https://northwestautoparts.com/images/native.jpg",
+    imageUrl:
+      "https://da8h1v3w8q6n5.cloudfront.net/ak01/images/Q367/Q367_0.jpg",
     availableDate: "2024-02-29",
     color: "RED",
     section: "A",
     row: "12",
     space: "3",
   });
+});
+
+test("only the yard's CloudFront donor photos survive", () => {
+  for (const imageUrls of [
+    ["/images/native.jpg"],
+    ["/wp-content/plugins/iis-pro-v2/images/no-image-min.webp"],
+    ["https://da8h1v3w8q6n5.cloudfront.net/mm28/images/Q367/Q367_0.jpg"],
+  ]) {
+    const result = transformNorthwestRecord({ ...record, imageUrls }, location);
+    expect(result.status).toBe("candidate");
+    if (result.status !== "candidate") continue;
+    expect(result.candidate.imageUrl).toBeNull();
+  }
 });
 
 test("required rejection never produces a candidate", () => {
