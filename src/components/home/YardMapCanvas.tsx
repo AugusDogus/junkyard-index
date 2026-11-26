@@ -10,6 +10,7 @@ import { YardMapTile, YardMapTilesReady } from "./YardMapTile";
 import { yardTileProvider } from "~/lib/yard-map-tiles";
 import { useYardMapUrlWrite } from "~/hooks/use-yard-map-url-write";
 import { useYardMapView } from "~/hooks/use-yard-map-view";
+import { YardMapMarkerCanvas } from "./YardMapMarkerCanvas";
 import { YardMapPin } from "./YardMapPin";
 import { YardMapPinLayer, yardMapPinOffset } from "./YardMapPinLayer";
 import {
@@ -47,6 +48,16 @@ const YardMapCanvas = memo(function YardMapCanvas({
   const pins = useMemo(() => yards.filter(hasMapCoordinates), [yards]);
   const selected = selection?.yard ?? null;
   const [focusedKey, setFocusedKey] = useState<string | null>(null);
+  const [hoveredKey, setHoveredKey] = useState<string | null>(null);
+  // The canvas draws the squares once it has run; until then, and without
+  // script, the pins draw their own.
+  const [markersDrawn, setMarkersDrawn] = useState(false);
+  const onMarkersDrawn = useCallback(() => setMarkersDrawn(true), []);
+  const hoverYard = useCallback((key: string, hovered: boolean) => {
+    setHoveredKey((current) =>
+      hovered ? key : current === key ? null : current,
+    );
+  }, []);
   const markerRefs = useRef(new globalThis.Map<string, HTMLButtonElement>());
   // A mouse click in the map lets the plain wheel zoom until the pointer
   // leaves; until then the wheel scrolls the page past the map.
@@ -55,7 +66,11 @@ const YardMapCanvas = memo(function YardMapCanvas({
   // An estimate until the layout effect measures the canvas. The page is
   // served from the CDN, so it can't depend on the visitor's device; the fit
   // scale below frames the same bounds on a phone until then.
-  const [size, setSize] = useState({ width: 900, height: 400 });
+  const [size, setSize] = useState({
+    width: 900,
+    height: 400,
+    measured: false,
+  });
   const [tileError, setTileError] = useState(false);
   const [tilesReady, setTilesReady] = useState(false);
 
@@ -190,6 +205,7 @@ const YardMapCanvas = memo(function YardMapCanvas({
               tabIndex={key === activeKey ? 0 : -1}
               register={registerPin}
               onFocusYard={setFocusedKey}
+              onHoverYard={hoverYard}
               selected={isSelected}
               // The open yard stands out at full size among dots.
               size={isSelected ? "pin" : (sizes[index] ?? "pin")}
@@ -198,7 +214,16 @@ const YardMapCanvas = memo(function YardMapCanvas({
           </div>
         );
       }),
-    [pins, current, selected, activeKey, sizes, activate, registerPin],
+    [
+      pins,
+      current,
+      selected,
+      activeKey,
+      sizes,
+      activate,
+      registerPin,
+      hoverYard,
+    ],
   );
 
   // Back and shared links return to the same view. Before paint, so a
@@ -240,7 +265,11 @@ const YardMapCanvas = memo(function YardMapCanvas({
   useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    setSize({ width: container.clientWidth, height: container.clientHeight });
+    setSize({
+      width: container.clientWidth,
+      height: container.clientHeight,
+      measured: true,
+    });
     const observer = new ResizeObserver(([entry]) => {
       if (
         entry &&
@@ -250,6 +279,7 @@ const YardMapCanvas = memo(function YardMapCanvas({
         setSize({
           width: entry.contentRect.width,
           height: entry.contentRect.height,
+          measured: true,
         });
       }
     });
@@ -294,6 +324,7 @@ const YardMapCanvas = memo(function YardMapCanvas({
       className="yard-map focus-visible:outline-focus relative h-full overflow-hidden outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid"
       style={{ containerType: "size" }}
       role="region"
+      data-markers={markersDrawn ? "canvas" : undefined}
       tabIndex={pins.length === 0 ? 0 : -1}
       aria-label="Map of indexed junkyard locations"
       aria-description="Use arrow keys to move between yard pins, Enter to select, Shift and arrow keys to pan, plus and minus to zoom, and Home to return to the overview."
@@ -379,6 +410,13 @@ const YardMapCanvas = memo(function YardMapCanvas({
             }}
             attribution={false}
           >
+            <YardMapMarkerCanvas
+              pins={pins}
+              selectedKey={selected ? YardPath.key(selected) : null}
+              hoveredKey={hoveredKey}
+              measured={size.measured}
+              onDrawn={onMarkersDrawn}
+            />
             <YardMapPinLayer anchor={current.center} view={current}>
               {pinElements}
             </YardMapPinLayer>

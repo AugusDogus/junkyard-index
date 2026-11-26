@@ -20,6 +20,7 @@ export const YardMapPin = memo(function YardMapPin({
   onSelect,
   register,
   onFocusYard,
+  onHoverYard,
 }: {
   yard: MapYard;
   selected: boolean;
@@ -29,6 +30,8 @@ export const YardMapPin = memo(function YardMapPin({
   /** Called with the pin's button, and with null when it unmounts. */
   register: (key: string, button: HTMLButtonElement | null) => void;
   onFocusYard: (key: string) => void;
+  /** A mouse moved onto (true) or off (false) the pin. */
+  onHoverYard: (key: string, hovered: boolean) => void;
 }) {
   const key = YardPath.key(yard);
   const gesture = useRef<{
@@ -72,6 +75,10 @@ export const YardMapPin = memo(function YardMapPin({
         // Continue tracking outside the pin without blocking Pigeon's pan events.
         event.currentTarget.setPointerCapture(event.pointerId);
       }}
+      onPointerEnter={(event) => {
+        if (event.pointerType !== "touch") onHoverYard(key, true);
+      }}
+      onPointerLeave={() => onHoverYard(key, false)}
       onPointerMove={trackPointer}
       onPointerUp={trackPointer}
       onPointerCancel={() => {
