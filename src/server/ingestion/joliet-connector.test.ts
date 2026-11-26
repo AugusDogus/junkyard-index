@@ -956,6 +956,34 @@ test("Joliet cumulative 10% cap retains valid metadata-reject presence", async (
   await expect(run()).rejects.toThrow("10% rejection limit");
 });
 
+test("Joliet ends its day on the 10% cap even when the API union also drifts", async () => {
+  const records = Array.from({ length: 100 }, (_, index) => ({
+    ...jolietTestRecord,
+    stock: "STK" + String(75000 + index).padStart(6, "0"),
+    vin: "1FAHP2J89EG" + String(117500 + index),
+  }));
+  mock({
+    records,
+    searches: new Map([
+      [
+        jolietPairKey(jolietTestRecord),
+        records.map((record, index) =>
+          index >= 88 ? { ...record, model: "Unknown" } : record,
+        ),
+      ],
+    ]),
+    rewrite: (body, kind) =>
+      kind === "analytics" ? jolietTestAnalytics(records.slice(1)) : body,
+  });
+  const rejected: unknown = await run().catch((error: unknown) => error);
+  expect(() => {
+    throw rejected;
+  }).toThrow("10% rejection limit");
+  // A transient union drift here would spend the day's remaining full crawls
+  // on a run the rejection cap must end.
+  expect(validationRejectionKind(rejected)).toBe("deterministic");
+});
+
 test.each<ResponseInit>([
   { status: 206, headers: { "content-type": "text/html" } },
   {
