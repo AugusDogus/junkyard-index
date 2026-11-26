@@ -29,7 +29,7 @@
         "@vercel/analytics": "^1.5.0",
         "@vercel/blob": "^2.8.2",
         "@vercel/flags-core": "^1.11.0",
-        "@vercel/functions": "^2.2.12",
+        "@vercel/functions": "^3.11.1",
         "algoliasearch": "^5.49.0",
         "better-auth": "1.6.23",
         "class-variance-authority": "^0.7.1",
@@ -1034,7 +1034,7 @@
 
     "@vercel/flags-core": ["@vercel/flags-core@1.11.0", "", { "dependencies": { "@vercel/functions": "^3.4.3", "@vercel/oidc": "3.5.0", "dequal": "2.0.3", "jose": "^5.10.0", "js-xxhash": "4.0.0" }, "peerDependencies": { "@openfeature/server-sdk": "1.18.0", "next": "*" }, "optionalPeers": ["@openfeature/server-sdk", "next"] }, "sha512-QUeTQb9uC9cZEPK1B5PQjNezXi890V5OeteCg+IE29Wz/J6RPybkmdTf636EPZMtG75bb1z0S8SquSuIkMLFKA=="],
 
-    "@vercel/functions": ["@vercel/functions@2.2.12", "", { "dependencies": { "@vercel/oidc": "2.0.1" }, "peerDependencies": { "@aws-sdk/credential-provider-web-identity": "*" }, "optionalPeers": ["@aws-sdk/credential-provider-web-identity"] }, "sha512-WGGqro/Rg00Epj+t2l6lr68q6ZkFt5+Q4F4Ok8sJbYrpu5pniDay09ihJqUoz81NI9PIfIahGEjaKpucUhEIrg=="],
+    "@vercel/functions": ["@vercel/functions@3.11.1", "", { "dependencies": { "@vercel/oidc": "4.0.8" }, "peerDependencies": { "@aws-sdk/credential-provider-web-identity": "*", "ws": ">=8" }, "optionalPeers": ["@aws-sdk/credential-provider-web-identity", "ws"] }, "sha512-tZoePP4TRh25G5VNsWuLanANvfq0wdbvoUdabhoc8UT2QxIXj6mfoqXE4ycOm6CZyZuAN9dHqU51vuijPXjTcg=="],
 
     "@vercel/oidc": ["@vercel/oidc@3.8.4", "", { "dependencies": { "@vercel/cli-config": "0.2.3", "@vercel/cli-exec": "1.0.1", "jose": "^5.9.6" } }, "sha512-FGNvVZ5pgX9FaBqkPt6VkYFZ6bWAMDzYi7nxW+1Xt+Z4fn5PuTULVwsxjKc+0uKhysyWBQmvsmM50Oh6C2/oMA=="],
 
@@ -2232,7 +2232,7 @@
 
     "@vercel/flags-core/@vercel/oidc": ["@vercel/oidc@3.5.0", "", {}, "sha512-jo7GgeJx2YMkjg9A28pFM5p88n5SnSHvDeNlf9898bRWiG9jPxwedj/gn/2XTw4UOTyQ50uHlrTGSlf/XU5tgw=="],
 
-    "@vercel/functions/@vercel/oidc": ["@vercel/oidc@2.0.1", "", { "dependencies": { "@types/ms": "2.1.0", "ms": "2.1.3" } }, "sha512-p/rFk8vz+AggU0bHXjwtRUyXNxboLvfCjwN0KH5xhBJ5wGS+n/psLJP1c69QPdWIZM4aVVIrTqdjUuDwuJGYzQ=="],
+    "@vercel/functions/@vercel/oidc": ["@vercel/oidc@4.0.8", "", { "dependencies": { "@vercel/cli-config": "0.3.8", "@vercel/cli-exec": "1.0.1", "jose": "^5.9.6" } }, "sha512-8wcmhuhrEsQlgTvPfRIeE4Y2geSaid0a1DP+um1PfNK4ETjqnfGTL5k5l7vS2T8A2gOx/MV7yNGxUJTs+0tqPQ=="],
 
     "@vercel/queue/minimatch": ["minimatch@10.2.6", "", { "dependencies": { "brace-expansion": "^5.0.8" } }, "sha512-vpLQEs+VLCr1nU0BXS07maYoFwlDAH0gngQuuttxIwutDFEMHq2blX+8vpgxDdK3J1PwjCJiep77OitTZ4Ll1A=="],
 
@@ -2468,6 +2468,8 @@
 
     "@vercel/flags-core/@vercel/functions/@vercel/oidc": ["@vercel/oidc@3.8.4", "", { "dependencies": { "@vercel/cli-config": "0.2.3", "@vercel/cli-exec": "1.0.1", "jose": "^5.9.6" } }, "sha512-FGNvVZ5pgX9FaBqkPt6VkYFZ6bWAMDzYi7nxW+1Xt+Z4fn5PuTULVwsxjKc+0uKhysyWBQmvsmM50Oh6C2/oMA=="],
 
+    "@vercel/functions/@vercel/oidc/@vercel/cli-config": ["@vercel/cli-config@0.3.8", "", { "dependencies": { "xdg-app-paths": "5", "zod": "^4.6.6" } }, "sha512-C6av1p4tN+rHIcD0rdlsx3y9SaosRUU67dbgrjbLG8KdAK8oNVzfKg0ckV+1qWh5VC/Ft1BN3Pg/PuXSKNFVOA=="],
+
     "@vercel/queue/minimatch/brace-expansion": ["brace-expansion@5.0.9", "", { "dependencies": { "balanced-match": "^4.0.2" } }, "sha512-ScQ4IuvIEF1TMlP7Zt+vjJ//9zlPb2SDcxWxM3bk8s6t6GGdJ7KO1dCcTidOPJKePW30LE/2cT7wCyPho9/Wxg=="],
 
     "@workflow/builders/enhanced-resolve/tapable": ["tapable@2.3.0", "", {}, "sha512-g9ljZiwki/LfxmQADO3dEY1CbpmXT5Hm2fJ+QaGKwSXUylMybePR7/67YW7jOrrvjEgL1Fmz5kzyAjWVWLlucg=="],
@@ -2579,6 +2581,8 @@
     "unplugin/chokidar/readdirp": ["readdirp@3.6.0", "", { "dependencies": { "picomatch": "^2.2.1" } }, "sha512-hOS089on8RduqdbhvQ5Z37A0ESjsqz6qnRcffsMU3495FuTdqSm+7bhJ29JvIOsBDEEnan5DPu9t3To9VRlMzA=="],
 
     "@oclif/core/minimatch/brace-expansion/balanced-match": ["balanced-match@4.0.4", "", {}, "sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA=="],
+
+    "@vercel/functions/@vercel/oidc/@vercel/cli-config/zod": ["zod@4.6.7", "", {}, "sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg=="],
 
     "@vercel/queue/minimatch/brace-expansion/balanced-match": ["balanced-match@4.0.4", "", {}, "sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA=="],
 

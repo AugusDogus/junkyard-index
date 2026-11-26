@@ -22,17 +22,20 @@ const config = {
   async headers() {
     return [
       {
-        // Yard model pages render on each request (no ISR page), so Vercel's
-        // CDN keeps the finished HTML instead: a repeat visit within an hour
-        // runs no function, and for a day after that it gets the stale page
-        // while one request refreshes it. Next still sends browsers
+        // Yard model pages render on request (no ISR page), so Vercel's CDN
+        // keeps the finished HTML for a day instead, and a repeat visit runs
+        // no function. Each response carries its yard's cache tags
+        // (tagYardPageResponse), so the refresh that expires a changed
+        // yard's data purges its pages too. Next still sends browsers
         // `private, no-store`. The page reads nothing from the request, and
-        // its header renders the signed-in state in the browser.
+        // its header renders the signed-in state in the browser. The CDN
+        // honors Next's `Vary: rsc`, so HTML and flight responses are stored
+        // apart (checked on a preview).
         source: "/junkyards/:state/:yard/make/:make/model/:model",
         headers: [
           {
             key: "Vercel-CDN-Cache-Control",
-            value: "s-maxage=3600, stale-while-revalidate=86400",
+            value: "s-maxage=86400, stale-while-revalidate=86400",
           },
         ],
       },

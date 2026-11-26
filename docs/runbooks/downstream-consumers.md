@@ -41,7 +41,10 @@ that same time and stamps it on success, so an hourly cron refreshes every
    rows (`vehicle_yard_make_live_idx`). Yard model pages render on each
    request and are never stored as ISR pages; each reads its model's rows
    (about 5) through the same index without caching them, since almost
-   every render is a first visit to its URL;
+   every render is a first visit to its URL. Vercel's CDN keeps each one for
+   a day, tagged with its yard's, source's, `inventory-sources` and
+   `source-control` tags, so this expiry (or a staleness-class change, which
+   expires the source's tag) purges it;
 2. requests the pages changed since the last IndexNow announcement, waits
    2 minutes for them to regenerate, and announces them
    (`indexnow-announcement`, production only);

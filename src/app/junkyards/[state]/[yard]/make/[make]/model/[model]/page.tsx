@@ -10,14 +10,16 @@ import { YardPath } from "~/lib/yard-path";
 import { getMakeSlugs, getYardModelPageData } from "~/server/vehicle-models";
 import { getHiddenSources } from "~/server/source-control/hidden-sources-loader";
 import { getYardModelVehicles, getYardPageData } from "~/server/yard-inventory";
+import { tagYardPageResponse } from "~/server/yard-page-cdn-tags";
 
-// One model at one yard, read from its own small cached list. Rendered
-// on each request and never stored as an ISR page: about 100,000 of these
-// URLs exist, crawlers asked for about 54,000 a day on Nov 25 2026 (almost
-// every one a first visit), and 1-3% of stored pages were ever read again,
-// so storing them was about 82% of the ISR writes (about $1.37 a day). The
-// data they read stays cached (the yard's summary and the make's list), so a
-// render reads Turso only on a miss, and then just that make's rows.
+// One model at one yard. Rendered on request and never stored as an ISR
+// page: about 100,000 of these URLs exist, crawlers asked for about 54,000
+// a day on Nov 25 2026 (almost every one a first visit), and 1-3% of stored
+// pages were ever read again, so storing them was about 82% of the ISR
+// writes (about $1.37 a day). Vercel's CDN keeps the finished page instead
+// (next.config.js), with no write charge, until the yard's inventory changes
+// and its tags purge it (tagYardPageResponse). A render reads small cached
+// entries and the model's own rows (about 5) from Turso.
 export const dynamic = "force-dynamic";
 
 type Params = { state: string; yard: string; make: string; model: string };
@@ -30,6 +32,8 @@ async function load(params: Promise<Params>) {
     getYardPageData(state, yard),
     getYardModelPageData(makeSlug, modelSlug),
   ]);
+  // Before any 404 or redirect, which the CDN keeps too.
+  await tagYardPageResponse(data ? data.yard : null);
   if (!data || !found) return null;
   const { make, model } = found;
   const vehicles = await getYardModelVehicles(

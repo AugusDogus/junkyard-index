@@ -63,13 +63,14 @@ export const StalenessBoundary = {
    * would otherwise regenerate up to twice for one publication. Compares
    * with the stored
    * classification, not a time window, so a late or missed tick still
-   * catches every change. When `revalidate` throws, nothing is stored and
-   * the error propagates, so the next tick tries again.
+   * catches every change. `revalidate` gets the sources that moved class,
+   * or "unknown" when nothing was stored. When it throws, nothing is stored
+   * and the error propagates, so the next tick tries again.
    */
   async check(params: {
     database: LibSQLDatabase;
     now: Date;
-    revalidate: () => void;
+    revalidate: (changed: IngestionSource[] | "unknown") => void;
   }): Promise<StalenessBoundaryCheck> {
     const [freshness, [stored]] = await Promise.all([
       loadSourceFreshness(params.database, params.now),
@@ -93,7 +94,7 @@ export const StalenessBoundary = {
     const recovered =
       changed !== "unknown" &&
       changed.every((source) => classes[source] === undefined);
-    if (!recovered) params.revalidate();
+    if (!recovered) params.revalidate(changed);
     const state = {
       kind: "staleness",
       jobCursor: JSON.stringify(classes),

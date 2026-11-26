@@ -1,9 +1,9 @@
-import { revalidateTag } from "next/cache";
 import pRetry from "p-retry";
 import { start } from "workflow/api";
 import { env } from "~/env";
 import { db } from "~/lib/db";
 import { INVENTORY_CACHE_TAG } from "~/lib/inventory-cache";
+import { expireInventoryCaches } from "~/lib/inventory-cache-expiry";
 import { ConsumerFlags } from "~/server/ingestion/consumer-flags";
 import { reportConsumerTickNow } from "~/server/ingestion/consumer-report-runtime";
 import { InventoryDownstream } from "~/server/ingestion/inventory-downstream";
@@ -61,7 +61,9 @@ export async function GET(request: Request) {
 /**
  * Expires the inventory caches when a source passed 36 hours (its listings
  * gain "Last checked") or 7 days (it hides), or an ingestion outage began or
- * ended, since the last classification stored; no publication does then. A
+ * ended, since the last classification stored; no publication does then.
+ * Those sources' per-yard entries expire too, and with them the CDN copies
+ * of their yard model pages, which carry their source's tag. A
  * source coming back to current is left to its publication's refresh. A
  * failure here leaves the consumer to run as usual; those labels and hides
  * then wait for the next tick, publication or the caches' daily expiry.
@@ -71,7 +73,12 @@ async function expireAtStalenessBoundary(): Promise<void> {
     const check = await StalenessBoundary.check({
       database: db,
       now: new Date(),
-      revalidate: () => revalidateTag(INVENTORY_CACHE_TAG, "max"),
+      revalidate: (changed) =>
+        expireInventoryCaches(
+          changed === "unknown"
+            ? { kind: "all" }
+            : { kind: "sources", sources: changed, yards: [] },
+        ),
     });
     if (check.status === "unchanged") return;
     if (check.status === "recovered") {
