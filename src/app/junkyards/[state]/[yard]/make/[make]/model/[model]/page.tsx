@@ -28,13 +28,14 @@ type Params = { state: string; yard: string; make: string; model: string };
 // arguments.
 async function load(params: Promise<Params>) {
   const { state, yard, make: makeSlug, model: modelSlug } = await params;
-  const [data, found] = await Promise.all([
-    getYardPageData(state, yard),
-    getYardModelPageData(makeSlug, modelSlug),
-  ]);
+  const data = await getYardPageData(state, yard);
   // Before any 404 or redirect, which the CDN keeps too.
   await tagYardPageResponse(data ? data.yard : null);
-  if (!data || !found) return null;
+  // Only for a known yard: each make and model slug pair is a cache entry,
+  // and a junk URL should write none.
+  if (!data) return null;
+  const found = await getYardModelPageData(makeSlug, modelSlug);
+  if (!found) return null;
   const { make, model } = found;
   const vehicles = await getYardModelVehicles(
     data.yard,

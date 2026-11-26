@@ -9,6 +9,7 @@ type Opened = {
     | { vehicles: number; total: number };
   metadata: unknown;
   makeReads: number;
+  modelLookups: number;
   cdnTags: string[];
 };
 
@@ -111,6 +112,7 @@ async function open(
       outcome,
       metadata,
       makeReads: globalThis.makeReads,
+      modelLookups: globalThis.modelLookups,
       cdnTags: [...globalThis.cdnTags].sort(),
     }));
   `,
@@ -171,7 +173,11 @@ describe("yard model page", () => {
   });
 
   test("tags its CDN copy with the tags that expire when the yard's inventory or the hidden sources change", async () => {
+    // daily-inventory: the yard's context (nearby yards, dates, staleness
+    // labels, hidden sources) changes at every publication without its
+    // vehicles changing.
     const yardTags = [
+      "daily-inventory",
       "inventory-source:pyp",
       "inventory-sources",
       "inventory-yard:pyp:1",
@@ -188,5 +194,12 @@ describe("yard model page", () => {
       "inventory-sources",
       "source-control",
     ]);
+  });
+
+  test("looks up no make or model for an unknown yard, so junk URLs cache nothing", async () => {
+    expect(await open("chevrolet", "silverado", "nowhere")).toMatchObject({
+      outcome: { notFound: true },
+      modelLookups: 0,
+    });
   });
 });

@@ -2,6 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 import { db } from "~/lib/db";
+import { retryTursoRead } from "~/lib/turso-read-retry";
 import { Region } from "~/lib/region";
 import { calculateDistance } from "~/lib/utils";
 import { YardBrand, type Chain } from "~/lib/yard-brand";
@@ -151,12 +152,14 @@ export const getYardModelVehicles = cache(
   ): Promise<YardVehicle[]> => {
     const list = YardInventory.makeList(summary, makeKey);
     if (!list) return [];
-    return YardVehicles.model(
-      db,
-      yard.source,
-      yard.code,
-      { key: makeKey, spellings: list.spellings },
-      model,
+    return retryTursoRead(() =>
+      YardVehicles.model(
+        db,
+        yard.source,
+        yard.code,
+        { key: makeKey, spellings: list.spellings },
+        model,
+      ),
     );
   },
 );
