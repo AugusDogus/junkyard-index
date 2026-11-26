@@ -52,6 +52,19 @@ export type YardSummary = {
   total: number;
   makes: MakeCount[];
   arrivals: { key: string; knownAt: number[] }[];
+  /** Each make's list at the yard: how to read it, and how to recognize it. */
+  makeLists: YardMakeList[];
+};
+
+/**
+ * One make's vehicles at a yard, as the summary's read saw them: the raw
+ * `vehicle.make` spellings to read them by, and the fingerprint of the list,
+ * so a list cached from another read can be told apart.
+ */
+export type YardMakeList = {
+  key: string;
+  fingerprint: string;
+  spellings: string[];
 };
 
 /**
@@ -107,6 +120,40 @@ function inWeek(at: number, referenceTime: string): boolean {
   return (
     at >= Date.parse(referenceTime) - WEEK_MS && at <= Date.parse(referenceTime)
   );
+}
+
+/** Each make's list fingerprint and raw spellings, for `YardSummary`. */
+function makeLists(
+  vehicles: readonly YardVehicle[],
+  rawMakes: readonly string[],
+): YardMakeList[] {
+  const lists = new Map<string, YardVehicle[]>();
+  for (const vehicle of vehicles) {
+    const key = VehicleName.makeKey(vehicle.make);
+    if (!key) continue;
+    const list = lists.get(key) ?? [];
+    list.push(vehicle);
+    lists.set(key, list);
+  }
+  const spellings = new Map<string, Set<string>>();
+  for (const raw of rawMakes) {
+    // A raw spelling counts under its own key and under its display name's,
+    // since pages group by the latter.
+    for (const key of [
+      VehicleName.makeKey(raw),
+      VehicleName.makeKey(VehicleName.makeName(raw)),
+    ]) {
+      if (!key) continue;
+      const set = spellings.get(key) ?? new Set<string>();
+      set.add(raw);
+      spellings.set(key, set);
+    }
+  }
+  return [...lists].map(([key, list]) => ({
+    key,
+    fingerprint: YardInventory.fingerprint(list),
+    spellings: [...(spellings.get(key) ?? [])].sort(),
+  }));
 }
 
 export const YardInventory = {
@@ -282,8 +329,14 @@ export const YardInventory = {
     )}`;
   },
 
-  /** A yard's summary, from its whole inventory. */
-  summary(vehicles: readonly YardVehicle[]): YardSummary {
+  /**
+   * A yard's summary, from its whole inventory, newest first, and the raw
+   * `vehicle.make` values of the rows it came from.
+   */
+  summary(
+    vehicles: readonly YardVehicle[],
+    rawMakes: readonly string[],
+  ): YardSummary {
     const arrivals = new Map<string, number[]>();
     for (const vehicle of vehicles) {
       if (vehicle.addedBy === "first-seen") continue;
@@ -297,6 +350,54 @@ export const YardInventory = {
       total: vehicles.length,
       makes: YardInventory.makeCounts(vehicles),
       arrivals: [...arrivals].map(([key, knownAt]) => ({ key, knownAt })),
+      makeLists: makeLists(vehicles, rawMakes),
+    };
+  },
+
+  /** How to read and recognize one make's list at a yard, if it has one. */
+  makeList(summary: YardSummary, makeKey: string): YardMakeList | null {
+    return summary.makeLists.find((list) => list.key === makeKey) ?? null;
+  },
+
+  /**
+   * The summary with one make's vehicles replaced by `vehicles` (newest
+   * first), for a make list read after the summary: its count, the yard
+   * total and its arrivals then agree with the list shown.
+   */
+  withMake(
+    summary: YardSummary,
+    makeKey: string,
+    vehicles: readonly YardVehicle[],
+  ): YardSummary {
+    const own = YardInventory.summary(
+      vehicles,
+      YardInventory.makeList(summary, makeKey)?.spellings ?? [],
+    );
+    const before =
+      summary.makes.find((make) => make.key === makeKey)?.count ?? 0;
+    return {
+      fingerprint: summary.fingerprint,
+      total: summary.total - before + vehicles.length,
+      makes: [
+        ...summary.makes.filter((make) => make.key !== makeKey),
+        ...own.makes,
+      ].sort((a, b) => b.count - a.count || a.make.localeCompare(b.make)),
+      arrivals: [
+        ...summary.arrivals.filter((make) => make.key !== makeKey),
+        ...own.arrivals,
+      ],
+      makeLists: [
+        ...summary.makeLists.filter((list) => list.key !== makeKey),
+        ...own.makeLists.map((list) => ({
+          ...list,
+          spellings: [
+            ...new Set([
+              ...list.spellings,
+              ...(YardInventory.makeList(summary, makeKey)?.spellings ?? []),
+            ]),
+          ],
+        })),
+      ],
     };
   },
 
