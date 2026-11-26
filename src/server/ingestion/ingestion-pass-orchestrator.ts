@@ -44,13 +44,15 @@ export type IngestionPassPlan =
  * has staged, which frees its shared hosts, and `failed` when it stops (older
  * deployments send only this one). `yielded` means it stopped fetching
  * because its next chunk needs other hosts (URG IIS's next tenant), detached
- * its workflow, and waits for the pass to start it again once they are free.
+ * its workflow, and waits for the pass to start it again once they are free;
+ * `admitted` names the claims that workflow was started with, so a late or
+ * repeated report from a workflow the pass already replaced is ignored.
  * `replan` asks the pass to plan again, for a manual run it must admit.
  */
 export type IngestionRunReport =
   | { runId: string; failed: boolean }
   | { runId: string; fetched: true }
-  | { runId: string; yielded: HostClaims }
+  | { runId: string; yielded: HostClaims; admitted: HostClaims }
   | { replan: true };
 
 /**
@@ -234,6 +236,10 @@ export async function runIngestionPass(
       const reported = waiting.findIndex((run) => run.runId === report.runId);
       if (reported >= 0) waiting.splice(reported, 1);
       if ("yielded" in report) {
+        const known = fetching.get(report.runId);
+        // The pass already started a later workflow for this run.
+        if (known?.admitted && !HostClaims.equal(known.claims, report.admitted))
+          continue;
         fetching.delete(report.runId);
         // It is mid-crawl, so it goes first once its next hosts are free.
         waiting.unshift({
