@@ -70,7 +70,10 @@ const unlessTransient =
       Effect.map(Option.some),
       Effect.catchIf(
         (error: E): boolean => advanced && ProviderChunkClock.isDeferral(error),
-        () => Effect.succeed(Option.none<A>()),
+        (error) =>
+          Effect.logWarning(
+            `${error instanceof Error ? error.message : String(error)} Returning this chunk's validated checkpoint so the next chunk resends this GET.`,
+          ).pipe(Effect.as(Option.none<A>())),
       ),
     );
 const serial = Effect.runSync(Effect.makeSemaphore(1));

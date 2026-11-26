@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { Effect, Either } from "effect";
+import { Effect, Either, Logger } from "effect";
 import {
   streamChazInventory,
   streamChazInventoryWithRequestGate,
@@ -295,11 +295,30 @@ test.each([502, 503, 504])(
 test("Chaz keeps a chunk's validated GETs when a later native GET answers HTTP 503", async () => {
   const statuses = new Map([[CHAZ_MAKES, 503]]);
   const native = transport(undefined, statuses);
+  const logs: string[] = [];
   const result = await Effect.runPromise(
-    streamChazInventoryWithRequestGate({ onBatch: () => Effect.void }, gate),
+    streamChazInventoryWithRequestGate(
+      { onBatch: () => Effect.void },
+      gate,
+    ).pipe(
+      Effect.provide(
+        Logger.replace(
+          Logger.defaultLogger,
+          Logger.make(({ logLevel, message }) => {
+            logs.push(`${logLevel.label} ${String(message)}`);
+          }),
+        ),
+      ),
+    ),
   );
   expect(result.status).toBe("paused");
   expect(result.pagesProcessed).toBe(2);
+  // A partial outage that keeps pausing chunks shows up in the logs.
+  expect(logs).toEqual([
+    expect.stringMatching(
+      /^WARN .*answered HTTP 503.* Returning this chunk's validated checkpoint/,
+    ),
+  ]);
   expect(result.cursor.phase).toBe("directory");
   expect(native.urls).toEqual([CHAZ_CONTACT, CHAZ_ROOT, CHAZ_MAKES]);
   // The next chunk resumes at the same native GET once the origin recovers.
