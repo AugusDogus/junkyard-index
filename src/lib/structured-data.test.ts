@@ -80,20 +80,14 @@ describe("StructuredData", () => {
       detailsUrl: null,
     });
     const list = StructuredData.vehicles("Inventory", 250, 100, [vehicle]);
-    expect(list).toMatchObject({
-      numberOfItems: 250,
-      itemListElement: [
-        {
-          position: 101,
-          item: {
-            name: "2003 Honda ACCORD EX",
-            model: "ACCORD",
-            brand: { name: "Honda" },
-            vehicleModelDate: "2003",
-          },
-        },
-      ],
-    });
-    expect(JSON.stringify(list)).not.toContain("color");
+    expect(list).toMatchObject({ numberOfItems: 250 });
+    // Untyped names only: a Car item is a Product to Google, which would
+    // report each one as invalid without offers, reviews or ratings.
+    expect(list.itemListElement).toEqual([
+      { "@type": "ListItem", position: 101, name: "2003 Honda ACCORD EX" },
+    ]);
+    expect(JSON.stringify(list)).not.toMatch(
+      /"Car"|"Product"|offers|price|rating/i,
+    );
   });
 });

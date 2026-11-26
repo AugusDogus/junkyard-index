@@ -81,7 +81,11 @@ export const StructuredData = {
     };
   },
 
-  /** The vehicles shown on this page, out of `total` in the yard. */
+  /**
+   * The vehicles shown on this page, out of `total` in the yard, by name.
+   * Items stay untyped: Google reads a Car as a Product, and a Product
+   * without offers, reviews or ratings is reported as invalid.
+   */
   vehicles(
     name: string,
     total: number,
@@ -96,23 +100,9 @@ export const StructuredData = {
       itemListElement: vehicles.map((vehicle, index) => ({
         "@type": "ListItem",
         position: firstIndex + index + 1,
-        item: {
-          "@type": "Car",
-          name: [vehicle.year, vehicle.make, vehicle.model, vehicle.trim]
-            .filter(Boolean)
-            .join(" "),
-          vehicleIdentificationNumber: vehicle.vin,
-          vehicleModelDate: String(vehicle.year),
-          brand: { "@type": "Brand", name: vehicle.make },
-          model: vehicle.model,
-          ...(vehicle.color && { color: vehicle.color }),
-          ...(vehicle.engine && {
-            vehicleEngine: {
-              "@type": "EngineSpecification",
-              name: vehicle.engine,
-            },
-          }),
-        },
+        name: [vehicle.year, vehicle.make, vehicle.model, vehicle.trim]
+          .filter(Boolean)
+          .join(" "),
       })),
     };
   },

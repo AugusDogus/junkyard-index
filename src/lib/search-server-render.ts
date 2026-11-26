@@ -2,21 +2,23 @@ import { SearchArea } from "./search-area";
 import { SearchRadius } from "./search-radius";
 
 /**
- * Whether the /search server render runs an Algolia search. Every server
- * search spends the shared monthly quota, so only a person asking for
- * specific results gets one. Crawlers and link-preview fetchers, the default
- * page, and nearby searches whose origin only the browser knows render a
- * skeleton and search from the browser instead.
+ * Whether /search runs an Algolia search, and where. Every search spends the
+ * shared monthly quota, so only a person asking for specific results gets a
+ * server search. The default page and nearby searches whose origin only the
+ * browser knows `skip` it: they render a skeleton and search from the
+ * browser. A `crawler` (crawlers, link-preview fetchers and other non-person
+ * clients) never searches at all, not even from a rendering crawler's
+ * browser, and gets a static page instead.
  */
-export type SearchServerRender = "search" | "skip";
+export type SearchServerRender = "search" | "skip" | "crawler";
 
 type SearchParams = Readonly<
   Record<string, string | readonly string[] | undefined>
 >;
 
 // Crawlers, link unfurlers, monitors, headless browsers and command-line
-// fetchers. They rarely run the browser search, so the server search was
-// their only cost. The lookbehind keeps Cubot phones, whose model names end
+// fetchers. Rendering crawlers such as Googlebot run the page's scripts, so
+// a browser search would spend the quota too. The lookbehind keeps Cubot phones, whose model names end
 // in "bot", on the server search.
 const NON_PERSON_USER_AGENT =
   /(?<!cu)bot\b|bot[/_]|crawl|spider|slurp|facebookexternalhit|embedly|whatsapp|preview|inspectiontool|lighthouse|headless|curl\/|wget\/|python-|scrapy|okhttp|java\/|go-http-client|axios\/|node-fetch|undici/i;
@@ -61,8 +63,9 @@ export const SearchServerRender = {
     userAgent: string | null;
     params: SearchParams;
   }): SearchServerRender {
-    return SearchServerRender.isNonPersonUserAgent(input.userAgent) ||
-      SearchServerRender.isDefaultSearch(input.params) ||
+    if (SearchServerRender.isNonPersonUserAgent(input.userAgent))
+      return "crawler";
+    return SearchServerRender.isDefaultSearch(input.params) ||
       SearchServerRender.isNearbyWithoutOrigin(input.params)
       ? "skip"
       : "search";

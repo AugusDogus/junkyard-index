@@ -118,6 +118,7 @@ export default async function RegionPage({
       <p className="mt-4">
         <Link
           className="text-signal inline-flex min-h-11 items-center font-medium tabular-nums underline underline-offset-4"
+          rel="nofollow"
           href={buildSearchUrl("", {
             arrivalWindow: "7d",
             states: [region.name],
