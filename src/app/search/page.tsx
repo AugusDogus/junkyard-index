@@ -132,6 +132,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                   )}
                   serverSearch={SearchServerRender.decide({
                     userAgent: reqHeaders.get("user-agent"),
+                    visitor: isLoggedIn ? "signed-in" : "guest",
                     params,
                   })}
                   userLocation={geo}

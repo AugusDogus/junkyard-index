@@ -302,11 +302,32 @@ test("a person taken for a crawler can start the search", async () => {
   }
 }, 30_000);
 
-test("a server-rendered person search is not repeated by the browser after hydration", async () => {
+test("a guest's specific search gets results after hydration without a server search", async () => {
   const userAgent =
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
   const { page, html } = await open(
     `q=toyota+venza&fixtureGuest=1&fixtureUserAgent=${encodeURIComponent(userAgent)}`,
+  );
+  try {
+    expect(html).toContain('<meta name="fixture-server-searches" content="0">');
+    expect(html).not.toContain("InstantSearchInitialResults");
+    await page.getByRole("heading", { name: "2011 Toyota Venza" }).waitFor();
+    expect(
+      (await requestLog(page)).some(
+        ({ params }) =>
+          params.query === "toyota venza" && (params.hitsPerPage ?? 0) > 0,
+      ),
+    ).toBe(true);
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
+
+test("a signed-in person's server-rendered search is not repeated by the browser after hydration", async () => {
+  const userAgent =
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+  const { page, html } = await open(
+    `q=toyota+venza&fixtureUserAgent=${encodeURIComponent(userAgent)}`,
   );
   try {
     expect(html).toContain("InstantSearchInitialResults");
