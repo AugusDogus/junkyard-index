@@ -1,1 +1,0 @@
-CREATE INDEX `vehicle_yard_make_live_idx` ON `vehicle` (`source`,`location_code`,`make`) WHERE missing_since_at is null;

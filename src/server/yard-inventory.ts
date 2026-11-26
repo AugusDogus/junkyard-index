@@ -1,6 +1,5 @@
 import "server-only";
 
-import { and, eq, inArray, isNull, type SQL } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "~/lib/db";
 import { Region } from "~/lib/region";
@@ -20,7 +19,6 @@ import {
   type InventoryCheckDates,
   type InventoryFreshness,
 } from "~/lib/inventory-staleness";
-import { VehicleName } from "~/lib/vehicle-name";
 import {
   YardInventory,
   type YardInventoryPage,
@@ -30,70 +28,13 @@ import {
 import { getSourceFreshness } from "~/server/ingestion/source-freshness";
 import { StateNewArrivals } from "~/server/state-new-arrivals";
 import { cacheShownInventory } from "~/server/source-control/hidden-sources-loader";
-import { vehicle, yardCheck, yardInventory } from "~/schema";
+import { yardCheck, yardInventory } from "~/schema";
 import { YardCheck } from "~/lib/yard-check";
+import { YardSummaryStore } from "./yard-summary-store";
+import { YardVehicles } from "./yard-vehicles";
 
-/** A yard's live vehicles matching `where`, with the fields its pages show. */
-function selectYardRows(where: SQL | undefined) {
-  return db
-    .select({
-      vin: vehicle.vin,
-      year: vehicle.year,
-      make: vehicle.make,
-      model: vehicle.model,
-      sourceModel: vehicle.sourceModel,
-      trim: vehicle.trim,
-      engine: vehicle.engine,
-      color: vehicle.color,
-      stockNumber: vehicle.stockNumber,
-      section: vehicle.section,
-      row: vehicle.row,
-      space: vehicle.space,
-      availableDate: vehicle.availableDate,
-      firstSeenAt: vehicle.firstSeenAt,
-      observedArrivalAt: vehicle.observedArrivalAt,
-      imageUrl: vehicle.imageUrl,
-      detailsUrl: vehicle.detailsUrl,
-    })
-    .from(vehicle)
-    .where(where);
-}
-
-type YardVehicleRow = Awaited<ReturnType<typeof selectYardRows>>[number];
-
-function toYardVehicles(rows: readonly YardVehicleRow[]): YardVehicle[] {
-  return YardInventory.sort(
-    rows.map(({ firstSeenAt, observedArrivalAt, ...row }) =>
-      YardInventory.vehicle({
-        ...row,
-        firstSeenAt: firstSeenAt.getTime(),
-        observedArrivalAt: observedArrivalAt?.getTime() ?? null,
-      }),
-    ),
-  );
-}
-
-/** A yard's live vehicles, newest first, and the raw makes they came with. */
-type YardVehiclesRead = { vehicles: YardVehicle[]; rawMakes: string[] };
-
-async function loadYardVehicles(
-  source: string,
-  code: string,
-): Promise<YardVehiclesRead> {
-  // No ORDER BY: with it, SQLite walks vehicle_recent_idx across every live
-  // vehicle in the country. Without it, vehicle_location_code_idx reads only
-  // this yard's rows, which sort cheaply here.
-  const rows = await selectYardRows(
-    and(
-      eq(vehicle.locationCode, code),
-      eq(vehicle.source, source),
-      isNull(vehicle.missingSinceAt),
-    ),
-  );
-  return {
-    vehicles: toYardVehicles(rows),
-    rawMakes: rows.map((row) => row.make),
-  };
+function loadYardVehicles(source: string, code: string) {
+  return YardVehicles.all(db, source, code);
 }
 
 /**
@@ -109,6 +50,10 @@ const readYardVehicles = cache(loadYardVehicles);
  */
 const getYardSummary = cacheSourceInventory(
   async (source: string, code: string): Promise<YardSummary> => {
+    // The refresh stores each yard's summary after its publication: reading
+    // it back costs 2 rows. Only a yard published since then is read whole.
+    const stored = await YardSummaryStore.read(db, source, code);
+    if (stored) return stored;
     const read = await readYardVehicles(source, code);
     return YardInventory.summary(read.vehicles, read.rawMakes);
   },
@@ -168,19 +113,12 @@ const getYardMakeEntry = cacheSourceInventory(
     makeKey: string,
     spellings: readonly string[],
   ): Promise<YardMakeEntry> => {
-    const rows =
-      spellings.length === 0
-        ? []
-        : await selectYardRows(
-            and(
-              eq(vehicle.source, source),
-              eq(vehicle.locationCode, code),
-              inArray(vehicle.make, [...spellings]),
-              isNull(vehicle.missingSinceAt),
-            ),
-          );
-    const vehicles = toYardVehicles(rows).filter(
-      (entry) => VehicleName.makeKey(entry.make) === makeKey,
+    const vehicles = await YardVehicles.make(
+      db,
+      source,
+      code,
+      makeKey,
+      spellings,
     );
     return { fingerprint: YardInventory.fingerprint(vehicles), vehicles };
   },

@@ -17,7 +17,7 @@ test("one make's live vehicles at a yard are read through vehicle_yard_make_live
       );
       create index vehicle_yard_live_idx on vehicle (source, location_code, missing_since_at);
       create index vehicle_location_code_idx on vehicle (location_code);
-      ${readFileSync(new URL("../../drizzle/0035_yard_make_live_index.sql", import.meta.url), "utf8")}
+      ${readFileSync(new URL("../../drizzle/0035_yard_make_index_and_summary.sql", import.meta.url), "utf8")}
     `);
     const database = drizzle(client);
     const query = database

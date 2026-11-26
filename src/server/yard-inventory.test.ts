@@ -33,6 +33,13 @@ function run(scenario: string): unknown {
     mock.module("~/lib/db", () => ({
       db: { select: () => ({ from: () => ({ where: async () => { globalThis.reads++; return rows; } }) }) },
     }));
+    // Summaries the refresh stored, by yard; none unless a scenario stores one.
+    globalThis.stored = new Map();
+    mock.module("~/server/yard-summary-store", () => ({
+      YardSummaryStore: {
+        read: async (_db, source, code) => globalThis.stored.get(source + ":" + code) ?? null,
+      },
+    }));
     const { YardInventory } = await import("./src/lib/yard-inventory.ts");
     // The summary a read of the current rows caches.
     globalThis.summaryOf = () =>
@@ -142,4 +149,21 @@ test("a slice from a different read of the same size renders from a fresh read",
     hondaTotal: 0,
     hondas: 0,
   });
+});
+
+test("a make page reads its make's list once, then from the cache", () => {
+  expect(
+    run(`
+    setRows(4500, (index) => (index % 3 === 0 ? "FORD" : "HONDA"));
+    const summary = summaryOf();
+    const fords = await inventory.getYardMakeVehicles(yard, summary, "FORD");
+    const again = await inventory.getYardMakeVehicles(yard, summary, "FORD");
+    console.log(JSON.stringify({
+      fords: fords.data.length,
+      again: again.data.length,
+      agrees: fords.summary === summary,
+      reads,
+    }));
+  `),
+  ).toEqual({ fords: 1500, again: 1500, agrees: true, reads: 1 });
 });

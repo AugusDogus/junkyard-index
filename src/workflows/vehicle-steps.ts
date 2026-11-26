@@ -5,6 +5,7 @@ import { FatalError, getStepMetadata } from "workflow";
 import { formatError, throwRetryableStepError } from "./step-errors";
 import { resumeHook } from "workflow/api";
 import { expireInventoryCaches } from "~/lib/inventory-cache-expiry";
+import { YardSummaryStore } from "~/server/yard-summary-store";
 import { db } from "~/lib/db";
 import { SearchPublicationFlag } from "~/server/ingestion/search-publication-flag";
 import * as Sentry from "@sentry/nextjs";
@@ -485,6 +486,7 @@ runSearchIndexMigrationBatchStep.maxRetries = 2;
 export async function expireInventoryAfterMigrationStep() {
   "use step";
 
+  await YardSummaryStore.clear(db);
   expireInventoryCaches({ kind: "all" });
 }
 
@@ -495,7 +497,9 @@ export async function finalizeSearchIndexMigrationStep(
 
   try {
     const result = await finalizeSearchIndexMigration(state);
-    // The migration rewrote identities on every source's vehicles.
+    // The migration rewrote identities on every source's vehicles, which
+    // stored yard summaries name too.
+    await YardSummaryStore.clear(db);
     expireInventoryCaches({ kind: "all" });
     console.info("[Workflow] Completed search index schema migration", result);
     return result;
