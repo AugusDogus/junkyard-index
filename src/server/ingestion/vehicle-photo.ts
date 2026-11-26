@@ -24,9 +24,17 @@ export function vehiclePhoto(
   return url && url.host === host && path.test(url.pathname) ? url.href : null;
 }
 
-/** For providers that relay photos from many hosts: any absolute https photo. */
+/** For providers that relay photos from many hosts: any absolute https photo.
+ * The path must name a file. Bubble stores uploads without an extension
+ * (447 live Ario photos on 2026-11-26), so only a non-photo extension rejects. */
 export function httpsVehiclePhoto(raw: unknown): string | null {
-  return photoUrl(raw)?.href ?? null;
+  const url = photoUrl(raw);
+  const name = url?.pathname.split("/").at(-1) ?? "";
+  return url &&
+    name &&
+    (!name.includes(".") || /\.(?:jpe?g|png|webp)$/i.test(name))
+    ? url.href
+    : null;
 }
 
 export function hollanderVehiclePhoto(raw: unknown): string | null {
