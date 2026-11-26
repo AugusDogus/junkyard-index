@@ -11,8 +11,10 @@ const config = {
   // The browser names Algolia indices by deployment (src/lib/constants.ts).
   env: { NEXT_PUBLIC_VERCEL_ENV: process.env.VERCEL_ENV ?? "" },
   // The required CI check runs the same type check (`bun run typecheck`
-  // generates the route types first), so builds skip a second minute of tsc.
-  typescript: { ignoreBuildErrors: true },
+  // generates the route types first), so previews skip a second minute of
+  // tsc. Production keeps it: main does not require branches to be up to
+  // date, so two PRs that each pass CI can still merge into a type error.
+  typescript: { ignoreBuildErrors: process.env.VERCEL_ENV !== "production" },
   async redirects() {
     // Old directory URL that still gets visits.
     return [{ source: "/yards", destination: "/junkyards", permanent: true }];
