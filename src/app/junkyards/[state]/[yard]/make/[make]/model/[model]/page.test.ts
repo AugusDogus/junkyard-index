@@ -9,16 +9,21 @@ type Opened = {
     | { vehicles: number; total: number };
   metadata: unknown;
   makeReads: number;
+  cdnTags: string[];
 };
 
 const routeFile = fileURLToPath(new URL("./page.tsx", import.meta.url));
 
 /**
- * Opens /junkyards/tx/calton/make/{make}/model/{model} with 3 Silverados
- * and 2 Tahoes at the yard. Runs in its own process so the module mocks
- * stay out of other test files.
+ * Opens /junkyards/tx/{yard}/make/{make}/model/{model} with 3 Silverados
+ * and 2 Tahoes at Calton. Runs in its own process so the module mocks stay
+ * out of other test files.
  */
-async function open(make: string, model: string): Promise<Opened> {
+async function open(
+  make: string,
+  model: string,
+  yard = "calton",
+): Promise<Opened> {
   const child = Bun.spawn(
     [
       process.execPath,
@@ -34,7 +39,14 @@ async function open(make: string, model: string): Promise<Opened> {
       YardInventoryView: () => null,
       yardMakeMetadata: (yard, make, total) => ({ make: make.slug, model: make.model.slug, total }),
     }));
-    mock.module("~/server/source-control/hidden-sources-loader", () => ({ getHiddenSources: async () => ({ list: [] }) }));
+    mock.module("~/server/source-control/hidden-sources-loader", () => ({
+      getHiddenSources: async () => ({ list: [] }),
+      SOURCE_CONTROL_CACHE_TAG: "source-control",
+    }));
+    globalThis.cdnTags = new Set();
+    mock.module("@vercel/functions", () => ({
+      addCacheTag: async (tag) => { globalThis.cdnTags.add(tag); },
+    }));
     const chevrolet = { key: "CHEVROLET", name: "Chevrolet", slug: "chevrolet", rawMakes: ["Chevrolet"] };
     const { VehicleName } = await import("~/lib/vehicle-name");
     const models = ["Silverado", "Tahoe"].map((name) => ({
@@ -77,7 +89,7 @@ async function open(make: string, model: string): Promise<Opened> {
       },
     }));
     const route = await import(process.argv[3]);
-    const params = Promise.resolve({ state: "tx", yard: "calton", make: process.argv[1], model: process.argv[2] });
+    const params = Promise.resolve({ state: "tx", yard: process.argv[4], make: process.argv[1], model: process.argv[2] });
     let outcome;
     try {
       const element = await route.default({ params });
@@ -99,11 +111,13 @@ async function open(make: string, model: string): Promise<Opened> {
       outcome,
       metadata,
       makeReads: globalThis.makeReads,
+      cdnTags: [...globalThis.cdnTags].sort(),
     }));
   `,
       make,
       model,
       routeFile,
+      yard,
     ],
     { stdout: "pipe", stderr: "pipe" },
   );
@@ -154,5 +168,25 @@ describe("yard model page", () => {
         metadata: {},
       });
     }
+  });
+
+  test("tags its CDN copy with the tags that expire when the yard's inventory or the hidden sources change", async () => {
+    const yardTags = [
+      "inventory-source:pyp",
+      "inventory-sources",
+      "inventory-yard:pyp:1",
+      "source-control",
+    ];
+    expect((await open("chevrolet", "silverado")).cdnTags).toEqual(yardTags);
+    expect((await open("chevy", "tahoe")).cdnTags).toEqual(yardTags);
+    // A 404 for a model the yard lacks clears when the yard's stock changes.
+    expect((await open("chevrolet", "zzz")).cdnTags).toEqual(yardTags);
+    // A 404 for an unknown yard clears at the next publication, which can
+    // add the yard.
+    expect((await open("chevrolet", "silverado", "nowhere")).cdnTags).toEqual([
+      "daily-inventory",
+      "inventory-sources",
+      "source-control",
+    ]);
   });
 });

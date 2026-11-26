@@ -139,24 +139,27 @@ const getYardMakeEntry = cacheYardInventory(
  * (crawlers, Nov 2026), so a per-model cache entry would miss and be
  * written on almost every render. Under Vercel Runtime Cache a write costs
  * 10x a read, so that entry would cost about $14 a month to save about
- * 0.1M Turso rows a day.
+ * 0.1M Turso rows a day. Read once per render: the page and its metadata
+ * pass the same per-request objects.
  */
-export async function getYardModelVehicles(
-  yard: Pick<RoutedYard, "source" | "code">,
-  summary: YardSummary,
-  makeKey: string,
-  model: { key: string; rawModels: readonly string[] },
-): Promise<YardVehicle[]> {
-  const list = YardInventory.makeList(summary, makeKey);
-  if (!list) return [];
-  return YardVehicles.model(
-    db,
-    yard.source,
-    yard.code,
-    { key: makeKey, spellings: list.spellings },
-    model,
-  );
-}
+export const getYardModelVehicles = cache(
+  async (
+    yard: Pick<RoutedYard, "source" | "code">,
+    summary: YardSummary,
+    makeKey: string,
+    model: { key: string; rawModels: readonly string[] },
+  ): Promise<YardVehicle[]> => {
+    const list = YardInventory.makeList(summary, makeKey);
+    if (!list) return [];
+    return YardVehicles.model(
+      db,
+      yard.source,
+      yard.code,
+      { key: makeKey, spellings: list.spellings },
+      model,
+    );
+  },
+);
 
 /** Which vehicles of a yard a page lists: all of them, or one make's. */
 export type YardScope = { kind: "yard" } | { kind: "make"; key: string };

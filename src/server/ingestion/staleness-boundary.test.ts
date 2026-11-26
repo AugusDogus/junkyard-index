@@ -12,7 +12,7 @@ const later = (hours: number) => new Date(start.getTime() + hours * HOUR);
 function check(
   database: Parameters<typeof StalenessBoundary.check>[0]["database"],
   now: Date,
-  revalidate: () => void,
+  revalidate: Parameters<typeof StalenessBoundary.check>[0]["revalidate"],
 ) {
   return StalenessBoundary.check({ database, now, revalidate });
 }
@@ -62,7 +62,9 @@ test("expires the caches on the first check, then only when a source crosses 36 
   );
   await publish("pyp", start.getTime() - 34 * HOUR);
   await publish("upullrparts", start.getTime() - 6 * DAY - 22 * HOUR);
-  const revalidate = mock(() => undefined);
+  const revalidate = mock<
+    Parameters<typeof StalenessBoundary.check>[0]["revalidate"]
+  >(() => undefined);
   const tick = (now: Date) => check(db, now, revalidate);
 
   // Nothing stored yet, so the caches may predate any class.
@@ -80,6 +82,15 @@ test("expires the caches on the first check, then only when a source crosses 36 
     ),
   });
   expect(await tick(later(4))).toEqual({ status: "unchanged" });
+  // Each expiry names what changed, so pages of those sources expire too.
+  expect(revalidate.mock.calls).toEqual([
+    ["unknown"],
+    [
+      ACTIVE_INGESTION_SOURCES.filter(
+        (source) => source === "pyp" || source === "upullrparts",
+      ),
+    ],
+  ]);
 
   // Its next publication makes upullrparts current again. That publication
   // expires the caches through the inventory refresh, so the boundary only
