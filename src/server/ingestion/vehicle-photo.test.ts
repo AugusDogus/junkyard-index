@@ -7,6 +7,7 @@ import {
   midwayVehiclePhoto,
   tritownVehiclePhoto,
   alsautoVehiclePhoto,
+  httpsVehiclePhoto,
 } from "./vehicle-photo";
 import { parseHollanderstoresPage } from "./hollanderstores-parser";
 import { hollanderstoresFixture } from "./hollanderstores-test-fixtures";
@@ -177,4 +178,22 @@ test("new photo mappings reject placeholders and unowned hosts without rejecting
     expect(validate(url.replace(new URL(url).host, "unowned.test"))).toBeNull();
     expect(validate(url.replace(/[^/]+$/, "no-image.jpg"))).toBeNull();
   }
+});
+
+test("any-host photos must still name an image file", () => {
+  const photo =
+    "https://9868ca324016b659551139193b5094e3.cdn.bubble.io/f1740076241249x266681885758848900/IMG_7338.jpeg";
+  expect(httpsVehiclePhoto(photo)).toBe(photo);
+  // A live Ario photo: Bubble serves uploads without a file extension.
+  const bare =
+    "https://9868ca324016b659551139193b5094e3.cdn.bubble.io/f1736184576090x468952839371479940/250106050135-qzNn";
+  expect(httpsVehiclePhoto(bare)).toBe(bare);
+  for (const raw of [
+    "https://cdn.example.com",
+    "https://cdn.example.com/",
+    "https://cdn.example.com/photo.gif",
+    "https://cdn.example.com/photo.jpg/",
+    "https://cdn.example.com/listing.html",
+  ])
+    expect(httpsVehiclePhoto(raw)).toBeNull();
 });
