@@ -324,6 +324,12 @@
     background-color var(--dur-micro) steps(1);
 }
 
+/* The marker canvas draws every square once it runs; the pins stay for
+   taps, focus and screen readers. */
+.yard-map[data-markers="canvas"] .yard-map-pin > span {
+  visibility: hidden;
+}
+
 .yard-map-pin[data-size="dot"] > span {
   width: 9px;
   height: 9px;
