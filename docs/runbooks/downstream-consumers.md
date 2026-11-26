@@ -22,14 +22,22 @@ When `max(ingestion_run.publication_sequence)` is newer than the
 that same time and stamps it on success, so an hourly cron refreshes every
 3 hours, not 4. It:
 
-1. stores the homepage snapshot (`inventory-snapshot:<version>`) and
-   revalidates the `daily-inventory` cache tag (`inventory-cache-refresh`),
-   each only when behind. Yard pages' vehicle entries carry a per-source tag
-   (`inventory-source:<source>`) instead; the refresh expires only the
-   sources whose `yard_inventory` rows changed since the previous refresh
-   read them (`last_success_at`, with a 30-minute margin), or all of them
+1. stores each published yard's page summary (`yard_summary`), then the
+   homepage snapshot (`inventory-snapshot:<version>`), and revalidates the
+   `daily-inventory` cache tag (`inventory-cache-refresh`), each only when
+   behind. Yard pages' vehicle entries (summary, slices, per-make lists)
+   carry per-yard and per-source tags (`inventory-yard:<source>:<code>`,
+   `inventory-source:<source>`) instead. The refresh expires only the yards
+   whose vehicles changed what their pages show since the previous refresh
+   read them (`yard_summary.content_hash` changed, stamped
+   `content_changed_at`; `last_success_at` with a 30-minute margin), yards
+   published since whose summary was not rebuilt, and every yard of a run
+   that ended without publishing. It expires all of them
    (`inventory-sources`) when that time is unknown or a search-index
-   migration rewrote identities;
+   migration rewrote identities, which also clears `yard_summary`. A page
+   whose cached summary was evicted reads the stored one back (2 rows), and
+   a yard make or model page reads only its make's rows
+   (`vehicle_yard_make_live_idx`);
 2. requests the pages changed since the last IndexNow announcement, waits
    2 minutes for them to regenerate, and announces them
    (`indexnow-announcement`, production only);

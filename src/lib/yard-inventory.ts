@@ -330,6 +330,15 @@ export const YardInventory = {
   },
 
   /**
+   * Identifies everything a yard's pages show of its vehicles (every field,
+   * in order), so a publication that changed none of it can leave the
+   * yard's cached pages alone.
+   */
+  contentHash(vehicles: readonly YardVehicle[]): string {
+    return `${vehicles.length}:${hash53(JSON.stringify(vehicles))}`;
+  },
+
+  /**
    * A yard's summary, from its whole inventory, newest first, and the raw
    * `vehicle.make` values of the rows it came from.
    */

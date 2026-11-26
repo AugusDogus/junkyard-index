@@ -47,9 +47,12 @@ export async function refreshInventoryCachesStep(): Promise<
   // Before the caches expire, so the pages they rebuild read each yard's
   // summary back (2 rows) instead of its vehicles. A failure here only costs
   // those reads: pages read the yard instead, as they do without a summary.
+  const now = new Date();
   try {
-    const { stored } = await YardSummaryStore.refresh(db);
-    console.info(`[Workflow] Stored ${stored} yard summaries`);
+    const { stored, changed } = await YardSummaryStore.refresh(db, now);
+    console.info(
+      `[Workflow] Stored ${stored} yard summaries; ${changed.length} yards changed what their pages show`,
+    );
   } catch (error) {
     console.error(
       `[Workflow] Could not store yard summaries; yard pages read each yard's vehicles when their cached summary is missing until the next refresh stores them. Vehicle data and the inventory refresh are unaffected: ${formatError(error)}`,
@@ -71,7 +74,7 @@ export async function refreshInventoryCachesStep(): Promise<
           }),
       },
       revalidate: expireInventoryCaches,
-      now: new Date(),
+      now,
     });
   } catch (error) {
     // Not retried: a retry would read every vehicle again. The consumer
