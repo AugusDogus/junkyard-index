@@ -247,7 +247,10 @@ export function streamChazInventoryWithRequestGate<E, R>(
         // the next chunk retries the same page.
         Effect.catchIf(
           (error) => progressed && error instanceof ProviderNotReadyDeferred,
-          () => Effect.succeed(Option.none<string>()),
+          (error) =>
+            Effect.logWarning(
+              `${error.message} Returning this chunk's validated checkpoint so the next chunk retries ${url}.`,
+            ).pipe(Effect.as(Option.none<string>())),
         ),
       );
       if (Option.isNone(page)) break;

@@ -3,7 +3,7 @@ import {
   isDurableSourceCursorTerminal,
   serializeDurableSourceCursor,
 } from "./durable-source";
-import { Effect } from "effect";
+import { Effect, Logger } from "effect";
 import type { ProviderRequestGate } from "~/server/ingestion/provider-http-client";
 import { WeberbrothersCursor } from "./weberbrothers-cursor";
 import { streamWeberbrothersInventoryWithRequestGate as stream } from "./weberbrothers-connector";
@@ -284,11 +284,26 @@ test("a transient detail failure after progress keeps the validated checkpoint",
     detail(firstDonor, { vin: "5N1AZ3BS4SC111240" }),
     serverError,
   ]);
+  const logs: string[] = [];
   const paused = await Effect.runPromise(
-    stream({ ...limits, startCursor, onBatch: () => Effect.void }, gate),
+    stream({ ...limits, startCursor, onBatch: () => Effect.void }, gate).pipe(
+      Effect.provide(
+        Logger.replace(
+          Logger.defaultLogger,
+          Logger.make(({ logLevel, message }) => {
+            logs.push(`${logLevel.label} ${String(message)}`);
+          }),
+        ),
+      ),
+    ),
   );
   expect(paused.status).toBe("paused");
   expect(paused.pagesProcessed).toBe(1);
+  expect(logs).toEqual([
+    expect.stringMatching(
+      /^WARN .*answered HTTP 500.* Returning this chunk's validated checkpoint/,
+    ),
+  ]);
   expect(paused.cursor.phase).toBe("details");
   expect(paused.cursor.phase === "details" && paused.cursor.records).toEqual([
     expect.objectContaining({ post: firstDonor }),
