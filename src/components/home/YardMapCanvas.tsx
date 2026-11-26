@@ -12,7 +12,12 @@ import { useYardMapUrlWrite } from "~/hooks/use-yard-map-url-write";
 import { useYardMapView } from "~/hooks/use-yard-map-view";
 import { YardMapMarkerCanvas } from "./YardMapMarkerCanvas";
 import { YardMapPin } from "./YardMapPin";
-import { YardMapPinLayer, yardMapPinOffset } from "./YardMapPinLayer";
+import {
+  YardMapPinLayer,
+  yardMapPinAnchor,
+  yardMapPinOffset,
+} from "./YardMapPinLayer";
+import { YardMapStaticDots } from "./YardMapStaticDots";
 import {
   type CSSProperties,
   type MouseEvent,
@@ -30,6 +35,8 @@ import {
   getYardMapFitCss,
   getYardMapView,
   hasMapCoordinates,
+  projectYardLocation,
+  type YardMapView,
 } from "~/lib/yard-map-projection";
 
 const YardMapCanvas = memo(function YardMapCanvas({
@@ -49,8 +56,8 @@ const YardMapCanvas = memo(function YardMapCanvas({
   const selected = selection?.yard ?? null;
   const [focusedKey, setFocusedKey] = useState<string | null>(null);
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
-  // The canvas draws the squares once it has run; until then, and without
-  // script, the pins draw their own.
+  // The canvas draws the markers once it has run; until then, and without
+  // script, plain static dots stand in.
   const [markersDrawn, setMarkersDrawn] = useState(false);
   const onMarkersDrawn = useCallback(() => setMarkersDrawn(true), []);
   const hoverYard = useCallback((key: string, hovered: boolean) => {
@@ -112,11 +119,16 @@ const YardMapCanvas = memo(function YardMapCanvas({
   }, [loading]);
 
   const current = view ?? overview;
-  // Every yard keeps its own marker at every zoom; crowded ones are dots.
-  const sizes = useMemo(
-    () => YardMapMarker.sizes(pins, current.zoom),
-    [pins, current.zoom],
+  // Pins move only when the zoom or the anchor's grid cell changes.
+  const {
+    center: [anchorLat, anchorLng],
+    zoom: anchorZoom,
+  } = yardMapPinAnchor(current);
+  const anchor = useMemo(
+    (): YardMapView => ({ center: [anchorLat, anchorLng], zoom: anchorZoom }),
+    [anchorLat, anchorLng, anchorZoom],
   );
+  const points = useMemo(() => pins.map(projectYardLocation), [pins]);
   const activeKey = pins.some((yard) => YardPath.key(yard) === focusedKey)
     ? focusedKey
     : pins[0]
@@ -130,27 +142,36 @@ const YardMapCanvas = memo(function YardMapCanvas({
    */
   // The latest values `activate` reads, so it can stay one function: a new
   // one would redraw every memoized pin on each zoom and on first measure.
-  const tapContext = useRef({ pins, zoom: current.zoom, size });
+  const tapContext = useRef({ pins, points, zoom: current.zoom, size });
   useLayoutEffect(() => {
-    tapContext.current = { pins, zoom: current.zoom, size };
+    tapContext.current = { pins, points, zoom: current.zoom, size };
   });
   const activate = useCallback(
     (yard: MapYard, event: MouseEvent<HTMLButtonElement>) => {
-      const { pins, zoom, size } = tapContext.current;
+      const { pins, points, zoom, size } = tapContext.current;
+      // Other pins are placed from the tapped one by projection: reading
+      // each pin's box would lay out hundreds of them on every tap.
+      const box = event.currentTarget.getBoundingClientRect();
+      const origin = projectYardLocation(yard);
+      const scale = 2 ** (zoom - 2);
       const tapped =
         event.detail === 0
           ? [yard]
           : YardMapMarker.hits(
-              pins.flatMap((pin) => {
-                const box = markerRefs.current
-                  .get(YardPath.key(pin))
-                  ?.getBoundingClientRect();
-                return box
+              pins.flatMap((pin, index) => {
+                const point = points[index];
+                return point
                   ? [
                       {
                         key: pin,
-                        x: box.left + box.width / 2,
-                        y: box.top + box.height / 2,
+                        x:
+                          box.left +
+                          box.width / 2 +
+                          (point.x - origin.x) * scale,
+                        y:
+                          box.top +
+                          box.height / 2 +
+                          (point.y - origin.y) * scale,
                       },
                     ]
                   : [];
@@ -183,47 +204,34 @@ const YardMapCanvas = memo(function YardMapCanvas({
     },
     [],
   );
+  const placed = useMemo(
+    () =>
+      pins.map((yard) => ({
+        yard,
+        key: YardPath.key(yard),
+        ...yardMapPinOffset(yard, anchor),
+      })),
+    [pins, anchor],
+  );
   // Built once per settled view, so Pigeon's per-frame redraws of the
-  // layer reuse these elements instead of redrawing every pin.
+  // layer reuse these elements; a tap redraws only the pins it changes.
   const pinElements = useMemo(
     () =>
-      pins.map((yard, index) => {
-        const key = YardPath.key(yard);
-        const isSelected = selected === yard;
-        const { x, y } = yardMapPinOffset(yard, current);
-        return (
-          <div
-            key={key}
-            className="yard-map-marker pigeon-click-block"
-            style={{
-              position: "absolute",
-              transform: `translate(${x - 16}px, ${y - 16}px)`,
-            }}
-          >
-            <YardMapPin
-              yard={yard}
-              tabIndex={key === activeKey ? 0 : -1}
-              register={registerPin}
-              onFocusYard={setFocusedKey}
-              onHoverYard={hoverYard}
-              selected={isSelected}
-              // The open yard stands out at full size among dots.
-              size={isSelected ? "pin" : (sizes[index] ?? "pin")}
-              onSelect={activate}
-            />
-          </div>
-        );
-      }),
-    [
-      pins,
-      current,
-      selected,
-      activeKey,
-      sizes,
-      activate,
-      registerPin,
-      hoverYard,
-    ],
+      placed.map(({ yard, key, x, y }) => (
+        <YardMapPin
+          key={key}
+          yard={yard}
+          x={x}
+          y={y}
+          tabIndex={key === activeKey ? 0 : -1}
+          register={registerPin}
+          onFocusYard={setFocusedKey}
+          onHoverYard={hoverYard}
+          selected={selected === yard}
+          onSelect={activate}
+        />
+      )),
+    [placed, selected, activeKey, activate, registerPin, hoverYard],
   );
 
   // Back and shared links return to the same view. Before paint, so a
@@ -324,7 +332,6 @@ const YardMapCanvas = memo(function YardMapCanvas({
       className="yard-map focus-visible:outline-focus relative h-full overflow-hidden outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid"
       style={{ containerType: "size" }}
       role="region"
-      data-markers={markersDrawn ? "canvas" : undefined}
       tabIndex={pins.length === 0 ? 0 : -1}
       aria-label="Map of indexed junkyard locations"
       aria-description="Use arrow keys to move between yard pins, Enter to select, Shift and arrow keys to pan, plus and minus to zoom, and Home to return to the overview."
@@ -417,8 +424,13 @@ const YardMapCanvas = memo(function YardMapCanvas({
               measured={size.measured}
               onDrawn={onMarkersDrawn}
             />
-            <YardMapPinLayer anchor={current.center} view={current}>
-              {pinElements}
+            <YardMapPinLayer anchor={anchor.center} view={anchor}>
+              {markersDrawn ? null : (
+                <YardMapStaticDots pins={pins} view={anchor} />
+              )}
+              {/* Interactive pins mount at the map's real size, so the
+              server's HTML and the first style pass stay light. */}
+              {size.measured ? pinElements : null}
             </YardMapPinLayer>
           </Map>
         </YardMapTilesReady.Provider>

@@ -9,7 +9,7 @@ import {
   Settings,
   Sun,
 } from "lucide-react";
-import { useTheme } from "next-themes";
+import { useThemeSwitch } from "~/components/theme/theme-provider";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
@@ -55,7 +55,7 @@ export function UserMenu(props: UserMenuProps) {
 function UserMenuContent({ user: initialUser }: UserMenuProps) {
   const router = useRouter();
   const { data: session } = useSession();
-  const { setTheme } = useTheme();
+  const setTheme = useThemeSwitch();
   const [isSigningOut, setIsSigningOut] = useState(false);
   // Whether the menu was last used with a keyboard, so closing it returns
   // focus to the trigger only for keyboard users.

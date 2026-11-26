@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import {
   projectYardLocation,
+  unprojectYardLocation,
   type YardMapView,
 } from "~/lib/yard-map-projection";
 import type { YardLocation } from "~/lib/yard-directory";
@@ -11,10 +12,9 @@ import type { YardLocation } from "~/lib/yard-directory";
  * cost frames on phones. Here Pigeon redraws only this layer: it passes the
  * pixel position of `view`'s center (`left`, `top`) and its live zoom
  * (`mapState`), and the layer follows with one transform. The pins inside
- * sit where they belong at `view`, so they redraw only when `view` settles.
- * During a pinch the pins scale with the map, and return to their size once
- * it settles: keeping them the same size each frame restyled every pin and
- * halved the frame rate on a throttled phone.
+ * sit where they belong at `view`, so they move only when `view` changes.
+ * During a pinch the pins' invisible hit boxes scale with the map; the
+ * marker canvas draws what the visitor sees at a constant size.
  */
 export function YardMapPinLayer({
   view,
@@ -49,6 +49,30 @@ export function YardMapPinLayer({
       {children}
     </div>
   );
+}
+
+/** Pixels between the points the pin layer is anchored to. */
+const ANCHOR_CELL_PX = 2048;
+
+/**
+ * The view the pin layer is laid out for: `view`'s zoom, centered on the
+ * nearest point of a fixed grid instead of `view`'s own center. Panning
+ * within a grid cell then keeps every pin's offset, so a pan restyles no
+ * pins; the grid keeps offsets small at street zooms.
+ */
+export function yardMapPinAnchor(view: YardMapView): YardMapView {
+  const center = projectYardLocation({
+    lat: view.center[0],
+    lng: view.center[1],
+  });
+  const cell = ANCHOR_CELL_PX / 2 ** (view.zoom - 2);
+  return {
+    center: unprojectYardLocation(
+      Math.round(center.x / cell) * cell,
+      Math.round(center.y / cell) * cell,
+    ),
+    zoom: view.zoom,
+  };
 }
 
 /** Where a yard's pin sits in the layer, in pixels from `view`'s center. */

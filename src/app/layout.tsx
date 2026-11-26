@@ -25,12 +25,7 @@ export default function RootLayout({
       <body>
         {/* App-only state (tRPC, URL state, toasts) lives in the interactive
         routes' layouts via AppProviders, so public pages don't ship it. */}
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           {children}
           <Analytics />
           <TailwindIndicator />
