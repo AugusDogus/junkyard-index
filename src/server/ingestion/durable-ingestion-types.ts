@@ -39,6 +39,17 @@ export interface DurableIngestionWakeupRun {
   fetching: boolean;
   /** A workflow has attached to the run, so it may be running now. */
   attached: boolean;
+  /** URG IIS tenants the run's cursor has finished (its `completed` list),
+   * which name the lanes it fetches from next; 0 for every other source. */
+  tenantsDone: number;
+}
+
+/** A run stopped while fetching, whose last chunk may still be sending
+ * requests until `releasedAt` plus `STOPPED_CHUNK_MS`. */
+export interface DurableIngestionStoppedRun {
+  /** A source key, or "all" for a run across every source. */
+  source: string;
+  releasedAt: number;
 }
 
 /**
@@ -50,6 +61,7 @@ export type DurableIngestionWakeupResult =
   | {
       status: "active";
       runs: DurableIngestionWakeupRun[];
+      stopped: DurableIngestionStoppedRun[];
       /** When the next source without an active run is due a retry, if any
        * is due later than now. */
       retryAt: number | null;

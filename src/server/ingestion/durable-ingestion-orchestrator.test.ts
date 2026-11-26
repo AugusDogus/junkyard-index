@@ -819,3 +819,90 @@ describe("an unreadable publication mode", () => {
     ]);
   });
 });
+
+describe("a chunk that needs shared hosts the run was not admitted with", () => {
+  const lambert = {
+    lanes: ["urg:66.42.115.19"],
+    places: [{ group: "urg", capacity: 6 }],
+  };
+  const initialCursor: DurableCursorFor<"row52"> = {
+    source: "row52",
+    afterLocationId: 0,
+    locationIds: [],
+    skip: 0,
+  };
+  const handsBack: DurableWorkflowChunkResult<"row52"> = {
+    cursor: { ...initialCursor, skip: 1 },
+    status: "paused",
+    count: 0,
+    pagesProcessed: 1,
+    errors: [],
+    needsClaims: lambert,
+  };
+
+  test("ends the source's fetch for a run the pass admitted", async () => {
+    let chunks = 0;
+    const result = await ingestDurableSource({
+      runId: "run-1",
+      initialCursor,
+      operations: {
+        handsBackClaims: true,
+        runChunk: async () => {
+          chunks++;
+          return handsBack;
+        },
+        markFailed: async () => {
+          throw new Error("Handing claims back is not a failure");
+        },
+      },
+    });
+    expect(chunks).toBe(1);
+    expect(result).toEqual(handsBack);
+  });
+
+  test("keeps fetching in a run nothing admitted", async () => {
+    let chunks = 0;
+    const result = await ingestDurableSource({
+      runId: "run-1",
+      initialCursor,
+      operations: {
+        runChunk: async () =>
+          ++chunks === 1 ? handsBack : { ...handsBack, status: "complete" },
+        markFailed: async () => {
+          throw new Error("markFailed should not be called");
+        },
+      },
+    });
+    expect(chunks).toBe(2);
+    expect(result.status).toBe("complete");
+  });
+
+  test("yields the run before validation, naming the claims it needs", async () => {
+    let validated = false;
+    const staging = await stageDurableIngestion({
+      runId: "run-1",
+      operations: makeOperations({
+        handsBackClaims: true,
+        initialize: async (runId) => ({
+          status: "started",
+          runId,
+          initialCursors: [initialCursor],
+        }),
+        runChunk: async (_runId, cursor) => ({
+          cursor,
+          status: "paused",
+          count: 0,
+          pagesProcessed: 1,
+          errors: [],
+          needsClaims: lambert,
+        }),
+        validateSources: async () => {
+          validated = true;
+          return { status: "ready", acceptedSources: [], rejectedSources: [] };
+        },
+      }),
+    });
+    expect(staging).toEqual({ status: "yielded", claims: lambert });
+    expect(validated).toBe(false);
+  });
+});

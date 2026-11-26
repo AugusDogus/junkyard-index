@@ -52,6 +52,23 @@ describe("ManualIngestionRun.start", () => {
     );
   });
 
+  test("says when the daily pass was restarted on current code", async () => {
+    const started = await ManualIngestionRun.start(
+      dependencies({
+        startWorkflow: async () => ({
+          via: "restarted_pass" as const,
+          runId: "wrun-new-pass",
+        }),
+      }),
+      "urgiis",
+      "admin",
+    );
+    if (started.status !== "started") throw new Error("Expected a start");
+    expect(ManualIngestionRun.startNote(started)).toBe(
+      " The daily pass was running older code, so it was restarted on current code; it starts this run once the rate-limited hosts it shares with other sources are free.",
+    );
+  });
+
   test("refuses a retired source before reading anything", async () => {
     const pauseCause = mock(async () => null);
     const startRun = mock(async () => ({

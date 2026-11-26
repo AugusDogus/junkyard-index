@@ -70,3 +70,14 @@ describe("HostClaims.admit", () => {
     ).toEqual(["row52"]);
   });
 });
+
+describe("HostClaims.covers", () => {
+  test("holds when every needed lane and group is already held", () => {
+    expect(HostClaims.covers(urg("aws"), urg("aws"))).toBe(true);
+    expect(HostClaims.covers(urg("aws"), HostClaims.none)).toBe(true);
+    expect(HostClaims.covers(urg("eagle"), urg("66.42.115.19"))).toBe(false);
+    expect(
+      HostClaims.covers({ lanes: ["urg:aws"], places: [] }, urg("aws")),
+    ).toBe(false);
+  });
+});

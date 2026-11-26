@@ -10,13 +10,24 @@ import type {
   DurableSearchPublication,
 } from "./durable-ingestion-types";
 import type { DurableSourceValidationSummary } from "./durable-source-validation";
+import type { HostClaims } from "./host-claims";
 // Type-only: this module runs in the workflow sandbox, which cannot load
 // provider cursor codecs. Steps own cursor construction and comparison.
 import type { DurableIngestionSource } from "./durable-source";
 
+/**
+ * Set when the day's pass admitted the run for the shared hosts its next
+ * chunk needs: a chunk that needs others ends the fetch so the pass can admit
+ * them (`DurableWorkflowChunkResult.needsClaims`). Absent for a run nothing
+ * admitted (a local run, or one without shared hosts), which keeps fetching.
+ */
+interface ClaimHandBack {
+  handsBackClaims?: boolean;
+}
+
 export interface DurableSourceOperations<
   Source extends DurableIngestionSource,
-> {
+> extends ClaimHandBack {
   sleepUntil?: (time: number) => Promise<void>;
   runChunk: (
     runId: string,
@@ -31,7 +42,7 @@ export interface DurableSourceOperations<
   ) => Promise<DurableWorkflowChunkResult<Source>>;
 }
 
-export interface DurableIngestionOperations {
+export interface DurableIngestionOperations extends ClaimHandBack {
   sleepUntil?: (time: number) => Promise<void>;
   runChunk: <Source extends DurableIngestionSource>(
     runId: string,
@@ -65,6 +76,7 @@ export type DurableIngestionExecution =
   | { status: "deduplicated"; activeRunId: string | null }
   | { status: "stopped" }
   | { status: "released" }
+  | { status: "yielded"; claims: HostClaims }
   | DurableIngestionCompletion;
 
 function formatError(error: unknown): string {
@@ -118,7 +130,8 @@ export async function ingestDurableSource<
   operations: DurableSourceOperations<NoInfer<Source>>;
 }): Promise<DurableWorkflowChunkResult<Source>> {
   // Workflow step proxies serialize method receivers, including sibling callbacks.
-  const { runChunk, markFailed, sleepUntil } = params.operations;
+  const { runChunk, markFailed, sleepUntil, handsBackClaims } =
+    params.operations;
   let cursor = params.initialCursor;
   const source = cursor.source;
   // Workflow time of the first deferral since the source last advanced.
@@ -157,6 +170,9 @@ export async function ingestDurableSource<
       }
       deferredSince = null;
       if (result.status !== "paused") return result;
+      // The pass starts the run again from this checkpoint once the hosts
+      // its next chunk needs are free.
+      if (handsBackClaims && result.needsClaims) return result;
       cursor = result.cursor;
     }
   } catch (error) {
@@ -172,11 +188,14 @@ export async function ingestDurableSource<
  * staged: the run waits for the commit with its accepted sources.
  * released: no source was accepted, so the run ended at validation without
  * waiting for the commit.
+ * yielded: a source's next chunk needs `claims`, shared hosts the pass did
+ * not admit the run for; the run stops fetching until it is started again.
  */
 export type DurableIngestionStaging =
   | { status: "deduplicated"; activeRunId: string | null }
   | { status: "stopped" }
   | { status: "released" }
+  | { status: "yielded"; claims: HostClaims }
   | { status: "staged" };
 
 /**
@@ -223,7 +242,12 @@ export async function stageDurableIngestion(params: {
         initialCursor,
         operations: params.operations,
       });
-    await Promise.all(initialized.initialCursors.map(ingestSource));
+    const results = await Promise.all(
+      initialized.initialCursors.map(ingestSource),
+    );
+    for (const result of results)
+      if (result.status === "paused" && result.needsClaims)
+        return { status: "yielded" as const, claims: result.needsClaims };
     const validation = await validateSources(params.runId);
     switch (validation.status) {
       case "stopped":

@@ -41,34 +41,67 @@ whichever way they interleave.
 ### (a) Schedule host groups at the pass, pace inside the process
 
 The pass admits a fetching run only when its claims are free: its lanes (no
-other fetching run in the lane) and one place in each capped group (URG,
-Kernel, Hyperbrowser). A run reports `fetched` to the pass once it has staged,
-which frees its claims; the pass then starts the next run that fits. Inside a
-chunk, the existing turn and slot code keeps the gap and the group cap with an
-in-process store, so no request is coordinated across processes.
+other fetching run in the lane) and one place in each capped group (URG). A
+run reports `fetched` to the pass once it has staged, which frees its claims;
+the pass then starts the next run that fits. Inside a chunk, the existing turn
+and slot code keeps the gap and the group cap with an in-process store, so no
+request is coordinated across processes.
+
+Browser sources (Kernel, Hyperbrowser) claim no place. A browser run sleeps
+for most of its day with no browser open (U Pull R Parts block waits, City
+Motors cooldowns, the Kernel budget deferral), so a whole-run place kept 6 to
+7 Kernel sources queued behind 5 places for hours. The provider refuses a
+browser past the plan's limit, and that refusal already defers the chunk
+(`KernelSessions.capacityDeferral`, `HyperbrowserSessions.capacityDeferral`).
+
+URG IIS reads its nine tenants in order, one per chunk, and claims only the
+lane of the tenant it reads next (`SourceHostClaims.next`). When a chunk
+finishes a tenant and the next one is on another lane, the chunk step returns
+`needsClaims`, the run detaches its workflow, releases its run token and
+reports `yielded` with the new claims. The pass queues it first and starts it
+again once those claims are free; a restarted workflow resumes from the
+checkpoint. So URG IIS starts at 07:00, and Pratt waits for it only while it
+reads Lambert (`66.42.115.19`), and Lambert waits only while Pratt fetches.
 
 - **Commands a day:** 0 for pacing. Redis is back to the limiter and the
-  Hollander cache, about 1.3K a day. Turso: none added (the plan's existing
-  active-run query reads two more columns). Workflow events: one `fetched`
-  report step per run (about 100 a day) and a re-plan at least every 30
-  minutes while the pass waits, well inside the 25,000-event run limit.
+  Hollander cache, about 1.3K a day. Measured costs elsewhere are under
+  "Cost of the pass" below.
 - **Finish times:** each lane still does the same requests, so most sources
   in a lane finish earlier instead of all finishing together near the lane's
   end. The lane's last source finishes about as today, later where a source's
-  own client gate is longer than the host gap, since nothing fills it. A
-  source spanning several lanes waits for all of them. Measured below.
+  own client gate is longer than the host gap, since nothing fills it.
+  Measured below.
 - **Failure modes:**
   - A dead run holds its claims until it reports. A run whose workflow died
     is resumed by the pass's watchdog re-plan or failure re-plan, as today,
-    and keeps its claims while it fetches. The watchdog is an absolute 30
-    minutes from each plan, so a run whose reports go elsewhere (another
-    day's pass, an older deployment) frees its claims within one interval
-    of leaving the `sources` stage, however many other reports arrive.
+    and keeps its claims while it fetches. While a run waits for claims, the
+    watchdog is an absolute 30 minutes from each plan, so a run whose
+    reports go elsewhere (an older deployment) frees its claims within one
+    interval of leaving the `sources` stage, however many other reports
+    arrive. With nothing waiting it is 30 minutes of silence, as on main.
+  - Runs report to the pass of the current ingestion day, not the day that
+    started them, so a run that crosses 07:00 (a cold URG IIS census) still
+    reaches a listening pass. With no pass listening the report is dropped
+    and the next pass plans from Turso; any other delivery failure retries
+    the report step.
   - A pass stops admitting at the end of its ingestion day (07:00 UTC) and
     expires at its next plan, so two days' passes never admit at once.
+  - A failed plan or start step (a Turso or Workflow API blip) does not fail
+    the pass: it waits 5 minutes, or until a re-plan request, and plans
+    again. An admitted run whose start failed keeps its claims, so the next
+    plan starts it.
   - A restarted pass rebuilds its state from Turso: a run that is still in the
     `sources` stage and has an attached workflow holds its claims; one never
-    started waits for admission. No lease or TTL guesses.
+    started, or one that yielded, waits for admission with the claims its
+    cursor names. An attached URG IIS run that this pass did not admit holds
+    every unfinished tenant's lane (`SourceHostClaims.held`), since its
+    workflow may be on a deployment that does not yield. One this pass
+    admitted keeps the claims it was admitted with. No lease or TTL guesses.
+  - A run stopped while fetching (admin Stop, or Stop and run) keeps its
+    whole-run claims for `STOPPED_CHUNK_MS` (6 minutes, the chunk wall
+    limit) after `released_at`: its workflow is cancelled, but a chunk step
+    already running keeps sending requests on its own instance. The plan
+    re-plans when that window ends.
   - Deploys: runs and the pass are pinned to the deployment that started them.
     A new deployment's pass treats an older deployment's fetching runs as
     holding their claims, so the two never share a lane. Older runs still
@@ -76,13 +109,17 @@ in-process store, so no request is coordinated across processes.
   - A manual "Run now" for a source with claims no longer starts its workflow
     directly. It asks the day's pass to re-plan (or starts one), and the pass
     admits it, so the pass stays the only thing that starts a shared-host
-    run. On a day whose pass belongs to an older deployment, that pass starts
-    it with the older Redis gates.
+    run. A re-plan request ends any wait of the pass at once, including its
+    sleep until a retry and its pause after a failure. If the listening pass
+    is on another deployment than the one serving Run now, that pass is
+    cancelled and a pass on current code is started (`PassHandoff`), so the
+    run starts on current code, as on main; the admin message says so.
   - The pass learns that a run it started is fetching once the run's
     workflow attaches (its first step). A pass that restarts in that window
     could admit a second run in the lane; the window is seconds, and only
-    after a pass restart.
-- **Size:** medium. Pure admission module, pass loop, one report, a claims
+    after a pass restart. A run that yields releases its run token before
+    reporting, so its next workflow cannot deduplicate against it.
+- **Size:** medium. Pure admission module, pass loop, two reports, a claims
   table per source, store swap. Connectors do not change.
 
 ### (b) Workflow hooks or Vercel Queues hand off turns
@@ -128,10 +165,8 @@ still coordinate at chunk granularity across processes, which costs either
 Redis commands or workflow events, and keeps every source in a lane finishing
 together.
 
-Queue order: runs that claim fewer lanes go first, then plan order. URG IIS
-crawls nine tenant lanes, one of which (`66.42.115.19`) it shares with Pratt;
-whole-run claims make it wait for Pratt (about 50 minutes) rather than make
-Pratt wait about 4 hours for it.
+Queue order: runs that claim fewer lanes go first, then plan order; a run
+that yielded goes first, since it is mid-crawl.
 
 ## Measured with the Redis simulator
 
@@ -152,37 +187,73 @@ The yard-request rate limiter and the Hollander VIN cache add about 1.3K a
 day. The #340 column uses a 1 s URG poll, not #340's 2 s, so it overstates
 #340 somewhat.
 
-Fetch finish (`ready_at`), same simulator, Redis gates against admission:
+Fetch finish (`ready_at`), same simulator, Redis gates against admission.
+"Whole run" is the first version of (a), where URG IIS claimed all nine
+tenant lanes and browser sources a place; "per tenant" is this design.
 
-|                            | Main, Redis   | Main, (a)     | #340, Redis   | #340, (a)     |
-| -------------------------- | ------------- | ------------- | ------------- | ------------- |
-| URG median of 16 sources   | 07:54         | 07:44         | 08:12         | 08:02         |
-| Pratt                      | 08:19         | 07:52         | 08:16         | 07:52         |
-| URG AWS lane(s), last      | 09:35         | 09:00         | 09:41         | 10:02         |
-| VinPlus, first / last      | 08:21 / 09:28 | 07:33 / 09:11 | 08:21 / 09:27 | 07:33 / 09:11 |
-| HTP, last                  | 07:25         | 07:19         | 07:24         | 07:19         |
-| Last source except URG IIS | 09:35         | 09:11         | 09:41         | 10:02         |
-| URG IIS                    | 11:03         | 11:28         | 11:00         | 11:49         |
+|                            | Main, Redis   | Main, whole run | Main, per tenant | #340, Redis   | #340, whole run | #340, per tenant |
+| -------------------------- | ------------- | --------------- | ---------------- | ------------- | --------------- | ---------------- |
+| URG median of 16 sources   | 07:54         | 07:44           | 07:44            | 08:12         | 08:02           | 08:02            |
+| Pratt                      | 08:19         | 07:52           | 07:52            | 08:16         | 07:52           | 07:52            |
+| URG AWS lane(s), last      | 09:35         | 09:00           | 09:00            | 09:41         | 10:02           | 10:01            |
+| VinPlus, first / last      | 08:21 / 09:28 | 07:33 / 09:11   | 07:33 / 09:11    | 08:21 / 09:27 | 07:33 / 09:11   | 07:33 / 09:11    |
+| HTP, last                  | 07:25         | 07:19           | 07:19            | 07:24         | 07:19           | 07:19            |
+| Kernel, last               | 08:23         | 08:25           | 08:24            | 08:28         | 08:25           | 08:33            |
+| Last source except URG IIS | 09:35         | 09:11           | 09:11            | 09:41         | 10:02           | 10:01            |
+| URG IIS                    | 11:03         | 11:28           | 11:20            | 11:00         | 11:49           | 11:37            |
+
+The per-tenant model splits URG IIS's pages across its tenants by their
+inventory floors, puts Lambert on Pratt's lane, and hands back at each of the
+8 lane changes; it does not model the seconds each hand-back takes (a detach,
+a report and a workflow start). Kernel sources keep their in-process leases
+but no pass place. Kernel's last source is Northwest, whose URG place now
+competes with URG IIS from 07:00.
 
 Production on Nov 25 (Redis, before #340) was slower than either model: URG
 median 07:57, AWS lane last 09:03, VinPlus last 10:15, URG IIS 13:21.
 
-Two regressions:
+Remaining regression: with #340's client gates (1.6 to 5 s after each lease,
+longer than the 3.5 s host gap for Scotts and Jim's Import), interleaved
+sources filled one source's gate with another's request. In sequence, the gate
+is idle lane time, so the `aws` lane ends about 20 minutes later (Scotts,
+10:01). URG IIS no longer waits for Pratt; it still ends 17 to 37 minutes
+after main's Redis model, which let other URG sources start beside it.
 
-- With #340's client gates (1.6 to 5 s after each lease, longer than the
-  3.5 s host gap for Scotts and Jim's Import), interleaved sources filled one
-  source's gate with another's request. In sequence, the gate is idle lane
-  time, so the `aws` lane ends 21 minutes later (Scotts, 10:02).
-- URG IIS waits for Pratt on the shared `66.42.115.19` lane (until about
-  07:52), then crawls about 3.6 hours alone, so it ends 25 to 49 minutes later.
+What the model does not show: Pratt's same-day retries. With whole-run
+claims they waited until URG IIS staged, 6 to 13 hours late in production.
+Now a retry waits only while URG IIS reads Lambert (about a quarter of its
+pages, roughly an hour).
 
-Every other group finishes earlier, most by 10 to 50 minutes.
+## Cost of the pass
+
+Each plan (`prepareWakeup`) reads about 15.8K Turso rows in production (Nov
+25, read-only measurement of each statement, the commit lease UPDATEs measured
+as SELECTs over the same WHERE). 15.2K of them are the pre-existing
+recent-failures query; this design adds 1 row (the tenant read) and 1 row
+(stopped runs, through the retention index). A plan writes no rows unless a
+commit lease expires or a slot is released.
+
+Plans added over main: the absolute watchdog runs only while a run waits for
+claims, about 07:00 to 09:00 (to 09:45 with #340), when reports already come
+more often than every 30 minutes, so about 4 to 6 plans; plus one per Run now.
+Hand-backs re-plan nothing: the pass admits the yielded run from the report.
+
+| Added per day                          | Turso rows read | Turso rows written | Workflow events |
+| -------------------------------------- | --------------: | -----------------: | --------------: |
+| 4 to 6 watchdog plans, 0 to 4 Run nows |     80K to 160K |                  0 |        40 to 80 |
+| 8 URG IIS hand-backs                   |       about 100 |                 16 |       about 190 |
+| Kernel capacity deferrals              |               0 |                  0 |          5 each |
+| `fetched` reports (about 100 runs)     |               0 |                  0 |       about 300 |
+
+Monthly: about 2.4M to 4.8M rows read (0.1 to 0.2% of the Developer plan's
+2.5B), under 1K rows written, and about 20K Workflow events, $0.40 a month at
+$20 per million events. Redis pacing: 0 commands.
 
 ## Follow-up not done here
 
-- URG IIS could claim only its current tenant's lane (it crawls tenants in
-  order), so it starts at 07:00 and meets Pratt only on the Lambert tenant.
-  That needs claims per cursor and a mid-run claim request to the pass.
 - The `aws` lane could recover its gate time by letting the next source in
   the lane start while the current one waits its client gate, or by moving
   Scotts (5 s gate) to `aws-2`.
+- The plan's recent-failures query reads about 15K rows each time; an index
+  on `ingestion_run.completed_at` that the join can use would cut every
+  plan's cost.

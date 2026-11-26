@@ -87,6 +87,7 @@ test("an alert check batch waiting behind a search index writer stays live", () 
   ...Object.fromEntries([
    'cleanupDurableIngestionStateBatchStep', 'cleanupStaleDurableAlgoliaRebuildsStep',
    'attachDurableIngestionWorkflowStep', 'claimDurableIngestionCommitStep',
+   'detachDurableIngestionWorkflowStep',
    'prepareIngestionPassStep', 'reportIngestionRunStep', 'signalCommitWaitersStep',
    'initializeDurableIngestionStep', 'markDurableIngestionFailedStep',
    'markDurableSourceFailedStep', 'reportProviderStatusStep',

@@ -1,9 +1,7 @@
-import { BROWSER_PROVIDERS, type BrowserSource } from "./browser-providers";
+import type { DurableSourceCursor } from "./durable-cursor";
 import type { DurableIngestionSource } from "./durable-source";
 import { heavyTruckPartsHostPolicy } from "./heavytruckparts-host-slot";
 import { HostClaims, type HostPlace } from "./host-claims";
-import { HyperbrowserSessions } from "./hyperbrowser-sessions";
-import { KernelSessions } from "./kernel-sessions";
 import type { ProviderLeasePolicy } from "./provider-host-slot";
 import {
   VINPLUS_HOST_POLICY,
@@ -26,7 +24,7 @@ import { PRATT_ORIGIN } from "./pratt-html";
 import { SCOTTS_ORIGIN } from "./scotts-yard-metadata";
 import { URGIIS_TENANTS } from "./urgiis-configuration";
 
-/** Every URG origin a source sends shared host turns to. */
+/** Every URG origin a source sends shared host turns to, in crawl order. */
 const URG_ORIGINS: Partial<Record<DurableIngestionSource, readonly string[]>> =
   {
     allied: [ALLIED_ORIGIN],
@@ -63,20 +61,6 @@ const HOST_POLICIES: Partial<
   dutchers: [heavyTruckPartsHostPolicy],
 };
 
-const isBrowserSource = (source: string): source is BrowserSource =>
-  Object.hasOwn(BROWSER_PROVIDERS, source);
-
-/** The session lease policy of a source that opens remote browsers. */
-function browserPolicy(source: DurableIngestionSource): ProviderLeasePolicy[] {
-  if (!isBrowserSource(source)) return [];
-  switch (BROWSER_PROVIDERS[source]) {
-    case "kernel":
-      return [KernelSessions.policy(source)];
-    case "hyperbrowser":
-      return [HyperbrowserSessions.policy(source)];
-  }
-}
-
 /** Claims for the lanes of `policies`, with one place in each group. */
 function claimsOf(policies: readonly ProviderLeasePolicy[]): HostClaims {
   const lanes = [...new Set(policies.map((policy) => policy.key))];
@@ -87,19 +71,75 @@ function claimsOf(policies: readonly ProviderLeasePolicy[]): HostClaims {
   return { lanes, places: [...places.values()] };
 }
 
+/** The URG IIS tenant origins from the `tenantsDone`th on: one per chunk, in
+ * order, so a cursor's `completed` count names the tenant it reads next. */
+const urgiisOrigins = (from: number, count = URGIIS_TENANTS.length) =>
+  URGIIS_TENANTS.slice(from, from + count).map((tenant) => tenant.origin);
+
+function claimsOfOrigins(
+  source: DurableIngestionSource,
+  origins: readonly string[],
+): HostClaims {
+  return claimsOf([
+    ...origins.flatMap((origin) => sharedProviderHostPolicy(origin) ?? []),
+    ...(HOST_POLICIES[source] ?? []),
+  ]);
+}
+
 export const SourceHostClaims = {
   /**
-   * What `source` occupies while it fetches (see `HostClaims`). A source
-   * crawls its lanes one request at a time, so it takes one place in a group
-   * however many of the group's lanes it crawls.
+   * Every shared host `source` may fetch from over a run (see `HostClaims`).
+   * A source crawls its lanes one request at a time, so it takes one place
+   * in a group however many of the group's lanes it crawls. Browser sources
+   * claim no place: they sleep through most of a run with no browser open,
+   * and the provider's refusal past its concurrent limit defers a chunk
+   * (`KernelSessions.capacityDeferral`).
    */
   of(source: DurableIngestionSource): HostClaims {
-    return claimsOf([
-      ...(URG_ORIGINS[source] ?? []).flatMap(
-        (origin) => sharedProviderHostPolicy(origin) ?? [],
-      ),
-      ...(HOST_POLICIES[source] ?? []),
-      ...browserPolicy(source),
-    ]);
+    return claimsOfOrigins(source, URG_ORIGINS[source] ?? []);
+  },
+
+  /**
+   * What a run of `source` needs for its next chunk. URG IIS reads one
+   * tenant at a time, so it claims only the tenant after its `tenantsDone`
+   * finished ones, and hands its claims back to the pass before a tenant on
+   * another lane. Other sources ignore `tenantsDone`.
+   */
+  next(source: DurableIngestionSource, tenantsDone: number): HostClaims {
+    return source === "urgiis"
+      ? claimsOfOrigins(source, urgiisOrigins(tenantsDone, 1))
+      : SourceHostClaims.of(source);
+  },
+
+  /**
+   * What a fetching run that this pass did not admit may occupy. Its
+   * workflow may be on a deployment that crawls every unfinished URG IIS
+   * tenant without handing claims back, so it holds them all.
+   */
+  held(source: DurableIngestionSource, tenantsDone: number): HostClaims {
+    return source === "urgiis"
+      ? claimsOfOrigins(source, urgiisOrigins(tenantsDone))
+      : SourceHostClaims.of(source);
+  },
+
+  /** URG IIS tenants `cursor` has finished; 0 for every other source. */
+  tenantsDone(cursor: DurableSourceCursor): number {
+    return cursor.source === "urgiis" ? cursor.completed.length : 0;
+  },
+
+  /**
+   * The claims a run must hand back to the pass for, after a chunk moved it
+   * from `before` to `after` finished tenants: those of its next chunk, when
+   * they are not all held by the chunk it just ran. Null when it may go on.
+   */
+  handBack(
+    source: DurableIngestionSource,
+    before: number,
+    after: number,
+  ): HostClaims | null {
+    const next = SourceHostClaims.next(source, after);
+    return HostClaims.covers(SourceHostClaims.next(source, before), next)
+      ? null
+      : next;
   },
 } as const;
