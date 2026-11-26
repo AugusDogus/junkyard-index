@@ -232,6 +232,42 @@
   }
 }
 
+/* The featured plan's frame: a light runs around the 1px border. The beam is
+ * a conic sweep under the card's inner plate, so only the frame shows it.
+ * Restores the effect the November 2026 redesign dropped, in this palette. */
+.pricing-plan-border-beam {
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg 250deg,
+    var(--color-board-muted) 300deg,
+    var(--color-figure) 340deg,
+    transparent 360deg
+  );
+  animation: pricing-plan-border 8s linear infinite paused;
+}
+
+/* The same light, blurred just outside the frame, so it reads as a glow. */
+.pricing-plan-glow {
+  filter: blur(6px);
+  opacity: 0.55;
+}
+
+.featured-pricing-plan[data-animated="true"] .pricing-plan-border-beam {
+  animation-play-state: running;
+}
+
+@keyframes pricing-plan-border {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pricing-plan-border-beam {
+    animation: none;
+  }
+}
+
 .yard-map {
   cursor: grab;
   z-index: 0;
