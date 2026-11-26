@@ -458,9 +458,6 @@ export function streamJolietInventoryWithRequestGate<E, R>(
               "; row or set date conflicts: " +
               conflicting.join(", "),
           );
-        const union = jolietYearCounts(seen.values());
-        if (JSON.stringify(union) !== JSON.stringify(context.counts))
-          throw unionDrift(union, context.counts);
         if (htmlOnly.length) {
           processed += htmlOnly.length;
           excluded += htmlOnly.length;
@@ -487,6 +484,11 @@ export function streamJolietInventoryWithRequestGate<E, R>(
               shared.length +
               " active donors exceeds the unchanged 10% rejection limit or leaves no valid donors",
           );
+        // Drift retries the day; check it only once no deterministic rejection
+        // would end the day anyway.
+        const union = jolietYearCounts(seen.values());
+        if (JSON.stringify(union) !== JSON.stringify(context.counts))
+          throw unionDrift(union, context.counts);
       });
     }
     const cursor = yield* validateJoliet("next checkpoint", () =>
