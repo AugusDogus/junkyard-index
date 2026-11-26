@@ -7,8 +7,8 @@ import { SearchRadius } from "./search-radius";
  * server search. The default page and nearby searches whose origin only the
  * browser knows `skip` it: they render a skeleton and search from the
  * browser. A `crawler` (crawlers, link-preview fetchers and other non-person
- * clients) never searches at all, not even from a rendering crawler's
- * browser, and gets a static page instead.
+ * clients) gets the same skeleton but never searches at all, not even from a
+ * rendering crawler's browser.
  */
 export type SearchServerRender = "search" | "skip" | "crawler";
 
