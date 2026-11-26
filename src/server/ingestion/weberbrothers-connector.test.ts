@@ -314,8 +314,20 @@ test("a transient detail failure after progress keeps the validated checkpoint",
   expect(complete.count).toBe(2);
   expect(resent).toEqual([secondDonor.url, root]);
 });
+const fetchFailed = (code: string) =>
+  new TypeError("fetch failed", {
+    cause: Object.assign(new Error(code), { code }),
+  });
 test("a transient failure before progress defers the chunk", async () => {
-  for (const reply of [serverError, new TypeError("fetch failed")]) {
+  for (const reply of [
+    serverError,
+    { body: "Bad gateway", status: 502 },
+    { body: "Unavailable", status: 503 },
+    { body: "Gateway timeout", status: 504 },
+    fetchFailed("ECONNRESET"),
+    fetchFailed("UND_ERR_SOCKET"),
+    fetchFailed("UND_ERR_HEADERS_TIMEOUT"),
+  ]) {
     mockSource([reply]);
     const failure = await failureOf(
       Effect.runPromise(
@@ -325,6 +337,25 @@ test("a transient failure before progress defers the chunk", async () => {
     expect(ProviderChunkClock.deferralOf(failure)).toBeInstanceOf(
       ProviderNotReadyDeferred,
     );
+  }
+});
+test("unsupported statuses, DNS, TLS and refused connections fail fast", async () => {
+  for (const reply of [
+    { body: "Not implemented", status: 501 },
+    { body: "HTTP version not supported", status: 505 },
+    fetchFailed("ENOTFOUND"),
+    fetchFailed("ECONNREFUSED"),
+    fetchFailed("CERT_HAS_EXPIRED"),
+    new TypeError("fetch failed"),
+  ]) {
+    mockSource([reply]);
+    const failure = await failureOf(
+      Effect.runPromise(
+        stream({ ...limits, onBatch: () => Effect.void }, gate),
+      ),
+    );
+    expect(failure).not.toBeNull();
+    expect(ProviderChunkClock.deferralOf(failure)).toBeNull();
   }
 });
 test("a denied detail stays fatal after progress", async () => {

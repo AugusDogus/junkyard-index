@@ -24,15 +24,41 @@ export class WeberbrothersProviderError extends Data.TaggedError(
   }
 }
 
-/** Weber's server intermittently answers single pages with HTTP 5xx, drops
- * the connection or stalls, and the same page succeeds later. Such a GET
- * defers instead of failing the source; every other unexpected response
- * stays a `WeberbrothersProviderError`. */
+/** Weber's server intermittently answers single pages with HTTP 500, 502,
+ * 503 or 504, drops or resets the connection, or stalls, and the same page
+ * succeeds later. Such a GET defers instead of failing the source. Every
+ * other outcome, including other 5xx statuses and DNS, TLS or refused
+ * connections, stays a `WeberbrothersProviderError` and fails fast. */
 const transient = (url: string, outcome: string) =>
   new ProviderNotReadyDeferred({
     provider: "Weber Brothers",
     detail: `${url} ${outcome}.`,
   });
+const TRANSIENT_STATUSES: ReadonlySet<number> = new Set([500, 502, 503, 504]);
+/** Socket codes for a connection that opened and then dropped, reset or
+ * timed out (Node undici and Bun spellings). */
+const TRANSIENT_NETWORK_CODES: ReadonlySet<string> = new Set([
+  "ECONNRESET",
+  "EPIPE",
+  "ETIMEDOUT",
+  "ECONNABORTED",
+  "UND_ERR_SOCKET",
+  "UND_ERR_CLOSED",
+  "UND_ERR_CONNECT_TIMEOUT",
+  "UND_ERR_HEADERS_TIMEOUT",
+  "UND_ERR_BODY_TIMEOUT",
+  "ConnectionClosed",
+  "ConnectionReset",
+]);
+function networkCode(error: unknown): string | null {
+  for (let current = error, depth = 0; depth < 4; depth++) {
+    if (typeof current !== "object" || current === null) return null;
+    if ("code" in current && typeof current.code === "string")
+      return current.code;
+    current = "cause" in current ? current.cause : null;
+  }
+  return null;
+}
 
 async function readDocument(url: string, signal: AbortSignal): Promise<string> {
   const response = await fetch(url, {
@@ -41,9 +67,11 @@ async function readDocument(url: string, signal: AbortSignal): Promise<string> {
     signal,
     headers: { "User-Agent": "JunkyardIndex/1.0", Accept: "text/html" },
   }).catch((cause: unknown) => {
+    const code = networkCode(cause);
+    if (code === null || !TRANSIENT_NETWORK_CODES.has(code)) throw cause;
     throw transient(
       url,
-      `failed before a response (${cause instanceof Error ? cause.message : String(cause)})`,
+      `failed before a response (${code}: ${cause instanceof Error ? cause.message : String(cause)})`,
     );
   });
   if (
@@ -57,12 +85,11 @@ async function readDocument(url: string, signal: AbortSignal): Promise<string> {
       ?.trim()
       .toLowerCase() !== "text/html"
   ) {
-    const failure =
-      response.status >= 500 && response.status <= 599
-        ? transient(url, `answered HTTP ${response.status}`)
-        : new Error(
-            `Expected complete, unredirected HTTP 200 HTML from ${url}; received ${response.status}`,
-          );
+    const failure = TRANSIENT_STATUSES.has(response.status)
+      ? transient(url, `answered HTTP ${response.status}`)
+      : new Error(
+          `Expected complete, unredirected HTTP 200 HTML from ${url}; received ${response.status}`,
+        );
     try {
       await response.body?.cancel();
     } catch (cleanup) {
