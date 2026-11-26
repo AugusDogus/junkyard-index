@@ -76,7 +76,8 @@ answers these on single pages for minutes while neighbouring pages still answer
 200 (2026-11-26 failed all three daily runs this way). A chunk that already
 validated GETs returns that checkpoint paused; a chunk with no progress defers,
 and the run retries the same page after the five-minute deferral delay for up
-to three hours without progress.
+to 45 minutes without progress (not the three-hour default, because the waiting run
+keeps one of the six URG group places).
 
 Closing controls repeat contact, the make directory and every model page read
 this run whose cards differ from its badge or fall below its expected count

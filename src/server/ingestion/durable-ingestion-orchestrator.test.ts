@@ -11,6 +11,7 @@ import type { DurableIngestionResult } from "./durable-ingestion-types";
 import {
   DURABLE_INGESTION_SOURCES,
   DURABLE_INITIAL_SOURCE_CURSORS,
+  getDurableSourceDefinition,
   type DurableCursorFor,
   type DurableSourceCursor,
 } from "./durable-source";
@@ -777,6 +778,48 @@ describe("chunks deferred by a deep shared host queue", () => {
       now.mockRestore();
     }
     expect(chunks).toBe(37);
+  });
+
+  test("give up on a Chaz origin outage after 45 minutes", async () => {
+    const chazCursor = getDurableSourceDefinition("chaz").initialCursor;
+    const now = spyOn(Date, "now");
+    let clock = 0;
+    now.mockImplementation(() => clock);
+    let chunks = 0;
+    try {
+      const result = await ingestDurableSource({
+        runId: "run-1",
+        initialCursor: chazCursor,
+        operations: {
+          sleepUntil: async (time) => {
+            clock = time;
+          },
+          runChunk: async () => {
+            chunks++;
+            return {
+              status: "deferred",
+              cursor: chazCursor,
+              message:
+                "chaz: Chaz is not ready to be read: https://www.chazsauto.com/parts/makes/ answered HTTP 503.",
+            };
+          },
+          markFailed: async (_runId, _source, message) => ({
+            cursor: chazCursor,
+            status: "failed",
+            count: 0,
+            pagesProcessed: 0,
+            errors: [message],
+          }),
+        },
+      });
+      expect(result.status).toBe("failed");
+      expect(result.errors[0]).toContain("No chunk advanced for 45 minutes");
+    } finally {
+      now.mockRestore();
+    }
+    // The waiting run holds one of the URG group places, so it stops long
+    // before the three-hour default; Nov 26 outages lasted under 5 minutes.
+    expect(chunks).toBe(10);
   });
 });
 

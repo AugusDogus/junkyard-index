@@ -124,6 +124,12 @@ export const DEFERRED_CHUNK_DELAY_MS = 5 * 60_000;
  * between, fails instead of deferring again. Prior
  * inventory stays published and the source retries after its usual delay. */
 export const DEFERRED_SOURCE_LIMIT_MS = 3 * 60 * 60_000;
+/** Shorter no-progress limits. Chaz defers on origin 502/503/504 while its
+ * run keeps one of the URG group places; Nov 26 outages lasted 44 s to
+ * 4.6 min, so 45 minutes covers them without starving the group. */
+const DEFERRED_SOURCE_LIMIT_OVERRIDES_MS: Partial<
+  Record<DurableIngestionSource, number>
+> = { chaz: 45 * 60_000 };
 
 export async function ingestDurableSource<
   Source extends DurableIngestionSource,
@@ -139,6 +145,8 @@ export async function ingestDurableSource<
   const source = cursor.source;
   // Workflow time of the first deferral since the source last advanced.
   let deferredSince: number | null = null;
+  const deferredLimit =
+    DEFERRED_SOURCE_LIMIT_OVERRIDES_MS[source] ?? DEFERRED_SOURCE_LIMIT_MS;
   try {
     while (true) {
       if (
@@ -160,7 +168,7 @@ export async function ingestDurableSource<
       }
       if (result.status === "deferred") {
         deferredSince ??= Date.now();
-        if (Date.now() - deferredSince >= DEFERRED_SOURCE_LIMIT_MS)
+        if (Date.now() - deferredSince >= deferredLimit)
           throw new Error(
             `${result.message} No chunk advanced for ${Math.round((Date.now() - deferredSince) / 60_000)} minutes, so the source stopped retrying its deferred chunk. Prior inventory is preserved; the source retries after its usual delay. If this repeats, fix the deferral cause named above.`,
           );
