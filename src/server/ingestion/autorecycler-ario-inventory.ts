@@ -15,6 +15,7 @@ import {
 } from "./normalization";
 import type { AutorecyclerOrgGeo } from "./autorecycler-transform";
 import type { CanonicalVehicle } from "./types";
+import { httpsVehiclePhoto } from "./vehicle-photo";
 
 const itemSchema = z.object({
   id: z.string().min(1),
@@ -139,6 +140,19 @@ export function arioGeo(
   };
 }
 
+/** Ario lists photos comma-separated, sometimes led by bare filenames or the
+ * literal "null", and often protocol-relative. Keep the first absolute one. */
+function arioPhoto(raw: string | null | undefined): string | null {
+  for (const part of raw?.split(",") ?? []) {
+    const value = part.trim();
+    const photo = httpsVehiclePhoto(
+      value.startsWith("//") ? `https:${value}` : value,
+    );
+    if (photo) return photo;
+  }
+  return null;
+}
+
 export function transformArioItem(
   item: ArioItem,
   geo: AutorecyclerOrgGeo,
@@ -169,7 +183,7 @@ export function transformArioItem(
     model,
     color: normalizeCanonicalColor(item.color ?? ""),
     stockNumber: item.stock || null,
-    imageUrl: item.image_url?.split(",")[0] || null,
+    imageUrl: arioPhoto(item.image_url),
     availableDate: arioDate(item),
     locationCode: geo.orgLookup,
     locationName: geo.locationName,
