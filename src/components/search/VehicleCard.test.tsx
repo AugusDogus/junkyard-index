@@ -125,6 +125,19 @@ describe("search card details", () => {
     expect(html).not.toContain('data-slot="card"');
   });
 
+  test("shows a slim no-photo strip with the stock number instead of an empty picture box", () => {
+    const html = card();
+    expect(html).toContain("No photo");
+    expect(html).toContain("Stock #12345");
+    expect(html).not.toContain("aspect-[2/1]");
+    expect(html).not.toContain("No Image Available");
+
+    const withPhoto = card({ imageUrl: "https://example.com/civic.jpg" });
+    expect(withPhoto).toContain("aspect-[2/1]");
+    expect(withPhoto).toContain("Stock #12345");
+    expect(withPhoto).not.toContain("No photo");
+  });
+
   test("title-cases all-caps models and keeps model codes", () => {
     expect(card({ make: "Kia", model: "SPECTRA" })).toContain(
       'aria-label="2012 Kia Spectra"',
