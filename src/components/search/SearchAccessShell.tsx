@@ -11,7 +11,7 @@ import { InstantSearchNext } from "react-instantsearch-nextjs";
 import { useInstantSearchContext } from "react-instantsearch";
 import { ErrorBoundary } from "~/components/ErrorBoundary";
 import { HiddenSourcesProvider } from "~/components/HiddenSourcesContext";
-import { createSearchRouting } from "~/components/search/search-routing";
+import { SearchAccessRouting } from "~/components/search/search-access-routing";
 import { SearchErrorFallback } from "~/components/search/SearchErrorFallback";
 import { SearchExpressionFeedback } from "~/components/search/SearchExpressionFeedback";
 import { SearchPageSkeleton } from "./SearchPageSkeleton";
@@ -26,7 +26,6 @@ import type { PlanAccessState } from "~/lib/plan-access";
 import { browserSearchKey } from "~/lib/browser-search-key";
 import { HiddenSources } from "~/lib/hidden-source";
 import type { SearchKeyGrant } from "~/lib/search-key-grant";
-import { createSearchRouteSync } from "~/lib/search-route-sync";
 import type { SearchServerRender } from "~/lib/search-server-render";
 import { api } from "~/trpc/react";
 
@@ -130,55 +129,20 @@ export function SearchAccessShell({
     canUseAdvancedFilters,
     makeAliasesReady,
   );
-  // Each keyed InstantSearch instance must own its router's lifecycle state.
-  const routing = useMemo(() => {
-    const config = createSearchRouting(
-      ALGOLIA_INDEX_NAME,
-      vinPatternIndexReady,
-      canUseAdvancedFilters,
-      { knownYardNames, newestSortReady },
-    );
-    const sync = createSearchRouteSync(config.router.push);
-    const routeKey = (url: string) =>
-      JSON.stringify(
-        config.stateMapping.routeToState(
-          config.router.parseURL({ location: new URL(url) }),
-        ),
-      );
-    // SSR already used this route. Later capability/plan remounts must replay
-    // it because preserveSharedStateOnUnmount can retain incompatible facets.
-    let lastRouteKey =
-      typeof window !== "undefined" &&
-      Reflect.has(window, Symbol.for("InstantSearchInitialResults"))
-        ? routeKey(window.location.href)
-        : undefined;
-    return {
-      ...config,
-      router: {
-        ...config.router,
-        push(url: string) {
-          lastRouteKey = routeKey(url);
-          sync.push(url);
-        },
-        start: sync.start,
-        dispose: sync.dispose,
-      },
-      onUrlChange(url: string) {
-        const key = routeKey(url);
-        // Window and radius already update Configure. Replaying an unchanged
-        // routed search here would issue a second identical results request.
-        if (lastRouteKey === key) return;
-        lastRouteKey = key;
-        sync.onUrlChange(url);
-      },
-    };
-  }, [
+  const routingOptions = {
     vinPatternIndexReady,
     booleanOrSearchReady,
     canUseAdvancedFilters,
-    knownYardNames,
     newestSortReady,
-  ]);
+    knownYardNames: knownYardNames ?? [],
+  };
+  const routingKey = SearchAccessRouting.key(routingOptions);
+  // Each keyed InstantSearch instance must own its router's lifecycle state.
+  // The key holds every option, so rebuilding only when it changes is safe.
+  const routing = useMemo(
+    () => SearchAccessRouting.create(routingOptions),
+    [routingKey],
+  );
 
   useEffect(() => {
     routing.onUrlChange(window.location.href);
@@ -217,7 +181,7 @@ export function SearchAccessShell({
   return (
     <HiddenSourcesProvider hidden={hidden}>
       <InstantSearchNext
-        key={`hidden:${hiddenKey}-${vinPatternIndexReady ? "vin-ready" : "vin-disabled"}-${booleanOrSearchReady ? "boolean-ready" : "boolean-disabled"}-${canUseAdvancedFilters ? "filters-enabled" : "filters-disabled"}-${newestSortReady ? "newest-ready" : "newest-disabled"}-${makeAliasesReady ? "make-aliases-ready" : "make-aliases-disabled"}`}
+        key={`hidden:${hiddenKey}-${vinPatternIndexReady ? "vin-ready" : "vin-disabled"}-${booleanOrSearchReady ? "boolean-ready" : "boolean-disabled"}-${canUseAdvancedFilters ? "filters-enabled" : "filters-disabled"}-${newestSortReady ? "newest-ready" : "newest-disabled"}-${makeAliasesReady ? "make-aliases-ready" : "make-aliases-disabled"}-${routingKey}`}
         searchClient={searchClient}
         indexName={ALGOLIA_INDEX_NAME}
         routing={routing}
