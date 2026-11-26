@@ -1743,7 +1743,9 @@ function AlgoliaSearchInner({
         onOpenChange: setAdvancedSearchOpen,
       })}
 
-      <div className="bg-background sticky top-[6.375rem] z-40 -mx-(--gutter) px-(--gutter) py-3 sm:top-[4.625rem] [@media(max-height:500px)]:static">
+      {/* Tuck under the sticky header's bottom border (header heights 101px,
+          109px from sm, 73px from md), so no results show between them. */}
+      <div className="bg-background sticky top-[6.25rem] z-40 -mx-(--gutter) px-(--gutter) py-3 sm:top-[6.75rem] md:top-[4.5rem] [@media(max-height:500px)]:static">
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-3">
             <ErrorBoundary>
