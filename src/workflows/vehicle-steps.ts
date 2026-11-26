@@ -479,15 +479,24 @@ export async function runSearchIndexMigrationBatchStep(
 runSearchIndexMigrationBatchStep.maxRetries = 2;
 
 /**
- * Expires every inventory cache after a search-index migration stopped
- * partway: its batches already rewrote identities on some vehicles, and
- * only a finished migration expires them otherwise.
+ * Replaces the stored yard summaries and expires every inventory cache
+ * after a search-index migration finished or stopped partway: its batches
+ * rewrote identities on vehicles, which the summaries and caches name. A
+ * failed fill still expires the caches; yards without a summary read their
+ * vehicles until the next inventory refresh stores one.
  */
 export async function expireInventoryAfterMigrationStep() {
   "use step";
 
   await YardSummaryStore.clear(db);
-  await YardSummaryStore.fill(db, new Date());
+  try {
+    await YardSummaryStore.fill(db, new Date());
+  } catch (error) {
+    console.error(
+      "[Workflow] Could not store yard summaries after the search index migration; yard pages read each yard's vehicles until the next inventory refresh stores them. Vehicle data is unaffected, and the inventory caches are expired now.",
+      error,
+    );
+  }
   expireInventoryCaches({ kind: "all" });
 }
 
@@ -498,11 +507,6 @@ export async function finalizeSearchIndexMigrationStep(
 
   try {
     const result = await finalizeSearchIndexMigration(state);
-    // The migration rewrote identities on every source's vehicles, which
-    // stored yard summaries name too.
-    await YardSummaryStore.clear(db);
-    await YardSummaryStore.fill(db, new Date());
-    expireInventoryCaches({ kind: "all" });
     console.info("[Workflow] Completed search index schema migration", result);
     return result;
   } catch (error) {

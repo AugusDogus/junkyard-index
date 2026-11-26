@@ -44,6 +44,9 @@ test.each([
       "initialize",
       "project",
       "finalize",
+      // Summaries and caches refresh in a step of their own, so a failure
+      // there never repeats the finalize.
+      "expire",
     ]);
   },
 );
@@ -51,7 +54,15 @@ test.each([
 for (const { mode, expected } of [
   {
     mode: "decoupled",
-    expected: ["decode", "flag", "lock", "initialize", "project", "finalize"],
+    expected: [
+      "decode",
+      "flag",
+      "lock",
+      "initialize",
+      "project",
+      "finalize",
+      "expire",
+    ],
   },
   { mode: "mode_unavailable", expected: ["decode", "flag"] },
 ] as const) {

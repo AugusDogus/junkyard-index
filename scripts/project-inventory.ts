@@ -12,9 +12,17 @@
  */
 import { createClient } from "@libsql/client/web";
 import { drizzle } from "drizzle-orm/libsql/web";
+import { BoundedWork } from "../src/lib/bounded-work";
 import { stateRecentArrivalRebuildStatements } from "../src/server/ingestion/state-recent-arrival";
 import { InventorySnapshot } from "../src/server/inventory-snapshot";
 import { YardSummaryStore } from "../src/server/yard-summary-store";
+
+/**
+ * How long a deploy waits for missing yard summaries. Filling every yard
+ * (a fresh database) reads every vehicle; past this, the build goes on and
+ * the next inventory refresh stores the rest.
+ */
+const FILL_TIMEOUT_MS = 5 * 60 * 1000;
 
 function requiredEnvironment(
   name: "TURSO_DATABASE_URL" | "TURSO_AUTH_TOKEN",
@@ -35,11 +43,28 @@ export async function projectInventory(force: boolean): Promise<void> {
   });
   try {
     const database = drizzle(client);
+    // Optional: without a summary a yard page reads the yard's vehicles
+    // until the next refresh stores one, so a failure never fails the build.
     const filledAt = Date.now();
-    const { stored } = await YardSummaryStore.fill(database, new Date());
-    console.info(
-      `[yard-summary] Stored ${stored} missing yard summaries in ${((Date.now() - filledAt) / 1000).toFixed(1)}s.`,
+    const fill = await BoundedWork.settle(
+      YardSummaryStore.fill(database, new Date()),
+      FILL_TIMEOUT_MS,
     );
+    const seconds = ((Date.now() - filledAt) / 1000).toFixed(1);
+    if (fill.status === "done") {
+      console.info(
+        `[yard-summary] Stored ${fill.value.stored} missing yard summaries in ${seconds}s.`,
+      );
+    } else if (fill.status === "failed") {
+      console.error(
+        `[yard-summary] Could not store missing yard summaries after ${seconds}s; the build continues. Yards without one read their vehicles on each page render until the next inventory refresh stores it. Stored summaries and vehicle data are unchanged.`,
+        fill.error,
+      );
+    } else {
+      console.error(
+        `[yard-summary] Stopped waiting for missing yard summaries after ${seconds}s; the build continues and the summaries stored so far are kept. The next inventory refresh stores the rest.`,
+      );
+    }
     const startedAt = Date.now();
     const result = force
       ? await InventorySnapshot.project(database, new Date()).then(
