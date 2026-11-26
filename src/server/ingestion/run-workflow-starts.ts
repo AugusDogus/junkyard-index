@@ -11,21 +11,26 @@ const MARK_PREFIX = "starting:";
  * What a run's `workflow_run_id` holds while a pass starts its workflow:
  * the run counts as started, so a pass that replaces this one (or the next
  * day's) holds its claims instead of admitting another run on its hosts.
- * A mark older than `GRACE_MS` is a start that never finished, and the run
- * is idle again.
+ * Another pass's mark older than `GRACE_MS` is a start that never finished,
+ * and the run is idle again. The marking pass's own mark is always idle to
+ * it: its retried start step marked the run, then failed to start it.
  */
 export const StartingMark = {
   GRACE_MS: 2 * 60_000,
 
-  of(now: number): string {
-    return MARK_PREFIX + now;
+  of(passRunId: string, now: number): string {
+    return `${MARK_PREFIX}${passRunId}:${now}`;
   },
 
-  /** When `workflowRunId` was marked, or null for a real workflow run id. */
-  markedAt(workflowRunId: string): number | null {
+  /** The pass and time of a mark, or null for a real workflow run id. */
+  parse(workflowRunId: string): { passRunId: string; at: number } | null {
     if (!workflowRunId.startsWith(MARK_PREFIX)) return null;
-    const at = Number(workflowRunId.slice(MARK_PREFIX.length));
-    return Number.isSafeInteger(at) ? at : null;
+    const rest = workflowRunId.slice(MARK_PREFIX.length);
+    const split = rest.lastIndexOf(":");
+    const at = Number(rest.slice(split + 1));
+    return split > 0 && Number.isSafeInteger(at)
+      ? { passRunId: rest.slice(0, split), at }
+      : null;
   },
 } as const;
 
@@ -44,6 +49,8 @@ export async function startIdleRunWorkflows(params: {
     runIds: readonly string[],
   ) => Promise<ReadonlyMap<string, string>>;
   workflowState: (workflowRunId: string) => Promise<RunWorkflowState>;
+  /** The starting pass, whose own marks are never live to it. */
+  passRunId: string;
   now: () => number;
   start: (
     runId: string,
@@ -51,15 +58,18 @@ export async function startIdleRunWorkflows(params: {
     state: "idle" | "unknown",
   ) => Promise<void>;
 }): Promise<{ started: string[]; live: string[] }> {
-  const { attachedWorkflows, workflowState, start, now } = params;
+  const { attachedWorkflows, workflowState, start, now, passRunId } = params;
   const attached = await attachedWorkflows(params.runIds);
   const stateOf = async (
     workflowRunId: string | undefined,
   ): Promise<RunWorkflowState> => {
     if (workflowRunId === undefined) return "idle";
-    const markedAt = StartingMark.markedAt(workflowRunId);
-    if (markedAt === null) return workflowState(workflowRunId);
-    return now() - markedAt < StartingMark.GRACE_MS ? "live" : "idle";
+    const mark = StartingMark.parse(workflowRunId);
+    if (mark === null) return workflowState(workflowRunId);
+    return mark.passRunId !== passRunId &&
+      now() - mark.at < StartingMark.GRACE_MS
+      ? "live"
+      : "idle";
   };
   const states = await Promise.all(
     params.runIds.map(async (runId) => ({
@@ -97,6 +107,7 @@ export async function startGuarded(params: {
   runId: string;
   previous: string | null;
   state: "idle" | "unknown";
+  passRunId: string;
   now: () => number;
   /** Sets the run's workflow run id to `to` if it is still `from`. */
   swap: (
@@ -115,7 +126,7 @@ export async function startGuarded(params: {
     await start();
     return "started";
   }
-  const mark = StartingMark.of(params.now());
+  const mark = StartingMark.of(params.passRunId, params.now());
   if (!(await swap(runId, previous, mark))) return "skipped";
   if (!(await stillAdmits())) {
     await swap(runId, mark, previous);

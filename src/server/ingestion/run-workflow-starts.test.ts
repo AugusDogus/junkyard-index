@@ -27,6 +27,7 @@ describe("startIdleRunWorkflows", () => {
         if (!state) throw new Error(`Unexpected workflow ${workflowRunId}`);
         return state;
       },
+      passRunId: "wrun-pass",
       now: () => 0,
       start: async (runId) => {
         started.push(runId);
@@ -42,19 +43,25 @@ describe("startIdleRunWorkflows", () => {
 });
 
 describe("startIdleRunWorkflows with a starting mark", () => {
-  test("treats a fresh mark as a start in flight and an old one as idle", async () => {
+  test("treats another pass's fresh mark as a start in flight and an old one as idle", async () => {
     const now = 10 * 60_000;
     const starts: Array<[string, string | null, string]> = [];
+    const fresh = StartingMark.of("wrun-other-pass", now - 1_000);
+    const stale = StartingMark.of(
+      "wrun-other-pass",
+      now - StartingMark.GRACE_MS,
+    );
     const result = await startIdleRunWorkflows({
       runIds: ["fresh", "stale", "unattached"],
       attachedWorkflows: async () =>
         new Map([
-          ["fresh", StartingMark.of(now - 1_000)],
-          ["stale", StartingMark.of(now - StartingMark.GRACE_MS)],
+          ["fresh", fresh],
+          ["stale", stale],
         ]),
       workflowState: async () => {
         throw new Error("A mark is not a workflow");
       },
+      passRunId: "wrun-pass",
       now: () => now,
       start: async (runId, previous, state) => {
         starts.push([runId, previous, state]);
@@ -62,9 +69,28 @@ describe("startIdleRunWorkflows with a starting mark", () => {
     });
     expect(result.live).toEqual(["fresh"]);
     expect(starts).toEqual([
-      ["stale", StartingMark.of(now - StartingMark.GRACE_MS), "idle"],
+      ["stale", stale, "idle"],
       ["unattached", null, "idle"],
     ]);
+  });
+
+  test("starts again a run its own pass marked, as a retried start step does", async () => {
+    // The step's first attempt marked the run, then start() failed.
+    const own = StartingMark.of("wrun-pass", 9_000);
+    const starts: Array<[string, string | null, string]> = [];
+    await startIdleRunWorkflows({
+      runIds: ["run"],
+      attachedWorkflows: async () => new Map([["run", own]]),
+      workflowState: async () => {
+        throw new Error("A mark is not a workflow");
+      },
+      passRunId: "wrun-pass",
+      now: () => 10_000,
+      start: async (runId, previous, state) => {
+        starts.push([runId, previous, state]);
+      },
+    });
+    expect(starts).toEqual([["run", own, "idle"]]);
   });
 });
 
@@ -75,6 +101,7 @@ describe("startGuarded", () => {
       runId: "run",
       previous: null,
       state: "idle",
+      passRunId: "wrun-pass",
       now: () => 5,
       swap: async (_runId, from, to) => {
         events.push(`swap:${from}->${to}`);
@@ -97,10 +124,10 @@ describe("startGuarded", () => {
     const { params, events } = deps();
     expect(await startGuarded(params)).toBe("started");
     expect(events).toEqual([
-      "swap:null->starting:5",
+      "swap:null->starting:wrun-pass:5",
       "owner?",
       "start",
-      "swap:starting:5->wrun-new",
+      "swap:starting:wrun-pass:5->wrun-new",
     ]);
   });
 
@@ -114,9 +141,9 @@ describe("startGuarded", () => {
     });
     expect(await startGuarded(params)).toBe("skipped");
     expect(events).toEqual([
-      "swap:wrun-old->starting:5",
+      "swap:wrun-old->starting:wrun-pass:5",
       "owner?",
-      "swap:starting:5->wrun-old",
+      "swap:starting:wrun-pass:5->wrun-old",
     ]);
   });
 
@@ -128,7 +155,7 @@ describe("startGuarded", () => {
       },
     });
     expect(await startGuarded(params)).toBe("skipped");
-    expect(events).toEqual(["swap:null->starting:5"]);
+    expect(events).toEqual(["swap:null->starting:wrun-pass:5"]);
   });
 
   test("starts a run whose workflow state is unknown without replacing its id", async () => {
