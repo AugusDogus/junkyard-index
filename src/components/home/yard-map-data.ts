@@ -53,6 +53,14 @@ export type YardMapSelection = {
   focus: "zoom" | "center" | "keep";
 };
 
+/**
+ * What the panel beside the map shows: one yard's card, or a short list of
+ * the yards under a tap on stacked dots, to pick one from.
+ */
+export type YardMapPanel =
+  | { kind: "yard"; selection: YardMapSelection }
+  | { kind: "choice"; yards: MapYard[] };
+
 /** The homepage's map strip, or the taller map on the /map page. */
 export type YardMapLayout = "home" | "page";
 

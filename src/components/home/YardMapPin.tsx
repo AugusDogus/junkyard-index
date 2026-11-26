@@ -1,40 +1,36 @@
-import {
-  useRef,
-  type MouseEvent,
-  type PointerEvent,
-  type ReactNode,
-  type Ref,
-} from "react";
+import { memo, useRef, type MouseEvent, type PointerEvent } from "react";
+import type { YardMapMarkerSize } from "~/lib/yard-map-marker";
+import { YardPath } from "~/lib/yard-path";
 import type { MapYard } from "./yard-map-data";
 
-type MarkerButtonProps = {
-  tabIndex: 0 | -1;
-  buttonRef?: Ref<HTMLButtonElement>;
-  onFocus?: () => void;
-};
-
 /**
- * A map marker's button. A press that turns into a pan of the map does not
- * count as a click, so dragging from a pin or group never selects it.
+ * A yard on the map. A press that turns into a pan of the map does not
+ * count as a click, so dragging from a pin never selects it. `onSelect` gets
+ * the click, so the map can tell a tap on stacked dots from a tap on one
+ * pin; keyboard activation has `detail` 0.
+ *
+ * Memoized with stable callbacks from the map: a view change then redraws
+ * only the pins whose size, Tab stop or selection changed, not all of them.
  */
-function MarkerButton({
+export const YardMapPin = memo(function YardMapPin({
+  yard,
+  selected,
+  size,
   tabIndex,
-  buttonRef,
-  onFocus,
-  className,
-  label,
-  title,
-  pressed,
-  onActivate,
-  children,
-}: MarkerButtonProps & {
-  className: string;
-  label: string;
-  title: string;
-  pressed?: boolean;
-  onActivate: () => void;
-  children: ReactNode;
+  onSelect,
+  register,
+  onFocusYard,
+}: {
+  yard: MapYard;
+  selected: boolean;
+  size: YardMapMarkerSize;
+  tabIndex: 0 | -1;
+  onSelect: (yard: MapYard, event: MouseEvent<HTMLButtonElement>) => void;
+  /** Called with the pin's button, and with null when it unmounts. */
+  register: (key: string, button: HTMLButtonElement | null) => void;
+  onFocusYard: (key: string) => void;
 }) {
+  const key = YardPath.key(yard);
   const gesture = useRef<{
     pointerId: number;
     x: number;
@@ -53,13 +49,14 @@ function MarkerButton({
   return (
     <button
       type="button"
-      ref={buttonRef}
+      ref={(button) => register(key, button)}
       tabIndex={tabIndex}
-      onFocus={onFocus}
-      className={className}
-      aria-label={label}
-      aria-pressed={pressed}
-      title={title}
+      onFocus={() => onFocusYard(key)}
+      className="yard-map-pin"
+      aria-label={`${yard.name}, ${yard.city}, ${yard.state}`}
+      aria-pressed={selected}
+      title={`${yard.name} · ${yard.vehicleCount.toLocaleString("en-US")} vehicles`}
+      data-size={size}
       onPointerDown={(event) => {
         if (!event.isPrimary) {
           if (gesture.current) gesture.current.dragged = true;
@@ -80,65 +77,17 @@ function MarkerButton({
       onPointerCancel={() => {
         if (gesture.current) gesture.current.dragged = true;
       }}
-      onClick={(event: MouseEvent<HTMLButtonElement>) => {
+      onClick={(event) => {
         // Keyboard and assistive-technology activation have no pointer clicks.
         if (event.detail !== 0 && gesture.current?.dragged) {
           event.preventDefault();
           event.stopPropagation();
           return;
         }
-        onActivate();
+        onSelect(yard, event);
       }}
     >
-      {children}
+      <span aria-hidden="true" />
     </button>
   );
-}
-
-export function YardMapPin({
-  yard,
-  selected,
-  onSelect,
-  ...button
-}: MarkerButtonProps & {
-  yard: MapYard;
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <MarkerButton
-      {...button}
-      className="yard-map-pin"
-      label={`${yard.name}, ${yard.city}, ${yard.state}`}
-      title={`${yard.name} · ${yard.vehicleCount.toLocaleString("en-US")} vehicles`}
-      pressed={selected}
-      onActivate={onSelect}
-    >
-      <span aria-hidden="true" />
-    </MarkerButton>
-  );
-}
-
-/** A numbered group of yards too close to pick apart; opening it zooms in. */
-export function YardMapCluster({
-  yards,
-  onOpen,
-  ...button
-}: MarkerButtonProps & {
-  yards: MapYard[];
-  onOpen: () => void;
-}) {
-  const vehicles = yards.reduce((total, yard) => total + yard.vehicleCount, 0);
-  const states = [...new Set(yards.map((yard) => yard.state))].join(", ");
-  return (
-    <MarkerButton
-      {...button}
-      className="yard-map-pin yard-map-cluster"
-      label={`${yards.length} yards in ${states}. Zoom in to pick one.`}
-      title={`${yards.length} yards · ${vehicles.toLocaleString("en-US")} vehicles`}
-      onActivate={onOpen}
-    >
-      <span aria-hidden="true">{yards.length}</span>
-    </MarkerButton>
-  );
-}
+});

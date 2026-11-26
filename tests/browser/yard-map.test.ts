@@ -154,31 +154,6 @@ test("the URL keeps the open yard and view so Back and shared links return to th
   }
 }, 20_000);
 
-test("overlapping yards form a group that zooms in to separate them", async () => {
-  const page = await createPage(browser, {
-    viewport: { width: 1280, height: 900 },
-  });
-  try {
-    page.setDefaultTimeout(5_000);
-    await serveFixture(page, Promise.resolve());
-    await page.goto("http://yard-map.test/");
-    const groups = page.locator(".yard-map-cluster");
-    await groups.first().waitFor();
-    const pinsBefore = await page.locator(".yard-map-pin").count();
-    expect(pinsBefore).toBeLessThan(40);
-
-    await groups.first().click();
-    await page.waitForFunction(
-      (before) => document.querySelectorAll(".yard-map-pin").length > before,
-      pinsBefore,
-    );
-    // The opened view is saved for Back.
-    await page.waitForFunction(() => location.search.startsWith("?at="));
-  } finally {
-    await closePage(page);
-  }
-}, 20_000);
-
 test("a link click writes the pending map URL at once and stops later writes, so the navigation is not cancelled", async () => {
   const page = await createPage(browser, {
     viewport: { width: 1280, height: 900 },
@@ -227,7 +202,22 @@ test("a link click writes the pending map URL at once and stops later writes, so
   }
 }, 20_000);
 
-test("opening a group from the keyboard keeps focus on the map", async () => {
+/** Each marker's center on screen, with its yard's name. */
+function markerCenters(page: Page) {
+  return page.locator(".yard-map-pin").evaluateAll((pins) =>
+    pins.map((pin) => {
+      const box = pin.getBoundingClientRect();
+      return {
+        name: (pin.getAttribute("aria-label") ?? "").split(",")[0] ?? "",
+        size: pin.getAttribute("data-size"),
+        x: box.left + box.width / 2,
+        y: box.top + box.height / 2,
+      };
+    }),
+  );
+}
+
+test("every yard is drawn, and a tap on stacked dots lists the yards under it", async () => {
   const page = await createPage(browser, {
     viewport: { width: 1280, height: 900 },
   });
@@ -235,26 +225,153 @@ test("opening a group from the keyboard keeps focus on the map", async () => {
     page.setDefaultTimeout(5_000);
     await serveFixture(page, Promise.resolve());
     await page.goto("http://yard-map.test/");
-    const group = page.locator(".yard-map-cluster").first();
-    await group.waitFor();
-    const opened = await group.getAttribute("aria-label");
-    const pinsBefore = await page.locator(".yard-map-pin").count();
-    await group.focus();
-    await page.keyboard.press("Enter");
-    await page.waitForFunction(
-      (before) => document.querySelectorAll(".yard-map-pin").length > before,
-      pinsBefore,
+    await page.locator(".yard-map-pin").first().waitFor();
+    // The fixture's 40 yards sit half a degree apart on one meridian.
+    const markers = await markerCenters(page);
+    expect(markers).toHaveLength(40);
+    expect(markers.every((marker) => marker.size === "dot")).toBe(true);
+
+    const target = markers.find((marker) => marker.name === "Yard 20");
+    if (!target) throw new Error("Yard 20 has no marker.");
+    await page.mouse.click(target.x, target.y);
+    const list = page.getByRole("list", { name: /yards here$/ });
+    await list.waitFor();
+    // Every yard whose pin-sized box covers the tap, the tapped one first.
+    const expected = markers
+      .filter(
+        (marker) =>
+          Math.abs(marker.x - target.x) < 16 &&
+          Math.abs(marker.y - target.y) < 16,
+      )
+      .map((marker) => marker.name);
+    expect(expected.length).toBeGreaterThan(1);
+    const options = await list.getByRole("button").allTextContents();
+    expect(options.map((option) => option.split("Town")[0])).toEqual(
+      expect.arrayContaining(expected),
     );
-    // The opened group's button is gone; focus moved to a marker holding
-    // its first yard instead of falling back to the page.
-    const focused = await page.evaluate(() => ({
-      marker: document.activeElement?.classList.contains("yard-map-pin"),
-      label: document.activeElement?.getAttribute("aria-label"),
-      tabIndex: document.activeElement?.getAttribute("tabindex"),
-    }));
-    expect(focused.marker).toBe(true);
-    expect(focused.label).not.toBe(opened);
-    expect(focused.tabIndex).toBe("0");
+    expect(options).toHaveLength(expected.length);
+    expect(options[0]?.startsWith("Yard 20")).toBe(true);
+    const pick = options[1]?.split("Town")[0] ?? "";
+    await list.getByRole("button").nth(1).click();
+    await page.getByRole("button", { name: "Close yard details" }).waitFor();
+    await page
+      .getByRole("button", {
+        name: `${pick}, Town, TX`,
+        exact: true,
+        pressed: true,
+      })
+      .waitFor();
+    await expect(list.count()).resolves.toBe(0);
+    await page.waitForFunction(
+      (code) => new URLSearchParams(location.search).get("yard") === code,
+      `pyp:${pick.replace("Yard ", "")}`,
+    );
+  } finally {
+    await closePage(page);
+  }
+}, 20_000);
+
+test("a tap on a pin standing clear opens its card directly", async () => {
+  const page = await createPage(browser, {
+    viewport: { width: 1280, height: 900 },
+  });
+  try {
+    page.setDefaultTimeout(5_000);
+    await serveFixture(page, Promise.resolve());
+    await page.goto("http://yard-map.test/?at=40%2C-97%2C8");
+    const pin = page.getByRole("button", {
+      name: "Yard 10, Town, TX",
+      exact: true,
+    });
+    await pin.waitFor();
+    expect(await pin.getAttribute("data-size")).toBe("pin");
+    await pin.click();
+    await page.getByRole("button", { name: "Close yard details" }).waitFor();
+    expect(await page.getByRole("list", { name: /yards here$/ }).count()).toBe(
+      0,
+    );
+  } finally {
+    await closePage(page);
+  }
+}, 20_000);
+
+test("Enter on a stacked dot opens that yard, with every yard one arrow key away", async () => {
+  const page = await createPage(browser, {
+    viewport: { width: 1280, height: 900 },
+  });
+  try {
+    page.setDefaultTimeout(5_000);
+    await serveFixture(page, Promise.resolve());
+    await page.goto("http://yard-map.test/");
+    const stops = page.locator('.yard-map-pin[tabindex="0"]');
+    await stops.first().waitFor();
+    expect(await stops.count()).toBe(1);
+    await stops.first().focus();
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowDown");
+    const focused = await page.evaluate(() =>
+      document.activeElement?.getAttribute("aria-label"),
+    );
+    expect(focused).toBe("Yard 2, Town, TX");
+    await page.keyboard.press("Enter");
+    await page
+      .getByRole("button", {
+        name: "Yard 2, Town, TX",
+        exact: true,
+        pressed: true,
+      })
+      .waitFor();
+    expect(await page.getByRole("list", { name: /yards here$/ }).count()).toBe(
+      0,
+    );
+  } finally {
+    await closePage(page);
+  }
+}, 20_000);
+
+test("a tap on a crowd too long to list zooms in until its yards separate", async () => {
+  // On a phone the fixture's 40 yards stack into one tall column of dots.
+  const page = await createPage(browser, {
+    viewport: { width: 390, height: 844 },
+  });
+  try {
+    page.setDefaultTimeout(5_000);
+    await serveFixture(page, Promise.resolve());
+    await page.goto("http://yard-map.test/");
+    await page.locator(".yard-map-pin").first().waitFor();
+    await page.locator(".yard-map").scrollIntoViewIfNeeded();
+    const markers = await markerCenters(page);
+    const under = (target: { x: number; y: number }) =>
+      markers.filter(
+        (marker) =>
+          Math.abs(marker.x - target.x) < 16 &&
+          Math.abs(marker.y - target.y) < 16,
+      );
+    const crowd = markers.reduce((best, marker) =>
+      under(marker).length > under(best).length ? marker : best,
+    );
+    const tapped = under(crowd).map((marker) => marker.name);
+    expect(tapped.length).toBeGreaterThan(6);
+
+    await page.mouse.click(crowd.x, crowd.y);
+    await page.waitForFunction(() => {
+      const at = new URLSearchParams(location.search).get("at");
+      return at !== null;
+    });
+    expect(await page.getByRole("list", { name: /yards here$/ }).count()).toBe(
+      0,
+    );
+    // The tapped yards now stand apart: no two share a pin-sized box.
+    await page.locator('[aria-busy="false"]').waitFor();
+    const after = (await markerCenters(page)).filter((marker) =>
+      tapped.includes(marker.name),
+    );
+    const apart = after.every((a, index) =>
+      after
+        .slice(index + 1)
+        .every((b) => Math.abs(a.x - b.x) >= 16 || Math.abs(a.y - b.y) >= 16),
+    );
+    expect(apart).toBe(true);
   } finally {
     await closePage(page);
   }

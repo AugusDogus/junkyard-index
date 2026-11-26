@@ -21,8 +21,10 @@ import {
   yardMapLayoutClasses,
   type MapYard,
   type YardMapLayout,
+  type YardMapPanel,
   type YardMapSelection,
 } from "./yard-map-data";
+import { YardMapChoice } from "./YardMapChoice";
 import { YardDirectory } from "./YardDirectory";
 import { useApproximateLocation } from "~/hooks/use-approximate-location";
 import { useYardMapUrlWrite } from "~/hooks/use-yard-map-url-write";
@@ -41,11 +43,21 @@ type YardMapProps = {
 export function YardMap({ yards, vehicleCount, layout }: YardMapProps) {
   const [filter, setFilter] = useState("");
   const [directoryOpen, setDirectoryOpen] = useState(false);
-  const [selection, setSelection] = useState<YardMapSelection | null>(null);
+  const [panel, setPanel] = useState<YardMapPanel | null>(null);
+  const selection = panel?.kind === "yard" ? panel.selection : null;
   const selected = selection?.yard ?? null;
+  const setSelection = useCallback(
+    (selection: YardMapSelection | null) =>
+      setPanel(selection && { kind: "yard", selection }),
+    [],
+  );
+  const chooseYard = useCallback(
+    (yards: MapYard[]) => setPanel({ kind: "choice", yards }),
+    [],
+  );
   const selectFromDirectory = useCallback(
     (yard: MapYard) => setSelection({ yard, focus: "zoom" }),
-    [],
+    [setSelection],
   );
 
   // Back and shared links reopen the yard. With a saved view the map is
@@ -58,7 +70,7 @@ export function YardMap({ yards, vehicleCount, layout }: YardMapProps) {
       yard,
       focus: YardMapUrl.view(window.location.search) ? "keep" : "zoom",
     });
-  }, [yards]);
+  }, [yards, setSelection]);
 
   const selectedKey = selected && YardPath.key(selected);
   useYardMapUrlWrite(
@@ -170,43 +182,36 @@ export function YardMap({ yards, vehicleCount, layout }: YardMapProps) {
               yards={yards}
               selection={selection}
               onSelect={setSelection}
+              onChoose={chooseYard}
             />
           </div>
-          {selected && (
+          {panel && (
             <div
               onKeyDown={(event) => {
                 if (event.key === "Escape") {
                   event.stopPropagation();
-                  setSelection(null);
+                  setPanel(null);
                 }
               }}
               className="bg-paper-3 border-rule-strong sm:shadow-card relative z-10 border-t p-4 pr-11 sm:absolute sm:top-3 sm:left-3 sm:max-w-80 sm:border"
             >
-              <p className="text-signal text-[0.9375rem] font-medium text-pretty">
-                {selected.name}
-              </p>
-              {selected.address && (
-                <p className="text-ink-2 mt-1 text-sm text-pretty">
-                  {selected.address}
-                </p>
+              {panel.kind === "yard" ? (
+                <YardDetails yard={panel.selection.yard} />
+              ) : (
+                <YardMapChoice
+                  yards={panel.yards}
+                  onPick={(yard) => setSelection({ yard, focus: "center" })}
+                />
               )}
-              <p className="text-ink-2 mt-1 text-sm">
-                {selected.city}, {selected.state}
-              </p>
-              <p className="mt-1 text-sm">
-                <span className="font-medium">
-                  {selected.vehicleCount.toLocaleString("en-US")}
-                </span>{" "}
-                vehicles
-              </p>
-              <div className="border-rule mt-2 border-t pt-1">
-                <YardLinks yard={selected} />
-              </div>
               <Button
                 variant="ghost"
                 size="icon"
-                aria-label="Close yard details"
-                onClick={() => setSelection(null)}
+                aria-label={
+                  panel.kind === "yard"
+                    ? "Close yard details"
+                    : "Close the list of yards here"
+                }
+                onClick={() => setPanel(null)}
                 className="absolute top-2 right-2 size-8"
               >
                 <X aria-hidden="true" />
@@ -301,5 +306,31 @@ export function YardMap({ yards, vehicleCount, layout }: YardMapProps) {
         </div>
       </div>
     </section>
+  );
+}
+
+/** The open yard's card: name, address, size and its links. */
+function YardDetails({ yard }: { yard: MapYard }) {
+  return (
+    <>
+      <p className="text-signal text-[0.9375rem] font-medium text-pretty">
+        {yard.name}
+      </p>
+      {yard.address && (
+        <p className="text-ink-2 mt-1 text-sm text-pretty">{yard.address}</p>
+      )}
+      <p className="text-ink-2 mt-1 text-sm">
+        {yard.city}, {yard.state}
+      </p>
+      <p className="mt-1 text-sm">
+        <span className="font-medium">
+          {yard.vehicleCount.toLocaleString("en-US")}
+        </span>{" "}
+        vehicles
+      </p>
+      <div className="border-rule mt-2 border-t pt-1">
+        <YardLinks yard={yard} />
+      </div>
+    </>
   );
 }
