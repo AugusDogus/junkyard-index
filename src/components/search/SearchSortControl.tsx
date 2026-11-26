@@ -41,7 +41,7 @@ export function SearchSortControl({
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger
         // The toolbar's outline treatment: no fill, the same border and weight.
-        className="border-ink text-ink hover:bg-ink hover:text-paper dark:hover:bg-ink border-2 bg-transparent font-extrabold shadow-none md:min-w-44 dark:bg-transparent [&_svg]:text-current"
+        className="border-rule-strong text-ink hover:border-ink border bg-transparent font-medium shadow-none hover:bg-transparent md:min-w-44 dark:bg-transparent dark:hover:bg-transparent [&_svg]:text-current"
         aria-label={`Sort vehicles: ${compact} (${label})`}
       >
         {/* Phones drop the icon to keep the toolbar on one row. */}

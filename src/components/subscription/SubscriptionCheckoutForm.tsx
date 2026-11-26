@@ -130,7 +130,7 @@ export function SubscriptionCheckoutForm({
       </CardHeader>
       <CardContent className="space-y-6">
         <div>
-          <p className="text-3xl font-bold">
+          <p className="text-3xl font-medium">
             ${planPrice(tier, interval)}
             <span className="text-muted-foreground text-base font-normal">
               {interval === "annual" ? "/year" : "/month"}

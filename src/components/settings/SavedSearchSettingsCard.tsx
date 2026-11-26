@@ -30,7 +30,7 @@ export function SavedSearchSettingsCard() {
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2">
         <h2
           id="saved-searches-heading"
-          className="text-xl font-semibold text-balance"
+          className="text-xl font-medium text-balance"
         >
           Saved searches
         </h2>

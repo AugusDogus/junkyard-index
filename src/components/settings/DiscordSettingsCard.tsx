@@ -87,10 +87,7 @@ export function DiscordSettingsCard() {
   return (
     <section aria-labelledby="discord-notifications-heading">
       <div className="max-w-2xl">
-        <h2
-          id="discord-notifications-heading"
-          className="text-xl font-semibold"
-        >
+        <h2 id="discord-notifications-heading" className="text-xl font-medium">
           Discord
         </h2>
         <p className="text-muted-foreground mt-2 text-sm leading-6">

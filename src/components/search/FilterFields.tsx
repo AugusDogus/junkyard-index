@@ -316,7 +316,7 @@ export function AdvancedFiltersUpsell({
         Make, state, color, yard and source filters come with Lite.{" "}
         <Link
           href="/pricing"
-          className="text-foreground font-semibold whitespace-nowrap underline underline-offset-2"
+          className="text-foreground font-medium whitespace-nowrap underline underline-offset-2"
         >
           Compare plans
         </Link>
@@ -325,7 +325,7 @@ export function AdvancedFiltersUpsell({
   return (
     <div className="flex flex-col items-start gap-4 py-2">
       <div className="flex max-w-sm flex-col gap-2">
-        <h3 className="text-base font-semibold">Filter the full inventory</h3>
+        <h3 className="text-base font-medium">Filter the full inventory</h3>
         <p className="text-muted-foreground text-sm leading-6">
           Year range and distance radius are free. Lite adds filters for source,
           make, color, state, and individual salvage yards from $

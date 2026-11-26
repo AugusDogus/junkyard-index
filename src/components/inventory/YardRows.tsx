@@ -13,12 +13,12 @@ export type YardRow = {
   lastChecked?: string | null;
 };
 
-/** The surface the rows sit on: the paper, or the ink board where figures turn amber. */
+/** The surface the rows sit on: the paper, or the ink board where figures take the figure colour. */
 type YardRowsTone = "paper" | "board";
 
 const TONES = {
   paper: {
-    list: "border-ink",
+    list: "border-rule-strong",
     row: "border-rule",
     link: "hover:bg-paper-2 active:bg-paper-2 focus-visible:outline-focus",
     name: "text-ink",
@@ -26,7 +26,7 @@ const TONES = {
     figure: "text-ink text-lg",
   },
   board: {
-    list: "border-board-ink",
+    list: "border-board-rule",
     row: "border-board-rule",
     link: "hover:bg-board-2 active:bg-board-2 focus-visible:outline-figure",
     name: "text-board-ink",
@@ -69,7 +69,7 @@ export function YardRows({
   return (
     <ul
       className={cn(
-        "border-t-2",
+        "border-t",
         colours.list,
         COLUMNS[columnsFor(rows.length, columns)],
       )}
@@ -94,7 +94,7 @@ export function YardRows({
                 {row.place}
               </span>
               {row.lastChecked && (
-                <span className="bg-figure text-board mt-1 inline-block px-1.5 py-0.5 text-xs font-extrabold">
+                <span className="bg-figure text-board mt-1 inline-block px-1.5 py-0.5 text-xs font-medium">
                   {row.lastChecked}
                 </span>
               )}

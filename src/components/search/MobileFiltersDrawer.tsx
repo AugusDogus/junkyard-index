@@ -114,9 +114,7 @@ export function MobileFiltersDrawer({
         <DrawerHeader className="group-data-[vaul-drawer-direction=bottom]/drawer-content:text-left">
           <div className="flex items-start justify-between gap-4">
             <div className="flex min-w-0 flex-col gap-1">
-              <DrawerTitle className="text-lg font-semibold">
-                Filters
-              </DrawerTitle>
+              <DrawerTitle className="text-lg font-medium">Filters</DrawerTitle>
               <DrawerDescription className="tabular-nums">
                 {activeFilterCount > 0
                   ? `${activeFilterCount} active`

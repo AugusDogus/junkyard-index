@@ -21,7 +21,7 @@ export default function PricingPage() {
       <main className="shell flex-1 py-16 sm:py-24">
         <div>
           <div className="max-w-2xl">
-            <h1 className="text-display-s leading-[1.02] font-extrabold">
+            <h1 className="text-display-s leading-[1.02] font-medium">
               Pricing
             </h1>
             <p className="text-ink-2 text-lead mt-4 text-pretty">
@@ -38,8 +38,8 @@ export default function PricingPage() {
             </Suspense>
           </div>
 
-          <div className="bg-paper-2 border-ink mt-20 grid gap-6 border-2 p-6 sm:p-10 lg:grid-cols-12 lg:items-end lg:gap-8">
-            <h2 className="text-title leading-tight font-extrabold lg:col-span-5">
+          <div className="bg-paper-2 border-rule-strong mt-20 grid gap-6 border p-6 sm:p-10 lg:grid-cols-12 lg:items-end lg:gap-8">
+            <h2 className="text-title leading-tight font-medium lg:col-span-5">
               Keep searching for free.
             </h2>
             <p className="text-ink-2 text-pretty lg:col-span-7">

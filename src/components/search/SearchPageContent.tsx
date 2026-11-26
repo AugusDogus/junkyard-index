@@ -1004,7 +1004,7 @@ function AlgoliaSearchInner({
     if (capReason === "plan_unconfirmed") {
       return (
         <div className="bg-card mx-auto w-full max-w-2xl rounded-lg border p-6 text-left shadow-lg">
-          <h3 className="text-xl font-semibold tracking-tight text-balance">
+          <h3 className="text-xl font-medium tracking-tight text-balance">
             Your plan could not be confirmed.
           </h3>
           <p className="text-muted-foreground mt-2 max-w-2xl text-sm text-pretty">
@@ -1025,7 +1025,7 @@ function AlgoliaSearchInner({
     return (
       <div className="bg-card mx-auto w-full max-w-2xl rounded-lg border p-6 text-left shadow-lg">
         <p className="text-sm font-medium">Want the rest of the results?</p>
-        <h3 className="mt-2 text-xl font-semibold tracking-tight text-balance">
+        <h3 className="mt-2 text-xl font-medium tracking-tight text-balance">
           Upgrade to Lite to see every result.
         </h3>
         <p className="text-muted-foreground mt-2 max-w-2xl text-sm text-pretty">
@@ -1167,7 +1167,7 @@ function AlgoliaSearchInner({
         isLoggedIn
           ? "Distance location saved. You can update it later from Settings."
           : "Distance location saved for this browser. Use Distance location to change it.",
-        { style: { fontFamily: "var(--font-chivo-mono), monospace" } },
+        { style: { fontFamily: "var(--font-brand), monospace" } },
       );
 
       if (pendingDistanceSort) {

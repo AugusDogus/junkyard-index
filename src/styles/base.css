@@ -24,6 +24,8 @@ body {
   line-height: 1.55;
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
+  /* Two weights ship (src/app/fonts.ts); never fake a heavier one. */
+  font-synthesis-weight: none;
   caret-color: var(--color-signal);
 }
 ::selection {
@@ -32,7 +34,7 @@ body {
 }
 :focus-visible {
   outline: 2px solid var(--color-focus);
-  outline-offset: 2px;
+  outline-offset: 3px;
 }
 a {
   color: inherit;
@@ -50,6 +52,13 @@ h3 {
   overflow-wrap: break-word;
   min-width: 0;
   text-wrap: balance;
+}
+/* Two weights only (src/app/fonts.ts): emphasis takes the medium face rather
+ * than a synthesised bold. */
+strong,
+b,
+th {
+  font-weight: 500;
 }
 .lead {
   font-size: var(--text-lead);

@@ -2,17 +2,17 @@ import { ImageResponse } from "next/og";
 import { SITE_IMAGE } from "~/lib/site-metadata";
 
 // Rendered once at build time and served as a static file, in next/og's
-// bundled Noto Sans: loading Chivo Mono would mean vendoring its font files.
+// next/og's bundled Noto Sans: next/og cannot read the site's woff2 files.
 export const alt = SITE_IMAGE.alt;
 export const size = { width: SITE_IMAGE.width, height: SITE_IMAGE.height };
 export const contentType = "image/png";
 
-// Wayfind's board, ink, signal and figure tokens (src/styles/tokens.css) in hex.
-const BOARD = "#14171d";
-const BOARD_INK = "#eef0f3";
-const BOARD_MUTED = "#b4b9c1";
-const SIGNAL = "#2e55e6";
-const FIGURE = "#f0b52a";
+// The night board, ink, accent and figure tokens (src/styles/tokens.css).
+const BOARD = "#111410";
+const BOARD_INK = "#e6e9de";
+const BOARD_MUTED = "#a7afa0";
+const SIGNAL = "#d6edaf";
+const FIGURE = "#d6edaf";
 
 export default function OpengraphImage() {
   return new ImageResponse(

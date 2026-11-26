@@ -19,7 +19,7 @@ export function AdminPageHeader({
 }) {
   return (
     <header className="border-border border-b pb-6">
-      <h1 className="text-3xl font-semibold text-balance">{title}</h1>
+      <h1 className="text-3xl font-medium text-balance">{title}</h1>
       <p className="text-muted-foreground mt-3 max-w-2xl text-base leading-7 text-pretty">
         {description}
       </p>
@@ -39,7 +39,7 @@ export function AdminSection({
   const id = `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-heading`;
   return (
     <section aria-labelledby={id} className="min-w-0">
-      <h2 id={id} className="text-xl font-semibold">
+      <h2 id={id} className="text-xl font-medium">
         {title}
       </h2>
       {description && (
@@ -191,7 +191,7 @@ export function Stat({
   return (
     <div className="min-w-0 rounded-lg border p-4">
       <dt className="text-muted-foreground text-sm">{label}</dt>
-      <dd className="mt-1 text-2xl font-semibold tabular-nums">{value}</dd>
+      <dd className="mt-1 text-2xl font-medium tabular-nums">{value}</dd>
       {hint !== undefined && (
         <dd className="text-muted-foreground mt-1 text-xs leading-5">{hint}</dd>
       )}

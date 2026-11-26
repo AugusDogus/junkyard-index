@@ -28,9 +28,9 @@ export function AuthCard({
   }, [view]);
 
   return (
-    <section className="border-ink bg-paper-3 mx-auto w-full max-w-md border-2 p-6 sm:p-8">
+    <section className="border-rule-strong bg-paper-3 mx-auto w-full max-w-md border p-6 sm:p-8">
       <div className="mb-8 space-y-3">
-        <h1 className="text-ink text-2xl leading-tight font-extrabold tracking-tight">
+        <h1 className="text-ink text-2xl leading-tight font-medium tracking-tight">
           {title}
         </h1>
         <p className="text-ink-2 text-sm leading-relaxed">{description}</p>

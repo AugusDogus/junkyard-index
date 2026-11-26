@@ -37,7 +37,7 @@ export default async function SubscribePage({
     <div className="bg-background min-h-screen">
       <Header />
       <main className="mx-auto max-w-xl px-4 py-12 sm:px-6 lg:px-8">
-        <h1 className="mb-2 text-3xl font-bold tracking-tight">
+        <h1 className="mb-2 text-3xl font-medium tracking-tight">
           Subscribe to alerts
         </h1>
         <p className="text-muted-foreground mb-8">

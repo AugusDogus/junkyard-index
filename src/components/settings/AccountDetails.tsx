@@ -9,7 +9,7 @@ export function AccountDetails() {
   return (
     <section aria-labelledby="account-details-heading">
       <div className="max-w-2xl">
-        <h2 id="account-details-heading" className="text-xl font-semibold">
+        <h2 id="account-details-heading" className="text-xl font-medium">
           Account details
         </h2>
         <p className="text-muted-foreground mt-2 text-sm leading-6">

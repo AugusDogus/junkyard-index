@@ -87,7 +87,7 @@ export function HomeSearchHero() {
               // An unreadable preference leaves the ZIP chooser available in search.
             }
           }}
-          className="text-signal inline-flex min-h-11 items-center font-bold underline underline-offset-4"
+          className="text-signal inline-flex min-h-11 items-center font-medium underline underline-offset-4"
         >
           New near me
         </Link>

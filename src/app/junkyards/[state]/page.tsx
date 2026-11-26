@@ -101,15 +101,15 @@ export default async function RegionPage({
       />
       <Breadcrumbs crumbs={crumbs} />
       <header>
-        <h1 className="text-display-s leading-[1.02] font-extrabold">
+        <h1 className="text-display-s leading-[1.02] font-medium">
           Junkyards in {region.name}
         </h1>
         <p className="text-lead text-ink-2 mt-5 max-w-[56ch] leading-[1.45]">
-          <span className="text-ink font-extrabold tabular-nums">
+          <span className="text-ink font-medium tabular-nums">
             {InventoryFormat.plural(yards.length, "yard", "yards")}
           </span>{" "}
           listing{" "}
-          <span className="text-ink font-extrabold tabular-nums">
+          <span className="text-ink font-medium tabular-nums">
             {InventoryFormat.count(vehicles)}
           </span>{" "}
           vehicles.
@@ -117,7 +117,7 @@ export default async function RegionPage({
       </header>
       <p className="mt-4">
         <Link
-          className="text-signal inline-flex min-h-11 items-center font-bold tabular-nums underline underline-offset-4"
+          className="text-signal inline-flex min-h-11 items-center font-medium tabular-nums underline underline-offset-4"
           href={buildSearchUrl("", {
             arrivalWindow: "7d",
             states: [region.name],
@@ -134,7 +134,7 @@ export default async function RegionPage({
         <div className="grid gap-y-3 lg:grid-cols-12 lg:items-baseline lg:gap-x-8">
           <h2
             id="yards-title"
-            className="text-section leading-[1.02] font-extrabold lg:col-span-5"
+            className="text-section leading-[1.02] font-medium lg:col-span-5"
           >
             Yards by size
           </h2>

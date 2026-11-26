@@ -64,7 +64,7 @@ export function SavedSearchRow({
         <Search size={19} aria-hidden="true" />
       </span>
       <div className="min-w-0 flex-1">
-        <h3 className="text-base font-semibold break-words">{search.name}</h3>
+        <h3 className="text-base font-medium break-words">{search.name}</h3>
         <p
           className="text-muted-foreground mt-2 line-clamp-3 text-sm leading-relaxed break-words"
           title={preview}

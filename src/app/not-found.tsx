@@ -11,7 +11,7 @@ export default function NotFound() {
     <PublicPageShell>
       <div className="mx-auto max-w-xl py-12 text-center">
         <p className="text-muted-foreground text-sm">404</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-balance">
+        <h1 className="mt-2 text-3xl font-medium tracking-tight text-balance">
           We couldn&apos;t find that page
         </h1>
         <p className="text-muted-foreground mt-3 text-pretty">

@@ -13,7 +13,7 @@ export function YardLocationFooter({
   locationError,
 }: YardLocationState) {
   return (
-    <div className="border-ink text-ink-2 border-t-2 px-4 py-1.5 text-sm">
+    <div className="border-rule-strong text-ink-2 border-t px-4 py-1.5 text-sm">
       <div className="flex items-center justify-between gap-2">
         <Link
           href="/junkyards"

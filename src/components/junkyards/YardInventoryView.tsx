@@ -151,14 +151,14 @@ export function YardInventoryView({
         <div className="lg:col-span-7 xl:col-span-8">
           {/* Pretty, not balanced: balancing breaks names like PICK-n-PULL
           at their hyphens. */}
-          <h1 className="text-display-s leading-[1.02] font-extrabold text-pretty">
+          <h1 className="text-display-s leading-[1.02] font-medium text-pretty">
             {filter ? `${filterName(filter)} at ${headline}` : headline}
           </h1>
-          <p className="border-ink bg-paper-2 text-ink mt-3 inline-block border-2 px-2.5 py-1 text-sm font-bold">
+          <p className="border-rule-strong bg-paper-2 text-ink mt-3 inline-block border px-2.5 py-1 text-sm font-medium">
             {serviceLabel}
           </p>
           <p className="text-lead text-ink-2 mt-5 max-w-[48ch] leading-[1.45]">
-            <span className="text-ink font-extrabold tabular-nums">
+            <span className="text-ink font-medium tabular-nums">
               {InventoryFormat.plural(
                 total,
                 filter ? `${filterName(filter)} vehicle` : "vehicle",
@@ -170,7 +170,7 @@ export function YardInventoryView({
               <>
                 ,{" "}
                 <Link
-                  className="text-signal font-extrabold tabular-nums underline underline-offset-4"
+                  className="text-signal font-medium tabular-nums underline underline-offset-4"
                   href={buildSearchUrl(filter ? filterName(filter) : "", {
                     arrivalWindow: "7d",
                     salvageYards: [yard.name],
@@ -195,7 +195,7 @@ export function YardInventoryView({
         <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
           <h2
             id="vehicles-title"
-            className="text-section leading-[1.02] font-extrabold"
+            className="text-section leading-[1.02] font-medium"
           >
             {inventory.page === 1
               ? "Newest first"
@@ -227,13 +227,13 @@ export function YardInventoryView({
           </div>
         )}
         {total === 0 ? (
-          <p className="border-ink text-ink-2 mt-6 border-t-2 pt-6 text-base">
+          <p className="border-rule-strong text-ink-2 mt-6 border-t pt-6 text-base">
             {publishedAt === null
               ? "We couldn't confirm this yard's current inventory, so none is shown. Check the yard's website."
               : "The yard lists no vehicles right now."}
           </p>
         ) : (
-          <ul className="border-t-ink border-b-rule divide-rule mt-6 divide-y border-t-2 border-b">
+          <ul className="border-t-rule-strong border-b-rule divide-rule mt-6 divide-y border-t border-b">
             {inventory.vehicles.map((vehicle) => (
               <VehicleRow
                 key={vehicle.vin}
@@ -296,19 +296,19 @@ export function YardInventoryView({
         </div>
       )}
 
-      {/* Nearby yards on the board: distance is the figure, in amber. */}
+      {/* Nearby yards on the board: distance is the figure, in the figure colour. */}
       {nearby.length > 0 && (
         <section
           aria-labelledby="nearby-title"
-          className="bg-board text-board-ink border-ink mt-(--section-gap-s) border-2 px-4 py-8 sm:p-8 lg:p-10"
+          className="bg-board text-board-ink border-rule-strong mt-(--section-gap-s) border px-4 py-8 sm:p-8 lg:p-10"
         >
           <h2
             id="nearby-title"
-            className="text-section leading-[1.02] font-extrabold"
+            className="text-section leading-[1.02] font-medium"
           >
             Other yards near {yard.city}
           </h2>
-          <ul className="border-board-ink mt-(--space-xl) gap-x-10 border-t-2 md:columns-2">
+          <ul className="border-board-rule mt-(--space-xl) gap-x-10 border-t md:columns-2">
             {nearby.map(({ yard: other, miles }) => (
               <li
                 key={other.path.href}
@@ -320,7 +320,7 @@ export function YardInventoryView({
                   className="board-step hover:bg-board-2 active:bg-board-2 focus-visible:outline-figure flex items-center justify-between gap-6 px-2 py-4 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid"
                 >
                   <span className="min-w-0">
-                    <span className="block text-[0.9375rem] leading-snug font-extrabold">
+                    <span className="block text-[0.9375rem] leading-snug font-medium">
                       {YardName.headline(other.name, other.operator)}
                     </span>
                     <span className="text-board-muted mt-0.5 block text-sm">
@@ -329,7 +329,7 @@ export function YardInventoryView({
                   </span>
                   <span className="text-board-muted shrink-0 text-right text-sm tabular-nums">
                     <span className="whitespace-nowrap">
-                      <span className="text-figure text-title leading-none font-extrabold">
+                      <span className="text-figure text-title leading-none font-medium">
                         {InventoryFormat.count(Math.round(miles))}
                       </span>{" "}
                       mi
@@ -366,7 +366,7 @@ function YardContact({
   const phoneHref = yardPhoneHref(yard.phone);
   const street = YardAddress.format(yard);
   return (
-    <div className="sm:border-ink sm:bg-paper-3 sm:border-2 sm:p-6 lg:col-span-5 xl:col-span-4">
+    <div className="sm:border-rule-strong sm:bg-paper-3 sm:border sm:p-6 lg:col-span-5 xl:col-span-4">
       <address className="text-ink flex items-start gap-2.5 text-[0.9375rem] leading-snug not-italic">
         <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
         {street}
@@ -392,7 +392,7 @@ function YardContact({
             asChild
             variant="outline"
             size="xl"
-            className="active:bg-ink active:text-paper"
+            className="active:bg-paper-2"
           >
             <a
               href={yard.website.href}
@@ -440,16 +440,16 @@ function MakeChips({
   });
   const cell = (active: boolean) =>
     cn(
-      "board-step border-ink -mt-0.5 -ml-0.5 flex h-11 items-center gap-2 border-2 px-3 text-sm whitespace-nowrap tabular-nums outline-none focus-visible:relative focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-focus sm:h-10",
+      "board-step border-rule-strong -mt-px -ml-px flex h-11 items-center gap-2 border px-3 text-sm whitespace-nowrap tabular-nums outline-none focus-visible:relative focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-focus sm:h-10",
       active
-        ? "bg-ink text-paper font-extrabold"
-        : "hover:bg-paper-2 active:bg-ink active:text-paper text-ink",
+        ? "bg-ink text-paper font-medium"
+        : "hover:bg-paper-2 active:bg-paper-2 text-ink",
     );
   return (
     <nav aria-label="Narrow by make">
       {/* One scrolling row on phones, so the list starts on the first
       screen; wrapped rows where there is room. */}
-      <ul className="-mx-4 flex overflow-x-auto px-4 pt-1.5 pb-1 pl-[calc(1rem+2px)] [scrollbar-width:thin] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:py-0 sm:pt-0.5 sm:pr-0 sm:pl-0.5">
+      <ul className="-mx-4 flex overflow-x-auto px-4 pt-1.5 pb-1 pl-[calc(1rem+1px)] [scrollbar-width:thin] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:py-0 sm:pt-px sm:pr-0 sm:pl-px">
         <li className="shrink-0">
           <Link
             href={yard.path.href}
@@ -495,16 +495,16 @@ function Pagination({
   if (inventory.pageCount <= 1) return null;
   const pages = Array.from({ length: inventory.pageCount }, (_, i) => i + 1);
   const cell =
-    "border-ink -mt-0.5 -ml-0.5 inline-flex size-11 items-center justify-center border-2 text-sm tabular-nums";
+    "border-rule-strong -mt-px -ml-px inline-flex size-11 items-center justify-center border text-sm tabular-nums";
   return (
     <nav aria-label="Inventory pages" className="mt-8">
-      <ul className="flex flex-wrap pt-0.5 pl-0.5">
+      <ul className="flex flex-wrap pt-px pl-px">
         {pages.map((page) => (
           <li key={page}>
             {page === inventory.page ? (
               <span
                 aria-current="page"
-                className={cn(cell, "bg-ink text-paper font-extrabold")}
+                className={cn(cell, "bg-ink text-paper font-medium")}
               >
                 {page}
               </span>
@@ -514,7 +514,7 @@ function Pagination({
                 prefetch={false}
                 className={cn(
                   cell,
-                  "board-step text-ink hover:bg-paper-2 active:bg-ink active:text-paper focus-visible:outline-focus outline-none focus-visible:relative focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid",
+                  "board-step text-ink hover:bg-paper-2 active:bg-paper-2 focus-visible:outline-focus outline-none focus-visible:relative focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid",
                 )}
               >
                 <span className="sr-only">Page </span>

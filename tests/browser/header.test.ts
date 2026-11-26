@@ -160,11 +160,11 @@ for (const width of [390, 640, 1440]) {
 }
 
 /**
- * next/font defines --font-chivo-mono in the app. Without it the font stack
+ * next/font defines --font-brand in the app. Without it the font stack
  * is invalid and text falls back to a proportional face, narrower than the
  * monospace the site sets every glyph in, so widths would read too small.
  */
-const monospaceBody = `<style>:root{--font-chivo-mono:"Chivo Mono"}</style>`;
+const monospaceBody = `<style>:root{--font-brand:ui-monospace}</style>`;
 
 async function openHeader(path: string, width: number) {
   const result = Bun.spawn(["bun", server, path], {

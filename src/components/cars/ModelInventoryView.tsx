@@ -82,7 +82,7 @@ export function modelPageMetadata(
 const TOP_YARDS = 10;
 const SIBLINGS = 12;
 
-/** An underlined text link on the paper: ink, cobalt on hover. */
+/** An underlined text link on the paper: ink, the accent on hover. */
 const INLINE_LINK =
   "board-step text-ink hover:text-signal focus-visible:outline-focus inline-flex min-h-11 items-center gap-2 text-[0.9375rem] font-medium underline decoration-1 underline-offset-[0.3em] outline-none hover:decoration-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid";
 
@@ -155,15 +155,15 @@ export function ModelInventoryView({
       />
       <Breadcrumbs crumbs={crumbs} />
       <header>
-        <h1 className="text-display-s leading-[1.02] font-extrabold">
+        <h1 className="text-display-s leading-[1.02] font-medium">
           {name} at junkyards
         </h1>
         <p className="text-lead text-ink-2 mt-5 max-w-[60ch] leading-[1.45]">
-          <span className="text-ink font-extrabold tabular-nums">
+          <span className="text-ink font-medium tabular-nums">
             {InventoryFormat.count(model.count)}
           </span>{" "}
           in stock at{" "}
-          <span className="text-ink font-extrabold tabular-nums">
+          <span className="text-ink font-medium tabular-nums">
             {InventoryFormat.plural(yards.length, "yard", "yards")}
           </span>{" "}
           in {regionLabel(routed)}, model years {InventoryFormat.years(model)}.
@@ -182,11 +182,11 @@ export function ModelInventoryView({
       {/* Where to go: the yards holding the most, on the board. */}
       <section
         aria-labelledby="top-yards-title"
-        className="bg-board text-board-ink border-ink mt-(--space-2xl) border-2 px-4 py-8 sm:p-8 lg:mt-(--space-3xl) lg:p-10"
+        className="bg-board text-board-ink border-rule-strong mt-(--space-2xl) border px-4 py-8 sm:p-8 lg:mt-(--space-3xl) lg:p-10"
       >
         <h2
           id="top-yards-title"
-          className="text-section leading-[1.02] font-extrabold"
+          className="text-section leading-[1.02] font-medium"
         >
           Yards with the most
         </h2>
@@ -223,7 +223,7 @@ export function ModelInventoryView({
           <div className="lg:sticky lg:top-28 lg:col-span-4 lg:self-start">
             <h2
               id="arrivals-title"
-              className="text-section leading-[1.02] font-extrabold"
+              className="text-section leading-[1.02] font-medium"
             >
               Newest arrivals
             </h2>
@@ -235,7 +235,7 @@ export function ModelInventoryView({
               All {InventoryFormat.count(model.count)} in search
             </Link>
           </div>
-          <ul className="border-ink divide-rule divide-y border-t-2 lg:col-span-8">
+          <ul className="border-rule-strong divide-rule divide-y border-t lg:col-span-8">
             {arrivals.map((vehicle) => {
               const yard = byKey.get(`${vehicle.source}:${vehicle.code}`);
               const checked = lastChecked(vehicle.source, vehicle.code);
@@ -276,12 +276,12 @@ export function ModelInventoryView({
         <section aria-labelledby="yards-title" className="mt-(--section-gap-s)">
           <h2
             id="yards-title"
-            className="text-section leading-[1.02] font-extrabold"
+            className="text-section leading-[1.02] font-medium"
           >
             Every yard with one, by state
           </h2>
           {/* Two independent runs of states, so opening one never moves the other. */}
-          <div className="border-ink mt-(--space-xl) grid items-start gap-x-10 border-t-2 lg:grid-cols-2">
+          <div className="border-rule-strong mt-(--space-xl) grid items-start gap-x-10 border-t lg:grid-cols-2">
             {halves(YardPath.byRegion(routed)).map((half, index) => (
               <div key={index}>
                 {half.map(({ region, yards: regionYards }) => (
@@ -301,7 +301,7 @@ export function ModelInventoryView({
                         )}
                       </span>
                       <span
-                        className="border-ink group-open:bg-ink group-open:text-paper grid size-8 shrink-0 place-items-center border-2"
+                        className="border-rule-strong group-open:border-ink grid size-8 shrink-0 place-items-center border"
                         aria-hidden="true"
                       >
                         <Plus className="size-4 group-open:hidden" />
@@ -342,7 +342,7 @@ export function ModelInventoryView({
           <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
             <h2
               id="siblings-title"
-              className="text-section leading-[1.02] font-extrabold"
+              className="text-section leading-[1.02] font-medium"
             >
               Other {make.name} models
             </h2>
@@ -351,7 +351,7 @@ export function ModelInventoryView({
             </Link>
           </div>
           <ul
-            className={`border-ink mt-(--space-xl) gap-x-8 border-t-2 ${siblingColumns(shown.length)}`}
+            className={`border-rule-strong mt-(--space-xl) gap-x-8 border-t ${siblingColumns(shown.length)}`}
           >
             {shown.map((sibling) => (
               <li
@@ -366,7 +366,7 @@ export function ModelInventoryView({
                   <span className="min-w-0 font-medium text-pretty break-words">
                     {sibling.name}
                   </span>
-                  <span className="shrink-0 font-extrabold tabular-nums">
+                  <span className="shrink-0 font-medium tabular-nums">
                     {InventoryFormat.count(sibling.count)}
                   </span>
                 </Link>

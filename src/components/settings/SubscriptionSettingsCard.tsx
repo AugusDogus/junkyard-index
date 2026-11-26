@@ -18,7 +18,7 @@ export function SubscriptionSettingsCard() {
   return (
     <section aria-labelledby="current-plan-heading">
       <div className="max-w-2xl">
-        <h2 id="current-plan-heading" className="text-xl font-semibold">
+        <h2 id="current-plan-heading" className="text-xl font-medium">
           Current plan
         </h2>
         <p className="text-muted-foreground mt-2 text-sm leading-6">

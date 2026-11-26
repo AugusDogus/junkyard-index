@@ -37,7 +37,7 @@ export function DeleteAccountCard() {
         className="border-border border-t pt-10"
       >
         <div className="max-w-2xl">
-          <h2 id="delete-account-heading" className="text-xl font-semibold">
+          <h2 id="delete-account-heading" className="text-xl font-medium">
             Delete account
           </h2>
           <p className="text-muted-foreground mt-2 text-sm leading-6">

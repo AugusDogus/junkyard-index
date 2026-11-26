@@ -97,7 +97,10 @@ export const YardDirectory = memo(function YardDirectory({
                 onFocusCapture={() => setFocusedKey(YardPath.key(yard))}
                 className={cn(
                   "board-step border-rule hover:bg-paper-2 focus-within:bg-paper-2 absolute top-0 left-0 w-full min-w-0 border-b",
-                  selected === yard && "bg-paper-2",
+                  // The chosen row: a surface that differs at night and an ink bar, so
+                  // it reads without its accent colour.
+                  selected === yard &&
+                    "bg-accent shadow-[inset_3px_0_0_var(--color-ink)]",
                 )}
               >
                 <button
@@ -112,7 +115,7 @@ export const YardDirectory = memo(function YardDirectory({
                     <span
                       className={cn(
                         "block truncate text-[0.9375rem] font-medium",
-                        selected === yard && "text-signal font-extrabold",
+                        selected === yard && "text-signal",
                       )}
                       title={yard.name}
                     >
@@ -123,7 +126,7 @@ export const YardDirectory = memo(function YardDirectory({
                         {yard.city}, {yard.state}
                       </span>
                       <span className="text-ink shrink-0 whitespace-nowrap">
-                        <span className="font-extrabold">
+                        <span className="font-medium">
                           {yard.vehicleCount.toLocaleString("en-US")}
                         </span>{" "}
                         {yard.vehicleCount === 1 ? "vehicle" : "vehicles"}

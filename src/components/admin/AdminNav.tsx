@@ -51,7 +51,7 @@ export function AdminNav() {
       aria-label="Admin"
       className="min-w-0 lg:sticky lg:top-24 lg:self-start"
     >
-      <p className="mb-4 font-semibold">Admin</p>
+      <p className="mb-4 font-medium">Admin</p>
       <div className="grid grid-cols-3 gap-1 rounded-lg border p-1 lg:grid-cols-1 lg:border-0 lg:p-0">
         {ADMIN_SECTIONS.map((section) => {
           const active = isActive(pathname, section.href);

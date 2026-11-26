@@ -44,7 +44,7 @@ export default async function ChainsPage() {
       />
       <Breadcrumbs crumbs={crumbs} />
       <header>
-        <h1 className="text-display-s leading-[1.02] font-extrabold">
+        <h1 className="text-display-s leading-[1.02] font-medium">
           Junkyard chains
         </h1>
         <p className="text-lead text-ink-2 mt-5 max-w-[56ch] leading-[1.45]">
@@ -52,9 +52,9 @@ export default async function ChainsPage() {
         </p>
       </header>
 
-      {/* The chains on the board, their counts as amber figures. */}
-      <div className="bg-board text-board-ink border-ink mt-(--space-2xl) border-2 px-4 py-6 sm:px-8 sm:py-8 lg:px-10">
-        <ul className="border-board-ink border-t-2">
+      {/* The chains on the board, their counts as figures. */}
+      <div className="bg-board text-board-ink border-rule-strong mt-(--space-2xl) border px-4 py-6 sm:px-8 sm:py-8 lg:px-10">
+        <ul className="border-board-rule border-t">
           {chains.map((chain) => {
             const vehicles = chain.yards.reduce(
               (sum, yard) => sum + yard.vehicleCount,
@@ -67,17 +67,17 @@ export default async function ChainsPage() {
                   prefetch={false}
                   className="board-step hover:bg-board-2 active:bg-board-2 focus-visible:outline-figure grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-8 gap-y-1 px-2 py-5 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid md:grid-cols-[minmax(0,1fr)_9rem_13rem]"
                 >
-                  <span className="text-title col-span-2 leading-tight font-extrabold md:col-span-1">
+                  <span className="text-title col-span-2 leading-tight font-medium md:col-span-1">
                     {chain.name}
                   </span>
                   <span className="text-board-muted text-sm whitespace-nowrap md:text-right">
-                    <span className="text-figure text-title font-extrabold tabular-nums">
+                    <span className="text-figure text-title font-medium tabular-nums">
                       {InventoryFormat.count(chain.yards.length)}
                     </span>{" "}
                     {chain.yards.length === 1 ? "yard" : "yards"}
                   </span>
                   <span className="text-board-muted text-right text-sm whitespace-nowrap">
-                    <span className="text-figure text-title font-extrabold tabular-nums">
+                    <span className="text-figure text-title font-medium tabular-nums">
                       {InventoryFormat.count(vehicles)}
                     </span>{" "}
                     vehicles

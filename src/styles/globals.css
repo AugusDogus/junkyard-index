@@ -7,7 +7,7 @@
 /* Hallmark · waive 44c · the head and the search sit above the yard map, the kept layout · the map is the hero's visual and the search runs across its full width, so their centres stack */
 /* Hallmark · waive 81 · the grey blocks are VehicleImage loading skeletons under real listing photos · the arrivals board fills each one with its vehicle's photograph as it loads */
 /* Hallmark · waive 83 · the pictures are the yard map tiles and the arrivals board's listing photos · the photographs are the inventory itself, never decoration */
-/* Hallmark · waive 23 · --color-accent is shadcn's paper-2 hover surface, mapped to --accent, not Wayfind's cobalt · cobalt stays on the primary action, live markers and link hover */
+/* Hallmark · waive 23 · --color-accent is shadcn's paper-2 hover surface, mapped to --accent, not the site accent · --color-signal stays on live markers, focus and link hover */
 /* Hallmark · waive 39b · the yard directory rows are list rows that select a yard on the map, sized by their two lines · each row is a full-width button over its own links, not a marketing control */
 /* Hallmark · waive 72 · the yard directory is a scroll box holding all 178 yards, so its content runs past the box by design · the rows clip at the scroll edge with padding inside each row */
 /* Hallmark · waive 49b · yard names such as "Pick Your Part - Houston Wallisville" are the yards' real names and wrap to two lines at 320 · a yard name cannot shorten without losing which yard it is */
@@ -69,7 +69,7 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
-/* shadcn's names point at Wayfind's tokens, so the app screens follow the
+/* shadcn's names point at the site tokens, so the app screens follow the
  * system in both modes (tokens.css swaps the values under .dark). */
 :root,
 .dark {
@@ -90,7 +90,7 @@
   --accent-foreground: var(--color-ink);
   --destructive: var(--color-error);
   --border: var(--color-rule);
-  --input: var(--color-ink-3);
+  --input: var(--color-rule-strong);
   --ring: var(--color-focus);
   --chart-1: var(--color-signal);
   --chart-2: var(--color-figure);
@@ -160,7 +160,7 @@
   scrollbar-color: var(--color-ink-3) transparent;
 }
 
-/* Board steps: Wayfind changes colour in one step, never a fade. */
+/* Board steps: colour changes in one step, never a fade. */
 @utility board-step {
   transition-property: color, background-color, border-color;
   transition-duration: var(--dur-micro);
@@ -200,7 +200,7 @@
   }
 
   .yard-list-name {
-    @apply board-step col-start-1 row-start-1 text-[0.9375rem] leading-snug font-extrabold;
+    @apply board-step col-start-1 row-start-1 text-[0.9375rem] leading-snug font-medium;
   }
 
   .yard-list-service {
@@ -212,7 +212,7 @@
   }
 
   .yard-list-figure {
-    @apply col-start-2 row-span-2 row-start-1 text-right text-lg leading-tight font-extrabold tabular-nums sm:col-start-3 sm:row-span-1;
+    @apply col-start-2 row-span-2 row-start-1 text-right text-lg leading-tight font-medium tabular-nums sm:col-start-3 sm:row-span-1;
   }
 
   .yard-list-unit {
@@ -228,7 +228,7 @@
   }
 
   .yard-rows-figure {
-    @apply shrink-0 text-right font-extrabold tabular-nums;
+    @apply shrink-0 text-right font-medium tabular-nums;
   }
 }
 
@@ -281,8 +281,12 @@
   }
 }
 
+/* The chosen yard: the accent fill plus a ring, so it differs from the other
+ * stops by shape too (at night the accent and the ink pins are both pale). */
 .yard-map-pin[aria-pressed="true"] > span {
   background: var(--color-signal);
+  outline: 2px solid var(--color-signal);
+  outline-offset: 2px;
   transform: scale(1.35);
 }
 

@@ -85,13 +85,13 @@ export function RecentVehicles({
       ref={ref}
       aria-labelledby="recent-vehicles-title"
       aria-roledescription="carousel"
-      className="bg-board text-board-ink border-ink border-y-2 py-14 sm:py-20"
+      className="bg-board text-board-ink border-rule-strong border-y py-14 sm:py-20"
     >
       <div className="shell">
         <div className="mb-8 flex items-end justify-between gap-6">
           <h2
             id="recent-vehicles-title"
-            className="text-section leading-[1.02] font-extrabold"
+            className="text-section leading-[1.02] font-medium"
           >
             Recently indexed vehicles
           </h2>
@@ -105,7 +105,7 @@ export function RecentVehicles({
                 paused ? "Play recent vehicles" : "Pause recent vehicles"
               }
               aria-pressed={paused}
-              className="border-board-ink text-board-ink hover:bg-board-ink hover:text-board focus-visible:outline-figure size-12 shrink-0"
+              className="border-board-rule text-board-ink hover:bg-board-ink hover:text-board focus-visible:outline-figure size-12 shrink-0"
             >
               {paused ? <Play /> : <Pause />}
             </Button>
@@ -125,7 +125,7 @@ export function RecentVehicles({
         ) : (
           <div
             ref={viewportRef}
-            className="recent-vehicles border-board-rule overflow-hidden border-l-2"
+            className="recent-vehicles border-board-rule overflow-hidden border-l"
             onPointerEnter={(event) => {
               if (event.pointerType === "mouse") setHovered(true);
             }}
@@ -141,9 +141,9 @@ export function RecentVehicles({
                     href={`/search?q=${encodeURIComponent(title)}`}
                     prefetch={false}
                     draggable={false}
-                    className="board-step border-board-rule hover:bg-board-2 focus-visible:outline-figure group flex min-w-0 flex-[0_0_16rem] flex-col border-y-2 border-r-2 outline-none focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-solid sm:flex-[0_0_19rem]"
+                    className="board-step border-board-rule hover:bg-board-2 focus-visible:outline-figure group flex min-w-0 flex-[0_0_16rem] flex-col border-y border-r outline-none focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-solid sm:flex-[0_0_19rem]"
                   >
-                    <div className="bg-board-2 border-board-rule relative flex aspect-[4/3] w-full shrink-0 items-center justify-center overflow-hidden border-b-2">
+                    <div className="bg-board-2 border-board-rule relative flex aspect-[4/3] w-full shrink-0 items-center justify-center overflow-hidden border-b">
                       {vehicle.imageUrl ? (
                         <VehicleImage
                           src={vehicle.imageUrl}
@@ -159,7 +159,7 @@ export function RecentVehicles({
                     </div>
                     <div className="flex min-w-0 flex-1 flex-col gap-1 p-4">
                       <p className="flex items-start justify-between gap-3">
-                        <span className="line-clamp-2 text-base leading-snug font-extrabold">
+                        <span className="line-clamp-2 text-base leading-snug font-medium">
                           {title}
                         </span>
                         <ArrowUpRight
@@ -171,7 +171,7 @@ export function RecentVehicles({
                         {vehicle.city}, {vehicle.state}
                       </p>
                       {vehicle.lastChecked && (
-                        <p className="bg-figure text-board self-start px-1.5 py-0.5 text-xs font-extrabold">
+                        <p className="bg-figure text-board self-start px-1.5 py-0.5 text-xs font-medium">
                           {vehicle.lastChecked}
                         </p>
                       )}
@@ -179,7 +179,7 @@ export function RecentVehicles({
                         Indexed{" "}
                         <time
                           dateTime={vehicle.indexedAt}
-                          className="text-figure text-2xl leading-none font-extrabold tracking-[-0.03em]"
+                          className="text-figure text-2xl leading-none font-medium tracking-[-0.03em]"
                         >
                           {new Date(vehicle.indexedAt).toLocaleDateString(
                             "en-US",

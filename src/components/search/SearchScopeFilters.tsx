@@ -68,7 +68,7 @@ export function SearchScopeFilters({
               id="search-distance-radius"
               aria-label="Distance radius"
               // Native, for the phone picker, styled like the other controls.
-              className="border-ink text-ink bg-background focus-visible:outline-focus h-11 w-full appearance-none rounded-md border-2 pr-9 pl-3 text-sm font-extrabold focus-visible:outline-2 focus-visible:outline-offset-2 sm:h-9 sm:w-auto"
+              className="border-rule-strong text-ink bg-background focus-visible:outline-focus h-11 w-full appearance-none rounded-md border pr-9 pl-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 sm:h-9 sm:w-auto"
               value={radiusMiles ?? "all"}
               onChange={(event) =>
                 onRadiusChange(

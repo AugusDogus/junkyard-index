@@ -13,7 +13,9 @@ export const metadata: Metadata = {
 export default function PrivacyPage() {
   return (
     <PageShell width="wide" rendering="static">
-      <h1 className="mb-8 text-4xl font-bold tracking-tight">Privacy Policy</h1>
+      <h1 className="mb-8 text-4xl font-medium tracking-tight">
+        Privacy Policy
+      </h1>
 
       <p className="text-muted-foreground mb-8">
         Last updated: August 24, 2026
@@ -21,7 +23,7 @@ export default function PrivacyPage() {
 
       <div className="prose prose-neutral dark:prose-invert max-w-none space-y-8">
         <section>
-          <h2 className="mb-4 text-2xl font-semibold">Overview</h2>
+          <h2 className="mb-4 text-2xl font-medium">Overview</h2>
           <p className="text-muted-foreground">
             Junkyard Index is operated by whisp labs LLC (&ldquo;we,&rdquo;
             &ldquo;our,&rdquo; or &ldquo;us&rdquo;). We are committed to
@@ -32,9 +34,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="mb-4 text-2xl font-semibold">
-            Information We Collect
-          </h2>
+          <h2 className="mb-4 text-2xl font-medium">Information We Collect</h2>
 
           <h3 className="mt-4 mb-2 text-lg font-medium">Account Information</h3>
           <p className="text-muted-foreground">
@@ -104,7 +104,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="mb-4 text-2xl font-semibold">
+          <h2 className="mb-4 text-2xl font-medium">
             How We Use Your Information
           </h2>
           <p className="text-muted-foreground">
@@ -125,7 +125,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="mb-4 text-2xl font-semibold">Third-Party Services</h2>
+          <h2 className="mb-4 text-2xl font-medium">Third-Party Services</h2>
           <p className="text-muted-foreground">
             We use the following third-party services to operate Junkyard Index:
           </p>
@@ -173,7 +173,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="mb-4 text-2xl font-semibold">Data Retention</h2>
+          <h2 className="mb-4 text-2xl font-medium">Data Retention</h2>
           <p className="text-muted-foreground">
             We retain your account information and saved searches for as long as
             your account is active. When account deletion completes, we delete
@@ -185,7 +185,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="mb-4 text-2xl font-semibold">Your Rights</h2>
+          <h2 className="mb-4 text-2xl font-medium">Your Rights</h2>
           <p className="text-muted-foreground">
             Depending on where you live, you may have the right to:
           </p>
@@ -203,7 +203,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="mb-4 text-2xl font-semibold">Cookies</h2>
+          <h2 className="mb-4 text-2xl font-medium">Cookies</h2>
           <p className="text-muted-foreground">
             We use cookies and similar technologies, such as local storage, to
             maintain sessions and preferences, measure usage through Vercel
@@ -215,7 +215,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="mb-4 text-2xl font-semibold">Security</h2>
+          <h2 className="mb-4 text-2xl font-medium">Security</h2>
           <p className="text-muted-foreground">
             We use reasonable technical and organizational safeguards designed
             to protect personal information, including HTTPS for data sent
@@ -226,7 +226,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="mb-4 text-2xl font-semibold">Children</h2>
+          <h2 className="mb-4 text-2xl font-medium">Children</h2>
           <p className="text-muted-foreground">
             The Service is not directed to children under 13, and we do not
             knowingly collect personal information from children under 13. If
@@ -236,9 +236,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="mb-4 text-2xl font-semibold">
-            Changes to This Policy
-          </h2>
+          <h2 className="mb-4 text-2xl font-medium">Changes to This Policy</h2>
           <p className="text-muted-foreground">
             We may update this Privacy Policy from time to time. We will notify
             you of any changes by posting the new Privacy Policy on this page
@@ -247,7 +245,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="mb-4 text-2xl font-semibold">Contact Us</h2>
+          <h2 className="mb-4 text-2xl font-medium">Contact Us</h2>
           <p className="text-muted-foreground">
             If you have any questions about this Privacy Policy or our data
             practices, please{" "}

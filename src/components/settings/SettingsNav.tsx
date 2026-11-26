@@ -38,7 +38,7 @@ export function SettingsNav() {
       className="min-w-0 lg:sticky lg:top-24 lg:self-start"
     >
       <div className="mb-4 flex items-center justify-between gap-4 lg:flex-col lg:items-start">
-        <p className="font-semibold">Settings</p>
+        <p className="font-medium">Settings</p>
         <Button asChild variant="link" size="sm" className="px-0">
           <Link href="/search">
             <ArrowLeft data-icon="inline-start" />

@@ -145,16 +145,16 @@ export default async function MakePage({
       />
       <Breadcrumbs crumbs={crumbs} />
       <header>
-        <h1 className="text-display-s leading-[1.02] font-extrabold">
+        <h1 className="text-display-s leading-[1.02] font-medium">
           {make.name} at junkyards
         </h1>
         <p className="text-lead text-ink-2 mt-5 max-w-[60ch] leading-[1.45]">
-          <span className="text-ink font-extrabold tabular-nums">
+          <span className="text-ink font-medium tabular-nums">
             {InventoryFormat.count(make.count)}
           </span>{" "}
           in stock across{" "}
           {InventoryFormat.plural(models.length, "model", "models")}, at{" "}
-          <span className="text-ink font-extrabold tabular-nums">
+          <span className="text-ink font-medium tabular-nums">
             {InventoryFormat.plural(yards.length, "yard", "yards")}
           </span>{" "}
           we track.
@@ -179,7 +179,7 @@ export default async function MakePage({
       >
         <h2
           id="models-title"
-          className="text-section leading-[1.02] font-extrabold"
+          className="text-section leading-[1.02] font-medium"
         >
           Pick a model
         </h2>
@@ -198,7 +198,7 @@ export default async function MakePage({
                 with fewer than {INDEXABLE_MINIMUM} in stock
               </span>
               <span
-                className="border-ink group-open:bg-ink group-open:text-paper grid size-9 shrink-0 place-items-center border-2"
+                className="border-rule-strong group-open:border-ink grid size-9 shrink-0 place-items-center border"
                 aria-hidden="true"
               >
                 <Plus className="size-4 group-open:hidden" />
@@ -212,11 +212,11 @@ export default async function MakePage({
 
       <section
         aria-labelledby="yards-title"
-        className="bg-board text-board-ink border-ink mt-(--section-gap-s) border-2 px-4 py-8 sm:p-8 lg:p-10"
+        className="bg-board text-board-ink border-rule-strong mt-(--section-gap-s) border px-4 py-8 sm:p-8 lg:p-10"
       >
         <h2
           id="yards-title"
-          className="text-section leading-[1.02] font-extrabold"
+          className="text-section leading-[1.02] font-medium"
         >
           Yards with the most {make.name} vehicles
         </h2>
@@ -254,7 +254,7 @@ function modelColumns(count: number): string {
 function ModelRows({ models }: { models: readonly ModelEntry[] }) {
   return (
     <ul
-      className={`border-ink gap-x-10 border-t-2 ${modelColumns(models.length)}`}
+      className={`border-rule-strong gap-x-10 border-t ${modelColumns(models.length)}`}
     >
       {models.map((model) => (
         <li key={model.key} className="border-rule break-inside-avoid border-b">
@@ -271,7 +271,7 @@ function ModelRows({ models }: { models: readonly ModelEntry[] }) {
                 {InventoryFormat.years(model)}
               </span>
             </span>
-            <span className="shrink-0 text-lg leading-tight font-extrabold tabular-nums">
+            <span className="shrink-0 text-lg leading-tight font-medium tabular-nums">
               {InventoryFormat.count(model.count)}
             </span>
           </Link>

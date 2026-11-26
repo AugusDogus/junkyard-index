@@ -116,7 +116,7 @@ export function YardMap({ yards, vehicleCount, layout }: YardMapProps) {
     <section
       id="yards"
       aria-labelledby="yard-map-title"
-      className="border-ink border-2"
+      className="border-rule-strong border"
     >
       <a
         href="#recent-vehicles"
@@ -130,13 +130,13 @@ export function YardMap({ yards, vehicleCount, layout }: YardMapProps) {
           className="flex flex-wrap items-baseline gap-x-6 gap-y-0 text-sm font-medium tracking-normal"
         >
           <span>
-            <span className="text-figure text-2xl font-extrabold tracking-[-0.03em] sm:text-3xl">
+            <span className="text-figure text-2xl font-medium tracking-[-0.03em] sm:text-3xl">
               {yards.length.toLocaleString("en-US")}
             </span>{" "}
             yards
           </span>
           <span>
-            <span className="text-figure text-2xl font-extrabold tracking-[-0.03em] sm:text-3xl">
+            <span className="text-figure text-2xl font-medium tracking-[-0.03em] sm:text-3xl">
               {vehicleCount.toLocaleString("en-US")}
             </span>{" "}
             vehicles
@@ -154,7 +154,7 @@ export function YardMap({ yards, vehicleCount, layout }: YardMapProps) {
       </div>
       <div
         className={cn(
-          "border-ink grid grid-cols-[minmax(0,1fr)] overflow-hidden border-t-2 lg:grid-cols-[minmax(0,1fr)_360px]",
+          "border-rule-strong grid grid-cols-[minmax(0,1fr)] overflow-hidden border-t lg:grid-cols-[minmax(0,1fr)_360px]",
           yardMapLayoutClasses[layout].layout,
         )}
       >
@@ -180,9 +180,9 @@ export function YardMap({ yards, vehicleCount, layout }: YardMapProps) {
                   setSelection(null);
                 }
               }}
-              className="bg-paper-3 border-ink sm:shadow-card relative z-10 border-t-2 p-4 pr-11 sm:absolute sm:top-3 sm:left-3 sm:max-w-80 sm:border-2"
+              className="bg-paper-3 border-rule-strong sm:shadow-card relative z-10 border-t p-4 pr-11 sm:absolute sm:top-3 sm:left-3 sm:max-w-80 sm:border"
             >
-              <p className="text-signal text-[0.9375rem] font-extrabold text-pretty">
+              <p className="text-signal text-[0.9375rem] font-medium text-pretty">
                 {selected.name}
               </p>
               {selected.address && (
@@ -194,7 +194,7 @@ export function YardMap({ yards, vehicleCount, layout }: YardMapProps) {
                 {selected.city}, {selected.state}
               </p>
               <p className="mt-1 text-sm">
-                <span className="font-extrabold">
+                <span className="font-medium">
                   {selected.vehicleCount.toLocaleString("en-US")}
                 </span>{" "}
                 vehicles
@@ -214,9 +214,9 @@ export function YardMap({ yards, vehicleCount, layout }: YardMapProps) {
             </div>
           )}
         </div>
-        <div className="bg-paper-3 border-ink flex min-h-0 min-w-0 flex-col border-t-2 lg:border-t-0 lg:border-l-2">
+        <div className="bg-paper-3 border-rule-strong flex min-h-0 min-w-0 flex-col border-t lg:border-t-0 lg:border-l">
           <div className="flex min-h-13 items-center justify-between gap-2 px-4 py-2">
-            <h3 className="flex items-center gap-2 text-[0.9375rem] font-extrabold tracking-normal">
+            <h3 className="flex items-center gap-2 text-[0.9375rem] font-medium tracking-normal">
               <MapPin className="size-4" aria-hidden="true" />
               Yard directory
             </h3>
@@ -248,7 +248,7 @@ export function YardMap({ yards, vehicleCount, layout }: YardMapProps) {
               directoryOpen ? "flex" : "hidden",
             )}
           >
-            <div className="border-ink border-b-2 px-4 pb-3">
+            <div className="border-rule-strong border-b px-4 pb-3">
               <label htmlFor="yard-filter" className="sr-only">
                 Find a yard by name, city, or state abbreviation
               </label>
@@ -262,7 +262,7 @@ export function YardMap({ yards, vehicleCount, layout }: YardMapProps) {
                   value={filter}
                   onChange={(event) => setFilter(event.target.value)}
                   placeholder="Find a city, state, or yard"
-                  className="border-ink h-11 border-2 pl-9"
+                  className="border-rule-strong h-11 border pl-9"
                 />
               </div>
             </div>

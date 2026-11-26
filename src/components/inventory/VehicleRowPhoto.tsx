@@ -7,7 +7,7 @@ import wsrvLoader from "~/lib/wsrvLoader";
 /** Isolates photo failure handling from the server-rendered inventory row. */
 export function VehicleRowPhoto({ src }: { src: string }) {
   return (
-    <div className="border-ink bg-paper-2 relative aspect-[4/3] w-24 shrink-0 self-start overflow-hidden border-2 sm:w-[8.25rem]">
+    <div className="border-rule-strong bg-paper-2 relative aspect-[4/3] w-24 shrink-0 self-start overflow-hidden border sm:w-[8.25rem]">
       <Photo key={src} src={src} />
     </div>
   );

@@ -33,7 +33,7 @@ export function SavedSearchesList({
   return (
     <section aria-label="Saved searches" className={cn("min-w-0", className)}>
       <div className="mb-4 flex items-center justify-between gap-4">
-        <h2 className="flex items-center gap-2 text-xl font-semibold text-balance">
+        <h2 className="flex items-center gap-2 text-xl font-medium text-balance">
           Saved searches
           {!isLoading && <Badge variant="secondary">{searchCount}</Badge>}
         </h2>
