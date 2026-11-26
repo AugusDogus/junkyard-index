@@ -5,14 +5,16 @@ import { YardMapMarker } from "~/lib/yard-map-marker";
 import { YardMapUrl } from "~/lib/yard-map-url";
 import { YardPath } from "~/lib/yard-path";
 import { Minus, Plus, Scan } from "lucide-react";
-import { Map, Overlay } from "pigeon-maps";
+import { Map } from "pigeon-maps";
 import { YardMapTile, YardMapTilesReady } from "./YardMapTile";
 import { yardTileProvider } from "~/lib/yard-map-tiles";
 import { useYardMapUrlWrite } from "~/hooks/use-yard-map-url-write";
 import { useYardMapView } from "~/hooks/use-yard-map-view";
-import { YardMapCluster, YardMapPin } from "./YardMapPin";
+import { YardMapPin } from "./YardMapPin";
+import { YardMapPinLayer, yardMapPinOffset } from "./YardMapPinLayer";
 import {
   type CSSProperties,
+  type MouseEvent,
   memo,
   useCallback,
   useMemo,
@@ -33,10 +35,13 @@ const YardMapCanvas = memo(function YardMapCanvas({
   yards,
   selection,
   onSelect,
+  onChoose,
 }: {
   yards: MapYard[];
   selection: YardMapSelection | null;
   onSelect: (selection: YardMapSelection | null) => void;
+  /** A tap landed on several stacked dots; offer these yards to pick from. */
+  onChoose: (yards: MapYard[]) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const pins = useMemo(() => yards.filter(hasMapCoordinates), [yards]);
@@ -92,33 +97,101 @@ const YardMapCanvas = memo(function YardMapCanvas({
   }, [loading]);
 
   const current = view ?? overview;
-  const markers = useMemo(
-    () => YardMapMarker.group(pins, current.zoom, selected),
-    [pins, current.zoom, selected],
+  // Every yard keeps its own marker at every zoom; crowded ones are dots.
+  const sizes = useMemo(
+    () => YardMapMarker.sizes(pins, current.zoom),
+    [pins, current.zoom],
   );
-  const activeKey = markers.some((marker) => marker.key === focusedKey)
+  const activeKey = pins.some((yard) => YardPath.key(yard) === focusedKey)
     ? focusedKey
-    : (markers[0]?.key ?? null);
+    : pins[0]
+      ? YardPath.key(pins[0])
+      : null;
 
-  // Opening a group regroups the markers and removes the focused button.
-  // Hand focus to the marker that now holds the group's first yard.
-  const openedGroupYard = useRef<string | null>(null);
-  useLayoutEffect(() => {
-    const yardKey = openedGroupYard.current;
-    if (yardKey === null) return;
-    openedGroupYard.current = null;
-    const target = markers.find((marker) =>
-      marker.kind === "yard"
-        ? marker.key === yardKey
-        : marker.yards.some((yard) => YardPath.key(yard) === yardKey),
-    );
-    if (!target) return;
-    setFocusedKey(target.key);
-    const active = document.activeElement;
-    if (active === null || active === document.body) {
-      markerRefs.current.get(target.key)?.focus({ preventScroll: true });
-    }
-  }, [markers]);
+  /**
+   * A pointer tap selects the yard under it. On stacked dots it lists the
+   * few yards the tap covers, or zooms in on a crowd too long to list.
+   * Keyboard activation picks the focused yard.
+   */
+  const activate = useCallback(
+    (yard: MapYard, event: MouseEvent<HTMLButtonElement>) => {
+      const tapped =
+        event.detail === 0
+          ? [yard]
+          : YardMapMarker.hits(
+              pins.flatMap((pin) => {
+                const box = markerRefs.current
+                  .get(YardPath.key(pin))
+                  ?.getBoundingClientRect();
+                return box
+                  ? [
+                      {
+                        key: pin,
+                        x: box.left + box.width / 2,
+                        y: box.top + box.height / 2,
+                      },
+                    ]
+                  : [];
+              }),
+              { x: event.clientX, y: event.clientY },
+            );
+      const [first, ...others] = tapped.length > 0 ? tapped : [yard];
+      if (!first) return;
+      const action = YardMapMarker.tap(1 + others.length, current.zoom);
+      if (action === "select") onSelect({ yard: first, focus: "center" });
+      else if (action === "choose") onChoose([first, ...others]);
+      else {
+        requestView(
+          YardMapMarker.frame(
+            [first, ...others],
+            current.zoom,
+            size.width,
+            size.height,
+          ),
+        );
+      }
+    },
+    [pins, onSelect, onChoose, requestView, current.zoom, size],
+  );
+  const registerPin = useCallback(
+    (key: string, button: HTMLButtonElement | null) => {
+      if (button) markerRefs.current.set(key, button);
+      else markerRefs.current.delete(key);
+    },
+    [],
+  );
+  // Built once per settled view, so Pigeon's per-frame redraws of the
+  // layer reuse these elements instead of redrawing every pin.
+  const pinElements = useMemo(
+    () =>
+      pins.map((yard, index) => {
+        const key = YardPath.key(yard);
+        const isSelected = selected === yard;
+        const { x, y } = yardMapPinOffset(yard, current);
+        return (
+          <div
+            key={key}
+            className="yard-map-marker pigeon-click-block"
+            style={{
+              position: "absolute",
+              transform: `translate(${x - 16}px, ${y - 16}px)`,
+            }}
+          >
+            <YardMapPin
+              yard={yard}
+              tabIndex={key === activeKey ? 0 : -1}
+              register={registerPin}
+              onFocusYard={setFocusedKey}
+              selected={isSelected}
+              // The open yard stands out at full size among dots.
+              size={isSelected ? "pin" : (sizes[index] ?? "pin")}
+              onSelect={activate}
+            />
+          </div>
+        );
+      }),
+    [pins, current, selected, activeKey, sizes, activate, registerPin],
+  );
 
   // Back and shared links return to the same view. Before paint, so a
   // client-side Back never shows the overview first.
@@ -213,34 +286,29 @@ const YardMapCanvas = memo(function YardMapCanvas({
       className="yard-map focus-visible:outline-focus relative h-full overflow-hidden outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid"
       style={{ containerType: "size" }}
       role="region"
-      tabIndex={markers.length === 0 ? 0 : -1}
+      tabIndex={pins.length === 0 ? 0 : -1}
       aria-label="Map of indexed junkyard locations"
-      aria-description="Use arrow keys to move between yard pins and groups, Enter to select a yard or zoom into a group, Shift and arrow keys to pan, plus and minus to zoom, and Home to return to the overview."
+      aria-description="Use arrow keys to move between yard pins, Enter to select, Shift and arrow keys to pan, plus and minus to zoom, and Home to return to the overview."
       onErrorCapture={() => setTileError(true)}
       onPointerDown={(event) => {
         if (event.pointerType === "mouse") setWheelZoom(true);
       }}
       onPointerLeave={() => setWheelZoom(false)}
       onKeyDown={(event) => {
-        const markerIndex = markers.findIndex(
-          (marker) => markerRefs.current.get(marker.key) === event.target,
+        const pinIndex = pins.findIndex(
+          (yard) => markerRefs.current.get(YardPath.key(yard)) === event.target,
         );
-        if (event.target !== event.currentTarget && markerIndex < 0) return;
+        if (event.target !== event.currentTarget && pinIndex < 0) return;
         const next = !event.shiftKey
-          ? nextYardPin(markerIndex, markers.length, event.key)
+          ? nextYardPin(pinIndex, pins.length, event.key)
           : null;
-        const marker = next === null ? undefined : markers[next];
-        if (marker) {
+        const yard = next === null ? undefined : pins[next];
+        if (yard) {
           event.preventDefault();
-          setFocusedKey(marker.key);
-          requestView({
-            ...current,
-            center:
-              marker.kind === "yard"
-                ? [marker.yard.lat, marker.yard.lng]
-                : marker.center,
-          });
-          markerRefs.current.get(marker.key)?.focus({ preventScroll: true });
+          const key = YardPath.key(yard);
+          setFocusedKey(key);
+          requestView({ ...current, center: [yard.lat, yard.lng] });
+          markerRefs.current.get(key)?.focus({ preventScroll: true });
           return;
         }
         const offsets: Record<string, [number, number]> = {
@@ -303,55 +371,9 @@ const YardMapCanvas = memo(function YardMapCanvas({
             }}
             attribution={false}
           >
-            {markers.map((marker) => {
-              const buttonRef = (button: HTMLButtonElement | null) => {
-                if (button) markerRefs.current.set(marker.key, button);
-                else markerRefs.current.delete(marker.key);
-              };
-              const tabIndex = marker.key === activeKey ? 0 : -1;
-              const onFocus = () => setFocusedKey(marker.key);
-              return (
-                <Overlay
-                  key={marker.key}
-                  anchor={
-                    marker.kind === "yard"
-                      ? [marker.yard.lat, marker.yard.lng]
-                      : marker.center
-                  }
-                  offset={[16, 16]}
-                  className="yard-map-marker"
-                >
-                  {marker.kind === "yard" ? (
-                    <YardMapPin
-                      yard={marker.yard}
-                      tabIndex={tabIndex}
-                      buttonRef={buttonRef}
-                      onFocus={onFocus}
-                      selected={selected === marker.yard}
-                      onSelect={() =>
-                        onSelect({ yard: marker.yard, focus: "center" })
-                      }
-                    />
-                  ) : (
-                    <YardMapCluster
-                      yards={marker.yards}
-                      tabIndex={tabIndex}
-                      buttonRef={buttonRef}
-                      onFocus={onFocus}
-                      onOpen={() => {
-                        const [first] = marker.yards;
-                        openedGroupYard.current = first
-                          ? YardPath.key(first)
-                          : null;
-                        requestView(
-                          YardMapMarker.split(marker, size.width, size.height),
-                        );
-                      }}
-                    />
-                  )}
-                </Overlay>
-              );
-            })}
+            <YardMapPinLayer anchor={current.center} view={current}>
+              {pinElements}
+            </YardMapPinLayer>
           </Map>
         </YardMapTilesReady.Provider>
       </div>

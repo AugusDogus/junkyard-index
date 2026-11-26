@@ -17,7 +17,7 @@ const yard = (index: number, lat: number, lng: number) => {
   return { ...yard, ...getYardDetails(yard, null), path: null };
 };
 
-test("map markers share one Tab stop and a dense area becomes one group", () => {
+test("every yard keeps its own marker, crowded ones as dots, with one Tab stop", () => {
   // 50 yards spread across the lower 48, well apart at the overview zoom.
   const spread = Array.from({ length: 50 }, (_, index) =>
     yard(index, 26 + (index % 5) * 4.5, -122 + Math.floor(index / 5) * 6),
@@ -31,23 +31,22 @@ test("map markers share one Tab stop and a dense area becomes one group", () => 
       yards={[...spread, ...dense]}
       selection={null}
       onSelect={() => {}}
+      onChoose={() => {}}
     />,
   );
-  const markers =
-    html.match(/<button[^>]*class="yard-map-pin[^"]*"[^>]*>/g) ?? [];
-  expect(markers).toHaveLength(51);
+  const markers = html.match(/<button[^>]*class="yard-map-pin"[^>]*>/g) ?? [];
+  expect(markers).toHaveLength(386);
   expect(
     markers.filter((marker) => marker.includes('tabindex="0"')),
   ).toHaveLength(1);
   expect(
     markers.filter((marker) => marker.includes('tabindex="-1"')),
+  ).toHaveLength(385);
+  expect(
+    markers.filter((marker) => marker.includes('data-size="dot"')),
+  ).toHaveLength(336);
+  expect(
+    markers.filter((marker) => marker.includes('data-size="pin"')),
   ).toHaveLength(50);
-  const groups = markers.filter((marker) =>
-    marker.includes("yard-map-cluster"),
-  );
-  expect(groups).toHaveLength(1);
-  expect(groups[0]).toContain(
-    'aria-label="336 yards in CA. Zoom in to pick one."',
-  );
   expect(html).toContain("Use arrow keys to move between yard pins");
 });
