@@ -38,7 +38,10 @@ import {
 } from "./chaz-yard-metadata";
 import type { ChazCanonicalVehicle } from "./chaz-transform";
 import type { ProviderRequestGate } from "./provider-http-client";
-import { ProviderChunkClock } from "./provider-chunk-clock";
+import {
+  ProviderChunkClock,
+  ProviderNotReadyDeferred,
+} from "./provider-chunk-clock";
 import { sharedProviderHostTurn } from "./shared-provider-host";
 
 interface ChazOptions<E, R> {
@@ -234,10 +237,19 @@ export function streamChazInventoryWithRequestGate<E, R>(
         });
       const current: ChazProgress = cursor;
       const url = yield* attempt("next native control", () => nextUrl(current));
+      const progressed = summary.pagesProcessed > 0;
       // The gate runs after the turn releases the shared lane.
       const page = yield* gate(
         fetchChazPage(url).pipe(sharedProviderHostTurn(url)),
-      ).pipe(ProviderChunkClock.unlessDeferred(summary.pagesProcessed > 0));
+      ).pipe(
+        ProviderChunkClock.unlessDeferred(progressed),
+        // An unavailable origin page also keeps this chunk's validated GETs;
+        // the next chunk retries the same page.
+        Effect.catchIf(
+          (error) => progressed && error instanceof ProviderNotReadyDeferred,
+          () => Effect.succeed(Option.none<string>()),
+        ),
+      );
       if (Option.isNone(page)) break;
       const raw = page.value;
       const advanced: ChazProgress = yield* attempt(

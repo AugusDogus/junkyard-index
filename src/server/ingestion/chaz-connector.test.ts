@@ -29,6 +29,10 @@ import {
   serializeDurableSourceCursor,
 } from "./durable-source";
 import {
+  ProviderChunkClock,
+  ProviderNotReadyDeferred,
+} from "./provider-chunk-clock";
+import {
   queuedHostPacing,
   runWithQueuedHost,
 } from "./provider-host-test-support";
@@ -38,7 +42,10 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
 });
 const gate = <A, E, R>(request: Effect.Effect<A, E, R>) => request;
-function transport(arrivals: ChazRecord[] = [chazFixtureRecord(1)]) {
+function transport(
+  arrivals: ChazRecord[] = [chazFixtureRecord(1)],
+  statuses = new Map<string, number>(),
+) {
   const rows = Array.from({ length: 901 }, (_, index) =>
     chazFixtureRecord(index + 1),
   );
@@ -62,6 +69,12 @@ function transport(arrivals: ChazRecord[] = [chazFixtureRecord(1)]) {
             ? input.href
             : input.url;
       urls.push(url);
+      const status = statuses.get(url);
+      if (status !== undefined)
+        return new Response("unavailable", {
+          status,
+          headers: { "content-type": "text/html" },
+        });
       const body = bodies.get(url);
       if (body === undefined)
         throw new Error("Unexpected native request " + url);
@@ -251,6 +264,74 @@ test("Chaz HTTP failures do not retry and completed cursors make no requests", a
   expect(complete.pagesProcessed).toBe(0);
   expect(requests).toBe(1);
 });
+
+// Production 2026-11-26: chazsauto.com answered 503 on single pages for 44 s
+// to 4.6 min while neighbouring GETs returned 200.
+const failedRun = (cursor: ChazCursor = ChazCursor.initial) =>
+  Effect.runPromise(
+    streamChazInventoryWithRequestGate(
+      { startCursor: cursor, onBatch: () => Effect.void },
+      gate,
+    ),
+  ).then(
+    () => {
+      throw new Error("Expected the Chaz chunk to fail");
+    },
+    (error: unknown) => error,
+  );
+
+test.each([502, 503, 504])(
+  "Chaz defers the chunk when its first native GET answers HTTP %i",
+  async (status) => {
+    const native = transport(undefined, new Map([[CHAZ_CONTACT, status]]));
+    const deferral = ProviderChunkClock.deferralOf(await failedRun());
+    expect(deferral).toBeInstanceOf(ProviderNotReadyDeferred);
+    expect(deferral?.message).toContain(CHAZ_CONTACT);
+    expect(deferral?.message).toContain("HTTP " + status);
+    expect(native.urls).toEqual([CHAZ_CONTACT]);
+  },
+);
+
+test("Chaz keeps a chunk's validated GETs when a later native GET answers HTTP 503", async () => {
+  const statuses = new Map([[CHAZ_MAKES, 503]]);
+  const native = transport(undefined, statuses);
+  const result = await Effect.runPromise(
+    streamChazInventoryWithRequestGate({ onBatch: () => Effect.void }, gate),
+  );
+  expect(result.status).toBe("paused");
+  expect(result.pagesProcessed).toBe(2);
+  expect(result.cursor.phase).toBe("directory");
+  expect(native.urls).toEqual([CHAZ_CONTACT, CHAZ_ROOT, CHAZ_MAKES]);
+  // The next chunk resumes at the same native GET once the origin recovers.
+  statuses.clear();
+  const resumed = await Effect.runPromise(
+    streamChazInventoryWithRequestGate(
+      {
+        startCursor: ChazCursor.parse(ChazCursor.serialize(result.cursor)),
+        maxPages: 1,
+        onBatch: () => Effect.void,
+      },
+      gate,
+    ),
+  );
+  expect(resumed.pagesProcessed).toBe(1);
+  expect(native.urls.slice(3)).toEqual([CHAZ_MAKES]);
+});
+
+test.each([404, 429, 500])(
+  "Chaz HTTP %i stays fatal, also after the chunk advanced",
+  async (status) => {
+    transport(undefined, new Map([[CHAZ_CONTACT, status]]));
+    const first = await failedRun();
+    expect(ProviderChunkClock.deferralOf(first)).toBeNull();
+    expect(String(first)).toContain(String(status));
+    const native = transport(undefined, new Map([[CHAZ_MAKES, status]]));
+    const later = await failedRun();
+    expect(ProviderChunkClock.deferralOf(later)).toBeNull();
+    expect(String(later)).toContain(String(status));
+    expect(native.urls).toEqual([CHAZ_CONTACT, CHAZ_ROOT, CHAZ_MAKES]);
+  },
+);
 
 test("Chaz's own 1.6 s gate runs after its shared host lease", async () => {
   // Several sources share a URG lane. A gate inside the lease idled the lane
