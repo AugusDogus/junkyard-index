@@ -17,12 +17,19 @@ export function SearchField({
   ...props
 }: SearchFieldProps) {
   return (
-    <div className="flex min-w-0 items-center">
+    // One 48px row: the field and the button share its height, its 1px frame
+    // and one focus ring, so neither reads taller than the other.
+    <div
+      className={cn(
+        "has-[input:focus-visible]:outline-focus flex h-12 min-w-0 items-stretch has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-3 has-[input:focus-visible]:outline-solid",
+        props["aria-invalid"] &&
+          "has-[input:focus-visible]:outline-destructive",
+      )}
+    >
       <div
         className={cn(
-          "border-ink bg-paper-3 focus-within:outline-focus flex h-12 min-w-0 flex-1 items-center gap-1 border-2 px-1 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-solid",
-          props["aria-invalid"] &&
-            "border-destructive focus-within:border-destructive",
+          "border-rule-strong bg-paper-3 flex min-w-0 flex-1 items-center gap-1 border border-r-0 px-1",
+          props["aria-invalid"] && "border-destructive",
         )}
       >
         <Search
@@ -55,7 +62,7 @@ export function SearchField({
           </Button>
         )}
       </div>
-      <Button type="submit" className="h-12 shrink-0 px-3 sm:px-6">
+      <Button type="submit" className="h-auto shrink-0 px-3 sm:px-6">
         Search
       </Button>
     </div>
