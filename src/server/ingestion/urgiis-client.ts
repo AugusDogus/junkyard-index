@@ -4,7 +4,12 @@ import { sharedProviderHostRequest } from "./shared-provider-host";
 import { Effect, Schedule } from "effect";
 import { parseRetryAfterMs } from "./provider-http-client";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
-import { iisOwnedUrl, iisBrowsePath } from "./urgiis-catalog";
+import { randomBytes } from "node:crypto";
+import {
+  iisBrowsePath,
+  iisDocumentComplete,
+  iisOwnedUrl,
+} from "./urgiis-catalog";
 import type { UrgiisTenant } from "./urgiis-tenant";
 import { urgiisModelRoute } from "./urgiis-model-route";
 
@@ -73,6 +78,25 @@ async function blockedResponseEvidence(response: Response): Promise<string> {
   return `${headers}; body prefix: ${body}${cancelled}`;
 }
 const serial = Effect.runSync(Effect.makeSemaphore(1));
+/** Cloudflare statuses that serve a stored copy instead of the origin. */
+const CLOUDFLARE_CACHED = /^(hit|stale|updating|revalidated)$/i;
+/** The stored copy's Cloudflare status, or null for an origin response. */
+const cloudflareCopy = (response: Response) => {
+  const status = response.headers.get("cf-cache-status")?.trim() ?? null;
+  return status !== null && CLOUDFLARE_CACHED.test(status) ? status : null;
+};
+/**
+ * URG tenants' Cloudflare cache rule stores query-less parts pages for hours,
+ * including a render the origin cut off. Norb's served `/parts/ACURA` that way
+ * on November 25 and 26, 2026: 67,462 bytes ending mid-page after a 10.7 s
+ * render, cached since 11:14 UTC. A query string misses that rule when the
+ * request carries `urg_hv=1`, and the plugin does not reflect it into links.
+ */
+const cacheBustUrl = (requestUrl: string) =>
+  requestUrl +
+  (requestUrl.includes("?") ? "&" : "?") +
+  "cb=" +
+  randomBytes(8).toString("hex");
 export const URGIIS_MAX_BODY_BYTES = 4 * 1024 * 1024;
 export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
   const owned = iisOwnedUrl(url, tenant);
@@ -99,12 +123,13 @@ export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
   ).href
     .replaceAll("(", "%28")
     .replaceAll(")", "%29");
-  const attempt = Effect.suspend(() => {
+  /** One read of `target`. A cache-busted read must reach the origin. */
+  const read = (target: string, busted: boolean) => {
     const request = Effect.tryPromise({
       try: async (signal) => {
         const timeout = AbortSignal.timeout(tenant.requestTimeoutMs);
         const combined = AbortSignal.any([signal, timeout]);
-        const response = await fetch(requestUrl, {
+        const response = await fetch(target, {
           signal: combined,
           redirect: "manual",
           headers: {
@@ -131,7 +156,7 @@ export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
           const invalid =
             response.status !== 200 ||
             response.redirected ||
-            (response.url && response.url !== requestUrl) ||
+            (response.url && response.url !== target) ||
             response.headers.has("content-range") ||
             response.headers
               .get("content-type")
@@ -170,7 +195,21 @@ export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
               ),
             );
           }
-          return yield* Effect.tryPromise({
+          const copy = cloudflareCopy(response);
+          if (busted && copy !== null) {
+            yield* Effect.promise(() =>
+              (response.body?.cancel() ?? Promise.resolve()).catch(
+                () => undefined,
+              ),
+            );
+            return yield* Effect.fail(
+              urgiisError(
+                "cache-busted reread " + target,
+                `Cloudflare served the page truncated from its cache, and the reread with a unique cache-busting query string was served from its cache too (cf-cache-status ${copy}), so the complete page could not be read. Re-verify that a query string with the urg_hv cookie still misses the tenant's cache rule`,
+              ),
+            );
+          }
+          const text = yield* Effect.tryPromise({
             try: (bodySignal) =>
               readIPullUPullResponseText(
                 response,
@@ -180,6 +219,7 @@ export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
               ),
             catch: (cause) => urgiisError("request/body " + url, cause),
           });
+          return { text, copy };
         }),
       ),
     );
@@ -199,7 +239,22 @@ export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
         Effect.ensuring(Effect.sleep(tenant.pacingMs)),
       ),
     );
-  });
+  };
+  // A truncated page from Cloudflare's cache is reread once past it. Only
+  // tenants with the verification cookie can miss the cache rule; without it
+  // a query string gets the cookie interstitial. The parser still rejects a
+  // reread the origin truncated too.
+  const attempt = Effect.suspend(() =>
+    read(requestUrl, false).pipe(
+      Effect.flatMap(({ text, copy }) =>
+        copy !== null && tenant.cookie !== null && !iisDocumentComplete(text)
+          ? read(cacheBustUrl(requestUrl), true).pipe(
+              Effect.map((reread) => reread.text),
+            )
+          : Effect.succeed(text),
+      ),
+    ),
+  );
   // A retry that cannot get its turn in this chunk ends the read with the
   // failure it is retrying, marked with that deferral, so the connector can
   // still apply its failed-model handling instead of deferring onto the same
