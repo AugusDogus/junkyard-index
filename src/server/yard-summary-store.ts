@@ -1,9 +1,18 @@
-import { and, eq, isNull, ne, notExists, or, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, ne, notExists, or, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { z } from "zod";
 import { YardInventory, type YardSummary } from "~/lib/yard-inventory";
 import { yardInventory, yardSummary } from "~/schema";
 import { YardVehicles } from "./yard-vehicles";
+
+/** A yard of a source, as yard_inventory and cache tags name it. */
+export type YardKey = { source: string; code: string };
+
+/**
+ * What a refresh did: how many summaries it stored, and the yards whose
+ * pages show something new (no summary before, or another content hash).
+ */
+export type YardSummaryRefresh = { stored: number; changed: YardKey[] };
 
 /** Yards whose summaries are rebuilt at once; each reads one whole yard. */
 const REBUILD_CONCURRENCY = 4;
@@ -79,8 +88,12 @@ export const YardSummaryStore = {
    * than its latest publication, and drops those of yards that left
    * yard_inventory. Reads each such yard once; a yard published since its
    * read is stored for the publication read and stored again next time.
+   * Returns the yards whose vehicles changed anything their pages show.
    */
-  async refresh(database: LibSQLDatabase): Promise<{ stored: number }> {
+  async refresh(
+    database: LibSQLDatabase,
+    now: Date,
+  ): Promise<YardSummaryRefresh> {
     await database.delete(yardSummary).where(
       notExists(
         database
@@ -99,6 +112,7 @@ export const YardSummaryStore = {
         source: yardInventory.source,
         code: yardInventory.locationCode,
         updatedAt: yardInventory.updatedAt,
+        contentHash: yardSummary.contentHash,
       })
       .from(yardInventory)
       .leftJoin(
@@ -113,11 +127,18 @@ export const YardSummaryStore = {
           isNull(yardSummary.builtFor),
           ne(yardSummary.builtFor, yardInventory.updatedAt),
         ),
-      );
+      )
+      .orderBy(asc(yardInventory.source), asc(yardInventory.locationCode));
+    const changed = new Set<number>();
     let next = 0;
     const worker = async () => {
-      for (let yard = stale[next++]; yard !== undefined; yard = stale[next++]) {
+      for (let index = next++; index < stale.length; index = next++) {
+        const yard = stale[index];
+        if (!yard) continue;
         const read = await YardVehicles.all(database, yard.source, yard.code);
+        const contentHash = YardInventory.contentHash(read.vehicles);
+        const isChanged = contentHash !== yard.contentHash;
+        if (isChanged) changed.add(index);
         const data = JSON.stringify(
           YardInventory.summary(read.vehicles, read.rawMakes),
         );
@@ -128,15 +149,27 @@ export const YardSummaryStore = {
             locationCode: yard.code,
             builtFor: yard.updatedAt,
             data,
+            contentHash,
+            contentChangedAt: now,
           })
           .onConflictDoUpdate({
             target: [yardSummary.source, yardSummary.locationCode],
-            set: { builtFor: yard.updatedAt, data },
+            set: {
+              builtFor: yard.updatedAt,
+              data,
+              contentHash,
+              ...(isChanged && { contentChangedAt: now }),
+            },
           });
       }
     };
     await Promise.all(Array.from({ length: REBUILD_CONCURRENCY }, worker));
-    return { stored: stale.length };
+    return {
+      stored: stale.length,
+      changed: stale
+        .filter((_, index) => changed.has(index))
+        .map(({ source, code }) => ({ source, code })),
+    };
   },
 
   /**

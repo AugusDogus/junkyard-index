@@ -11,10 +11,15 @@ beforeEach(async () => {
   await client.executeMultiple(`
     create table ingestion_run (
       id text primary key, publication_sequence integer, active_slot integer,
-      accepted_sources text, completed_at integer
+      accepted_sources text, completed_at integer, inventory_published_at integer
     );
     create table yard_inventory (
       source text not null, location_code text not null, updated_at integer not null,
+      primary key (source, location_code)
+    );
+    create table yard_summary (
+      source text not null, location_code text not null, built_for integer not null,
+      data text not null, content_hash text not null, content_changed_at integer not null,
       primary key (source, location_code)
     );
     create table ingestion_projector_checkpoint (
@@ -64,12 +69,30 @@ async function refreshedSequence() {
 const NOW = new Date("2026-11-25T14:10:00Z");
 const HOUR = 60 * 60 * 1000;
 
-async function yardChanged(source: string, at: number) {
+/** Yard `<source>-1` was published at `at`. */
+async function yardPublished(source: string, at: number) {
   await client.execute({
     sql: "insert into yard_inventory (source, location_code, updated_at) values (?, ?, ?)",
     args: [source, `${source}-1`, at],
   });
 }
+
+/**
+ * The summary store rebuilt yard `<source>-1`'s summary for its publication
+ * at `builtFor`; what its pages show last changed at `contentChangedAt`.
+ */
+async function yardSummarized(
+  source: string,
+  builtFor: number,
+  contentChangedAt: number,
+) {
+  await client.execute({
+    sql: "insert into yard_summary values (?, ?, ?, '{}', 'hash', ?)",
+    args: [source, `${source}-1`, builtFor, contentChangedAt],
+  });
+}
+
+const yard = (source: string) => ({ source, code: `${source}-1` });
 
 /** A refresh whose stored data starts out reflecting `projected`. */
 function refresh(
@@ -108,52 +131,88 @@ function refresh(
 }
 
 describe("InventoryCacheRefresh.run", () => {
-  test("expires only the sources whose yards changed since the last refresh read them", async () => {
+  test("expires only the yards whose pages changed since the last refresh read them", async () => {
     await publish(1, 2);
     await InventoryCacheRefresh.record(
       drizzle(client),
       1,
       new Date(NOW.getTime() - 3 * HOUR),
     );
-    await yardChanged("pyp", NOW.getTime() - HOUR);
-    // A batch that stamped its time before the last read but committed after
-    // it is inside the margin.
-    await yardChanged("row52", NOW.getTime() - 3 * HOUR - 10 * 60 * 1000);
-    await yardChanged("pullapart", NOW.getTime() - 6 * HOUR);
+    const published = NOW.getTime() - HOUR;
+    // Published, and its vehicles changed what its pages show.
+    await yardPublished("pyp", published);
+    await yardSummarized("pyp", published, published);
+    // Published with nothing its pages show changed: left cached.
+    await yardPublished("row52", published);
+    await yardSummarized("row52", published, NOW.getTime() - 30 * HOUR);
+    // Published, but its summary was not rebuilt: what changed is unknown.
+    await yardPublished("calton", published);
+    await yardSummarized(
+      "calton",
+      published - 24 * HOUR,
+      published - 24 * HOUR,
+    );
+    // A content change stamped just before the last read is inside the margin.
+    await yardPublished("pullapart", published);
+    await yardSummarized(
+      "pullapart",
+      published,
+      NOW.getTime() - 3 * HOUR - 10 * 60 * 1000,
+    );
+    // Nothing since the last read.
+    await yardPublished("autorecycler", NOW.getTime() - 6 * HOUR);
+    await yardSummarized(
+      "autorecycler",
+      NOW.getTime() - 6 * HOUR,
+      NOW.getTime() - 6 * HOUR,
+    );
     const caches = refresh({ projected: 1 });
 
     expect((await caches.run()).status).toBe("refreshed");
 
     expect(caches.expired()).toEqual([
-      { kind: "sources", sources: ["pyp", "row52"] },
+      {
+        kind: "sources",
+        sources: [],
+        yards: [yard("calton"), yard("pullapart"), yard("pyp")],
+      },
     ]);
     // The next refresh counts changes from this one's read.
     await publish(3);
-    await yardChanged("calton", NOW.getTime() + HOUR);
+    const later = NOW.getTime() + HOUR;
+    await yardPublished("copart", later);
+    await yardSummarized("copart", later, later);
     const next = refresh({
       projected: 3,
       now: new Date(NOW.getTime() + 2 * HOUR),
     });
     await next.run();
-    expect(next.expired()).toEqual([{ kind: "sources", sources: ["calton"] }]);
+    expect(next.expired()).toEqual([
+      { kind: "sources", sources: [], yards: [yard("copart")] },
+    ]);
   });
 
-  test("also expires the sources of a run that ended without rebuilding its yards", async () => {
+  test("expires every yard of a run that ended without publishing", async () => {
     await publish(1, 2);
     await InventoryCacheRefresh.record(
       drizzle(client),
       1,
       new Date(NOW.getTime() - 3 * HOUR),
     );
-    // Abandoned after writing some of its vehicles, before its yards.
+    // Abandoned after writing some of its vehicles, before publishing.
     await client.execute({
       sql: "insert into ingestion_run (id, accepted_sources, completed_at) values ('abandoned', ?, ?)",
       args: [JSON.stringify(["calton", "not-a-source"]), NOW.getTime() - HOUR],
     });
-    // Still running, and ended long ago: neither counts.
+    // Published (its yards' summaries say what changed), still running, and
+    // ended long ago: none counts.
     await client.execute({
-      sql: "insert into ingestion_run (id, active_slot, accepted_sources, completed_at) values ('running', 1, ?, null), ('old', null, ?, ?)",
+      sql: `insert into ingestion_run (id, active_slot, accepted_sources, completed_at, inventory_published_at)
+        values ('published', null, ?, ?, ?), ('running', 1, ?, null, null), ('old', null, ?, ?, null)`,
       args: [
+        JSON.stringify(["pullapart"]),
+        NOW.getTime() - HOUR,
+        NOW.getTime() - HOUR,
         JSON.stringify(["pyp"]),
         JSON.stringify(["row52"]),
         NOW.getTime() - 9 * HOUR,
@@ -164,13 +223,13 @@ describe("InventoryCacheRefresh.run", () => {
     await caches.run();
 
     expect(caches.expired()).toEqual([
-      { kind: "sources", sources: ["calton"] },
+      { kind: "sources", sources: ["calton"], yards: [] },
     ]);
   });
 
   test("expires every source when no earlier read is recorded", async () => {
     await publish(1);
-    await yardChanged("pyp", NOW.getTime() - HOUR);
+    await yardPublished("pyp", NOW.getTime() - HOUR);
     const caches = refresh();
 
     await caches.run();

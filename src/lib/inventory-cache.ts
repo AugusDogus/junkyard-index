@@ -13,21 +13,33 @@ export const INVENTORY_CACHE_TAG = "daily-inventory";
 export const INVENTORY_CACHE_SECONDS = 24 * 60 * 60;
 
 /**
- * Tags every per-source inventory entry (`cacheSourceInventory`), which the
+ * Tags every per-yard inventory entry (`cacheYardInventory`), which the
  * inventory tag does not cover. Only a change to every source's vehicles,
  * such as a search-index migration rewriting identities, expires it.
  */
 export const INVENTORY_SOURCES_TAG = "inventory-sources";
 
-/** Tags one source's per-source inventory entries. */
+/** Tags every per-yard inventory entry of one source. */
 export function inventorySourceTag(source: string): string {
   return `inventory-source:${source}`;
 }
 
-/** The sources whose vehicles may have changed since the caches last expired. */
+/** Tags one yard's inventory entries. */
+export function inventoryYardTag(source: string, code: string): string {
+  return `inventory-yard:${source}:${code}`;
+}
+
+/**
+ * What may have changed since the caches last expired: everything, or some
+ * sources' yards (all of them) and some single yards.
+ */
 export type ChangedInventorySources =
   | { kind: "all" }
-  | { kind: "sources"; sources: readonly string[] };
+  | {
+      kind: "sources";
+      sources: readonly string[];
+      yards: readonly { source: string; code: string }[];
+    };
 
 /**
  * Caches an inventory loader under `keyParts` and its arguments alone.
@@ -53,25 +65,27 @@ export function cacheInventory<Args extends unknown[], Result>(
 }
 
 /**
- * Caches a loader of one source's inventory (its first argument) like
- * `cacheInventory`, but under that source's tag instead of the inventory
- * tag. A publication then expires only the sources whose yards changed, and
- * a staleness change, which changes no vehicle, expires none of them: each
- * yard's vehicles are read about once a day rather than after every
- * expiry of the inventory tag (about 13 a day, each reading every yard's
- * vehicles, 1.4M rows, in November 2026). Bump the version in `keyParts`
- * whenever the loader's query, result shape or tags change.
+ * Caches a loader of one yard's inventory (its source and code come first)
+ * like `cacheInventory`, but under the yard's and its source's tags instead
+ * of the inventory tag. A refresh then expires only the yards whose vehicles
+ * changed what their pages show, and a staleness change, which changes no
+ * vehicle, expires none of them. Bump the version in `keyParts` whenever the
+ * loader's query, result shape or tags change.
  */
-export function cacheSourceInventory<Rest extends unknown[], Result>(
-  load: (source: string, ...rest: Rest) => Promise<Result>,
+export function cacheYardInventory<Rest extends unknown[], Result>(
+  load: (source: string, code: string, ...rest: Rest) => Promise<Result>,
   keyParts: string[],
-): (source: string, ...rest: Rest) => Promise<Result> {
-  const read = (source: string, ...rest: Rest) =>
-    retryTursoRead(() => load(source, ...rest));
+): (source: string, code: string, ...rest: Rest) => Promise<Result> {
+  const read = (source: string, code: string, ...rest: Rest) =>
+    retryTursoRead(() => load(source, code, ...rest));
   const bound = read.bind(null);
-  return (source: string, ...rest: Rest) =>
+  return (source: string, code: string, ...rest: Rest) =>
     unstable_cache(bound, keyParts, {
       revalidate: INVENTORY_CACHE_SECONDS,
-      tags: [INVENTORY_SOURCES_TAG, inventorySourceTag(source)],
-    })(source, ...rest);
+      tags: [
+        INVENTORY_SOURCES_TAG,
+        inventorySourceTag(source),
+        inventoryYardTag(source, code),
+      ],
+    })(source, code, ...rest);
 }

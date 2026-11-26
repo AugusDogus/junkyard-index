@@ -7,7 +7,7 @@ import { calculateDistance } from "~/lib/utils";
 import { YardBrand, type Chain } from "~/lib/yard-brand";
 import type { YardPath } from "~/lib/yard-path";
 import { getDirectoryYards } from "~/lib/homepage-inventory";
-import { cacheInventory, cacheSourceInventory } from "~/lib/inventory-cache";
+import { cacheInventory, cacheYardInventory } from "~/lib/inventory-cache";
 import {
   isIngestionSource,
   isRetiredIngestionSource,
@@ -45,10 +45,10 @@ function loadYardVehicles(source: string, code: string) {
 const readYardVehicles = cache(loadYardVehicles);
 
 /**
- * A yard's count, makes and arrivals. Under its source's tag, so it is read
- * again only when that source's yards change (see cacheSourceInventory).
+ * A yard's count, makes and arrivals. Under its yard's tag, so it is read
+ * again only when the yard's vehicles change (see cacheYardInventory).
  */
-const getYardSummary = cacheSourceInventory(
+const getYardSummary = cacheYardInventory(
   async (source: string, code: string): Promise<YardSummary> => {
     // The refresh stores each yard's summary after its publication: reading
     // it back costs 2 rows. Only a yard published since then is read whole.
@@ -57,14 +57,14 @@ const getYardSummary = cacheSourceInventory(
     const read = await readYardVehicles(source, code);
     return YardInventory.summary(read.vehicles, read.rawMakes);
   },
-  ["yard-summary-v4"],
+  ["yard-summary-v5"],
 );
 
 /** A slice of a yard's vehicles and the fingerprint of the read it came from. */
 type YardSlice = { fingerprint: string; vehicles: YardVehicle[] };
 
 /** Slice `index` of a yard's live vehicles, newest first. A yard page is one slice. */
-const getYardSlice = cacheSourceInventory(
+const getYardSlice = cacheYardInventory(
   async (source: string, code: string, index: number): Promise<YardSlice> => {
     const { vehicles } = await readYardVehicles(source, code);
     return {
@@ -72,7 +72,7 @@ const getYardSlice = cacheSourceInventory(
       vehicles: YardInventory.slice(vehicles, index),
     };
   },
-  ["yard-vehicle-slice-v4"],
+  ["yard-vehicle-slice-v5"],
 );
 
 /**
@@ -106,7 +106,7 @@ type YardMakeEntry = { fingerprint: string; vehicles: YardVehicle[] };
  * day in November 2026), and each miss of the old whole-yard slices read
  * 1-12K rows.
  */
-const getYardMakeEntry = cacheSourceInventory(
+const getYardMakeEntry = cacheYardInventory(
   async (
     source: string,
     code: string,
@@ -122,7 +122,7 @@ const getYardMakeEntry = cacheSourceInventory(
     );
     return { fingerprint: YardInventory.fingerprint(vehicles), vehicles };
   },
-  ["yard-make-list-v1"],
+  ["yard-make-list-v2"],
 );
 
 /** Which vehicles of a yard a page lists: all of them, or one make's. */

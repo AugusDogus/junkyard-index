@@ -1,4 +1,4 @@
-import { and, eq, gt, isNotNull, isNull, max, sql } from "drizzle-orm";
+import { and, eq, gt, isNotNull, isNull, max, ne, or, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import type { ChangedInventorySources } from "~/lib/inventory-cache";
 import { isIngestionSource } from "~/lib/ingestion-source";
@@ -6,11 +6,12 @@ import {
   ingestionProjectorCheckpoint,
   ingestionRun,
   yardInventory,
+  yardSummary,
 } from "~/schema";
 
 // Holds the highest publication sequence the inventory caches were refreshed
-// for (last_processed_change_id), and when that refresh read which sources'
-// yards had changed (last_success_at).
+// for (last_processed_change_id), and when that refresh read which yards had
+// changed (last_success_at).
 const CHECKPOINT_NAME = "inventory-cache-refresh";
 
 /**
@@ -96,13 +97,15 @@ export const InventoryCacheRefresh = {
   },
 
   /**
-   * The sources whose vehicles may have changed since `since`, or all of
-   * them when no earlier read is recorded: sources whose yards
-   * reconciliation rebuilt (every publication rebuilds its sources' yards,
-   * and a batch that moves another source's VINs rebuilds that source's),
-   * and the accepted sources of every run that ended, which covers a run
-   * abandoned after writing some of its vehicles but before rebuilding its
-   * yards.
+   * What may have changed since `since`, or everything when no earlier read
+   * is recorded:
+   * - yards whose vehicles changed what their pages show, as the yard
+   *   summary store found when it rebuilt their summaries;
+   * - yards published since whose summary was not rebuilt for that
+   *   publication (the store failed), whose content is unknown;
+   * - every yard of the sources of a run that ended without publishing,
+   *   which may have written some vehicles before stopping.
+   * A publication that changed nothing a yard shows leaves its pages cached.
    */
   async changedSources(
     database: LibSQLDatabase,
@@ -110,11 +113,33 @@ export const InventoryCacheRefresh = {
   ): Promise<ChangedInventorySources> {
     if (since === null) return { kind: "all" };
     const after = new Date(since.getTime() - CHANGE_MARGIN_MS);
-    const [yards, runs] = await Promise.all([
+    const [contentChanged, unsummarized, runs] = await Promise.all([
       database
-        .selectDistinct({ source: yardInventory.source })
+        .select({ source: yardSummary.source, code: yardSummary.locationCode })
+        .from(yardSummary)
+        .where(gt(yardSummary.contentChangedAt, after)),
+      database
+        .select({
+          source: yardInventory.source,
+          code: yardInventory.locationCode,
+        })
         .from(yardInventory)
-        .where(gt(yardInventory.updatedAt, after)),
+        .leftJoin(
+          yardSummary,
+          and(
+            eq(yardSummary.source, yardInventory.source),
+            eq(yardSummary.locationCode, yardInventory.locationCode),
+          ),
+        )
+        .where(
+          and(
+            gt(yardInventory.updatedAt, after),
+            or(
+              isNull(yardSummary.builtFor),
+              ne(yardSummary.builtFor, yardInventory.updatedAt),
+            ),
+          ),
+        ),
       database
         .select({ acceptedSources: ingestionRun.acceptedSources })
         .from(ingestionRun)
@@ -123,16 +148,28 @@ export const InventoryCacheRefresh = {
             isNull(ingestionRun.activeSlot),
             gt(ingestionRun.completedAt, after),
             isNotNull(ingestionRun.acceptedSources),
+            isNull(ingestionRun.inventoryPublishedAt),
           ),
         ),
     ]);
-    const sources = new Set(yards.map((row) => row.source));
+    const sources = new Set<string>();
     for (const { acceptedSources } of runs) {
       for (const source of acceptedSourceList(acceptedSources)) {
         sources.add(source);
       }
     }
-    return { kind: "sources", sources: [...sources].sort() };
+    const yards = new Map(
+      [...contentChanged, ...unsummarized]
+        .filter(({ source }) => !sources.has(source))
+        .map((yard) => [`${yard.source}:${yard.code}`, yard] as const),
+    );
+    return {
+      kind: "sources",
+      sources: [...sources].sort(),
+      yards: [...yards]
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([, yard]) => yard),
+    };
   },
 
   /**

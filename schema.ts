@@ -314,6 +314,14 @@ export const yardSummary = sqliteTable(
     locationCode: text("location_code").notNull(),
     builtFor: integer("built_for", { mode: "timestamp_ms" }).notNull(),
     data: text("data").notNull(),
+    // YardInventory.contentHash of the vehicles it was built from: a rebuild
+    // with the same hash changed nothing its pages show.
+    contentHash: text("content_hash").notNull(),
+    // When the content hash last changed: the inventory refresh expires the
+    // cached pages of yards that changed since its previous run.
+    contentChangedAt: integer("content_changed_at", {
+      mode: "timestamp_ms",
+    }).notNull(),
   },
   (table) => [primaryKey({ columns: [table.source, table.locationCode] })],
 );

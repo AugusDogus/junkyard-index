@@ -106,11 +106,11 @@ async function withRecordedCache(script: string) {
   return parsed;
 }
 
-describe("cacheSourceInventory", () => {
-  test("tags each entry with its source, not the inventory tag", async () => {
+describe("cacheYardInventory", () => {
+  test("tags each entry with its yard and source, not the inventory tag", async () => {
     expect(
       await withRecordedCache(`
-        const cached = cache.cacheSourceInventory(
+        const cached = cache.cacheYardInventory(
           async (source, code) => source + ":" + code,
           ["yard-test-v1"],
         );
@@ -120,12 +120,20 @@ describe("cacheSourceInventory", () => {
     ).toEqual([
       {
         keyParts: ["yard-test-v1"],
-        tags: ["inventory-sources", "inventory-source:pyp"],
+        tags: [
+          "inventory-sources",
+          "inventory-source:pyp",
+          "inventory-yard:pyp:1",
+        ],
         args: ["pyp", "1"],
       },
       {
         keyParts: ["yard-test-v1"],
-        tags: ["inventory-sources", "inventory-source:row52"],
+        tags: [
+          "inventory-sources",
+          "inventory-source:row52",
+          "inventory-yard:row52:5",
+        ],
         args: ["row52", "5"],
       },
     ]);
@@ -133,15 +141,19 @@ describe("cacheSourceInventory", () => {
 });
 
 describe("expireInventoryCaches", () => {
-  test("expires the inventory tag and only the changed sources", async () => {
+  test("expires the inventory tag and only the changed sources and yards", async () => {
     expect(
       await withRecordedCache(`
-        cache.expireInventoryCaches({ kind: "sources", sources: ["pyp", "calton"] });
+        cache.expireInventoryCaches({
+          kind: "sources",
+          sources: ["calton"],
+          yards: [{ source: "pyp", code: "1" }],
+        });
       `),
     ).toEqual([
       { revalidate: "daily-inventory", profile: "max" },
-      { revalidate: "inventory-source:pyp", profile: "max" },
       { revalidate: "inventory-source:calton", profile: "max" },
+      { revalidate: "inventory-yard:pyp:1", profile: "max" },
     ]);
   });
 

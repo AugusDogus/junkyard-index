@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "0796632b-e478-4bbf-8ba4-6a3cb72f6356",
+  "id": "df7de8a2-a25a-40dd-bbe6-a97eeabfdd18",
   "prevId": "d3b46ea1-dc7a-459c-b90d-29e4088b6184",
   "tables": {
     "account": {
@@ -3778,6 +3778,20 @@
         "data": {
           "name": "data",
           "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "content_hash": {
+          "name": "content_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "content_changed_at": {
+          "name": "content_changed_at",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
