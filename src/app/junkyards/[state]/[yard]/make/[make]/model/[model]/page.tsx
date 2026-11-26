@@ -5,14 +5,13 @@ import {
   YardInventoryView,
   yardMakeMetadata,
 } from "~/components/junkyards/YardInventoryView";
-import { VehicleName } from "~/lib/vehicle-name";
 import { YardInventory } from "~/lib/yard-inventory";
 import { YardPath } from "~/lib/yard-path";
-import { getMakePageData, getMakeSlugs } from "~/server/vehicle-models";
+import { getMakeSlugs, getYardModelPageData } from "~/server/vehicle-models";
 import { getHiddenSources } from "~/server/source-control/hidden-sources-loader";
-import { getYardMakeVehicles, getYardPageData } from "~/server/yard-inventory";
+import { getYardModelVehicles, getYardPageData } from "~/server/yard-inventory";
 
-// One model at one yard, narrowed from the yard's cached make list. Rendered
+// One model at one yard, read from its own small cached list. Rendered
 // on each request and never stored as an ISR page: about 100,000 of these
 // URLs exist, crawlers asked for about 54,000 a day on Nov 25 2026 (almost
 // every one a first visit), and 1-3% of stored pages were ever read again,
@@ -23,29 +22,31 @@ export const dynamic = "force-dynamic";
 
 type Params = { state: string; yard: string; make: string; model: string };
 
-// getYardPageData and findMake are cached per request by their arguments.
+// getYardPageData and getYardModelPageData are cached per request by their
+// arguments.
 async function load(params: Promise<Params>) {
   const { state, yard, make: makeSlug, model: modelSlug } = await params;
-  const [data, makeData] = await Promise.all([
+  const [data, found] = await Promise.all([
     getYardPageData(state, yard),
-    getMakePageData(makeSlug),
+    getYardModelPageData(makeSlug, modelSlug),
   ]);
-  if (!data || !makeData) return null;
-  const { make, models } = makeData;
-  const wanted = VehicleName.modelKey(make.name, modelSlug.replace(/-/g, " "));
-  const model = models.find(
-    (candidate) =>
-      candidate.key === wanted ||
-      VehicleName.sameSlug(candidate.slug, modelSlug),
-  );
-  if (!model) return null;
-  const { summary, data: makeVehicles } = await getYardMakeVehicles(
+  if (!data || !found) return null;
+  const { make, model } = found;
+  const vehicles = await getYardModelVehicles(
     data.yard,
     data.summary,
     make.key,
+    model,
   );
-  const vehicles = YardInventory.forModel(makeVehicles, make.key, model.key);
-  return { data, summary, make, model, makeSlug, modelSlug, vehicles };
+  return {
+    data,
+    summary: data.summary,
+    make,
+    model,
+    makeSlug,
+    modelSlug,
+    vehicles,
+  };
 }
 
 export async function generateMetadata({

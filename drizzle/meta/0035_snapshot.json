@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "df7de8a2-a25a-40dd-bbe6-a97eeabfdd18",
+  "id": "a2bd6121-9f41-4319-a09c-d93b6a000525",
   "prevId": "d3b46ea1-dc7a-459c-b90d-29e4088b6184",
   "tables": {
     "account": {
@@ -2664,7 +2664,8 @@
           "columns": [
             "source",
             "location_code",
-            "make"
+            "make",
+            "model"
           ],
           "isUnique": false,
           "where": "missing_since_at is null"

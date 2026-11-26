@@ -499,10 +499,10 @@ export const vehicle = sqliteTable(
       table.locationCode,
       table.missingSinceAt,
     ),
-    // One make's live vehicles at a yard, for its make and model pages:
-    // only the rows those pages show, not the whole yard.
+    // One make's (or one model's) live vehicles at a yard, for its make and
+    // model pages: only the rows those pages show, not the whole yard.
     index("vehicle_yard_make_live_idx")
-      .on(table.source, table.locationCode, table.make)
+      .on(table.source, table.locationCode, table.make, table.model)
       .where(sql`missing_since_at is null`),
     index("vehicle_state_abbr_idx").on(table.stateAbbr),
   ],
