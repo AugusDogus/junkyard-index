@@ -23,6 +23,7 @@ const TONES = {
     link: "hover:bg-paper-2 active:bg-paper-2 focus-visible:outline-focus",
     name: "text-ink",
     meta: "text-ink-3",
+    stale: "border-warning text-warning",
     figure: "text-ink text-lg",
   },
   board: {
@@ -31,6 +32,7 @@ const TONES = {
     link: "hover:bg-board-2 active:bg-board-2 focus-visible:outline-figure",
     name: "text-board-ink",
     meta: "text-board-muted",
+    stale: "border-board-warning text-board-warning",
     figure: "text-figure text-title",
   },
 } as const satisfies Record<YardRowsTone, Record<string, string>>;
@@ -94,7 +96,12 @@ export function YardRows({
                 {row.place}
               </span>
               {row.lastChecked && (
-                <span className="bg-figure text-board mt-1 inline-block px-1.5 py-0.5 text-xs font-medium">
+                <span
+                  className={cn(
+                    "mt-1 inline-block border px-1.5 py-0.5 text-xs font-medium",
+                    colours.stale,
+                  )}
+                >
                   {row.lastChecked}
                 </span>
               )}

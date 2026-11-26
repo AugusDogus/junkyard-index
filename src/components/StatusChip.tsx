@@ -5,7 +5,7 @@ import { SiteStatus } from "~/lib/site-status";
 // unknown state, so pages cached at different times, or rendered while the
 // status page was unreachable, show the same footer.
 const PROBLEMS = {
-  degraded: { dot: "bg-figure", label: "Degraded performance" },
+  degraded: { dot: "bg-warning", label: "Degraded performance" },
   downtime: { dot: "bg-error", label: "Service disruption" },
 } as const;
 

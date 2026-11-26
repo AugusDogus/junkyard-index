@@ -28,6 +28,7 @@ The locked system. Every Hallmark run reads this first and pages share it. Chang
   --color-signal-fill-hover: #ffffff;
   --color-signal-ink: #111410;
   --color-figure: #d6edaf; /* figures on the board */
+  --color-warning: #d9a650; /* stale data: outlined flag, status dot (day #8a5c00; --color-board-warning on the board) */
   --color-board: #181c16;
 }
 :root {
@@ -60,7 +61,7 @@ Utilities: `bg-paper`, `text-ink-3`, `border-rule`, `border-rule-strong`, `bg-bo
 
 ## Do-nots
 
-- No proportional face, no third weight, no 2px rules, no rounded cards, no soft shadows on cards, no gradient fills, no figure-coloured text on paper (on paper it appears only as the filled flag behind dark text on late listings).
+- No proportional face, no third weight, no 2px rules, no rounded cards, no soft shadows on cards, no gradient fills, no figure colour on paper, and never lime for stale data: stale flags are outlined in `--color-warning`.
 - No middle-dot meta strings, no tracked capitals, no eyebrows, no card inside a card.
 
 ## Exports

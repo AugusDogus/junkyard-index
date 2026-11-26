@@ -27,6 +27,9 @@
   --color-signal-ink: #f2f3ed;
   --color-signal-fill-hover: #2f352c;
   --color-figure: #d6edaf;
+  /* Stale data: a muted amber, outlined, never the lime of live marks. */
+  --color-warning: #8a5c00;
+  --color-board-warning: #d9a650;
   --color-focus: #4a6a1d;
   --color-board: #161a14;
   --color-board-ink: #e6e9de;
@@ -94,6 +97,7 @@
   --color-signal-ink: #111410;
   --color-signal-fill-hover: #ffffff;
   --color-error: #ffb5a7;
+  --color-warning: #d9a650;
   --color-focus: #d6edaf;
   --color-board: #181c16;
   --color-board-2: #20251e;
