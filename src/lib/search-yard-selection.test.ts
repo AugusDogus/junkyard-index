@@ -83,7 +83,7 @@ describe("search yard selection", () => {
       buildSearchUrl(saved.data.query, saved.data.filters),
       "https://example.com",
     );
-    expect(url.searchParams.get("yardTypes")).toBe("all");
+    expect(url.searchParams.getAll("yardTypes[]")).toEqual(["all"]);
     expect(restore(url).vehicles?.refinementList).toEqual({ yardTypes: [] });
   });
 
