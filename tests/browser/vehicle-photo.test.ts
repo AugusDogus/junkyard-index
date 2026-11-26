@@ -47,7 +47,7 @@ afterAll(async () => {
 const PHOTO =
   '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="96"><rect width="128" height="96" fill="blue"/></svg>';
 
-test("photos load from the proxy, fall back to the origin when it fails or stalls, then to the placeholder", async () => {
+test("photos load from the proxy, fall back to the origin when it fails or stalls, then give way to the no-photo strip", async () => {
   const page = await createPage(browser, {
     viewport: { width: 1024, height: 900 },
   });
@@ -117,14 +117,19 @@ test("photos load from the proxy, fall back to the origin when it fails or stall
     );
     expect(await loadedOrigins("error")).toHaveLength(2);
 
+    // The row's thumbnail labels itself; the card's picture box gives way
+    // to the no-photo strip.
     await page
       .locator('[data-photo="gone"]')
       .getByText("No photo", { exact: true })
+      .nth(1)
       .waitFor({ timeout: 5_000 });
-    await page
-      .locator('[data-photo="gone"]')
-      .getByText("No Image Available", { exact: true })
-      .waitFor({ timeout: 5_000 });
+    expect(
+      await page
+        .locator('[data-photo="gone"]')
+        .getByText("No photo", { exact: true })
+        .count(),
+    ).toBe(2);
     expect(await page.locator('[data-photo="gone"] img').count()).toBe(0);
 
     await page.waitForFunction(
