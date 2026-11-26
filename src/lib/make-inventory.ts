@@ -92,7 +92,10 @@ export const MakeInventory = {
   },
 
   /** One make's models from its rollup, most vehicles first. */
-  models(make: MakeEntry, rows: readonly MakeRollupRow[]): ModelEntry[] {
+  models(
+    make: Pick<MakeEntry, "href">,
+    rows: readonly MakeRollupRow[],
+  ): ModelEntry[] {
     type Group = {
       spellings: Map<string, number>;
       /** Model values as stored, for querying this model's vehicles. */

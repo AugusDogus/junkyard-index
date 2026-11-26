@@ -9,27 +9,29 @@ import { SOURCE_CONTROL_CACHE_TAG } from "~/server/source-control/hidden-sources
 
 /**
  * Tags a page response that Vercel's CDN keeps, so the cache tags that
- * expire the yard's data also purge the page (Vercel purges CDN, Runtime
+ * expire the page's data also purge the page (Vercel purges CDN, Runtime
  * and Data Cache entries by tag). Next sends no tags with a dynamic page,
  * so without these a purge would never reach it.
  *
- * - A known yard's page clears when its inventory changes (yard tag), when
- *   its source changes staleness class or ends a run without publishing
- *   (source tag), when every yard changes (sources tag), and when an admin
- *   hides or shows a source (source-control tag).
- * - A page for an unknown yard (a 404) also clears at every publication,
- *   which may add that yard.
+ * Every page clears at each inventory refresh and staleness-class change
+ * (inventory tag: nearby yards, dates, staleness labels and hidden sources
+ * come from directory entries under it) and when an admin hides or shows a
+ * source (source-control tag). A known yard's page also clears when its own
+ * entries expire (yard, source and sources tags).
  */
 export async function tagYardPageResponse(
   yard: { source: string; code: string } | null,
 ): Promise<void> {
-  const tags = yard
-    ? [
-        INVENTORY_SOURCES_TAG,
-        inventorySourceTag(yard.source),
-        inventoryYardTag(yard.source, yard.code),
-        SOURCE_CONTROL_CACHE_TAG,
-      ]
-    : [INVENTORY_CACHE_TAG, INVENTORY_SOURCES_TAG, SOURCE_CONTROL_CACHE_TAG];
+  const tags = [
+    INVENTORY_CACHE_TAG,
+    SOURCE_CONTROL_CACHE_TAG,
+    INVENTORY_SOURCES_TAG,
+  ];
+  if (yard) {
+    tags.push(
+      inventorySourceTag(yard.source),
+      inventoryYardTag(yard.source, yard.code),
+    );
+  }
   await Promise.all(tags.map((tag) => addCacheTag(tag)));
 }

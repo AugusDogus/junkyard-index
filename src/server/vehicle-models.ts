@@ -163,12 +163,14 @@ export type ModelName = Pick<ModelEntry, "key" | "name" | "slug" | "rawModels">;
  * The model of `make` at `modelSlug` (or another spelling of it), or null.
  * A yard's model page reads this small entry instead of the make's whole
  * rollup, which every /cars model needs but runs to 1.7 MB (208 cache read
- * units) for Chevrolet. A miss reads the make's snapshot row.
+ * units) for Chevrolet. A miss reads the make's snapshot row. Keyed by what
+ * names the make, not its live count or spellings, so a publication leaves
+ * the key in place.
  */
 const getMakeModelName = cacheShownInventory(
   async (
     hidden,
-    make: MakeEntry,
+    make: Pick<MakeEntry, "key" | "name" | "href">,
     modelSlug: string,
   ): Promise<ModelName | null> => {
     const models = MakeInventory.models(
@@ -193,7 +195,7 @@ const getMakeModelName = cacheShownInventory(
         }
       : null;
   },
-  ["make-model-name-v1"],
+  ["make-model-name-v2"],
 );
 
 /** The make and model a yard's model page lists, or null when either is unknown. */
@@ -201,7 +203,10 @@ export const getYardModelPageData = cache(
   async (makeSlug: string, modelSlug: string) => {
     const make = await findMake(makeSlug);
     if (!make) return null;
-    const model = await getMakeModelName(make, modelSlug);
+    const model = await getMakeModelName(
+      { key: make.key, name: make.name, href: make.href },
+      modelSlug,
+    );
     return model ? { make, model } : null;
   },
 );
