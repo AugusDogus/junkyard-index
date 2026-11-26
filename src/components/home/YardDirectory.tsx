@@ -100,7 +100,7 @@ export const YardDirectory = memo(function YardDirectory({
                   // The chosen row: a surface that differs at night and an ink bar, so
                   // it reads without its accent colour.
                   selected === yard &&
-                    "bg-accent shadow-[inset_3px_0_0_var(--color-ink)]",
+                    "bg-accent hover:bg-accent focus-within:bg-accent shadow-[inset_3px_0_0_var(--color-ink)]",
                 )}
               >
                 <button

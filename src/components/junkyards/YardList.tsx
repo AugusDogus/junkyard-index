@@ -21,6 +21,7 @@ const TONES = {
     link: "hover:bg-paper-2 active:bg-paper-2 focus-visible:outline-focus",
     name: "text-ink group-hover/row:text-signal",
     meta: "text-ink-3",
+    stale: "border-warning text-warning",
     figure: "text-ink",
   },
   board: {
@@ -30,6 +31,7 @@ const TONES = {
     link: "hover:bg-board-2 active:bg-board-2 focus-visible:outline-figure",
     name: "text-board-ink",
     meta: "text-board-muted",
+    stale: "border-board-warning text-board-warning",
     figure: "text-figure",
   },
 } as const satisfies Record<YardListTone, Record<string, string>>;
@@ -92,7 +94,12 @@ export function YardList({
                     </span>
                   )}
                   {lastChecked && (
-                    <span className="bg-figure text-board mt-1 inline-block px-1.5 py-0.5 text-xs font-medium">
+                    <span
+                      className={cn(
+                        "mt-1 inline-block border px-1.5 py-0.5 text-xs font-medium",
+                        colours.stale,
+                      )}
+                    >
                       {lastChecked}
                     </span>
                   )}

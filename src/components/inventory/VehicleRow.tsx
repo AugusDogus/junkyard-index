@@ -108,7 +108,7 @@ export function VehicleRow({
             </p>
           )}
           {lastChecked && (
-            <p className="bg-figure text-board mt-2 inline-block px-1.5 py-0.5 text-xs font-medium">
+            <p className="border-warning text-warning mt-2 inline-block border px-1.5 py-0.5 text-xs font-medium">
               {lastChecked}
             </p>
           )}

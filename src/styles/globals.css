@@ -234,13 +234,15 @@
 
 /* The featured plan's frame: a light runs around the 1px border. The beam is
  * a conic sweep under the card's inner plate, so only the frame shows it.
- * Restores the effect the November 2026 redesign dropped, in this palette. */
+ * Restores the effect the November 2026 redesign dropped, in this palette.
+ * The accent is pale lime at night and olive by day, so the halo outside the
+ * card shows on the light page too. */
 .pricing-plan-border-beam {
   background: conic-gradient(
     from 0deg,
     transparent 0deg 250deg,
-    var(--color-board-muted) 300deg,
-    var(--color-figure) 340deg,
+    var(--color-rule-strong) 300deg,
+    var(--color-signal) 340deg,
     transparent 360deg
   );
   animation: pricing-plan-border 8s linear infinite paused;

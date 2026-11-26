@@ -10,7 +10,7 @@ test("unknown publication is neutral rather than stale", () => {
   const html = renderToStaticMarkup(<FreshnessBadge publishedAt={null} />);
   expect(html).toContain("Update time unknown");
   expect(html).not.toContain("Last checked");
-  expect(html).not.toContain("bg-figure");
+  expect(html).not.toContain("text-warning");
   expect(html).not.toContain("bg-signal");
 });
 
@@ -29,7 +29,7 @@ test("known publication becomes stale after 36 hours and says when it was last c
     <FreshnessBadge publishedAt="2026-11-16T23:59:59Z" />,
   );
   expect(html).toContain("Last checked 1 day ago");
-  expect(html).toContain("bg-figure");
+  expect(html).toContain("border-warning");
   expect(html).not.toContain("bg-signal");
 
   const older = renderToStaticMarkup(
