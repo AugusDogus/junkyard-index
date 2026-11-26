@@ -32,9 +32,12 @@ that same time and stamps it on success, so an hourly cron refreshes every
    whose vehicles changed what their pages show since the previous refresh
    read them (`yard_summary.content_hash` changed, stamped
    `content_changed_at` after `last_success_at`) and every yard of a run
-   that ended without publishing (30-minute margin). A yard whose summary
-   failed to rebuild stays cached, matching its stored summary, until a
-   later refresh rebuilds it. It expires all of them
+   that ended without publishing (30-minute margin), and yards that left
+   `yard_inventory`. A yard whose summary failed to rebuild stays cached,
+   matching its stored summary, and a failed store leaves `last_success_at`
+   where it was, so a later refresh rebuilds and expires it. Every tag
+   expires at once (`expire: 0`), not stale-while-revalidate, so no page
+   is rebuilt from data marked stale and then kept. It expires all of them
    (`inventory-sources`) when that time is unknown or a search-index
    migration rewrote identities, which also clears and refills
    `yard_summary`. Deploys store any missing summary after migrating
@@ -44,9 +47,9 @@ that same time and stamps it on success, so an hourly cron refreshes every
    request and are never stored as ISR pages; each reads its model's rows
    (about 5) through the same index without caching them, since almost
    every render is a first visit to its URL. Vercel's CDN keeps each one for
-   a day, tagged with its yard's, source's, `inventory-sources` and
-   `source-control` tags, so this expiry (or a staleness-class change, which
-   expires the source's tag) purges it;
+   a day, tagged with `daily-inventory`, `source-control`,
+   `inventory-sources` and its yard's and source's tags, so every refresh,
+   staleness-class change or admin hide purges it;
 2. requests the pages changed since the last IndexNow announcement, waits
    2 minutes for them to regenerate, and announces them
    (`indexnow-announcement`, production only);

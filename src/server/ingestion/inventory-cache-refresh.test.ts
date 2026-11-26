@@ -101,6 +101,7 @@ function refresh(
     project?: () => Promise<void>;
     revalidate?: () => void;
     now?: Date;
+    summaries?: Parameters<typeof InventoryCacheRefresh.run>[0]["summaries"];
   } = {},
 ) {
   let projected = options.projected ?? 0;
@@ -111,6 +112,7 @@ function refresh(
       InventoryCacheRefresh.run({
         database: drizzle(client),
         now: options.now ?? NOW,
+        summaries: options.summaries ?? { kind: "stored", changed: [] },
         source: {
           projectedThrough: async () => projected,
           project: async () => {
@@ -245,6 +247,50 @@ describe("InventoryCacheRefresh.run", () => {
 
     expect(caches.expired()).toEqual([
       { kind: "sources", sources: [], yards: [] },
+    ]);
+  });
+
+  test("expires the yards the summary store reports, such as one that left yard_inventory", async () => {
+    await publish(1, 2);
+    await InventoryCacheRefresh.record(
+      drizzle(client),
+      1,
+      new Date(NOW.getTime() - 3 * HOUR),
+    );
+    const caches = refresh({
+      projected: 1,
+      summaries: { kind: "stored", changed: [yard("pyp")] },
+    });
+
+    await caches.run();
+
+    expect(caches.expired()).toEqual([
+      { kind: "sources", sources: [], yards: [yard("pyp")] },
+    ]);
+  });
+
+  test("keeps the last read when the summaries failed, so the next refresh still rebuilds and expires an unpublished run's sources", async () => {
+    await publish(1, 2);
+    const read = new Date(NOW.getTime() - 3 * HOUR);
+    await InventoryCacheRefresh.record(drizzle(client), 1, read);
+    await client.execute({
+      sql: "insert into ingestion_run (id, accepted_sources, completed_at) values ('abandoned', ?, ?)",
+      args: [JSON.stringify(["calton"]), NOW.getTime() - HOUR],
+    });
+
+    await refresh({ projected: 1, summaries: { kind: "failed" } }).run();
+
+    expect(await InventoryCacheRefresh.changesReadAt(drizzle(client))).toEqual(
+      read,
+    );
+    await publish(3);
+    const next = refresh({
+      projected: 3,
+      now: new Date(NOW.getTime() + HOUR),
+    });
+    await next.run();
+    expect(next.expired()).toEqual([
+      { kind: "sources", sources: ["calton"], yards: [] },
     ]);
   });
 

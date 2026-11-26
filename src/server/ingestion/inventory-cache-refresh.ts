@@ -2,6 +2,7 @@ import { and, eq, gt, isNotNull, isNull, max, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import type { ChangedInventorySources } from "~/lib/inventory-cache";
 import { isIngestionSource } from "~/lib/ingestion-source";
+import type { YardKey } from "~/server/yard-summary-store";
 import {
   ingestionProjectorCheckpoint,
   ingestionRun,
@@ -66,15 +67,36 @@ function acceptedSourceList(value: string | null): string[] {
   }
 }
 
+/** `changed` with `yards` added, except those of sources it expires whole. */
+function withYards(
+  changed: Extract<ChangedInventorySources, { kind: "sources" }>,
+  yards: readonly YardKey[],
+): ChangedInventorySources {
+  const all = new Map(
+    [...changed.yards, ...yards]
+      .filter(({ source }) => !changed.sources.includes(source))
+      .map(
+        ({ source, code }) => [`${source}:${code}`, { source, code }] as const,
+      ),
+  );
+  return {
+    kind: "sources",
+    sources: changed.sources,
+    yards: [...all]
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([, yard]) => yard),
+  };
+}
+
 export const InventoryCacheRefresh = {
   /**
    * Records that the caches show this publication, with every yard change
-   * read up to `changesReadAt`; never moves backward.
+   * read up to `changesReadAt` (null: none known); never moves backward.
    */
   async record(
     database: LibSQLDatabase,
     publicationSequence: number,
-    changesReadAt: Date,
+    changesReadAt: Date | null,
   ): Promise<void> {
     const updatedAt = new Date();
     await database
@@ -186,6 +208,16 @@ export const InventoryCacheRefresh = {
     /** Expires the caches: all directory entries, and `changed` sources'. */
     revalidate: (changed: ChangedInventorySources) => void;
     now: Date;
+    /**
+     * How the yard summary store's refresh before this went. Stored: the
+     * yards it reports changed expire too (those that left yard_inventory
+     * have no summary row left to say so). Failed: the read is not
+     * advanced, so the next refresh still rebuilds and expires what this
+     * one could not.
+     */
+    summaries:
+      | { kind: "stored"; changed: readonly YardKey[] }
+      | { kind: "failed" };
   }): Promise<InventoryCacheRefresh> {
     const [[state], [checkpoint], projected] = await Promise.all([
       params.database
@@ -219,12 +251,16 @@ export const InventoryCacheRefresh = {
         };
       }
     }
+    const since = checkpoint?.changesReadAt ?? null;
     try {
+      const changed = await InventoryCacheRefresh.changedSources(
+        params.database,
+        since,
+      );
       params.revalidate(
-        await InventoryCacheRefresh.changedSources(
-          params.database,
-          checkpoint?.changesReadAt ?? null,
-        ),
+        changed.kind === "sources" && params.summaries.kind === "stored"
+          ? withYards(changed, params.summaries.changed)
+          : changed,
       );
     } catch (error) {
       return {
@@ -234,7 +270,11 @@ export const InventoryCacheRefresh = {
         error,
       };
     }
-    await InventoryCacheRefresh.record(params.database, latest, params.now);
+    await InventoryCacheRefresh.record(
+      params.database,
+      latest,
+      params.summaries.kind === "stored" ? params.now : since,
+    );
     return { status: "refreshed", publicationSequence: latest };
   },
 } as const;

@@ -61,8 +61,12 @@ async function store(
 ): Promise<YardKey[]> {
   const changed = new Set<number>();
   let next = 0;
+  // Once a yard fails, the others stop: the caller expires only what it
+  // reads after this returns, so a row stored later would carry a change
+  // time no refresh expires.
+  let failed = false;
   const worker = async () => {
-    for (let index = next++; index < yards.length; index = next++) {
+    for (let index = next++; !failed && index < yards.length; index = next++) {
       const yard = yards[index];
       if (!yard) continue;
       const read = await YardVehicles.all(database, yard.source, yard.code);
@@ -93,7 +97,17 @@ async function store(
         });
     }
   };
-  await Promise.all(Array.from({ length: REBUILD_CONCURRENCY }, worker));
+  const workers = await Promise.allSettled(
+    Array.from({ length: REBUILD_CONCURRENCY }, () =>
+      worker().catch((error: unknown) => {
+        failed = true;
+        throw error;
+      }),
+    ),
+  );
+  // Only after every worker ended, so no write lands after this throws.
+  const failure = workers.find((result) => result.status === "rejected");
+  if (failure) throw failure.reason;
   return yards
     .filter((_, index) => changed.has(index))
     .map(({ source, code }) => ({ source, code }));
@@ -156,27 +170,35 @@ export const YardSummaryStore = {
    * have written vehicles while yard_inventory still names the old
    * publication), or "all" when that refresh's read is unknown. Reads each
    * such yard once; a yard published since its read is stored for the
-   * publication read and stored again next time. Returns the yards whose
-   * vehicles changed anything their pages show.
+   * publication read and stored again next time. Returns the yards that
+   * left yard_inventory and those whose vehicles changed anything their
+   * pages show.
    */
   async refresh(
     database: LibSQLDatabase,
     now: Date,
     rebuild: readonly string[] | "all",
   ): Promise<YardSummaryRefresh> {
-    await database.delete(yardSummary).where(
-      notExists(
-        database
-          .select({ one: sql`1` })
-          .from(yardInventory)
-          .where(
-            and(
-              eq(yardInventory.source, yardSummary.source),
-              eq(yardInventory.locationCode, yardSummary.locationCode),
+    // Returned with the changed yards: their cached pages still list them.
+    const departed = await database
+      .delete(yardSummary)
+      .where(
+        notExists(
+          database
+            .select({ one: sql`1` })
+            .from(yardInventory)
+            .where(
+              and(
+                eq(yardInventory.source, yardSummary.source),
+                eq(yardInventory.locationCode, yardSummary.locationCode),
+              ),
             ),
-          ),
-      ),
-    );
+        ),
+      )
+      .returning({
+        source: yardSummary.source,
+        code: yardSummary.locationCode,
+      });
     const stale = (await yardsWithSummaries(database)).filter(
       (yard) =>
         rebuild === "all" ||
@@ -184,7 +206,8 @@ export const YardSummaryStore = {
         yard.builtFor === null ||
         yard.builtFor.getTime() !== yard.updatedAt.getTime(),
     );
-    return { stored: stale.length, changed: await store(database, stale, now) };
+    const changed = await store(database, stale, now);
+    return { stored: stale.length, changed: [...departed, ...changed] };
   },
 
   /**
