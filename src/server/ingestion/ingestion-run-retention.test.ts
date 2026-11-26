@@ -34,7 +34,6 @@ async function setup() {
     create table search_notification_intent (id text primary key, run_id text not null references ingestion_run(id) on delete cascade, status text not null, claim_token text);
     drop table vehicle_change_v2;
     create table vehicle_change_v2 (id integer primary key, run_id text not null references ingestion_run(id) on delete cascade, processed_at integer);
-    create index ingestion_run_retention_idx on ingestion_run(completed_at) where active_slot is null;
     create table vehicle_change (id integer primary key, run_id text references ingestion_run(id) on delete cascade);
   `);
   const database = drizzle(client);

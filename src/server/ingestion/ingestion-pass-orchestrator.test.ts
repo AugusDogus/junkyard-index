@@ -600,7 +600,11 @@ describe("runIngestionPass with runs that change lanes", () => {
         { status: "complete" },
       ],
       [
-        { runId: "urgiis", yielded: urg("66.42.115.19") },
+        {
+          runId: "urgiis",
+          yielded: urg("66.42.115.19"),
+          admitted: urg("eagle"),
+        },
         { runId: "pratt", fetched: true },
         { runId: "urgiis", fetched: true },
         { runId: "pratt", failed: false },
@@ -812,6 +816,52 @@ describe("runIngestionPass with runs it must not let overlap", () => {
       ["urgiis", ["chucks", "norbs"]],
       ["pratt", []],
     ]);
+  });
+});
+
+describe("runIngestionPass with a stale hand-back", () => {
+  test("ignores a hand-back from a workflow it already replaced", async () => {
+    const urg = (...lanes: string[]): HostClaims => ({
+      lanes,
+      places: [{ group: "urg", capacity: 3 }],
+    });
+    const { operations, events, startedWith } = passOperations(
+      [
+        {
+          status: "active",
+          runs: [
+            { runId: "urgiis", claims: urg("eagle"), started: false },
+            { runId: "pratt", claims: urg("66.42.115.19"), started: false },
+          ],
+          held: [],
+          retryAt: null,
+        },
+      ],
+      [
+        { runId: "urgiis", yielded: urg("linders"), admitted: urg("eagle") },
+        { runId: "pratt", fetched: true },
+        // Its next workflow, admitted for Linders, now reads Lambert.
+        {
+          runId: "urgiis",
+          yielded: urg("66.42.115.19"),
+          admitted: urg("linders"),
+        },
+        // The first workflow's report, delivered again late.
+        { runId: "urgiis", yielded: urg("linders"), admitted: urg("eagle") },
+        { runId: "pratt", failed: false },
+      ],
+    );
+
+    await expect(runIngestionPass(operations)).rejects.toThrow(
+      "Waited for more reports",
+    );
+
+    expect(events.filter((event) => event.startsWith("start:"))).toEqual([
+      "start:urgiis,pratt",
+      "start:urgiis",
+      "start:urgiis",
+    ]);
+    expect(startedWith.at(-1)).toEqual(["urgiis", ["66.42.115.19"]]);
   });
 });
 

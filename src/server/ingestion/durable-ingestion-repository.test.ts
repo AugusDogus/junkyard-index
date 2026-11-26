@@ -1026,6 +1026,42 @@ describe("durable ingestion repository", () => {
     }
   });
 
+  test("swaps a run's workflow id only from the one it expects", async () => {
+    const testDatabase = createTestClient();
+    const { client } = testDatabase;
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const repository = createDurableIngestionRepository(
+        drizzle(client),
+        client,
+        IngestionSnapshotStore.memory(),
+      );
+      await client.execute(`
+        insert into ingestion_run (
+          id, source, workflow_run_id, status, stage, active_slot,
+          started_at, last_progress_at
+        ) values
+          ('run', 'urgiis', null, 'running', 'sources', 1, 1, 1),
+          ('ended', 'pratt', null, 'success', 'released', null, 1, 1)
+      `);
+      expect(await repository.swapWorkflowRun("run", null, "starting:1")).toBe(
+        true,
+      );
+      expect(await repository.swapWorkflowRun("run", null, "starting:2")).toBe(
+        false,
+      );
+      expect(
+        await repository.swapWorkflowRun("run", "starting:1", "wrun"),
+      ).toBe(true);
+      expect((await repository.getRun("run")).workflowRunId).toBe("wrun");
+      expect(
+        await repository.swapWorkflowRun("ended", null, "starting:1"),
+      ).toBe(false);
+    } finally {
+      testDatabase.cleanup();
+    }
+  });
+
   test("names a run stopped mid-fetch until its last chunk must have ended", async () => {
     const testDatabase = createTestClient();
     const { client } = testDatabase;

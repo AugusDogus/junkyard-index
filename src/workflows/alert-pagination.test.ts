@@ -75,7 +75,7 @@ test("an alert check batch waiting behind a search index writer stays live", () 
  }));
  mock.module('./src/server/ingestion/durable-ingestion', () => ({
   getAttachedIngestionWorkflowRuns: async () => [],
-  attachDurableIngestionWorkflow: async () => undefined,
+  swapDurableIngestionWorkflowRun: async () => true,
  }));
  mock.module('./src/workflows/downstream-consumers', () => ({
   vehicleNotificationDeliveryWorkflow: async () => {},

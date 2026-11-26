@@ -11,10 +11,11 @@ import {
   searchAlertsEnabled,
 } from "~/server/alerts/search-alert-check-runtime";
 import {
-  attachDurableIngestionWorkflow,
   getAttachedIngestionWorkflowRuns,
+  swapDurableIngestionWorkflowRun,
 } from "~/server/ingestion/durable-ingestion";
 import {
+  startGuarded,
   startIdleRunWorkflows,
   type RunWorkflowState,
 } from "~/server/ingestion/run-workflow-starts";
@@ -92,28 +93,51 @@ async function ingestionWorkflowState(
 
 /**
  * Starts or resumes each source run whose workflow is not live, with the
- * claims it may fetch with. The new workflow is attached at once, so a pass
- * that replaces this one sees the run as started rather than admitting
- * another run on its hosts before the workflow's own first step.
+ * claims it may fetch with. Each start is guarded (`startGuarded`): the run
+ * is marked as starting before its pass checks that it still admits (its day
+ * has not ended and it was not replaced), so no other pass can admit the
+ * run's hosts while its workflow starts.
  */
 async function startIngestionRunWorkflowsStep(
   runs: readonly StartedRun[],
   day: string,
+  passRunId: string,
 ) {
   "use step";
 
   const claims = new Map(runs.map((run) => [run.runId, run.claims]));
+  const pass = getRun(passRunId);
+  const stillAdmits = async () => {
+    if (IngestionDay.key(new Date()) !== day) return false;
+    const status = await pass.status;
+    return status === "pending" || status === "running";
+  };
   await startIdleRunWorkflows({
     runIds: runs.map((run) => run.runId),
     attachedWorkflows: getAttachedIngestionWorkflowRuns,
     workflowState: ingestionWorkflowState,
-    start: async (runId) => {
-      const run = await start(vehicleIngestionWorkflow, [
+    now: () => Date.now(),
+    start: async (runId, previous, state) => {
+      const outcome = await startGuarded({
         runId,
-        day,
-        claims.get(runId) ?? HostClaims.none,
-      ]);
-      await attachDurableIngestionWorkflow(runId, run.runId);
+        previous,
+        state,
+        now: () => Date.now(),
+        swap: swapDurableIngestionWorkflowRun,
+        stillAdmits,
+        start: async () =>
+          (
+            await start(vehicleIngestionWorkflow, [
+              runId,
+              day,
+              claims.get(runId) ?? HostClaims.none,
+            ])
+          ).runId,
+      });
+      if (outcome === "skipped")
+        console.info(
+          `[Workflow] Did not start run ${runId}: another start attached it first, or the ${day} pass no longer admits runs. The pass that plans next starts it.`,
+        );
     },
   });
 }
@@ -181,6 +205,7 @@ export async function vehicleIngestionPassWorkflow(day: string) {
   if (activePass) {
     return { status: "deduplicated" as const, activeRunId: activePass.runId };
   }
+  const passRunId = getWorkflowMetadata().workflowRunId;
   const incoming = reports[Symbol.asyncIterator]();
   // A report that loses a race against the watchdog stays pending for the
   // next wait instead of being dropped.
@@ -204,7 +229,7 @@ export async function vehicleIngestionPassWorkflow(day: string) {
       watchdog = sleep(PASS_WATCHDOG_INTERVAL).then(timeout);
       return prepareIngestionPassStep(day);
     },
-    startRuns: (runs) => startIngestionRunWorkflowsStep(runs, day),
+    startRuns: (runs) => startIngestionRunWorkflowsStep(runs, day, passRunId),
     nextReport: async (deadline, mode) => {
       // The day's end goes first: a report already waiting must not make an
       // expired pass admit runs. It stays pending for the next wait.
@@ -276,7 +301,11 @@ export async function vehicleIngestionWorkflow(
   } finally {
     if (yielded !== null) {
       // Still fetching: the pass starts it again once its hosts are free.
-      await reportToPass({ runId, yielded });
+      await reportToPass({
+        runId,
+        yielded,
+        admitted: claims ?? HostClaims.none,
+      });
     } else {
       // A completed run reported itself after publishing; any other outcome
       // shows the provider delayed while its last inventory stays up.
@@ -336,7 +365,7 @@ async function runSourceIngestion(
   if (staging.status !== "staged") return staging;
   // Fetching is done, so the pass may start the next run on this run's
   // shared hosts while this one waits for the commit.
-  if (day !== undefined) await reportIngestionRunStep({ runId, fetched: true });
+  if (day !== undefined) await reportToPass({ runId, fetched: true });
 
   // Committing writes the shared inventory and search index, so one run
   // commits at a time. The claim lives in the database, so a run

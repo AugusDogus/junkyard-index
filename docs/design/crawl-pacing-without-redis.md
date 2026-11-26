@@ -109,10 +109,13 @@ hands back.
     every unfinished tenant's lane (`SourceHostClaims.held`), since its
     workflow may be on a deployment that does not yield. One this pass
     admitted keeps the claims it was admitted with. No lease or TTL guesses.
-  - The start step attaches the new workflow as soon as `start()` returns,
-    so a pass that replaces this one (Run now on another deployment, the next
-    day's pass) sees the run as started rather than admitting another run on
-    its lanes before the workflow's own first step.
+  - Each start is guarded (`startGuarded`). The start step marks the run as
+    starting (a compare-and-set on `workflow_run_id`), then checks that its
+    pass still admits: its ingestion day has not ended and it was not
+    cancelled by a Run now hand-off. A pass that replaces it plans after the
+    mark and holds the run's claims; a pass that lost its day clears the mark
+    and starts nothing. The new workflow's id then replaces the mark. A mark
+    older than 2 minutes is a start that never finished.
   - A run stopped while fetching (admin Stop, or Stop and run) keeps its
     whole-run claims for `STOPPED_CHUNK_MS` (6 minutes, the chunk wall
     limit) after `released_at`: its workflow is cancelled, but a chunk step
@@ -130,13 +133,13 @@ hands back.
     is on another deployment than the one serving Run now, that pass is
     cancelled and a pass on current code is started (`PassHandoff`), so the
     run starts on current code, as on main; the admin message says so.
-  - The pass learns that a run it started is fetching once its start step
-    attaches the workflow. A pass that replaces it between `start()` and
-    that write could admit a second run in the lane; the window is
-    milliseconds. A pass on the deployment before this design attaches in
-    the workflow's first step instead, so on merge day the window is
-    seconds. A run that yields releases its run token before
-    reporting, so its next workflow cannot deduplicate against it.
+  - A run that yields names the claims its workflow was started with, so a
+    late or repeated `yielded` report from a workflow the pass already
+    replaced is ignored. It also releases its run token before reporting, so
+    its next workflow cannot deduplicate against it.
+  - Remaining window: a pass on the deployment before this design starts
+    runs without the mark, so on merge day a Run now that replaces it within
+    seconds of one of its starts could admit a second run on that lane.
 - **Size:** medium. Pure admission module, pass loop, two reports, a claims
   table per source, store swap. Connectors do not change.
 

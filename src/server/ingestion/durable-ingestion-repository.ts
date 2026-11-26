@@ -659,6 +659,29 @@ export function createDurableIngestionRepository(
         );
     },
 
+    /** Sets an active run's workflow run id to `to` if it is still `from`;
+     * whether it did. */
+    async swapWorkflowRun(
+      runId: string,
+      from: string | null,
+      to: string | null,
+    ): Promise<boolean> {
+      const result = await database
+        .update(ingestionRun)
+        .set({ workflowRunId: to })
+        .where(
+          and(
+            eq(ingestionRun.id, runId),
+            eq(ingestionRun.status, "running"),
+            eq(ingestionRun.activeSlot, 1),
+            from === null
+              ? isNull(ingestionRun.workflowRunId)
+              : eq(ingestionRun.workflowRunId, from),
+          ),
+        );
+      return result.rowsAffected === 1;
+    },
+
     async attachWorkflowRun(
       runId: string,
       workflowRunId: string,

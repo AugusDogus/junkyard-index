@@ -132,6 +132,14 @@ export function claimDurableIngestionCommit(
   return repository.claimCommit(runId);
 }
 
+export function swapDurableIngestionWorkflowRun(
+  runId: string,
+  from: string | null,
+  to: string | null,
+): Promise<boolean> {
+  return repository.swapWorkflowRun(runId, from, to);
+}
+
 export function detachDurableIngestionWorkflow(
   runId: string,
   workflowRunId: string,
