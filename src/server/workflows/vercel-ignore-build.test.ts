@@ -85,6 +85,15 @@ describe("Vercel ignored build step", () => {
     expect(ignoreExitCode(previous)).toBe(1);
   });
 
+  test.each([
+    ["public/fonts/sans.woff2", "font"],
+    ["src/app/fonts.ts", "export const sans = 1;\n"],
+  ])("builds when %s changes alongside docs", async (path, content) => {
+    const previous = git("rev-parse", "HEAD");
+    await commit({ "docs/fonts.md": "fonts\n", [path]: content });
+    expect(ignoreExitCode(previous)).toBe(1);
+  });
+
   test("builds an empty commit pushed to force a redeploy", async () => {
     const previous = git("rev-parse", "HEAD");
     await commit({});
