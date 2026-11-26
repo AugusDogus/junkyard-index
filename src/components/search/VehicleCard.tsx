@@ -2,7 +2,13 @@
 
 import { YardService } from "~/lib/yard-service";
 import { YardServiceLine } from "~/components/junkyards/YardServiceLine";
-import { ArrowUpRight, ChevronRight, Copy, MapPin } from "lucide-react";
+import {
+  ArrowUpRight,
+  ChevronRight,
+  Copy,
+  ImageOff,
+  MapPin,
+} from "lucide-react";
 import Link from "next/link";
 import { Analytics } from "~/lib/analytics";
 import { memo, useCallback, useState } from "react";
@@ -37,6 +43,7 @@ function VehicleCardComponent({
   const [copyError, setCopyError] = useState<string | null>(null);
   const vin = vehicle.vin.trim();
   const primaryImage = vehicle.imageUrl;
+  const stockNumber = VehicleCardDetails.text(vehicle.stockNumber);
   const position = VehicleCardDetails.position(vehicle);
   const miles = VehicleCardDetails.miles(vehicle.distance);
   const engine = VehicleCardDetails.text(vehicle.engine);
@@ -81,37 +88,43 @@ function VehicleCardComponent({
   return (
     <article
       aria-label={title}
-      className="border-ink bg-paper text-ink flex h-full min-w-0 flex-col overflow-hidden border-2"
+      className="border-rule bg-paper text-ink flex h-full min-w-0 flex-col overflow-hidden border"
     >
-      <div className="border-ink border-b-2">
-        {/* Vehicle Image */}
-        <div className="bg-paper-2 relative aspect-[2/1] overflow-hidden">
-          {primaryImage ? (
+      {primaryImage ? (
+        <div className="border-rule border-b">
+          <div className="bg-paper-2 relative aspect-[2/1] overflow-hidden">
             <VehicleImage
               priority={priority}
               src={primaryImage}
               alt={title}
               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             />
-          ) : (
-            <div className="bg-muted flex h-full items-center justify-center">
-              <div className="text-muted-foreground text-center">
-                <p className="text-sm">No Image Available</p>
-              </div>
-            </div>
-          )}
-          {/* Stock Number Badge */}
-          {VehicleCardDetails.text(vehicle.stockNumber) && (
-            <Badge className="border-ink bg-paper text-ink absolute top-2 right-2 rounded-none border-2 tabular-nums">
-              Stock #{vehicle.stockNumber}
-            </Badge>
+            {stockNumber && (
+              <Badge className="border-rule-strong bg-paper text-ink absolute top-2 right-2 rounded-none border tabular-nums">
+                Stock #{stockNumber}
+              </Badge>
+            )}
+          </div>
+        </div>
+      ) : (
+        // About a fifth of listings have no photo. A slim strip says so and
+        // carries the stock number, instead of a large empty picture box.
+        <div className="border-rule bg-paper-2 text-ink-3 flex min-h-9 items-center justify-between gap-3 border-b px-3 py-1.5 text-xs sm:px-4">
+          <span className="flex items-center gap-1.5">
+            <ImageOff aria-hidden="true" className="size-3.5 shrink-0" />
+            No photo
+          </span>
+          {stockNumber && (
+            <span className="text-ink-2 truncate tabular-nums">
+              Stock #{stockNumber}
+            </span>
           )}
         </div>
-      </div>
+      )}
 
       <div className="flex-1 space-y-3 p-3 sm:p-4">
         <div>
-          <h3 className="text-xl leading-tight font-extrabold text-balance break-words">
+          <h3 className="text-xl leading-tight font-medium text-balance break-words">
             <span className="tabular-nums">{vehicle.year}</span> {vehicle.make}{" "}
             {model}
           </h3>
@@ -132,7 +145,7 @@ function VehicleCardComponent({
             </Badge>
           )}
           {lastChecked && (
-            <p className="bg-figure text-board mt-2 inline-block px-1.5 py-0.5 text-xs font-extrabold">
+            <p className="bg-figure text-board mt-2 inline-block px-1.5 py-0.5 text-xs font-medium">
               {lastChecked}
             </p>
           )}
@@ -144,7 +157,7 @@ function VehicleCardComponent({
           </div>
         )}
         {position && (
-          <p className="border-ink bg-paper-2 border-l-2 px-2 py-1 text-xs leading-snug font-bold break-words">
+          <p className="border-rule-strong bg-paper-2 border-l px-2 py-1 text-xs leading-snug font-medium break-words">
             {position}
           </p>
         )}
@@ -183,7 +196,7 @@ function VehicleCardComponent({
           <span className="min-w-0 flex-1 break-words">{geoLabel}</span>
           {miles && (
             <span
-              className="text-ink shrink-0 font-bold tabular-nums"
+              className="text-ink shrink-0 font-medium tabular-nums"
               aria-label={`${miles} from your location`}
             >
               {miles}
