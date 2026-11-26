@@ -1,5 +1,7 @@
 import pRetry from "p-retry";
-import { resumeHook, start } from "workflow/api";
+import { getHookByToken, getRun, resumeHook, start } from "workflow/api";
+import { HookNotFoundError, RunExpiredError } from "workflow/internal/errors";
+import { getWorld } from "workflow/runtime";
 import type { IngestionSource } from "~/lib/ingestion-source";
 import { startManualDurableIngestionRun } from "~/server/ingestion/durable-ingestion";
 import { IngestionPause } from "~/server/source-control/ingestion-pause";
@@ -8,6 +10,7 @@ import { HostClaims } from "~/server/ingestion/host-claims";
 import { IngestionDay } from "~/server/ingestion/ingestion-day";
 import type { IngestionRunReport } from "~/server/ingestion/ingestion-pass-orchestrator";
 import { SourceHostClaims } from "~/server/ingestion/source-host-claims";
+import { PassHandoff } from "~/server/ingestion/pass-handoff";
 import { IngestionTokens } from "~/workflows/ingestion-tokens";
 import {
   vehicleIngestionPassWorkflow,
@@ -39,7 +42,7 @@ export function startManualIngestionRun(
           );
           return { via: "workflow", runId: run.runId };
         }
-        return { via: "pass", runId: await replanIngestionPass() };
+        return handOffToPass();
       },
     },
     source,
@@ -47,23 +50,62 @@ export function startManualIngestionRun(
   );
 }
 
+const PASS_CANCEL_REASON =
+  "Replaced by a pass on the current deployment so a manual run starts on current code";
+
 /**
  * Asks today's pass to plan again, so it admits a run that shares hosts with
- * other sources, or starts the pass if none is listening. Returns the pass's
- * workflow run. A pass that is just finishing may miss the request; the
- * hourly cron's pass then starts the run.
+ * other sources. A pass on an older deployment would start the run on its
+ * code, so it is replaced by one on this deployment (`PassHandoff`). With no
+ * pass listening, one is started. A pass that is just finishing may miss the
+ * request; the hourly cron's pass then starts the run.
  */
-async function replanIngestionPass(): Promise<string> {
+function handOffToPass(): Promise<PassHandoff> {
   const day = IngestionDay.key(new Date());
+  const token = IngestionTokens.passReports(day);
   const replan: IngestionRunReport = { replan: true };
-  try {
-    return (await resumeHook(IngestionTokens.passReports(day), replan)).runId;
-  } catch {
-    // No pass is listening; a new one plans the run at once.
-    const pass = await pRetry(
-      () => start(vehicleIngestionPassWorkflow, [day]),
-      workflowStartRetryOptions,
-    );
-    return pass.runId;
-  }
+  return PassHandoff.request({
+    findPass: async () => {
+      let hook: Awaited<ReturnType<typeof getHookByToken>>;
+      try {
+        hook = await getHookByToken(token);
+      } catch (error) {
+        if (HookNotFoundError.is(error)) return null;
+        throw error;
+      }
+      const deploymentId =
+        hook.resumeContext?.deploymentId ??
+        (await (await getWorld()).runs.get(hook.runId, { resolveData: "none" }))
+          .deploymentId;
+      return { runId: hook.runId, deploymentId };
+    },
+    currentDeployment: process.env.VERCEL_DEPLOYMENT_ID,
+    replan: async () => {
+      try {
+        await resumeHook(token, replan);
+        return "delivered";
+      } catch (error) {
+        if (HookNotFoundError.is(error) || RunExpiredError.is(error))
+          return "no_pass";
+        throw error;
+      }
+    },
+    cancel: async (passRunId) => {
+      const pass = getRun(passRunId);
+      try {
+        await pass.cancel({ cancelReason: PASS_CANCEL_REASON });
+      } catch (error) {
+        // A pass that ended meanwhile already released the day's token.
+        const status = await pass.status;
+        if (status === "pending" || status === "running") throw error;
+      }
+    },
+    startPass: async () =>
+      (
+        await pRetry(
+          () => start(vehicleIngestionPassWorkflow, [day]),
+          workflowStartRetryOptions,
+        )
+      ).runId,
+  });
 }

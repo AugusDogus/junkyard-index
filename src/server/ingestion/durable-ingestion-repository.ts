@@ -1,7 +1,10 @@
 import { loadIngestionSourceDays } from "./ingestion-source-days";
 import { createDurableWorkflowCursorStore } from "./durable-workflow-cursor-store";
 import { IngestionDay } from "./ingestion-day";
+import { PROVIDER_CHUNK_WALL_LIMIT } from "./provider-chunk-clock";
 import type { Client, InStatement } from "@libsql/client";
+import { Duration } from "effect";
+import { z } from "zod";
 import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { Yard } from "~/lib/yard";
@@ -43,6 +46,19 @@ const SNAPSHOT_WRITE_BATCH_SIZE = 500;
 const CLEANUP_BATCH_SIZE = 5_000;
 const MAX_EXECUTION_FAILURES = 5;
 const CONCURRENT_WAKEUP_RECHECK_MS = 5 * 60 * 1000;
+const StoppedRunRows = z.array(
+  z.object({
+    source: z.string(),
+    status: z.string(),
+    stage: z.string(),
+    workflow_run_id: z.string().nullable(),
+    released_at: z.number().nullable(),
+  }),
+);
+/** How long a run stopped mid-fetch may keep sending requests: its workflow
+ * is cancelled, but a chunk step already running finishes on its own
+ * instance within the chunk's wall limit. */
+export const STOPPED_CHUNK_MS = Duration.toMillis(PROVIDER_CHUNK_WALL_LIMIT);
 
 type SourceRunStatus = "running" | "success" | "partial" | "error";
 
@@ -296,17 +312,61 @@ export function createDurableIngestionRepository(
         })
         .from(ingestionRun)
         .where(eq(ingestionRun.activeSlot, 1));
+      // URG IIS crawls its tenants in order, so the lanes it fetches from
+      // next follow from how many it finished. Only its cursor is read: other
+      // sources' cursors reach megabytes.
+      const urgiisRunIds = activeRuns
+        .filter((run) => run.source === "urgiis" && run.stage === "sources")
+        .map((run) => run.id);
+      const tenantsDone = new Map(
+        urgiisRunIds.length === 0
+          ? []
+          : (
+              await database
+                .select({
+                  runId: ingestionSourceRun.runId,
+                  done: sql<number>`coalesce(case when json_valid(${ingestionSourceRun.nextCursor}) then json_array_length(${ingestionSourceRun.nextCursor}, '$.completed') end, 0)`,
+                })
+                .from(ingestionSourceRun)
+                .where(
+                  and(
+                    inArray(ingestionSourceRun.runId, urgiisRunIds),
+                    eq(ingestionSourceRun.source, "urgiis"),
+                  ),
+                )
+            ).map((row) => [row.runId, Number(row.done)]),
+      );
       const runs: DurableIngestionWakeupRun[] = activeRuns.map((run) => ({
         action: "resume",
         runId: run.id,
         source: run.source,
         fetching: run.stage === "sources",
         attached: run.workflowRunId !== null,
+        tenantsDone: tenantsDone.get(run.id) ?? 0,
       }));
+      // Read through the retention index, which holds only runs that ended,
+      // so this reads just the runs that ended within the window. Left to
+      // itself SQLite walks the active-slot or stage index instead.
+      const stopped = StoppedRunRows.parse(
+        await database.all(sql`
+          select source, status, stage, workflow_run_id, released_at
+          from ${ingestionRun} indexed by ingestion_run_retention_idx
+          where active_slot is null
+            and completed_at > ${now.getTime() - STOPPED_CHUNK_MS}
+        `),
+      ).flatMap((run) =>
+        run.status === "abandoned" &&
+        run.stage === "sources" &&
+        run.workflow_run_id !== null &&
+        run.released_at !== null &&
+        run.released_at + STOPPED_CHUNK_MS > now.getTime()
+          ? [{ source: run.source, releasedAt: run.released_at }]
+          : [],
+      );
       // A run across every source (a local `runIngestion`) owns the inventory
       // until it finishes; scheduled runs each cover one source.
       if (activeRuns.some((run) => run.source === "all")) {
-        return { status: "active", runs, retryAt: null };
+        return { status: "active", runs, stopped, retryAt: null };
       }
 
       const sourceDays = await loadIngestionSourceDays(database, scheduleKey);
@@ -364,6 +424,7 @@ export function createDurableIngestionRepository(
             source,
             fetching: true,
             attached: false,
+            tenantsDone: 0,
           });
       }
       if (runs.length > 0) {
@@ -377,6 +438,7 @@ export function createDurableIngestionRepository(
         return {
           status: "active",
           runs,
+          stopped,
           retryAt: retryAt !== null && retryAt > now.getTime() ? retryAt : null,
         };
       }
@@ -576,6 +638,23 @@ export function createDurableIngestionRepository(
           row.workflowRunId === null ? [] : [[row.id, row.workflowRunId]],
         ),
       );
+    },
+
+    /** Detaches `workflowRunId` from the run if it is still attached, so the
+     * pass treats the run as waiting to start again. */
+    async detachWorkflowRun(
+      runId: string,
+      workflowRunId: string,
+    ): Promise<void> {
+      await database
+        .update(ingestionRun)
+        .set({ workflowRunId: null })
+        .where(
+          and(
+            eq(ingestionRun.id, runId),
+            eq(ingestionRun.workflowRunId, workflowRunId),
+          ),
+        );
     },
 
     async attachWorkflowRun(

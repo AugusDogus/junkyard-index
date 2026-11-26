@@ -8,7 +8,10 @@ import {
 } from "./ingestion-snapshot-store";
 import { IngestionSchedule } from "./ingestion-schedule";
 import { reconciliationSourcePriority } from "./reconciliation-policy";
-import { createDurableIngestionRepository } from "./durable-ingestion-repository";
+import {
+  STOPPED_CHUNK_MS,
+  createDurableIngestionRepository,
+} from "./durable-ingestion-repository";
 import type {
   DurableIngestionWakeupResult,
   FetchedDurableSourceChunk,
@@ -408,9 +411,11 @@ describe("durable ingestion repository", () => {
             source: "pyp",
             fetching: true,
             attached: false,
+            tenantsDone: 0,
           },
         ],
         retryAt: null,
+        stopped: [],
       });
 
       await client.execute({
@@ -521,6 +526,7 @@ describe("durable ingestion repository", () => {
         status: "active",
         runs: wakeup.runs.map((run) => ({ ...run, action: "resume" })),
         retryAt: null,
+        stopped: [],
       });
     } finally {
       testDatabase.cleanup();
@@ -552,9 +558,11 @@ describe("durable ingestion repository", () => {
             source: "all",
             fetching: true,
             attached: false,
+            tenantsDone: 0,
           },
         ],
         retryAt: null,
+        stopped: [],
       });
     } finally {
       testDatabase.cleanup();
@@ -952,6 +960,112 @@ describe("durable ingestion repository", () => {
         status: "already_ended",
         runStatus: "success",
       });
+    } finally {
+      testDatabase.cleanup();
+    }
+  });
+
+  test("reports which URG IIS tenant a run reads next", async () => {
+    const testDatabase = createTestClient();
+    const { client } = testDatabase;
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const repository = createDurableIngestionRepository(
+        drizzle(client),
+        client,
+        IngestionSnapshotStore.memory(),
+      );
+      const now = new Date("2026-08-22T07:00:00.000Z");
+      const runId = startedRun(await repository.prepareWakeup(now, ["urgiis"]));
+      expect(await repository.prepareWakeup(now, ["urgiis"])).toMatchObject({
+        runs: [{ runId, source: "urgiis", tenantsDone: 0 }],
+      });
+      await client.execute({
+        sql: `update ingestion_source_run set next_cursor = ? where run_id = ?`,
+        args: [
+          JSON.stringify({
+            source: "urgiis",
+            completed: [
+              { code: "eagle", accepted: 500 },
+              { code: "linders", blocked: "down" },
+            ],
+          }),
+          runId,
+        ],
+      });
+      expect(await repository.prepareWakeup(now, ["urgiis"])).toMatchObject({
+        runs: [{ runId, tenantsDone: 2 }],
+      });
+    } finally {
+      testDatabase.cleanup();
+    }
+  });
+
+  test("detaches only the workflow that is still attached", async () => {
+    const testDatabase = createTestClient();
+    const { client } = testDatabase;
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const repository = createDurableIngestionRepository(
+        drizzle(client),
+        client,
+        IngestionSnapshotStore.memory(),
+      );
+      await client.execute(`
+        insert into ingestion_run (
+          id, source, workflow_run_id, status, stage, active_slot,
+          started_at, last_progress_at
+        ) values ('run', 'urgiis', 'wrun-new', 'running', 'sources', 1, 1, 1)
+      `);
+      await repository.detachWorkflowRun("run", "wrun-old");
+      expect((await repository.getRun("run")).workflowRunId).toBe("wrun-new");
+      await repository.detachWorkflowRun("run", "wrun-new");
+      expect((await repository.getRun("run")).workflowRunId).toBeNull();
+    } finally {
+      testDatabase.cleanup();
+    }
+  });
+
+  test("names a run stopped mid-fetch until its last chunk must have ended", async () => {
+    const testDatabase = createTestClient();
+    const { client } = testDatabase;
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const repository = createDurableIngestionRepository(
+        drizzle(client),
+        client,
+        IngestionSnapshotStore.memory(),
+      );
+      await client.execute(`
+        insert into ingestion_run (
+          id, source, workflow_run_id, status, stage, active_slot,
+          started_at, last_progress_at
+        ) values
+          ('stopped', 'pratt', 'wrun-stopped', 'running', 'sources', 1, 1, 1),
+          ('staged', 'aviation', 'wrun-staged', 'running', 'reconcile_missing', 1, 1, 1),
+          ('replacement', 'chaz', null, 'running', 'sources', 1, 1, 1)
+      `);
+      await repository.abandon("stopped", false);
+      await repository.abandon("staged", true);
+      const releasedAt = (await repository.getRun("stopped")).releasedAt;
+      if (releasedAt === null) throw new Error("abandon left no released_at");
+      // Its workflow is cancelled, but a chunk step already running keeps
+      // sending requests until the chunk's wall limit.
+      expect(
+        await repository.prepareWakeup(
+          new Date(releasedAt.getTime() + 1_000),
+          [],
+        ),
+      ).toMatchObject({
+        status: "active",
+        stopped: [{ source: "pratt", releasedAt: releasedAt.getTime() }],
+      });
+      expect(
+        await repository.prepareWakeup(
+          new Date(releasedAt.getTime() + STOPPED_CHUNK_MS),
+          [],
+        ),
+      ).toMatchObject({ status: "active", stopped: [] });
     } finally {
       testDatabase.cleanup();
     }

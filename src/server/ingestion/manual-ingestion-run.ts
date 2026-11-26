@@ -4,6 +4,7 @@ import {
   type IngestionSource,
 } from "~/lib/ingestion-source";
 import type { PauseCause } from "~/server/source-control/source-control";
+import type { PassHandoff } from "./pass-handoff";
 
 /**
  * Starting one source's ingestion now, outside the daily pass. It counts as
@@ -26,9 +27,11 @@ export type ManualIngestionRunStart =
  * (`workflowRunId`) starts now. `pass`: the source shares a rate-limited host
  * with other sources (`HostClaims`), so the day's pass (`workflowRunId`)
  * admits it and starts its workflow once those hosts are free.
+ * `restarted_pass`: as `pass`, after the listening pass, which ran older
+ * code, was replaced by one on current code (`PassHandoff`).
  */
 export type ManualWorkflowStart = {
-  via: "workflow" | "pass";
+  via: "workflow" | PassHandoff["via"];
   workflowRunId: string;
 };
 
@@ -101,9 +104,14 @@ export const ManualIngestionRun = {
 
   /** What to add after "Started run …" for a run the pass starts later. */
   startNote(started: Extract<ManualIngestionRunStart, { status: "started" }>) {
-    return started.via === "pass"
-      ? " The daily pass starts it once the rate-limited hosts it shares with other sources are free."
-      : "";
+    switch (started.via) {
+      case "workflow":
+        return "";
+      case "pass":
+        return " The daily pass starts it once the rate-limited hosts it shares with other sources are free.";
+      case "restarted_pass":
+        return " The daily pass was running older code, so it was restarted on current code; it starts this run once the rate-limited hosts it shares with other sources are free.";
+    }
   },
 
   /** Why no run started, in plain words for the owner and the API. */

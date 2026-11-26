@@ -3,7 +3,7 @@
 /**
  * What a source run occupies while it fetches: shared host lanes, each paced
  * for one source at a time, and one place in each capped group it uses (the
- * URG central API, a browser plan's concurrent sessions). The daily pass
+ * URG central API). The daily pass
  * starts a fetching run only when its claims are free, so requests to a shared
  * host are paced inside one process and never coordinated across runs.
  */
@@ -23,6 +23,20 @@ export const HostClaims = {
 
   isNone(claims: HostClaims): boolean {
     return claims.lanes.length === 0 && claims.places.length === 0;
+  },
+
+  /** Whether a run holding `held` already occupies everything in `needed`. */
+  covers(held: HostClaims, needed: HostClaims): boolean {
+    return (
+      needed.lanes.every((lane) => held.lanes.includes(lane)) &&
+      needed.places.every(({ group }) =>
+        held.places.some((place) => place.group === group),
+      )
+    );
+  },
+
+  equal(a: HostClaims, b: HostClaims): boolean {
+    return HostClaims.covers(a, b) && HostClaims.covers(b, a);
   },
 
   /**

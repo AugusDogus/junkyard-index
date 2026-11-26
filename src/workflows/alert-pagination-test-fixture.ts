@@ -266,6 +266,7 @@ const ingestionStepNames = [
   "cleanupStaleDurableAlgoliaRebuildsStep",
   "attachDurableIngestionWorkflowStep",
   "claimDurableIngestionCommitStep",
+  "detachDurableIngestionWorkflowStep",
   "prepareIngestionPassStep",
   "reportIngestionRunStep",
   "signalCommitWaitersStep",

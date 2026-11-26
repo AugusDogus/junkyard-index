@@ -37,7 +37,6 @@ import {
 import { reconcileDurableIngestionRun } from "./durable-reconciliation";
 import { validateDurableSourceRuns } from "./durable-source-validation";
 import { fetchDurableSourceChunk } from "./durable-source-fetch";
-import { HostClaims } from "./host-claims";
 import { IngestionDay } from "./ingestion-day";
 import type { IngestionPassPlan } from "./ingestion-pass-orchestrator";
 import { IngestionPause } from "~/server/source-control/ingestion-pause";
@@ -50,7 +49,7 @@ import {
   type SearchPublicationMode,
 } from "./search-publication-flag";
 import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
-import { SourceHostClaims } from "./source-host-claims";
+import { ingestionPassPlan } from "./ingestion-pass-plan";
 import { BetterStackProviders } from "./better-stack-providers";
 import { reportUrgiisCensusProgress } from "./urgiis-progress";
 
@@ -110,21 +109,7 @@ export async function prepareIngestionPass(
 ): Promise<IngestionPassPlan> {
   const now = new Date();
   if (IngestionDay.key(now) !== day) return { status: "expired" };
-  const wakeup = await prepareDurableIngestionWakeup(now);
-  return wakeup.status === "active"
-    ? {
-        status: "active",
-        runs: wakeup.runs.map((run) => ({
-          runId: run.runId,
-          claims:
-            run.fetching && isIngestionSource(run.source)
-              ? SourceHostClaims.of(run.source)
-              : HostClaims.none,
-          started: run.attached,
-        })),
-        retryAt: wakeup.retryAt,
-      }
-    : wakeup;
+  return ingestionPassPlan(await prepareDurableIngestionWakeup(now));
 }
 
 export function listDurableIngestionCommitWaiters(): Promise<string[]> {
@@ -145,6 +130,13 @@ export function claimDurableIngestionCommit(
   runId: string,
 ): Promise<"claimed" | "busy" | "stopped"> {
   return repository.claimCommit(runId);
+}
+
+export function detachDurableIngestionWorkflow(
+  runId: string,
+  workflowRunId: string,
+): Promise<void> {
+  return repository.detachWorkflowRun(runId, workflowRunId);
 }
 
 export function attachDurableIngestionWorkflow(

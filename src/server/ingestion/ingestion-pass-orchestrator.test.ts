@@ -1,11 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { HostClaims } from "./host-claims";
 import {
+  FAILED_RUN_RESUME_DELAY_MS,
+  PASS_STEP_RETRY_DELAY_MS,
   claimCommitTurn,
   runIngestionPass,
   type IngestionPassOperations,
   type IngestionPassPlan,
   type IngestionRunReport,
+  type PassWatchdog,
 } from "./ingestion-pass-orchestrator";
 
 /** Runs that need no shared host. */
@@ -19,27 +22,41 @@ const active = (
     claims: HostClaims.none,
     started: false,
   })),
+  held: [],
   retryAt,
 });
 
 function passOperations(
-  plans: IngestionPassPlan[],
+  plans: Array<IngestionPassPlan | Error>,
   reports: Array<IngestionRunReport | "timeout">,
+  options: { failStarts?: number } = {},
 ) {
   const events: string[] = [];
+  const watchdogs: PassWatchdog[] = [];
+  let failStarts = options.failStarts ?? 0;
   const operations: IngestionPassOperations = {
     plan: async () => {
       const next = plans.shift();
       if (!next) throw new Error("Planned more times than expected");
+      if (next instanceof Error) {
+        events.push("plan:error");
+        throw next;
+      }
       events.push(`plan:${next.status}`);
       return next;
     },
     startRuns: async (runIds) => {
+      if (failStarts > 0) {
+        failStarts--;
+        events.push(`start-error:${runIds.join(",")}`);
+        throw new Error("Workflow API unavailable");
+      }
       events.push(`start:${runIds.join(",")}`);
     },
-    nextReport: async (deadline) => {
+    nextReport: async (deadline, watchdog) => {
       const report = reports.shift();
       if (!report) throw new Error("Waited for more reports than expected");
+      watchdogs.push(watchdog);
       if (deadline !== null) events.push(`deadline:${deadline}`);
       events.push(
         report === "timeout"
@@ -48,21 +65,18 @@ function passOperations(
             ? "replan"
             : "fetched" in report
               ? `fetched:${report.runId}`
-              : `report:${report.runId}`,
+              : "yielded" in report
+                ? `yielded:${report.runId}`
+                : `report:${report.runId}`,
       );
       return report;
     },
-    sleepUntil: async (time) => {
-      events.push(`sleep:${time}`);
-    },
-    pauseAfterFailure: async () => {
-      events.push("pause");
-    },
+    now: () => 0,
     deliverNotifications: async () => {
       events.push("deliver");
     },
   };
-  return { operations, events };
+  return { operations, events, watchdogs };
 }
 
 describe("runIngestionPass", () => {
@@ -77,6 +91,7 @@ describe("runIngestionPass", () => {
       [
         { runId: "row52", failed: false },
         { runId: "pyp", failed: false },
+        "timeout",
         { runId: "pyp-retry", failed: false },
       ],
     );
@@ -89,7 +104,8 @@ describe("runIngestionPass", () => {
       "report:row52",
       "report:pyp",
       "plan:waiting",
-      "sleep:2000",
+      "deadline:2000",
+      "timeout",
       "plan:active",
       "start:pyp-retry",
       "report:pyp-retry",
@@ -109,6 +125,7 @@ describe("runIngestionPass", () => {
       [
         { runId: "pyp", failed: true },
         "timeout",
+        "timeout",
         { runId: "row52", failed: false },
         { runId: "pyp", failed: false },
       ],
@@ -120,7 +137,9 @@ describe("runIngestionPass", () => {
       "plan:active",
       "start:row52,pyp",
       "report:pyp",
-      "pause",
+      // The failed run resumes at the next plan, after a pause.
+      `deadline:${FAILED_RUN_RESUME_DELAY_MS}`,
+      "timeout",
       "plan:active",
       "start:row52,pyp",
       "timeout",
@@ -178,6 +197,7 @@ describe("runIngestionPass with shared hosts", () => {
   ): IngestionPassPlan => ({
     status: "active",
     runs: runs.map(([runId, claims, started]) => ({ runId, claims, started })),
+    held: [],
     retryAt: null,
   });
 
@@ -344,6 +364,7 @@ describe("runIngestionPass with runs added or started elsewhere", () => {
   const plan = (runs: Array<[string, boolean]>): IngestionPassPlan => ({
     status: "active",
     runs: runs.map(([runId, started]) => ({ runId, claims: aws, started })),
+    held: [],
     retryAt: null,
   });
 
@@ -403,6 +424,383 @@ describe("runIngestionPass with runs added or started elsewhere", () => {
   });
 });
 
+describe("runIngestionPass while it sleeps", () => {
+  test("re-plans at once when asked while waiting for a retry", async () => {
+    // A manual run of a shared-host source, two hours before the next retry.
+    const { operations, events, watchdogs } = passOperations(
+      [
+        { status: "waiting", retryAt: 7_200_000 },
+        active(["manual"], null),
+        { status: "complete" },
+      ],
+      [{ replan: true }, { runId: "manual", failed: false }],
+    );
+
+    await runIngestionPass(operations);
+
+    expect(events.slice(0, 5)).toEqual([
+      "plan:waiting",
+      "deadline:7200000",
+      "replan",
+      "plan:active",
+      "start:manual",
+    ]);
+    // Waiting for a retry re-plans only when it is due or asked.
+    expect(watchdogs[0]).toBe("none");
+  });
+
+  test("re-plans at once when asked while pausing after a failure", async () => {
+    const { operations, events } = passOperations(
+      [active(["pyp", "row52"], null), active(["row52", "manual"], null)],
+      [{ runId: "pyp", failed: true }, { replan: true }],
+    );
+
+    await expect(runIngestionPass(operations)).rejects.toThrow(
+      "Waited for more reports",
+    );
+
+    expect(events).toEqual([
+      "plan:active",
+      "start:pyp,row52",
+      "report:pyp",
+      `deadline:${FAILED_RUN_RESUME_DELAY_MS}`,
+      "replan",
+      "plan:active",
+      "start:row52,manual",
+    ]);
+  });
+
+  test("keeps starting runs on freed hosts while it pauses after a failure", async () => {
+    const aws: HostClaims = {
+      lanes: ["aws"],
+      places: [{ group: "urg", capacity: 2 }],
+    };
+    const { operations, events } = passOperations(
+      [
+        {
+          status: "active",
+          runs: [
+            { runId: "aviation", claims: aws, started: false },
+            { runId: "central", claims: aws, started: false },
+            { runId: "pyp", claims: HostClaims.none, started: false },
+          ],
+          held: [],
+          retryAt: null,
+        },
+        { status: "complete" },
+      ],
+      [
+        { runId: "pyp", failed: true },
+        { runId: "aviation", fetched: true },
+        "timeout",
+      ],
+    );
+
+    await runIngestionPass(operations);
+
+    expect(events.slice(0, 7)).toEqual([
+      "plan:active",
+      "start:aviation,pyp",
+      "report:pyp",
+      `deadline:${FAILED_RUN_RESUME_DELAY_MS}`,
+      "fetched:aviation",
+      "start:central",
+      `deadline:${FAILED_RUN_RESUME_DELAY_MS}`,
+    ]);
+  });
+});
+
+describe("runIngestionPass when a step fails", () => {
+  test("plans again after a pause instead of failing the pass", async () => {
+    const { operations, events } = passOperations(
+      [
+        new Error("Turso unavailable"),
+        active(["pyp"], null),
+        { status: "complete" },
+      ],
+      ["timeout", { runId: "pyp", failed: false }],
+    );
+
+    expect(await runIngestionPass(operations)).toBe("completed");
+
+    expect(events).toEqual([
+      "plan:error",
+      `deadline:${PASS_STEP_RETRY_DELAY_MS}`,
+      "timeout",
+      "plan:active",
+      "start:pyp",
+      "report:pyp",
+      "plan:complete",
+      "deliver",
+    ]);
+  });
+
+  test("starts the runs again after a pause when starting them fails", async () => {
+    const urg = (lane: string): HostClaims => ({
+      lanes: [lane],
+      places: [{ group: "urg", capacity: 2 }],
+    });
+    const plan: IngestionPassPlan = {
+      status: "active",
+      runs: [
+        { runId: "aviation", claims: urg("aws"), started: false },
+        { runId: "central", claims: urg("aws"), started: false },
+      ],
+      held: [],
+      retryAt: null,
+    };
+    const { operations, events } = passOperations(
+      [plan, plan, { status: "complete" }],
+      [
+        "timeout",
+        { runId: "aviation", fetched: true },
+        { runId: "aviation", failed: false },
+        { runId: "central", failed: false },
+      ],
+      { failStarts: 1 },
+    );
+
+    await runIngestionPass(operations);
+
+    // The admitted run keeps its lane, so central still waits for it.
+    expect(events.slice(0, 7)).toEqual([
+      "plan:active",
+      "start-error:aviation",
+      `deadline:${PASS_STEP_RETRY_DELAY_MS}`,
+      "timeout",
+      "plan:active",
+      "start:aviation",
+      "fetched:aviation",
+    ]);
+  });
+});
+
+describe("runIngestionPass with runs that change lanes", () => {
+  const urg = (...lanes: string[]): HostClaims => ({
+    lanes,
+    places: [{ group: "urg", capacity: 3 }],
+  });
+
+  test("starts a run that handed its hosts back once its next lanes are free", async () => {
+    // URG IIS finished a tenant and needs Lambert's lane, which Pratt holds.
+    const { operations, events } = passOperations(
+      [
+        {
+          status: "active",
+          runs: [
+            { runId: "urgiis", claims: urg("eagle"), started: false },
+            { runId: "pratt", claims: urg("66.42.115.19"), started: false },
+          ],
+          held: [],
+          retryAt: null,
+        },
+        { status: "complete" },
+      ],
+      [
+        { runId: "urgiis", yielded: urg("66.42.115.19") },
+        { runId: "pratt", fetched: true },
+        { runId: "urgiis", fetched: true },
+        { runId: "pratt", failed: false },
+        { runId: "urgiis", failed: false },
+      ],
+    );
+
+    await runIngestionPass(operations);
+
+    expect(events.slice(0, 5)).toEqual([
+      "plan:active",
+      "start:urgiis,pratt",
+      "yielded:urgiis",
+      "fetched:pratt",
+      "start:urgiis",
+    ]);
+  });
+
+  test("plans a run whose hand-back report was lost as waiting for its new lanes", async () => {
+    const { operations, events } = passOperations(
+      [
+        {
+          status: "active",
+          runs: [
+            { runId: "urgiis", claims: urg("eagle"), started: false },
+            { runId: "pratt", claims: urg("66.42.115.19"), started: false },
+          ],
+          held: [],
+          retryAt: null,
+        },
+        {
+          status: "active",
+          runs: [
+            // Detached, so not started, and needing Lambert's lane now.
+            { runId: "urgiis", claims: urg("66.42.115.19"), started: false },
+            { runId: "pratt", claims: urg("66.42.115.19"), started: true },
+          ],
+          held: [],
+          retryAt: null,
+        },
+        { status: "complete" },
+      ],
+      [
+        "timeout",
+        { runId: "pratt", fetched: true },
+        { runId: "urgiis", fetched: true },
+        { runId: "pratt", failed: false },
+        { runId: "urgiis", failed: false },
+      ],
+    );
+
+    await runIngestionPass(operations);
+
+    expect(events.slice(0, 7)).toEqual([
+      "plan:active",
+      "start:urgiis,pratt",
+      "timeout",
+      "plan:active",
+      "start:pratt",
+      "fetched:pratt",
+      "start:urgiis",
+    ]);
+  });
+
+  test("keeps the lanes it admitted a run with, not every lane it might reach", async () => {
+    const { operations, events } = passOperations(
+      [
+        {
+          status: "active",
+          runs: [{ runId: "urgiis", claims: urg("eagle"), started: false }],
+          held: [],
+          retryAt: null,
+        },
+        {
+          status: "active",
+          runs: [
+            // Attached: the plan cannot tell it hands lanes back.
+            {
+              runId: "urgiis",
+              claims: urg("eagle", "66.42.115.19"),
+              started: true,
+            },
+            { runId: "pratt", claims: urg("66.42.115.19"), started: false },
+          ],
+          held: [],
+          retryAt: null,
+        },
+      ],
+      ["timeout"],
+    );
+
+    await expect(runIngestionPass(operations)).rejects.toThrow(
+      "Waited for more reports",
+    );
+
+    expect(events).toEqual([
+      "plan:active",
+      "start:urgiis",
+      "timeout",
+      "plan:active",
+      "start:urgiis,pratt",
+    ]);
+  });
+
+  test("holds every lane an attached run it did not admit might reach", async () => {
+    const { operations, events } = passOperations(
+      [
+        {
+          status: "active",
+          runs: [
+            {
+              runId: "urgiis",
+              claims: urg("eagle", "66.42.115.19"),
+              started: true,
+            },
+            { runId: "pratt", claims: urg("66.42.115.19"), started: false },
+          ],
+          held: [],
+          retryAt: null,
+        },
+      ],
+      [],
+    );
+
+    await expect(runIngestionPass(operations)).rejects.toThrow(
+      "Waited for more reports",
+    );
+
+    expect(events).toEqual(["plan:active", "start:urgiis"]);
+  });
+});
+
+describe("runIngestionPass with a run stopped mid-fetch", () => {
+  test("starts nothing on its lanes until its last chunk must have ended", async () => {
+    const pratt: HostClaims = {
+      lanes: ["66.42.115.19"],
+      places: [{ group: "urg", capacity: 2 }],
+    };
+    const { operations, events } = passOperations(
+      [
+        {
+          status: "active",
+          runs: [{ runId: "pratt-again", claims: pratt, started: false }],
+          held: [pratt],
+          retryAt: 360_000,
+        },
+        {
+          status: "active",
+          runs: [{ runId: "pratt-again", claims: pratt, started: false }],
+          held: [],
+          retryAt: null,
+        },
+        { status: "complete" },
+      ],
+      ["timeout", { runId: "pratt-again", failed: false }],
+    );
+
+    await runIngestionPass(operations);
+
+    expect(events.slice(0, 5)).toEqual([
+      "plan:active",
+      "deadline:360000",
+      "timeout",
+      "plan:active",
+      "start:pratt-again",
+    ]);
+  });
+});
+
+describe("runIngestionPass watchdog", () => {
+  test("re-plans on an interval only while runs wait for hosts", async () => {
+    const aws: HostClaims = {
+      lanes: ["aws"],
+      places: [{ group: "urg", capacity: 2 }],
+    };
+    const { operations, watchdogs } = passOperations(
+      [
+        {
+          status: "active",
+          runs: [
+            { runId: "aviation", claims: aws, started: false },
+            { runId: "central", claims: aws, started: false },
+          ],
+          held: [],
+          retryAt: null,
+        },
+        { status: "complete" },
+      ],
+      [
+        { runId: "aviation", fetched: true },
+        { runId: "aviation", failed: false },
+        { runId: "central", failed: false },
+      ],
+    );
+
+    await runIngestionPass(operations);
+
+    // While central waits, runs reporting to another pass must not hold its
+    // lane past an interval; once nothing waits, only silence re-plans.
+    expect(watchdogs).toEqual(["interval", "silence", "silence"]);
+  });
+});
+
 describe("runIngestionPass on a finished day", () => {
   test("reports an already-complete day so hourly passes skip end-of-day work", async () => {
     const { operations, events } = passOperations([{ status: "complete" }], []);
@@ -417,12 +815,17 @@ describe("runIngestionPass after its day", () => {
   test("stops without delivering once its ingestion day has ended", async () => {
     const { operations, events } = passOperations(
       [{ status: "waiting", retryAt: 2_000 }, { status: "expired" }],
-      [],
+      ["timeout"],
     );
 
     expect(await runIngestionPass(operations)).toBe("expired");
 
-    expect(events).toEqual(["plan:waiting", "sleep:2000", "plan:expired"]);
+    expect(events).toEqual([
+      "plan:waiting",
+      "deadline:2000",
+      "timeout",
+      "plan:expired",
+    ]);
   });
 });
 

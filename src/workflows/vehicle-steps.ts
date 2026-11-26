@@ -19,6 +19,7 @@ import {
   resolveDurableWorkflowCursor,
   cleanupStaleDurableAlgoliaRebuilds,
   attachDurableIngestionWorkflow,
+  detachDurableIngestionWorkflow,
   claimDurableIngestionCommit,
   listDurableIngestionCommitWaiters,
   prepareIngestionPass,
@@ -43,6 +44,8 @@ import {
 } from "~/server/ingestion/search-index-migration";
 import type { IngestionRunReport } from "~/server/ingestion/ingestion-pass-orchestrator";
 import { IngestionTokens } from "./ingestion-tokens";
+import { deliverPassReport } from "./pass-report-delivery";
+import { SourceHostClaims } from "~/server/ingestion/source-host-claims";
 import {
   recordDurableRunFailure,
   recordDurableSourceRejections,
@@ -81,23 +84,44 @@ export async function prepareIngestionPassStep(day: string) {
 }
 prepareIngestionPassStep.maxRetries = 2;
 
-/** Reports a source run that fetched or stopped to its pass, if the pass is
- * listening. */
+/** Reports a source run that fetched, stopped or yielded to the current
+ * day's pass, if one is listening (see `deliverPassReport`). */
 export async function reportIngestionRunStep(
-  day: string,
   report: Extract<IngestionRunReport, { runId: string }>,
 ) {
   "use step";
 
   try {
-    await resumeHook(IngestionTokens.passReports(day), report);
+    const delivery = await deliverPassReport({
+      report,
+      now: new Date(),
+      resume: resumeHook,
+    });
+    if (delivery === "no_pass")
+      console.warn(
+        `[Workflow] No ingestion pass is listening for run ${report.runId}'s report; the next pass plans the run from its database state.`,
+      );
   } catch (error) {
-    // The pass ended or has not registered yet; its next plan sees the run.
-    console.warn(
-      `[Workflow] Could not report run ${report.runId} to the ${day} pass: ${formatError(error)}`,
-    );
+    throwRetryableStepError(`Report run ${report.runId} to its pass`, error);
   }
 }
+reportIngestionRunStep.maxRetries = 3;
+
+/** Detaches a run's workflow before it hands its shared hosts back, so the
+ * pass starts the run again once the hosts its next chunk needs are free. */
+export async function detachDurableIngestionWorkflowStep(
+  runId: string,
+  workflowRunId: string,
+) {
+  "use step";
+
+  try {
+    await detachDurableIngestionWorkflow(runId, workflowRunId);
+  } catch (error) {
+    throwRetryableStepError("Detach durable ingestion workflow", error);
+  }
+}
+detachDurableIngestionWorkflowStep.maxRetries = 2;
 
 /** Wakes runs waiting for the shared commit after it is released. */
 export async function signalCommitWaitersStep() {
@@ -212,9 +236,18 @@ export async function runDurableSourceChunkStep<
     result,
   );
   if (progressError) throw new FatalError(progressError);
+  const needsClaims =
+    result.status === "paused"
+      ? SourceHostClaims.handBack(
+          result.cursor.source,
+          SourceHostClaims.tenantsDone(requestedCursor),
+          SourceHostClaims.tenantsDone(result.cursor),
+        )
+      : null;
   return {
     ...result,
     cursor: await compactDurableWorkflowCursor(runId, result.cursor),
+    ...(needsClaims ? { needsClaims } : {}),
   };
 }
 runDurableSourceChunkStep.maxRetries = 2;

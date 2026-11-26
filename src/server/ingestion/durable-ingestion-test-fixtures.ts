@@ -68,6 +68,7 @@ ${readFileSync(new URL("../../../drizzle/0008_vehicle_observations.sql", import.
     completed_at integer
   );
   create unique index ingestion_run_active_source_idx on ingestion_run(source, active_slot);
+  create index ingestion_run_retention_idx on ingestion_run(completed_at) where active_slot is null;
   create table saved_search (id text primary key, last_checked_at integer);
   create table search_alert_check (
     id text primary key, day text not null unique, status text not null,

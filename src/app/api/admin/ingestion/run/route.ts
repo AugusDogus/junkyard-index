@@ -45,7 +45,8 @@ export async function POST(request: Request) {
       source,
       runId: run.runId,
       workflowRunId: run.workflowRunId,
-      // "pass": the day's pass starts the run once its shared hosts are free.
+      // "pass" or "restarted_pass" (the pass was on older code and was
+      // replaced): the day's pass starts the run once its shared hosts are free.
       via: run.via,
     },
     { status: 202 },

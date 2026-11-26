@@ -35,6 +35,7 @@ import {
   cleanupStaleDurableAlgoliaRebuildsStep,
   attachDurableIngestionWorkflowStep,
   claimDurableIngestionCommitStep,
+  detachDurableIngestionWorkflowStep,
   prepareIngestionPassStep,
   reportIngestionRunStep,
   signalCommitWaitersStep,
@@ -56,6 +57,7 @@ import { searchProjectorWorkflow } from "./search-projector";
 import { PublicationModeFlag } from "~/server/ingestion/publication-mode-flag";
 import { withSearchWriteLock } from "./search-write-lock";
 import { IngestionDay } from "~/server/ingestion/ingestion-day";
+import type { HostClaims } from "~/server/ingestion/host-claims";
 
 // Fallbacks for signals that never arrive, such as a workflow that died.
 // Each commit claim attempt also keeps a waiter live in the commit queue,
@@ -63,7 +65,6 @@ import { IngestionDay } from "~/server/ingestion/ingestion-day";
 const COMMIT_TURN_FALLBACK = "5m";
 const COMMIT_TURN_SETTLE = "2s";
 const PASS_WATCHDOG_INTERVAL = "30m";
-const FAILED_RUN_RESUME_DELAY = "5m";
 // Retry interval while an alert check batch could read incomplete results:
 // a run from the previous release is matching alerts, or a commit inside the
 // check's window is not searchable yet.
@@ -172,33 +173,39 @@ export async function vehicleIngestionPassWorkflow(day: string) {
   // The pass re-plans at least this often, even while reports keep coming,
   // so claims of runs that report elsewhere (another day's pass, an older
   // deployment) are freed within one interval.
-  let watchdog = sleep(PASS_WATCHDOG_INTERVAL).then(() => "timeout" as const);
+  let watchdog: Promise<"timeout"> = sleep(PASS_WATCHDOG_INTERVAL).then(
+    () => "timeout" as const,
+  );
   // After its day the pass stops admitting runs; its next plan expires it.
   const dayEnded = sleep(new Date(IngestionDay.end(day))).then(
     () => "timeout" as const,
   );
+  const timeout = () => "timeout" as const;
   const outcome = await runIngestionPass({
     plan: () => {
-      watchdog = sleep(PASS_WATCHDOG_INTERVAL).then(() => "timeout" as const);
+      // A pass whose plans keep failing past its day still expires.
+      if (Date.now() >= IngestionDay.end(day))
+        return Promise.resolve({ status: "expired" as const });
+      watchdog = sleep(PASS_WATCHDOG_INTERVAL).then(timeout);
       return prepareIngestionPassStep(day);
     },
     startRuns: (runIds) => startIngestionRunWorkflowsStep(runIds, day),
-    nextReport: async (deadline) => {
+    nextReport: async (deadline, mode) => {
       const next = await Promise.race([
         pendingReport,
-        watchdog,
         dayEnded,
-        // A source's retry falls due while active runs report nothing.
-        ...(deadline === null
-          ? []
-          : [sleep(new Date(deadline)).then(() => "timeout" as const)]),
+        // A source's retry, a failure pause or a stopped run's hosts.
+        ...(deadline === null ? [] : [sleep(new Date(deadline)).then(timeout)]),
+        ...(mode === "interval" ? [watchdog] : []),
+        ...(mode === "silence"
+          ? [sleep(PASS_WATCHDOG_INTERVAL).then(timeout)]
+          : []),
       ]);
       if (next === "timeout") return next;
       pendingReport = incoming.next();
       return next.done ? "timeout" : next.value;
     },
-    sleepUntil: (time) => sleep(new Date(time)),
-    pauseAfterFailure: () => sleep(FAILED_RUN_RESUME_DELAY),
+    now: () => Date.now(),
     deliverNotifications: () => startDailySearchAlertsStep(day),
   });
   // The homepage, inventory caches, warmup and IndexNow run on their own
@@ -231,17 +238,28 @@ export async function vehicleIngestionWorkflow(runId: string, day?: string) {
 
   let failed = true;
   let completed = false;
+  let yielded: HostClaims | null = null;
   try {
     const result = await runSourceIngestion(runId, day);
     failed = false;
     completed = result.status === "completed";
+    if (result.status === "yielded") {
+      yielded = result.claims;
+      // The pass may start the run's next workflow as soon as it hears the
+      // report, so release the run's token first; otherwise that workflow
+      // could deduplicate against this one and leave the run idle.
+      ingestionRun[Symbol.dispose]();
+    }
     return result;
   } finally {
-    // A completed run reported itself after publishing; any other outcome
-    // shows the provider delayed while its last inventory stays up.
-    if (!completed) await reportProviderStatusStep(runId);
-    if (day !== undefined) {
-      await reportIngestionRunStep(day, { runId, failed });
+    if (yielded !== null) {
+      // Still fetching: the pass starts it again once its hosts are free.
+      await reportIngestionRunStep({ runId, yielded });
+    } else {
+      // A completed run reported itself after publishing; any other outcome
+      // shows the provider delayed while its last inventory stays up.
+      if (!completed) await reportProviderStatusStep(runId);
+      if (day !== undefined) await reportIngestionRunStep({ runId, failed });
     }
   }
 }
@@ -260,16 +278,21 @@ async function runSourceIngestion(runId: string, day: string | undefined) {
     reconcile: reconcileDurableIngestionStep,
     markRunFailed,
     waitForPublicationMode,
+    // The day's pass admitted this run for the hosts its next chunk needs.
+    handsBackClaims: day !== undefined,
   };
   // Each source's run fetches and stages in parallel with the others. A run
   // with no accepted source released at validation and never waits for the
   // commit, so its source can retry while another run holds it.
   const staging = await stageDurableIngestion({ runId, operations });
+  if (staging.status === "yielded") {
+    await detachDurableIngestionWorkflowStep(runId, workflowRunId);
+    return staging;
+  }
   if (staging.status !== "staged") return staging;
   // Fetching is done, so the pass may start the next run on this run's
   // shared hosts while this one waits for the commit.
-  if (day !== undefined)
-    await reportIngestionRunStep(day, { runId, fetched: true });
+  if (day !== undefined) await reportIngestionRunStep({ runId, fetched: true });
 
   // Committing writes the shared inventory and search index, so one run
   // commits at a time. The claim lives in the database, so a run
