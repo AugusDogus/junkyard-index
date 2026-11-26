@@ -114,8 +114,10 @@ hands back.
     pass still admits: its ingestion day has not ended and it was not
     cancelled by a Run now hand-off. A pass that replaces it plans after the
     mark and holds the run's claims; a pass that lost its day clears the mark
-    and starts nothing. The new workflow's id then replaces the mark. A mark
-    older than 2 minutes is a start that never finished.
+    and starts nothing. The new workflow's id then replaces the mark. The
+    mark names its pass: to that pass it never counts as a live start, so a
+    retried start step starts the run again; another pass's mark older than
+    2 minutes is a start that never finished.
   - A run stopped while fetching (admin Stop, or Stop and run) keeps its
     whole-run claims for `STOPPED_CHUNK_MS` (6 minutes, the chunk wall
     limit) after `released_at`: its workflow is cancelled, but a chunk step
@@ -133,10 +135,12 @@ hands back.
     is on another deployment than the one serving Run now, that pass is
     cancelled and a pass on current code is started (`PassHandoff`), so the
     run starts on current code, as on main; the admin message says so.
-  - A run that yields names the claims its workflow was started with, so a
-    late or repeated `yielded` report from a workflow the pass already
-    replaced is ignored. It also releases its run token before reporting, so
-    its next workflow cannot deduplicate against it.
+  - A run that yields names the claims its workflow was started with. The
+    pass trusts a `yielded` report only from the workflow it admitted: one
+    from a workflow it already replaced is ignored, and one for a run it did
+    not admit makes it plan again from Turso, since another pass may have
+    started a later workflow. The run releases its token before it detaches,
+    so its next workflow cannot deduplicate against it.
   - Remaining window: a pass on the deployment before this design starts
     runs without the mark, so on merge day a Run now that replaces it within
     seconds of one of its starts could admit a second run on that lane.

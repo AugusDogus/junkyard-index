@@ -865,6 +865,49 @@ describe("runIngestionPass with a stale hand-back", () => {
   });
 });
 
+describe("runIngestionPass with a hand-back from a run it did not admit", () => {
+  test("plans again instead of trusting it, since a later workflow may be fetching", async () => {
+    const urg = (...lanes: string[]): HostClaims => ({
+      lanes,
+      places: [{ group: "urg", capacity: 3 }],
+    });
+    const { operations, events } = passOperations(
+      [
+        {
+          status: "active",
+          runs: [
+            // Started by the previous day's pass, which already re-admitted
+            // it for Lambert.
+            { runId: "urgiis", claims: urg("66.42.115.19"), started: true },
+            { runId: "pratt", claims: urg("66.42.115.19"), started: false },
+          ],
+          held: [],
+          retryAt: null,
+        },
+        { status: "complete" },
+      ],
+      [
+        // A duplicate of an earlier workflow's report.
+        {
+          runId: "urgiis",
+          yielded: urg("66.42.115.19"),
+          admitted: urg("higgins"),
+        },
+      ],
+    );
+
+    await runIngestionPass(operations);
+
+    expect(events).toEqual([
+      "plan:active",
+      "start:urgiis",
+      "yielded:urgiis",
+      "plan:complete",
+      "deliver",
+    ]);
+  });
+});
+
 describe("runIngestionPass with a run stopped mid-fetch", () => {
   test("starts nothing on its lanes until its last chunk must have ended", async () => {
     const pratt: HostClaims = {

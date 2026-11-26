@@ -50,6 +50,7 @@ import {
 } from "./search-publication-flag";
 import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import { ingestionPassPlan } from "./ingestion-pass-plan";
+import { StartingMark } from "./run-workflow-starts";
 import { BetterStackProviders } from "./better-stack-providers";
 import { reportUrgiisCensusProgress } from "./urgiis-progress";
 
@@ -423,7 +424,13 @@ export async function abandonDurableIngestion(params: {
       runStatus: result.runStatus,
     };
   }
-  const { workflowRunId } = result;
+  // A starting mark names no workflow yet, so there is nothing to cancel;
+  // the workflow started next finds the run abandoned.
+  const workflowRunId =
+    result.workflowRunId !== null &&
+    StartingMark.parse(result.workflowRunId) === null
+      ? result.workflowRunId
+      : null;
   let workflowCancellation: WorkflowCancellation = "not_attached";
   if (workflowRunId) {
     try {

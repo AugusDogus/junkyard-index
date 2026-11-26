@@ -237,9 +237,12 @@ export async function runIngestionPass(
       if (reported >= 0) waiting.splice(reported, 1);
       if ("yielded" in report) {
         const known = fetching.get(report.runId);
-        // The pass already started a later workflow for this run.
-        if (known?.admitted && !HostClaims.equal(known.claims, report.admitted))
-          continue;
+        // A hand-back is trusted only from the workflow this pass started.
+        // One from a workflow it already replaced is stale; for a run it did
+        // not admit, another pass may have started a later workflow, so it
+        // plans again from the database instead.
+        if (!known?.admitted) break;
+        if (!HostClaims.equal(known.claims, report.admitted)) continue;
         fetching.delete(report.runId);
         // It is mid-crawl, so it goes first once its next hosts are free.
         waiting.unshift({

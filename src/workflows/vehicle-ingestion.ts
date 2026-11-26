@@ -116,12 +116,14 @@ async function startIngestionRunWorkflowsStep(
     runIds: runs.map((run) => run.runId),
     attachedWorkflows: getAttachedIngestionWorkflowRuns,
     workflowState: ingestionWorkflowState,
+    passRunId,
     now: () => Date.now(),
     start: async (runId, previous, state) => {
       const outcome = await startGuarded({
         runId,
         previous,
         state,
+        passRunId,
         now: () => Date.now(),
         swap: swapDurableIngestionWorkflowRun,
         stillAdmits,
@@ -292,10 +294,15 @@ export async function vehicleIngestionWorkflow(
     completed = result.status === "completed";
     if (result.status === "yielded") {
       yielded = result.claims;
-      // The pass may start the run's next workflow as soon as it hears the
-      // report, so release the run's token first; otherwise that workflow
-      // could deduplicate against this one and leave the run idle.
+      // Release the run's token before detaching: a pass that sees the run
+      // detached may start its next workflow at once, which must not
+      // deduplicate against this one. Detaching only clears this workflow's
+      // id, so a next workflow that already attached keeps its own.
       ingestionRun[Symbol.dispose]();
+      await detachDurableIngestionWorkflowStep(
+        runId,
+        getWorkflowMetadata().workflowRunId,
+      );
     }
     return result;
   } finally {
@@ -358,10 +365,6 @@ async function runSourceIngestion(
   // with no accepted source released at validation and never waits for the
   // commit, so its source can retry while another run holds it.
   const staging = await stageDurableIngestion({ runId, operations });
-  if (staging.status === "yielded") {
-    await detachDurableIngestionWorkflowStep(runId, workflowRunId);
-    return staging;
-  }
   if (staging.status !== "staged") return staging;
   // Fetching is done, so the pass may start the next run on this run's
   // shared hosts while this one waits for the commit.
