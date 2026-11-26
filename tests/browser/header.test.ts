@@ -367,3 +367,30 @@ for (const width of [390, 1440]) {
     }
   }, 20_000);
 }
+
+test("closing the account menu returns focus to its trigger after keyboard use only", async () => {
+  const page = await openHeader("/junkyards/texas?signed-in=1", 1440);
+  try {
+    const trigger = page.getByRole("button", { name: "HT", exact: true });
+    const menu = page.getByRole("menu").first();
+    const triggerFocusVisible = () =>
+      trigger.evaluate((element) => element.matches(":focus-visible"));
+
+    // A click outside leaves no focus ring on the avatar.
+    await trigger.click();
+    await menu.waitFor();
+    await page.mouse.click(5, 600);
+    await menu.waitFor({ state: "hidden" });
+    expect(await triggerFocusVisible()).toBe(false);
+
+    // Keyboard users get focus, and its ring, back on the trigger.
+    await trigger.focus();
+    await page.keyboard.press("Enter");
+    await menu.waitFor();
+    await page.keyboard.press("Escape");
+    await menu.waitFor({ state: "hidden" });
+    expect(await triggerFocusVisible()).toBe(true);
+  } finally {
+    await closePage(page);
+  }
+}, 20_000);
