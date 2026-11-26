@@ -47,10 +47,11 @@ export async function refreshInventoryCachesStep(): Promise<
   // Before the caches expire, so the pages they rebuild read each yard's
   // summary back (1 row) instead of its vehicles. Rebuilds the yards of
   // runs that ended without publishing too, whose caches the refresh
-  // expires. A failure here only costs reads: until the next refresh,
-  // pages whose cached slices disagree with the stored summary read the
-  // yard.
+  // expires. A failure only costs reads until the next refresh, which
+  // retries it: the refresh below then keeps its last read, so those runs
+  // and changes stay in view.
   const now = new Date();
+  let summaries: Parameters<typeof InventoryCacheRefresh.run>[0]["summaries"];
   try {
     const since = await InventoryCacheRefresh.changesReadAt(db);
     const { stored, changed } = await YardSummaryStore.refresh(
@@ -61,13 +62,15 @@ export async function refreshInventoryCachesStep(): Promise<
         : await InventoryCacheRefresh.unpublishedSources(db, since),
     );
     console.info(
-      `[Workflow] Stored ${stored} yard summaries; ${changed.length} yards changed what their pages show`,
+      `[Workflow] Stored ${stored} yard summaries; ${changed.length} yards changed what their pages show or left`,
     );
+    summaries = { kind: "stored", changed };
   } catch (error) {
     console.error(
-      `[Workflow] Could not store yard summaries; yard pages read each yard's vehicles when their cached summary is missing until the next refresh stores them. Vehicle data and the inventory refresh are unaffected: ${formatError(error)}`,
+      `[Workflow] Could not store yard summaries; yard pages whose cached data disagrees with their stored summary read the yard's vehicles until the next refresh retries the store. Vehicle data is unaffected, and the inventory refresh still runs but keeps its last read of yard changes: ${formatError(error)}`,
       error,
     );
+    summaries = { kind: "failed" };
   }
 
   let refresh: InventoryCacheRefresh;
@@ -85,6 +88,7 @@ export async function refreshInventoryCachesStep(): Promise<
       },
       revalidate: expireInventoryCaches,
       now,
+      summaries,
     });
   } catch (error) {
     // Not retried: a retry would read every vehicle again. The consumer

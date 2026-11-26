@@ -111,14 +111,18 @@ test("clearing drops every stored summary, as identities may have changed", asyn
   });
 });
 
-test("drops summaries of yards that left yard_inventory", async () => {
+test("drops summaries of yards that left yard_inventory, and reports them as changed", async () => {
   const database = drizzle(client);
   await addVehicle("A", "1", "HONDA");
   await publish("1", 100);
   await YardSummaryStore.refresh(database, NOW, []);
   await client.execute("delete from yard_inventory");
 
-  await YardSummaryStore.refresh(database, NOW, []);
+  // Its cached pages must expire: they still list the yard.
+  expect(await YardSummaryStore.refresh(database, NOW, [])).toEqual({
+    stored: 0,
+    changed: [{ source: "pyp", code: "1" }],
+  });
 
   const left = await client.execute("select count(*) as n from yard_summary");
   expect(Number(left.rows[0]?.n)).toBe(0);
@@ -210,4 +214,32 @@ test("rebuilds every yard when the last refresh's read is unknown", async () => 
     stored: 1,
     changed: [{ source: "pyp", code: "1" }],
   });
+});
+
+test("stops storing summaries once one fails, and returns only after every write ended", async () => {
+  const database = drizzle(client);
+  for (let code = 1; code <= 12; code++) {
+    await addVehicle(`V${code}`, String(code), "HONDA");
+    await publish(String(code), 100);
+  }
+  await client.execute(`
+    create trigger fail_yard_3 before insert on yard_summary
+    when new.location_code = '3'
+    begin select raise(abort, 'disk I/O error'); end
+  `);
+  const stored = async () =>
+    Number(
+      (await client.execute("select count(*) as n from yard_summary")).rows[0]
+        ?.n,
+    );
+
+  await expect(YardSummaryStore.refresh(database, NOW, [])).rejects.toThrow();
+  const whenThrown = await stored();
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  // A row stored after the refresh reported its failure would be stamped
+  // with a change time the caller never expires.
+  expect(await stored()).toBe(whenThrown);
+  // The other workers stopped instead of storing every remaining yard.
+  expect(whenThrown).toBeLessThan(11);
 });
