@@ -1,5 +1,6 @@
 import "server-only";
 import { unstable_cache } from "next/cache";
+import { cache } from "react";
 import { db } from "~/lib/db";
 import { HiddenSources } from "~/lib/hidden-source";
 import {
@@ -39,12 +40,14 @@ const cachedHiddenList = unstable_cache(
 
 /**
  * The sources hidden from the public site, for pages, routes and server
- * actions. Workflows and scripts call `loadHiddenSources` directly instead:
+ * actions. Read from the data cache at most once per render: every
+ * shown-inventory entry asks for it. Workflows and scripts call `loadHiddenSources` directly instead:
  * they run outside a request, and alert scans must see a hide at once.
  */
-export async function getHiddenSources(): Promise<HiddenSources> {
-  return HiddenSources.of(await cachedHiddenList());
-}
+export const getHiddenSources = cache(
+  async (): Promise<HiddenSources> =>
+    HiddenSources.of(await cachedHiddenList()),
+);
 
 /**
  * Caches an inventory loader that leaves out the hidden sources it is given,
