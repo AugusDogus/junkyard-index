@@ -248,7 +248,7 @@ for (const width of [320, 360, 375]) {
   }, 20_000);
 }
 
-test("the account menu carries every footer link the header lacks, by keyboard", async () => {
+test("the account menu ends with Sign out and carries every footer link the header lacks under More, by keyboard", async () => {
   const footerLinks = [
     ...renderToStaticMarkup(createElement(FooterLinks)).matchAll(
       /<a [^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/g,
@@ -278,38 +278,63 @@ test("the account menu carries every footer link the header lacks, by keyboard",
     const trigger = page.getByRole("button", { name: "HT", exact: true });
     await trigger.focus();
     await page.keyboard.press("Enter");
-    const menu = page.getByRole("menu");
+    const menu = page.getByRole("menu").first();
     await menu.waitFor();
-    const items = await menu.getByRole("menuitem").evaluateAll((elements) =>
-      elements.map((element) => ({
-        href: element.getAttribute("href"),
-        name: (element.textContent ?? "").trim(),
-      })),
-    );
-    for (const link of footerOnly) expect(items).toContainEqual(link);
-    expect(items).toContainEqual({
-      href: statusPageUrl,
-      name: "System status",
-    });
+    // The top level holds the account actions only, with Sign out last.
+    const topLevel = await menu
+      .getByRole("menuitem")
+      .evaluateAll((elements) =>
+        elements.map((element) => (element.textContent ?? "").trim()),
+      );
+    expect(topLevel.at(-1)).toBe("Sign out");
+    expect(topLevel).toContain("More");
+    for (const link of footerOnly) expect(topLevel).not.toContain(link.name);
 
     // Radix moves focus into the menu after it opens; End needs it there.
     await page.waitForFunction(() =>
       document.activeElement?.closest('[role="menu"]'),
     );
     await page.keyboard.press("End");
-    const status = menu.getByRole("menuitem", {
-      name: "System status",
+    await page.waitForFunction(
+      () => document.activeElement?.textContent?.trim() === "Sign out",
+    );
+    await page.keyboard.press("ArrowUp");
+    await page.waitForFunction(
+      () => document.activeElement?.textContent?.trim() === "More",
+    );
+    await page.keyboard.press("ArrowRight");
+    const siteLinks = page.getByRole("group", {
+      name: "Site links",
       exact: true,
     });
+    await siteLinks.waitFor();
+    expect(await siteLinks.count()).toBe(1);
+    const items = await siteLinks
+      .getByRole("menuitem")
+      .evaluateAll((elements) =>
+        elements.map((element) => ({
+          href: element.getAttribute("href"),
+          name: (element.textContent ?? "").trim(),
+        })),
+      );
+    for (const link of footerOnly) expect(items).toContainEqual(link);
+    expect(items).toContainEqual({
+      href: statusPageUrl,
+      name: "System status",
+    });
+
+    await page.waitForFunction(() =>
+      document.activeElement?.closest('[aria-label="Site links"]'),
+    );
+    await page.keyboard.press("End");
     await page.waitForFunction(
       () => document.activeElement?.textContent?.trim() === "System status",
     );
-    expect(await status.getAttribute("target")).toBe("_blank");
     expect(
-      await menu
-        .getByRole("group", { name: "Site links", exact: true })
-        .count(),
-    ).toBe(1);
+      await siteLinks
+        .getByRole("menuitem", { name: "System status", exact: true })
+        .getAttribute("target"),
+    ).toBe("_blank");
   } finally {
     await closePage(page);
   }
@@ -320,6 +345,7 @@ for (const width of [390, 1440]) {
     const page = await openHeader("/junkyards/texas?signed-in=1", width);
     try {
       await page.getByRole("button", { name: "HT", exact: true }).click();
+      await page.getByRole("menuitem", { name: "More", exact: true }).click();
       const links = page
         .getByRole("group", { name: "Site links", exact: true })
         .getByRole("menuitem");
