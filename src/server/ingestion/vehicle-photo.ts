@@ -1,24 +1,32 @@
-/** Validate provider-published photos without making enrichment requests. */
-export function vehiclePhoto(
-  raw: unknown,
-  host: string,
-  path: RegExp,
-): string | null {
+function photoUrl(raw: unknown): URL | null {
   if (typeof raw !== "string") return null;
   const url = URL.parse(raw);
   return url &&
     url.protocol === "https:" &&
-    url.host === host &&
     !url.username &&
     !url.password &&
     !url.search &&
     !url.hash &&
     !/(?:placeholder|no[-_ ]?(?:image|photo)|coming[-_ ]?soon|logo)/i.test(
       url.pathname,
-    ) &&
-    path.test(url.pathname)
-    ? url.href
+    )
+    ? url
     : null;
+}
+
+/** Validate provider-published photos without making enrichment requests. */
+export function vehiclePhoto(
+  raw: unknown,
+  host: string,
+  path: RegExp,
+): string | null {
+  const url = photoUrl(raw);
+  return url && url.host === host && path.test(url.pathname) ? url.href : null;
+}
+
+/** For providers that relay photos from many hosts: any absolute https photo. */
+export function httpsVehiclePhoto(raw: unknown): string | null {
+  return photoUrl(raw)?.href ?? null;
 }
 
 export function hollanderVehiclePhoto(raw: unknown): string | null {

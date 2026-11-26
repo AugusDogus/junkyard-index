@@ -166,6 +166,17 @@ test("replays complete Ario customer inventories with no network, including supp
       errors: [],
     }).errors,
   ).toEqual([]);
+  // Alert emails use the stored URL as-is, so every photo is absolute https.
+  // Captured lists can open with bare filenames or the literal "null".
+  const photos = allVehicles.flatMap((v) => (v.imageUrl ? [v.imageUrl] : []));
+  expect(photos.length).toBeGreaterThan(0);
+  for (const photo of photos) expect(URL.parse(photo)?.protocol).toBe("https:");
+  expect(photos).not.toContain(
+    "https://ezpullnpay.com/inventory-photos-Atlanta/coming-soon-150x113.png",
+  );
+  expect(photos).toContain(
+    "https://9868ca324016b659551139193b5094e3.cdn.bubble.io/f1740076241249x266681885758848900/IMG_7338.jpeg",
+  );
 }, 15_000);
 
 test("rejects missing customers, changed ownership and changed catalogs before emitting a yard", async () => {
