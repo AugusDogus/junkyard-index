@@ -1,7 +1,5 @@
 import { ArrivalWindow } from "~/lib/arrival-window";
-import { SearchArea } from "~/lib/search-area";
 import { SearchYardSelection } from "~/lib/search-yard-selection";
-import { SearchRadius } from "~/lib/search-radius";
 import { YardService, type YardType } from "~/lib/yard-service";
 import {
   ALGOLIA_DISTANCE_SORT_ALIAS,
@@ -254,35 +252,19 @@ interface AdvancedUiFilters {
   range?: { year: string };
 }
 
-function parseAdvancedUrlFilters(
-  params: URLSearchParams,
-  knownYardNames: readonly string[],
-): AdvancedRouteFilters {
+function advancedRouteFromUrl(url: SearchUrl): AdvancedRouteFilters {
   const filters: AdvancedRouteFilters = {};
-  filters.arrivalWindow = ArrivalWindow.fromUrl(params);
+  filters.arrivalWindow = url.arrivalWindow;
   for (const key of ["makes", "colors", "states", "yards"] as const) {
-    const values = SearchFilterUrl.read(
-      params,
-      key,
-      key === "yards" ? knownYardNames : [],
-    );
-    if (values.length) Object.assign(filters, { [key]: values });
+    const values = url.facets?.[key];
+    if (values) filters[key] = [...values];
   }
-  const sources = sanitizeSearchSources(
-    SearchFilterUrl.read(params, "sources"),
-  );
+  const sources = sanitizeSearchSources(url.facets?.sources);
   if (sources.length > 0) filters.sources = sources;
-  const selection = SearchYardSelection.fromUrl(params);
-  if (selection.kind !== "default") {
-    const types = SearchYardSelection.effectiveTypes(selection);
-    filters.yardTypes = types.length ? types : ["all"];
-  }
-  for (const key of ["minYear", "maxYear"] as const) {
-    const value = params.get(key);
-    if (!value) continue;
-    const parsed = Number.parseInt(value, 10);
-    if (!Number.isNaN(parsed)) Object.assign(filters, { [key]: parsed });
-  }
+  if (url.yardTypes)
+    filters.yardTypes = url.yardTypes.length ? [...url.yardTypes] : ["all"];
+  if (url.minYear !== undefined) filters.minYear = url.minYear;
+  if (url.maxYear !== undefined) filters.maxYear = url.maxYear;
   return filters;
 }
 
@@ -407,12 +389,13 @@ export function createSearchRouting(
       }): string {
         const baseUrl = location.href.split("?")[0] ?? location.href;
         const locationParams = new URLSearchParams(location.search);
-        const ownedParams = SearchOwnedUrlParams.current(location);
-        const arrivalWindow = ArrivalWindow.fromUrl(ownedParams);
-        const expression = locationParams.get("syntax") === "expression";
+        const current = SearchUrl.parse(locationParams);
+        const owned = SearchUrl.parse(SearchOwnedUrlParams.current(location));
+        const arrivalWindow = owned.arrivalWindow;
+        const expression = current.expression === true;
         const vinPattern =
           vinPatternIndexReady && !expression
-            ? getSearchableVinPattern(locationParams.get("q"))
+            ? getSearchableVinPattern(current.query ?? null)
             : null;
 
         const state = routeState[indexName] ?? {};
@@ -431,13 +414,12 @@ export function createSearchRouting(
             lockedFallback.delete(key);
             lockedFallback.delete(`${key}[]`);
           }
-        const radius = SearchRadius.parse(ownedParams.get("radius"));
         return SearchUrl.format(
           baseUrl,
           {
             arrivalWindow,
-            area: SearchArea.fromUrl(ownedParams),
-            radius: radius ?? undefined,
+            area: owned.area,
+            radius: owned.radius,
             query:
               vinPattern?.normalized ??
               (state.query ? String(state.query) : undefined),
@@ -459,20 +441,21 @@ export function createSearchRouting(
         );
       },
       parseURL({ location }: { location: SearchLocation }) {
-        const params = new URLSearchParams(location.search);
+        const url = SearchUrl.parse(
+          new URLSearchParams(location.search),
+          knownYardNames,
+        );
         const state: Record<string, unknown> = {};
 
-        const query = params.get("q");
         const vinPattern =
-          vinPatternIndexReady && params.get("syntax") !== "expression"
-            ? getSearchableVinPattern(query)
+          vinPatternIndexReady && !url.expression
+            ? getSearchableVinPattern(url.query ?? null)
             : null;
-        if (query && !vinPattern) state.query = query;
+        if (url.query && !vinPattern) state.query = url.query;
 
-        Object.assign(state, parseAdvancedUrlFilters(params, knownYardNames));
+        Object.assign(state, advancedRouteFromUrl(url));
 
-        const sort = params.get("sort");
-        if (sort) state.sort = sort;
+        if (url.sort) state.sort = url.sort;
 
         return { [indexName]: state };
       },
