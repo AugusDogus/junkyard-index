@@ -50,8 +50,9 @@ const readYardVehicles = cache(loadYardVehicles);
  */
 const getYardSummary = cacheYardInventory(
   async (source: string, code: string): Promise<YardSummary> => {
-    // The refresh stores each yard's summary after its publication: reading
-    // it back costs 2 rows. Only a yard published since then is read whole.
+    // Deploys and each refresh store every yard's summary: reading it back
+    // costs one row. Only a yard with none stored (first published since the
+    // last refresh) is read whole.
     const stored = await YardSummaryStore.read(db, source, code);
     if (stored) return stored;
     const read = await readYardVehicles(source, code);

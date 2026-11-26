@@ -12,17 +12,16 @@ import { getMakePageData, getMakeSlugs } from "~/server/vehicle-models";
 import { getHiddenSources } from "~/server/source-control/hidden-sources-loader";
 import { getYardMakeVehicles, getYardPageData } from "~/server/yard-inventory";
 
-// One model at one yard, narrowed from the yard's cached slices. Rendered on
-// first request and rebuilt with the yard's pages after each daily pass;
-// this is the fallback lifetime.
-export const revalidate = 86400;
-export const dynamicParams = true;
+// One model at one yard, narrowed from the yard's cached make list. Rendered
+// on each request and never stored as an ISR page: about 100,000 of these
+// URLs exist, crawlers asked for about 54,000 a day on Nov 25 2026 (almost
+// every one a first visit), and 1-3% of stored pages were ever read again,
+// so storing them was about 82% of the ISR writes (about $1.37 a day). The
+// data they read stays cached (the yard's summary and the make's list), so a
+// render reads Turso only on a miss, and then just that make's rows.
+export const dynamic = "force-dynamic";
 
 type Params = { state: string; yard: string; make: string; model: string };
-
-export function generateStaticParams(): Params[] {
-  return [];
-}
 
 // getYardPageData and findMake are cached per request by their arguments.
 async function load(params: Promise<Params>) {

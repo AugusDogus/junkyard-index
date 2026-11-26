@@ -1,8 +1,9 @@
 /**
  * Stores the inventory snapshot that inventory pages read, when this database
- * lacks it, and then rebuilds the recent arrivals state pages count. Deploys
- * run this after migrating, so pages never have to compute either
- * themselves; the ingestion pass keeps both current after that.
+ * lacks it, and then rebuilds the recent arrivals state pages count. Also
+ * stores a page summary for every yard that has none. Deploys run this after
+ * migrating, so pages never have to compute any of them themselves; the
+ * ingestion pass keeps them current after that.
  *
  * Usage: bun run inventory:project [--force]
  * --force recomputes both even when the snapshot is present. Reads every
@@ -13,6 +14,7 @@ import { createClient } from "@libsql/client/web";
 import { drizzle } from "drizzle-orm/libsql/web";
 import { stateRecentArrivalRebuildStatements } from "../src/server/ingestion/state-recent-arrival";
 import { InventorySnapshot } from "../src/server/inventory-snapshot";
+import { YardSummaryStore } from "../src/server/yard-summary-store";
 
 function requiredEnvironment(
   name: "TURSO_DATABASE_URL" | "TURSO_AUTH_TOKEN",
@@ -33,6 +35,11 @@ export async function projectInventory(force: boolean): Promise<void> {
   });
   try {
     const database = drizzle(client);
+    const filledAt = Date.now();
+    const { stored } = await YardSummaryStore.fill(database, new Date());
+    console.info(
+      `[yard-summary] Stored ${stored} missing yard summaries in ${((Date.now() - filledAt) / 1000).toFixed(1)}s.`,
+    );
     const startedAt = Date.now();
     const result = force
       ? await InventorySnapshot.project(database, new Date()).then(
