@@ -1,6 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "bun run vercel:build",
+  "ignoreCommand": "bash scripts/vercel-ignore-build.sh",
   "crons": [
     {
       "path": "/api/cron/search-index-migration",
