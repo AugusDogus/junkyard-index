@@ -52,10 +52,11 @@ in-process store, so no request is coordinated across processes.
   active-run query reads two more columns). Workflow events: one `fetched`
   report step per run (about 100 a day) and a re-plan at least every 30
   minutes while the pass waits, well inside the 25,000-event run limit.
-- **Finish times:** each lane still does the same work, so the last source in
-  a lane finishes when it does today, but the others finish much earlier
-  instead of all finishing together. Simulated with the real admission code
-  (table below).
+- **Finish times:** each lane still does the same requests, so most sources
+  in a lane finish earlier instead of all finishing together near the lane's
+  end. The lane's last source finishes about as today, later where a source's
+  own client gate is longer than the host gap, since nothing fills it. A
+  source spanning several lanes waits for all of them. Measured below.
 - **Failure modes:**
   - A dead run holds its claims until it reports. A run whose workflow died
     is resumed by the pass's watchdog re-plan or failure re-plan, as today,
@@ -129,35 +130,59 @@ together.
 
 Queue order: runs that claim fewer lanes go first, then plan order. URG IIS
 crawls nine tenant lanes, one of which (`66.42.115.19`) it shares with Pratt;
-whole-run claims make it wait for Pratt (about 1.7 h) rather than make Pratt
-wait about 4.4 h for it.
+whole-run claims make it wait for Pratt (about 50 minutes) rather than make
+Pratt wait about 4 hours for it.
 
-## Simulated finish times
+## Measured with the Redis simulator
 
-Fetch finish (`ready_at`) on Nov 25 in production, and simulated with (a).
-`admission-sim.ts` runs the real `HostClaims.admit` over the same pages, request
-times and gaps as the Redis simulator, plus 4 s per chunk.
+The Redis simulator (`redis-usage/sim`, adapted as `crawl-pacing/redis-sim.ts`)
+replays the Nov 19 to 25 pages per source against a local Redis with the real
+lanes, gaps, caps, chunk horizons and deferrals. `ADMIT` schedules the chosen
+groups with the real `HostClaims.admit` and keeps their leases in the real
+`processProviderHostStore`.
 
-| Group                         | Nov 25 (Redis) | (a), main      | (a), with #340        |
-| ----------------------------- | -------------- | -------------- | --------------------- |
-| URG AWS lane(s), last         | 09:03 (calton) | 09:09 (scotts) | 10:10 (scotts, aws-1) |
-| URG, other single lanes, last | 08:57 (pratt)  | 08:42 (pratt)  | 08:35 (pratt)         |
-| URG, median source            | 07:57          | 07:47          | about 08:05           |
-| URG IIS                       | 13:21          | 13:08          | 13:01                 |
-| VinPlus lane, first / last    | 08:12 / 10:15  | 07:13 / 09:28  | 07:13 / 09:28         |
-| HTP, last                     | 07:25          | 07:20          | 07:20                 |
-| Kernel only, last             | 07:14          | 07:15          | 07:15                 |
+| Pacing                             | Billed commands a day | With #340 |
+| ---------------------------------- | --------------------: | --------: |
+| Before #342                        |             1,106,674 |           |
+| Main with #342                     |               478,105 |   590,629 |
+| URG admitted (first slice)         |               121,060 |           |
+| Every group admitted (this change) |                     0 |         0 |
 
-Browser sources use their observed Nov 25 fetch times. A browser run now
-holds its place for its whole fetch instead of per chunk; with 5 Kernel
-places and 7 sources of at most 14 minutes this costs nothing visible. With
-#340 the AWS lanes end at #340's own estimate (about 10:00), since the lanes
-do the same work. The simulation has no contention overhead, so its times are
-optimistic for both designs. The comparison that holds is within a lane: the
-lane's last source finishes as before and the others move earlier.
+The yard-request rate limiter and the Hollander VIN cache add about 1.3K a
+day. The #340 column uses a 1 s URG poll, not #340's 2 s, so it overstates
+#340 somewhat.
+
+Fetch finish (`ready_at`), same simulator, Redis gates against admission:
+
+|                            | Main, Redis   | Main, (a)     | #340, Redis   | #340, (a)     |
+| -------------------------- | ------------- | ------------- | ------------- | ------------- |
+| URG median of 16 sources   | 07:54         | 07:44         | 08:12         | 08:02         |
+| Pratt                      | 08:19         | 07:52         | 08:16         | 07:52         |
+| URG AWS lane(s), last      | 09:35         | 09:00         | 09:41         | 10:02         |
+| VinPlus, first / last      | 08:21 / 09:28 | 07:33 / 09:11 | 08:21 / 09:27 | 07:33 / 09:11 |
+| HTP, last                  | 07:25         | 07:19         | 07:24         | 07:19         |
+| Last source except URG IIS | 09:35         | 09:11         | 09:41         | 10:02         |
+| URG IIS                    | 11:03         | 11:28         | 11:00         | 11:49         |
+
+Production on Nov 25 (Redis, before #340) was slower than either model: URG
+median 07:57, AWS lane last 09:03, VinPlus last 10:15, URG IIS 13:21.
+
+Two regressions:
+
+- With #340's client gates (1.6 to 5 s after each lease, longer than the
+  3.5 s host gap for Scotts and Jim's Import), interleaved sources filled one
+  source's gate with another's request. In sequence, the gate is idle lane
+  time, so the `aws` lane ends 21 minutes later (Scotts, 10:02).
+- URG IIS waits for Pratt on the shared `66.42.115.19` lane (until about
+  07:52), then crawls about 3.6 hours alone, so it ends 25 to 49 minutes later.
+
+Every other group finishes earlier, most by 10 to 50 minutes.
 
 ## Follow-up not done here
 
-URG IIS could claim only its current tenant's lane (it crawls tenants in
-order), which would start it at 07:00 and finish it about 11:25. That needs
-claims per cursor and a mid-run claim request to the pass.
+- URG IIS could claim only its current tenant's lane (it crawls tenants in
+  order), so it starts at 07:00 and meets Pratt only on the Lambert tenant.
+  That needs claims per cursor and a mid-run claim request to the pass.
+- The `aws` lane could recover its gate time by letting the next source in
+  the lane start while the current one waits its client gate, or by moving
+  Scotts (5 s gate) to `aws-2`.
