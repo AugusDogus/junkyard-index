@@ -23,6 +23,9 @@ export type UrgiisError = {
 } & (
   | { kind: "failure" }
   | { kind: "identity" }
+  /** A cache-busted reread was served from the cache too. Not retried: the
+   * same bypass would be cached again, spending shared host turns. */
+  | { kind: "cached" }
   | { kind: "blocked"; status: 403 | 429; retryAfterMs: number }
 );
 export const urgiisError = (
@@ -202,12 +205,14 @@ export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
                 () => undefined,
               ),
             );
-            return yield* Effect.fail(
-              urgiisError(
+            const error: UrgiisError = {
+              ...urgiisError(
                 "cache-busted reread " + target,
                 `Cloudflare served the page truncated from its cache, and the reread with a unique cache-busting query string was served from its cache too (cf-cache-status ${copy}), so the complete page could not be read. Re-verify that a query string with the urg_hv cookie still misses the tenant's cache rule`,
               ),
-            );
+              kind: "cached",
+            };
+            return yield* Effect.fail(error);
           }
           const text = yield* Effect.tryPromise({
             try: (bodySignal) =>
@@ -272,7 +277,9 @@ export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
           Schedule.intersect(Schedule.recurs(2)),
         ),
         while: (error) =>
-          !(error instanceof ProviderTurnDeferred) && error.kind !== "blocked",
+          !(error instanceof ProviderTurnDeferred) &&
+          error.kind !== "blocked" &&
+          error.kind !== "cached",
       }),
       Effect.catchAll((error) =>
         Effect.fail(

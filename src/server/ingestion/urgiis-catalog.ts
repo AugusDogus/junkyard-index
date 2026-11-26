@@ -84,9 +84,15 @@ export function iisDeclaresSupplier(raw: string, site: UrgiisSite) {
   return ids.length > 0 || knownSupplierBundle;
 }
 /** False unless `raw` is one HTML document that ends with its closing
- * body and html tags, as a render the origin finished does. */
+ * body and html tags, as a render the origin finished does. A document cut
+ * off inside a comment, script or style is incomplete too. */
 export function iisDocumentComplete(raw: string) {
-  const html = stripInventoryRawText(raw);
+  let html: string;
+  try {
+    html = stripInventoryRawText(raw);
+  } catch {
+    return false;
+  }
   return (
     [/<html\b/gi, /<body\b/gi, /<\/body\s*>/gi, /<\/html\s*>/gi].every(
       (p) => [...html.matchAll(p)].length === 1,
