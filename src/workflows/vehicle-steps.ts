@@ -21,7 +21,7 @@ import {
   attachDurableIngestionWorkflow,
   detachDurableIngestionWorkflow,
   claimDurableIngestionCommit,
-  listDurableIngestionCommitWaiters,
+  listNextDurableIngestionCommitWaiters,
   prepareIngestionPass,
   initializeDurableIngestion,
   markDurableSourceFailed,
@@ -125,15 +125,15 @@ export async function detachDurableIngestionWorkflowStep(
 }
 detachDurableIngestionWorkflowStep.maxRetries = 2;
 
-/** Wakes runs waiting for the shared commit after it is released. */
+/** Wakes the runs next in line for the shared commit after it is released. */
 export async function signalCommitWaitersStep() {
   "use step";
 
   let waiters: string[];
   try {
-    waiters = await listDurableIngestionCommitWaiters();
+    waiters = await listNextDurableIngestionCommitWaiters();
   } catch (error) {
-    throwRetryableStepError("List ingestion commit waiters", error);
+    throwRetryableStepError("List next ingestion commit waiters", error);
   }
   await Promise.all(
     waiters.map((runId) =>

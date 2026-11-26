@@ -113,8 +113,8 @@ export async function prepareIngestionPass(
   return ingestionPassPlan(await prepareDurableIngestionWakeup(now));
 }
 
-export function listDurableIngestionCommitWaiters(): Promise<string[]> {
-  return repository.listCommitWaiters();
+export function listNextDurableIngestionCommitWaiters(): Promise<string[]> {
+  return repository.listNextCommitWaiters();
 }
 
 export function getDurableIngestionCommitLeaseStatus(): Promise<CommitLeaseStatus> {
