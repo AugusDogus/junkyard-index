@@ -7,8 +7,15 @@ import {
   SearchParamsContext,
 } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
 import { ServerInsertedHTMLContext } from "next/navigation";
-import { NuqsTestingAdapter } from "nuqs/adapters/testing";
-import { Suspense, useEffect, useState, type ReactNode } from "react";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
+import {
+  startTransition,
+  Suspense,
+  useEffect,
+  useLayoutEffect,
+  useState,
+  type ReactNode,
+} from "react";
 import { hydrateRoot } from "react-dom/client";
 import { renderToReadableStream, renderToStaticMarkup } from "react-dom/server";
 import superjson from "superjson";
@@ -161,28 +168,49 @@ function HydrationMarker() {
   return null;
 }
 
+/** Next marks the history entries it owns with `__NA` (app-router.js). */
+const nextHistoryState = { __NA: true };
+function isNextHistoryState(state: unknown) {
+  return typeof state === "object" && state !== null && "__NA" in state;
+}
+
 function Fixture() {
   const [routeParams, setRouteParams] = useState(params);
+  // Like Next's HistoryUpdater: every committed router state writes its URL
+  // back, over any write the router did not see.
+  useLayoutEffect(() => {
+    window.history.replaceState(
+      nextHistoryState,
+      "",
+      `/search?${routeParams.toString()}`,
+    );
+  }, [routeParams]);
   useEffect(() => {
-    const navigate = () =>
-      setRouteParams(new URLSearchParams(window.location.search));
-    window.addEventListener("popstate", navigate);
-    // Next's app router mirrors history writes into useSearchParams, so nuqs
-    // sees the params InstantSearch's router wrote. Sync after the write
-    // returns, since the router can write while React renders.
+    const navigate = (url: string) =>
+      setRouteParams(new URL(url, window.location.href).searchParams);
+    const traverse = () => navigate(window.location.href);
+    window.addEventListener("popstate", traverse);
+    // Like Next's app router: a write carrying Next's own state (as the
+    // InstantSearch router's writes do) is not seen; any other write (as
+    // nuqs makes) becomes the router's URL once its transition commits.
     const { pushState, replaceState } = window.history;
-    window.history.pushState = (...args: Parameters<History["pushState"]>) => {
-      pushState.apply(window.history, args);
-      queueMicrotask(navigate);
-    };
-    window.history.replaceState = (
-      ...args: Parameters<History["replaceState"]>
-    ) => {
-      replaceState.apply(window.history, args);
-      queueMicrotask(navigate);
-    };
+    for (const [method, original] of [
+      ["pushState", pushState],
+      ["replaceState", replaceState],
+    ] as const)
+      window.history[method] = (
+        data: unknown,
+        unused: string,
+        url?: string | URL | null,
+      ) => {
+        if (isNextHistoryState(data))
+          return original.call(window.history, data, unused, url);
+        original.call(window.history, nextHistoryState, unused, url);
+        const href = url ? String(url) : window.location.href;
+        startTransition(() => navigate(href));
+      };
     return () => {
-      window.removeEventListener("popstate", navigate);
+      window.removeEventListener("popstate", traverse);
       window.history.pushState = pushState;
       window.history.replaceState = replaceState;
     };
@@ -191,15 +219,7 @@ function Fixture() {
     <AppRouterContext.Provider value={router}>
       <PathnameContext.Provider value="/search">
         <SearchParamsContext.Provider value={routeParams}>
-          <NuqsTestingAdapter
-            searchParams={routeParams}
-            onUrlUpdate={({ searchParams, options }) => {
-              window.history[
-                options.history === "push" ? "pushState" : "replaceState"
-              ](window.history.state, "", `/search?${searchParams.toString()}`);
-              setRouteParams(searchParams);
-            }}
-          >
+          <NuqsAdapter>
             <QueryClientProvider client={queryClient}>
               <api.Provider client={trpcClient} queryClient={queryClient}>
                 <button
@@ -255,7 +275,7 @@ function Fixture() {
                 </SearchPageBody>
               </api.Provider>
             </QueryClientProvider>
-          </NuqsTestingAdapter>
+          </NuqsAdapter>
         </SearchParamsContext.Provider>
       </PathnameContext.Provider>
     </AppRouterContext.Provider>

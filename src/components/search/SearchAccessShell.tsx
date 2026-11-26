@@ -46,6 +46,12 @@ interface SearchAccessShellProps {
     vinPatternIndexReady: boolean;
     booleanOrSearchReady: boolean;
     newestSortReady: boolean;
+    /**
+     * Writes a URL built for the current search now, as the router would
+     * after InstantSearch's deferred write. The router then skips that write
+     * and does not replay the URL as a navigation.
+     */
+    writeRoute(url: string): void;
   }): ReactNode;
 }
 
@@ -242,6 +248,7 @@ function BrowserSearchShell({
             vinPatternIndexReady,
             booleanOrSearchReady,
             newestSortReady,
+            writeRoute: routing.router.push,
           })}
         </ErrorBoundary>
       </InstantSearchNext>

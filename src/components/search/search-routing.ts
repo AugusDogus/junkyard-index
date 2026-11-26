@@ -119,16 +119,24 @@ const heldOwnedUrlParams = new WeakMap<Window, URLSearchParams>();
 
 /**
  * The router copies nuqs-owned params from the current URL, but nuqs writes
- * them after InstantSearch builds its next route. Hold their next values until
- * `written` settles so a route written meanwhile does not restore old ones.
+ * them after InstantSearch builds its next route. Hold their next values while
+ * `write` runs and until its nuqs write settles, so a route built meanwhile
+ * does not restore old ones.
  */
 export const SearchOwnedUrlParams = {
-  hold(next: URLSearchParams, written: Promise<unknown>) {
+  hold(next: URLSearchParams, write: () => Promise<unknown>) {
     heldOwnedUrlParams.set(window, next);
     const release = () => {
       if (heldOwnedUrlParams.get(window) === next)
         heldOwnedUrlParams.delete(window);
     };
+    let written: Promise<unknown>;
+    try {
+      written = write();
+    } catch (error) {
+      release();
+      throw error;
+    }
     void written.then(release, release);
   },
   current(location: SearchLocation): URLSearchParams {
