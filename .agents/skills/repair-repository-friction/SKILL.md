@@ -87,5 +87,5 @@ Only that retest closes the repository-friction branch of the parent task.
 ## Repository specifics
 
 - Worktrees have no `.env`. `bun run lint`, `bun run typecheck`, and `bun test src` must pass without one.
-- `main` has no branch protection, so GitHub lists no required checks. Treat the `Lint, typecheck, test` workflow job and the Vercel preview deployment as required.
+- A ruleset on `main` requires the `Lint, typecheck, test` workflow job. Also treat the Vercel preview deployment as required. A push that changes only docs, tests, CI or agent config skips its Vercel build (`scripts/vercel-ignore-build.sh`); that skip counts as passing.
 - CodeRabbit does not review this repository automatically and has a review quota. Comment `@coderabbitai review` once the head is final, then wait for the new review before reading thread state. A "Review rate limited" or "Review limit reached" reply means no review ran: wait the stated interval once and retry; if it is still limited, report that as the blocker instead of waiting further.

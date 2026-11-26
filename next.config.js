@@ -10,6 +10,9 @@ import { withWorkflow } from "workflow/next";
 const config = {
   // The browser names Algolia indices by deployment (src/lib/constants.ts).
   env: { NEXT_PUBLIC_VERCEL_ENV: process.env.VERCEL_ENV ?? "" },
+  // The required CI check runs the same type check (`bun run typecheck`
+  // generates the route types first), so builds skip a second minute of tsc.
+  typescript: { ignoreBuildErrors: true },
   async redirects() {
     // Old directory URL that still gets visits.
     return [{ source: "/yards", destination: "/junkyards", permanent: true }];
@@ -45,6 +48,11 @@ const configWithSentry = withSentryConfig(config, {
 
   // Upload a larger set of source maps for prettier stack traces (increases build time)
   widenClientFileUpload: true,
+
+  // Server Sentry is off in previews (sentry.server.config.ts), so preview
+  // maps serve only the rare browser error, which then arrives minified.
+  // Skipping the upload saves about 25 s of every preview build.
+  sourcemaps: { disable: process.env.VERCEL_ENV === "preview" },
 
   // Route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers.
   // This can increase your server load as well as your hosting bill.
