@@ -17,8 +17,8 @@ export function AlertsCallout({
   sourcePage: "yard" | "model";
 }) {
   return (
-    <aside className="border-ink bg-paper-3 grid gap-x-8 gap-y-6 border-2 p-6 sm:p-8 lg:grid-cols-12 lg:p-10">
-      <h2 className="text-section leading-[1.02] font-extrabold lg:col-span-5">
+    <aside className="border-rule-strong bg-paper-3 grid gap-x-8 gap-y-6 border p-6 sm:p-8 lg:grid-cols-12 lg:p-10">
+      <h2 className="text-section leading-[1.02] font-medium lg:col-span-5">
         Waiting on a specific car?
       </h2>
       <div className="lg:col-span-7">
@@ -39,7 +39,7 @@ export function AlertsCallout({
             asChild
             variant="outline"
             size="xl"
-            className="active:bg-ink active:text-paper"
+            className="active:bg-paper-2"
           >
             <Link href="/search">Search every yard</Link>
           </Button>

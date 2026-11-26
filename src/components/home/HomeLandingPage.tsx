@@ -86,7 +86,7 @@ export async function HomeLandingPage() {
           <div className="pb-5">
             <h1
               id="home-title"
-              className="text-[clamp(1.75rem,1.6vw+1rem,2.5rem)] leading-[1.04] font-extrabold"
+              className="text-[clamp(1.75rem,1.6vw+1rem,2.5rem)] leading-[1.04] font-medium"
             >
               Search {inventory.yards.length.toLocaleString("en-US")} salvage
               yards at once
@@ -106,8 +106,8 @@ export async function HomeLandingPage() {
               aria-hidden="true"
               className={
                 inventory.recentVehicles.length
-                  ? "bg-board border-ink h-[31rem] border-y-2"
-                  : "bg-board border-ink h-56 border-y-2"
+                  ? "bg-board border-rule-strong h-[31rem] border-y"
+                  : "bg-board border-rule-strong h-56 border-y"
               }
             />
           }

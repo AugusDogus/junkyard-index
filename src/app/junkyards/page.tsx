@@ -71,19 +71,19 @@ export default async function JunkyardsPage() {
       />
       <Breadcrumbs crumbs={crumbs} />
       <header>
-        <h1 className="text-display-s leading-[1.02] font-extrabold">
+        <h1 className="text-display-s leading-[1.02] font-medium">
           Junkyards with live inventory
         </h1>
         <p className="text-lead text-ink-2 mt-5 max-w-[56ch] leading-[1.45]">
-          <span className="text-ink font-extrabold tabular-nums">
+          <span className="text-ink font-medium tabular-nums">
             {InventoryFormat.count(yards.length)}
           </span>{" "}
           salvage yards in{" "}
-          <span className="text-ink font-extrabold tabular-nums">
+          <span className="text-ink font-medium tabular-nums">
             {InventoryFormat.count(groups.length)}
           </span>{" "}
           states and provinces, listing{" "}
-          <span className="text-ink font-extrabold tabular-nums">
+          <span className="text-ink font-medium tabular-nums">
             {InventoryFormat.count(vehicles)}
           </span>{" "}
           vehicles.
@@ -98,7 +98,7 @@ export default async function JunkyardsPage() {
         <div className="grid gap-y-3 lg:grid-cols-12 lg:items-baseline lg:gap-x-8">
           <h2
             id="states-title"
-            className="text-section leading-[1.02] font-extrabold lg:col-span-5"
+            className="text-section leading-[1.02] font-medium lg:col-span-5"
           >
             By state
           </h2>
@@ -108,7 +108,7 @@ export default async function JunkyardsPage() {
         </div>
         <div
           aria-hidden="true"
-          className="border-ink text-ink-3 mt-(--space-xl) grid grid-cols-1 gap-x-10 border-b-2 pb-2 text-sm font-medium sm:grid-cols-2 lg:grid-cols-3"
+          className="border-rule-strong text-ink-3 mt-(--space-xl) grid grid-cols-1 gap-x-10 border-b pb-2 text-sm font-medium sm:grid-cols-2 lg:grid-cols-3"
         >
           {/* One head per column the list runs down. */}
           {[0, 1, 2].map((column) => (
@@ -141,7 +141,7 @@ export default async function JunkyardsPage() {
                   "group board-step hover:bg-paper-2 active:bg-paper-2 focus-visible:outline-focus grid items-baseline px-2 py-3 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid",
                 )}
               >
-                <span className="board-step group-hover:text-signal text-[0.9375rem] leading-snug font-extrabold">
+                <span className="board-step group-hover:text-signal text-[0.9375rem] leading-snug font-medium">
                   {region.name}
                 </span>
                 <span className="text-ink-2 text-right text-sm tabular-nums">
@@ -150,7 +150,7 @@ export default async function JunkyardsPage() {
                     {regionYards.length === 1 ? " yard" : " yards"},
                   </span>
                 </span>
-                <span className="text-right font-extrabold tabular-nums">
+                <span className="text-right font-medium tabular-nums">
                   {InventoryFormat.count(count)}
                   <span className="sr-only"> vehicles</span>
                 </span>
@@ -163,24 +163,24 @@ export default async function JunkyardsPage() {
       {/* Chains on the board: the one ink band on the page. */}
       <section
         aria-labelledby="chains-title"
-        className="bg-board text-board-ink border-ink mt-(--section-gap-s) border-2 px-4 py-8 sm:p-8 lg:p-10"
+        className="bg-board text-board-ink border-rule-strong mt-(--section-gap-s) border px-4 py-8 sm:p-8 lg:p-10"
       >
         <div className="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-3">
           <h2
             id="chains-title"
-            className="text-section leading-[1.02] font-extrabold"
+            className="text-section leading-[1.02] font-medium"
           >
             By chain
           </h2>
           <Link
             href="/chains"
-            className="text-board-ink hover:text-figure focus-visible:outline-figure text-[1.0625rem] font-extrabold underline decoration-1 underline-offset-[0.3em] hover:decoration-2 focus-visible:outline-2 focus-visible:outline-solid"
+            className="text-board-ink hover:text-figure focus-visible:outline-figure text-[1.0625rem] font-medium underline decoration-1 underline-offset-[0.3em] hover:decoration-2 focus-visible:outline-2 focus-visible:outline-solid"
           >
             All chains
           </Link>
         </div>
         {/* Read down each column, like the states above. */}
-        <ul className="border-board-ink mt-(--space-xl) gap-x-10 border-t-2 sm:columns-2 lg:columns-3">
+        <ul className="border-board-rule mt-(--space-xl) gap-x-10 border-t sm:columns-2 lg:columns-3">
           {chains.map((chain) => (
             <li
               key={chain.slug}
@@ -191,11 +191,11 @@ export default async function JunkyardsPage() {
                 prefetch={false}
                 className="board-step hover:bg-board-2 active:bg-board-2 focus-visible:outline-figure flex items-baseline justify-between gap-6 px-2 py-4 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid"
               >
-                <span className="min-w-0 text-[1.0625rem] leading-snug font-extrabold">
+                <span className="min-w-0 text-[1.0625rem] leading-snug font-medium">
                   <KeepHyphenated text={chain.name} />
                 </span>
                 <span className="text-board-muted shrink-0 text-sm whitespace-nowrap">
-                  <span className="text-figure text-title font-extrabold tabular-nums">
+                  <span className="text-figure text-title font-medium tabular-nums">
                     {InventoryFormat.count(chain.yards.length)}
                   </span>{" "}
                   {chain.yards.length === 1 ? "yard" : "yards"}
@@ -210,7 +210,7 @@ export default async function JunkyardsPage() {
         <div className="grid gap-y-3 lg:grid-cols-12 lg:items-baseline lg:gap-x-8">
           <h2
             id="all-title"
-            className="text-section leading-[1.02] font-extrabold lg:col-span-5"
+            className="text-section leading-[1.02] font-medium lg:col-span-5"
           >
             Every yard
           </h2>
@@ -221,14 +221,14 @@ export default async function JunkyardsPage() {
         {/* Two columns on wide screens, read down each like the states
             above. An opened state stays whole and the columns rebalance
             around it, so no gap opens beside it. */}
-        <div className="border-ink mt-(--space-xl) gap-x-10 border-t-2 lg:columns-2">
+        <div className="border-rule-strong mt-(--space-xl) gap-x-10 border-t lg:columns-2">
           {groups.map(({ region, yards: regionYards }) => (
             <details
               key={region.slug}
               className="group border-rule break-inside-avoid border-b"
             >
               <summary className="board-step hover:bg-paper-2 active:bg-paper-2 focus-visible:outline-focus flex list-none items-center justify-between gap-4 px-2 py-3 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid [&::-webkit-details-marker]:hidden">
-                <span className="text-[0.9375rem] font-extrabold">
+                <span className="text-[0.9375rem] font-medium">
                   {region.name}
                 </span>
                 <span className="flex items-center gap-4">
@@ -240,7 +240,7 @@ export default async function JunkyardsPage() {
                     )}
                   </span>
                   <span
-                    className="border-ink group-open:bg-ink group-open:text-paper grid size-8 shrink-0 place-items-center border-2"
+                    className="border-rule-strong group-open:border-ink grid size-8 shrink-0 place-items-center border"
                     aria-hidden="true"
                   >
                     <Plus className="size-4 group-open:hidden" />

@@ -157,7 +157,7 @@ function SearchResultsHeader({
           <h2
             ref={headingRef}
             tabIndex={-1}
-            className="text-base font-semibold tabular-nums sm:text-lg"
+            className="text-base font-medium tabular-nums sm:text-lg"
           >
             {model.status.visibleCount !== null &&
               `${model.status.visibleCount.toLocaleString()} of `}
@@ -204,7 +204,7 @@ function FullServiceHint({
         type="button"
         variant="link"
         // The inline link keeps a 44px touch target on phones.
-        className="text-foreground relative h-auto p-0 text-sm font-semibold whitespace-nowrap underline underline-offset-2 after:absolute after:-inset-x-1 after:-inset-y-3 after:content-[''] sm:after:hidden"
+        className="text-foreground relative h-auto p-0 text-sm font-medium whitespace-nowrap underline underline-offset-2 after:absolute after:-inset-x-1 after:-inset-y-3 after:content-[''] sm:after:hidden"
         onClick={suggestion.showThem}
       >
         Show them
@@ -221,7 +221,7 @@ function FullServiceFallback({
 }) {
   return (
     <div className="flex flex-col items-start border-b py-12 sm:py-16">
-      <h2 className="text-xl font-semibold text-balance">
+      <h2 className="text-xl font-medium text-balance">
         {suggestion.selfServiceCount === 0
           ? "No self-service matches"
           : "Only a few self-service matches"}
@@ -374,7 +374,7 @@ function SearchResultsPanelContent({
         return <FullServiceFallback suggestion={fullServiceSuggestion} />;
       return (
         <div className="flex flex-col items-start border-b py-12 sm:py-16">
-          <h2 className="text-xl font-semibold text-balance">
+          <h2 className="text-xl font-medium text-balance">
             No vehicles found
           </h2>
           <p className="text-muted-foreground mt-2 max-w-md text-sm text-pretty">

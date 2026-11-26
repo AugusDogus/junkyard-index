@@ -41,13 +41,13 @@ export function YardMapSection({
     <>
       <Suspense
         fallback={
-          <div aria-hidden="true" className="border-ink border-2">
+          <div aria-hidden="true" className="border-rule-strong border">
             <div className="bg-board h-16" />
             <div
-              className={`${yardMapLayoutClasses[layout].layout} bg-paper-2 border-ink border-t-2`}
+              className={`${yardMapLayoutClasses[layout].layout} bg-paper-2 border-rule-strong border-t`}
             >
               <div className={yardMapLayoutClasses[layout].canvas} />
-              <div className="bg-paper-3 border-ink h-[54px] border-t-2 lg:hidden" />
+              <div className="bg-paper-3 border-rule-strong h-[54px] border-t lg:hidden" />
             </div>
           </div>
         }

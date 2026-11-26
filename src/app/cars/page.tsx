@@ -53,7 +53,7 @@ export default async function CarsPage() {
       />
       <Breadcrumbs crumbs={crumbs} />
       <header>
-        <h1 className="text-display-s leading-[1.02] font-extrabold">
+        <h1 className="text-display-s leading-[1.02] font-medium">
           Junkyard inventory by make
         </h1>
         <p className="text-lead text-ink-2 mt-5 max-w-[60ch] leading-[1.45]">
@@ -61,11 +61,11 @@ export default async function CarsPage() {
           vehicle&apos;s VIN and date added.
         </p>
       </header>
-      {/* The makes as a departure board: name, then its count in amber. */}
-      <div className="bg-board text-board-ink border-ink mt-(--space-2xl) border-2 px-3 pb-4 sm:px-6 sm:pb-6 lg:mt-(--space-3xl) lg:px-8">
+      {/* The makes as a departure board: name, then its count in the figure colour. */}
+      <div className="bg-board text-board-ink border-rule-strong mt-(--space-2xl) border px-3 pb-4 sm:px-6 sm:pb-6 lg:mt-(--space-3xl) lg:px-8">
         <div
           aria-hidden="true"
-          className="border-board-ink text-board-muted grid gap-x-10 border-b-2 pt-5 pb-3 text-sm font-medium sm:grid-cols-2 lg:grid-cols-3"
+          className="border-board-rule text-board-muted grid gap-x-10 border-b pt-5 pb-3 text-sm font-medium sm:grid-cols-2 lg:grid-cols-3"
         >
           {COLUMN_HEADS.map((visibility) => (
             <p
@@ -91,7 +91,7 @@ export default async function CarsPage() {
                 <span className="min-w-0 text-[0.9375rem] font-medium">
                   {make.name}
                 </span>
-                <span className="text-figure text-title shrink-0 leading-none font-extrabold tabular-nums">
+                <span className="text-figure text-title shrink-0 leading-none font-medium tabular-nums">
                   {InventoryFormat.count(make.count)}
                   <span className="sr-only">
                     {make.count === 1 ? " vehicle" : " vehicles"}
@@ -106,11 +106,11 @@ export default async function CarsPage() {
         <section aria-labelledby="rare-title" className="mt-(--section-gap)">
           <h2
             id="rare-title"
-            className="text-section leading-[1.02] font-extrabold"
+            className="text-section leading-[1.02] font-medium"
           >
             Rarely in the yards
           </h2>
-          <ul className="border-ink mt-(--space-xl) columns-2 gap-x-8 border-t-2 sm:columns-3 lg:columns-5">
+          <ul className="border-rule-strong mt-(--space-xl) columns-2 gap-x-8 border-t sm:columns-3 lg:columns-5">
             {rare.map((make) => (
               <li
                 key={make.key}
@@ -124,7 +124,7 @@ export default async function CarsPage() {
                   <span className="min-w-0 font-medium break-words">
                     {make.name}
                   </span>
-                  <span className="shrink-0 font-extrabold tabular-nums">
+                  <span className="shrink-0 font-medium tabular-nums">
                     {make.count}
                   </span>
                 </Link>

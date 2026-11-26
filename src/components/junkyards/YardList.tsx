@@ -10,12 +10,12 @@ import { cn } from "~/lib/utils";
 import { YardName } from "~/lib/yard-name";
 import type { RoutedYard } from "~/server/yard-inventory";
 
-/** The surface the list sits on: the paper, or the ink board where figures turn amber. */
+/** The surface the list sits on: the paper, or the ink board where figures take the figure colour. */
 type YardListTone = "paper" | "board";
 
 const TONES = {
   paper: {
-    rule: "border-ink",
+    rule: "border-rule-strong",
     head: "text-ink-3",
     row: "border-rule",
     link: "hover:bg-paper-2 active:bg-paper-2 focus-visible:outline-focus",
@@ -24,7 +24,7 @@ const TONES = {
     figure: "text-ink",
   },
   board: {
-    rule: "border-board-ink",
+    rule: "border-board-rule",
     head: "text-board-muted",
     row: "border-board-rule",
     link: "hover:bg-board-2 active:bg-board-2 focus-visible:outline-figure",
@@ -57,7 +57,7 @@ export function YardList({
         aria-hidden="true"
         className={cn(
           // Name, city, count: the same three tracks as every row.
-          "yard-list-tracks hidden gap-x-6 border-b-2 px-2 pb-2 text-sm font-medium sm:grid",
+          "yard-list-tracks hidden gap-x-6 border-b px-2 pb-2 text-sm font-medium sm:grid",
           colours.rule,
           colours.head,
         )}
@@ -66,7 +66,7 @@ export function YardList({
         <span>City</span>
         <span className="text-right">Vehicles</span>
       </div>
-      <ul className={cn("border-t-2 sm:border-t-0", colours.rule)}>
+      <ul className={cn("border-t sm:border-t-0", colours.rule)}>
         {yards.map((yard) => {
           const lastChecked = InventoryStaleness.labelFor(
             checkDates,
@@ -92,7 +92,7 @@ export function YardList({
                     </span>
                   )}
                   {lastChecked && (
-                    <span className="bg-figure text-board mt-1 inline-block px-1.5 py-0.5 text-xs font-extrabold">
+                    <span className="bg-figure text-board mt-1 inline-block px-1.5 py-0.5 text-xs font-medium">
                       {lastChecked}
                     </span>
                   )}

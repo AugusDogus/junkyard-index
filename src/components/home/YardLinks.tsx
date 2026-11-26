@@ -24,7 +24,7 @@ export function YardLinks({
           href={yard.path.href}
           prefetch={false}
           aria-label={`Inventory at ${yard.name}`}
-          className={`${linkClassName} text-ink font-extrabold`}
+          className={`${linkClassName} text-ink font-medium`}
         >
           Inventory
         </Link>

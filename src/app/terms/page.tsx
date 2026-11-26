@@ -18,7 +18,7 @@ export default function TermsPage() {
       <PublicHeader />
 
       <main className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
-        <h1 className="mb-8 text-4xl font-bold tracking-tight">
+        <h1 className="mb-8 text-4xl font-medium tracking-tight">
           Terms of Service
         </h1>
 
@@ -28,7 +28,7 @@ export default function TermsPage() {
 
         <div className="prose prose-neutral dark:prose-invert max-w-none space-y-8">
           <section>
-            <h2 className="mb-4 text-2xl font-semibold">
+            <h2 className="mb-4 text-2xl font-medium">
               Agreement to These Terms
             </h2>
             <p className="text-muted-foreground">
@@ -54,7 +54,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="mb-4 text-2xl font-semibold">
+            <h2 className="mb-4 text-2xl font-medium">
               What the Service Provides
             </h2>
             <p className="text-muted-foreground">
@@ -69,7 +69,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="mb-4 text-2xl font-semibold">
+            <h2 className="mb-4 text-2xl font-medium">
               Inventory and Search Information
             </h2>
             <p className="text-muted-foreground">
@@ -88,9 +88,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="mb-4 text-2xl font-semibold">
-              Service Availability
-            </h2>
+            <h2 className="mb-4 text-2xl font-medium">Service Availability</h2>
             <p className="text-muted-foreground">
               The Service is provided on an &ldquo;as is&rdquo; and &ldquo;as
               available&rdquo; basis. We do not promise that the Service will be
@@ -112,7 +110,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="mb-4 text-2xl font-semibold">Alerts</h2>
+            <h2 className="mb-4 text-2xl font-medium">Alerts</h2>
             <p className="text-muted-foreground">
               Email, Discord, and other alerts are convenience features provided
               on a best-effort basis. Alerts may be delayed, duplicated,
@@ -126,7 +124,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="mb-4 text-2xl font-semibold">
+            <h2 className="mb-4 text-2xl font-medium">
               Accounts and Acceptable Use
             </h2>
             <p className="text-muted-foreground">
@@ -163,7 +161,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="mb-4 text-2xl font-semibold">
+            <h2 className="mb-4 text-2xl font-medium">
               Your Data and Service Data
             </h2>
             <p className="text-muted-foreground">
@@ -182,7 +180,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="mb-4 text-2xl font-semibold">Free Service</h2>
+            <h2 className="mb-4 text-2xl font-medium">Free Service</h2>
             <p className="text-muted-foreground">
               Free access may include limits on visible results, saved searches,
               alerts, or other features. Current limits are shown in the
@@ -193,7 +191,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="mb-4 text-2xl font-semibold">
+            <h2 className="mb-4 text-2xl font-medium">
               Subscriptions, Billing, and Cancellation
             </h2>
             <p className="text-muted-foreground">
@@ -227,9 +225,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="mb-4 text-2xl font-semibold">
-              Third-Party Services
-            </h2>
+            <h2 className="mb-4 text-2xl font-medium">Third-Party Services</h2>
             <p className="text-muted-foreground">
               The Service relies on third-party inventory sources, hosting,
               databases, search, authentication, payment, email, Discord, and
@@ -241,9 +237,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="mb-4 text-2xl font-semibold">
-              Intellectual Property
-            </h2>
+            <h2 className="mb-4 text-2xl font-medium">Intellectual Property</h2>
             <p className="text-muted-foreground">
               The Service, including its software, design, branding, and
               original content, is owned by whisp labs LLC or its licensors and
@@ -256,7 +250,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="mb-4 text-2xl font-semibold">
+            <h2 className="mb-4 text-2xl font-medium">
               Disclaimer of Warranties
             </h2>
             <p className="text-muted-foreground">
@@ -271,7 +265,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="mb-4 text-2xl font-semibold">
+            <h2 className="mb-4 text-2xl font-medium">
               Limitation of Liability
             </h2>
             <p className="text-muted-foreground">
@@ -296,7 +290,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="mb-4 text-2xl font-semibold">Indemnification</h2>
+            <h2 className="mb-4 text-2xl font-medium">Indemnification</h2>
             <p className="text-muted-foreground">
               To the extent permitted by law, you will defend and indemnify
               whisp labs LLC against third-party claims, losses, and reasonable
@@ -309,7 +303,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="mb-4 text-2xl font-semibold">Termination</h2>
+            <h2 className="mb-4 text-2xl font-medium">Termination</h2>
             <p className="text-muted-foreground">
               You may stop using the Service at any time and may delete your
               account from Settings. We may suspend or terminate access for a
@@ -329,7 +323,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="mb-4 text-2xl font-semibold">
+            <h2 className="mb-4 text-2xl font-medium">
               Changes to the Service or Terms
             </h2>
             <p className="text-muted-foreground">
@@ -346,7 +340,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="mb-4 text-2xl font-semibold">General Terms</h2>
+            <h2 className="mb-4 text-2xl font-medium">General Terms</h2>
             <p className="text-muted-foreground">
               Applicable law may provide rights that these Terms cannot limit or
               waive. If any provision is unenforceable, the remaining provisions
@@ -364,7 +358,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="mb-4 text-2xl font-semibold">Contact Us</h2>
+            <h2 className="mb-4 text-2xl font-medium">Contact Us</h2>
             <p className="text-muted-foreground">
               Questions about these Terms may be submitted through our{" "}
               <Link href="/contact" className="text-signal hover:underline">

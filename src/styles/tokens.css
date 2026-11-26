@@ -1,43 +1,46 @@
-/* Wayfind tokens (Hallmark scaffold). Tailwind's own text-xs to text-3xl and
- * ease-* stay Tailwind's so the app screens keep their sizes; the redesigned
- * pages use the roles below. shadcn already owns --color-muted and
- * --color-accent, so Wayfind's muted ink is --color-ink-3, its cobalt is
- * --color-signal and its amber is --color-figure. */
+/* Site tokens. Tailwind's own text-xs to text-3xl and ease-* stay Tailwind's
+ * so the app screens keep their sizes; the public pages use the roles below.
+ * shadcn already owns --color-muted and --color-accent, so the muted ink is
+ * --color-ink-3, the accent is --color-signal (olive by day, pale lime at
+ * night) and the board's figure colour is --color-figure. Rules are 1px:
+ * --color-rule is the hairline, --color-rule-strong frames controls. */
 @theme static {
   --text-md: 1rem;
-  --text-display-s: clamp(2.25rem, 4vw + 0.5rem, 3.75rem);
-  --text-display: clamp(2.5rem, 4vw + 1rem, 4.75rem);
-  --text-section: clamp(2rem, 2.5vw + 1rem, 3.25rem);
-  --text-title: clamp(1.25rem, 0.75vw + 0.875rem, 1.625rem);
-  --text-lead: clamp(1.0625rem, 0.35vw + 0.95rem, 1.25rem);
+  --text-display-s: clamp(2rem, 2.5vw + 1rem, 3rem);
+  --text-display: clamp(2.25rem, 3vw + 1rem, 3.5rem);
+  --text-section: clamp(1.625rem, 1.75vw + 0.875rem, 2.375rem);
+  --text-title: clamp(1.125rem, 0.5vw + 0.875rem, 1.375rem);
+  --text-lead: clamp(1rem, 0.25vw + 0.9rem, 1.125rem);
   --color-error: oklch(52% 0.19 27);
   --color-success: oklch(50% 0.12 150);
-  --color-paper: oklch(95.5% 0.006 250);
-  --color-paper-2: oklch(91% 0.009 250);
-  --color-paper-3: oklch(99.5% 0.005 250);
-  --color-ink: oklch(16% 0.014 262);
-  --color-ink-2: oklch(29% 0.014 262);
-  --color-ink-3: oklch(47% 0.016 260);
-  --color-rule: oklch(80% 0.011 250);
-  --color-ink-rule: oklch(34% 0.014 262);
-  --color-signal: oklch(51% 0.22 264);
-  --color-signal-fill: oklch(51% 0.22 264);
-  --color-signal-ink: oklch(99.5% 0.003 250);
-  --color-figure: oklch(81% 0.16 82);
-  --color-focus: oklch(51% 0.22 264);
-  --color-board: oklch(16% 0.014 262);
-  --color-board-ink: oklch(95.5% 0.006 250);
-  --color-board-2: oklch(22% 0.014 262);
-  --color-board-muted: oklch(76% 0.012 255);
-  --color-board-rule: oklch(34% 0.014 262);
-  --color-scrim: oklch(8% 0.01 260 / 0.25);
-  --font-display: var(--font-chivo-mono), "Chivo Mono", ui-monospace, monospace;
+  --color-paper: #f2f3ed;
+  --color-paper-2: #e7e9e0;
+  --color-paper-3: #fafbf6;
+  --color-ink: #111410;
+  --color-ink-2: #353a31;
+  --color-ink-3: #5c6356;
+  --color-rule: #d5d9cd;
+  --color-rule-strong: #7a8173;
+  --color-ink-rule: #555b50;
+  --color-signal: #4a6a1d;
+  --color-signal-fill: #111410;
+  --color-signal-ink: #f2f3ed;
+  --color-signal-fill-hover: #2f352c;
+  --color-figure: #d6edaf;
+  --color-focus: #4a6a1d;
+  --color-board: #161a14;
+  --color-board-ink: #e6e9de;
+  --color-board-2: #1e231c;
+  --color-board-muted: #a7afa0;
+  --color-board-rule: #2c3229;
+  --color-scrim: oklch(8% 0.01 130 / 0.25);
+  --font-display: var(--font-brand), ui-monospace, monospace;
   --font-body: var(--font-display);
   --font-outlier: var(--font-body);
   --radius-card: 0;
   --radius-pill: 999px;
-  --shadow-card: 0 24px 40px -24px oklch(8% 0.01 260 / 0.6);
-  --tracking-display: -0.03em;
+  --shadow-card: 0 16px 32px -20px oklch(8% 0.01 130 / 0.5);
+  --tracking-display: -0.045em;
 }
 :root {
   color-scheme: light;
@@ -69,30 +72,34 @@
   --z-toast: 500;
   --z-tooltip: 600;
   --rule-hair: 1px;
-  --rule-bar: 2px;
-  --display-weight: 800;
+  --rule-bar: 1px;
+  --display-weight: 500;
 }
-/* wayfind: night. The board stays dark; cobalt lifts for text and keeps a
- * deeper fill so white button text holds 4.5:1. */
+/* Night: the warm green-black page. The primary action is the off-white
+ * plate with dark text; the pale lime marks focus, links on hover and live
+ * figures. */
 .dark {
   color-scheme: dark;
-  --color-paper: oklch(15% 0.012 262);
-  --color-paper-2: oklch(19% 0.013 262);
-  --color-paper-3: oklch(22% 0.014 262);
-  --color-ink: oklch(96% 0.005 250);
-  --color-ink-2: oklch(85% 0.008 252);
-  --color-ink-3: oklch(70% 0.016 258);
-  --color-rule: oklch(31% 0.014 262);
-  --color-ink-rule: oklch(45% 0.014 262);
-  --color-signal: oklch(68% 0.17 264);
-  --color-signal-fill: oklch(55% 0.21 264);
-  --color-error: oklch(68% 0.17 25);
-  --color-focus: oklch(68% 0.17 264);
-  --color-board: oklch(24% 0.022 262);
-  --color-board-2: oklch(28% 0.022 262);
-  --color-board-rule: oklch(40% 0.02 262);
-  --color-scrim: oklch(4% 0.01 260 / 0.5);
-  --shadow-card: 0 24px 40px -24px oklch(2% 0.01 260 / 0.9);
+  --color-paper: #111410;
+  --color-paper-2: #1a1e18;
+  --color-paper-3: #151914;
+  --color-ink: #e6e9de;
+  --color-ink-2: #c3c9b8;
+  --color-ink-3: #969d90;
+  --color-rule: #2c3229;
+  --color-rule-strong: #646b5f;
+  --color-ink-rule: #555b50;
+  --color-signal: #d6edaf;
+  --color-signal-fill: #e6e9de;
+  --color-signal-ink: #111410;
+  --color-signal-fill-hover: #ffffff;
+  --color-error: #ffb5a7;
+  --color-focus: #d6edaf;
+  --color-board: #181c16;
+  --color-board-2: #20251e;
+  --color-board-rule: #343a31;
+  --color-scrim: oklch(4% 0.01 130 / 0.5);
+  --shadow-card: 0 16px 32px -20px oklch(2% 0.01 130 / 0.9);
 }
 @media (max-width: 60rem) {
   :root {

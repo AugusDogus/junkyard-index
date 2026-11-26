@@ -30,7 +30,7 @@ export default async function UnsubscribePage({
   if (done === "1" && isValidToken) {
     return (
       <div className="mx-auto max-w-md px-4 py-24 text-center">
-        <h1 className="mb-4 text-2xl font-semibold text-green-600">
+        <h1 className="mb-4 text-2xl font-medium text-green-600">
           ✓ Unsubscribed
         </h1>
         <p className="text-muted-foreground mb-8">
@@ -50,7 +50,7 @@ export default async function UnsubscribePage({
   if (!isValidToken) {
     return (
       <div className="mx-auto max-w-md px-4 py-24 text-center">
-        <h1 className="mb-4 text-2xl font-semibold">Invalid Link</h1>
+        <h1 className="mb-4 text-2xl font-medium">Invalid Link</h1>
         <p className="text-muted-foreground mb-8">
           This unsubscribe link is invalid or has expired.
         </p>
@@ -77,7 +77,7 @@ export default async function UnsubscribePage({
   if (!search[0]) {
     return (
       <div className="mx-auto max-w-md px-4 py-24 text-center">
-        <h1 className="mb-4 text-2xl font-semibold">Not Found</h1>
+        <h1 className="mb-4 text-2xl font-medium">Not Found</h1>
         <p className="text-muted-foreground mb-8">
           This saved search no longer exists.
         </p>
@@ -95,7 +95,7 @@ export default async function UnsubscribePage({
   if (!search[0].emailAlertsEnabled) {
     return (
       <div className="mx-auto max-w-md px-4 py-24 text-center">
-        <h1 className="mb-4 text-2xl font-semibold">✓ Already Unsubscribed</h1>
+        <h1 className="mb-4 text-2xl font-medium">✓ Already Unsubscribed</h1>
         <p className="text-muted-foreground mb-8">
           You have already unsubscribed from alerts for &quot;{search[0].name}
           &quot;.
@@ -128,7 +128,7 @@ export default async function UnsubscribePage({
 
   return (
     <div className="mx-auto max-w-md px-4 py-24 text-center">
-      <h1 className="mb-4 text-2xl font-semibold">Unsubscribe</h1>
+      <h1 className="mb-4 text-2xl font-medium">Unsubscribe</h1>
       <p className="text-muted-foreground mb-8">
         Are you sure you want to unsubscribe from alerts for &quot;
         {search[0].name}&quot;?

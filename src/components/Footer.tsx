@@ -15,12 +15,12 @@ export function Footer({ status = "live" }: { status?: FooterStatus }) {
   const statusPageUrl = env.NEXT_PUBLIC_STATUS_PAGE_URL;
 
   return (
-    <footer className="border-ink bg-paper border-t-2">
+    <footer className="border-rule-strong bg-paper border-t">
       <div className="shell pt-14 pb-12 sm:pt-16">
-        <p className="text-ink text-section tracking-display leading-none font-extrabold">
+        <p className="text-ink text-section tracking-display leading-none font-medium">
           Junkyard Index
         </p>
-        <div className="border-ink mt-8 grid gap-10 border-t-2 pt-8 lg:grid-cols-12 lg:gap-8">
+        <div className="border-rule-strong mt-8 grid gap-10 border-t pt-8 lg:grid-cols-12 lg:gap-8">
           <div className="lg:col-span-9">
             <FooterLinks />
           </div>

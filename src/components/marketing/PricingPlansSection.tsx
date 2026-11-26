@@ -57,7 +57,7 @@ function PricingPlans({
   return (
     <div>
       <div
-        className="border-ink flex w-fit border-2"
+        className="border-rule-strong flex w-fit border"
         aria-label="Billing interval"
         role="group"
       >
@@ -66,7 +66,7 @@ function PricingPlans({
             key={option.value}
             type="button"
             className={cn(
-              "board-step focus-visible:outline-focus not-first:border-ink h-11 px-5 text-sm font-extrabold outline-none not-first:border-l-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid",
+              "board-step focus-visible:outline-focus not-first:border-rule-strong h-11 px-5 text-sm font-medium outline-none not-first:border-l focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid",
               interval === option.value
                 ? "bg-ink text-paper"
                 : "text-ink hover:bg-paper-2",
@@ -130,11 +130,12 @@ function PricingPlanCtaButton({
   onAction(action: SubscriptionAction): void;
 }) {
   const variant = featured ? "default" : "outline";
-  // On the ink plate the cobalt button flips to paper on hover, not to ink.
+  // On the board the primary action is the board's off-white plate in both
+  // themes; the page's own primary fill is dark by day and would vanish.
   const className = cn(
     "h-12 w-full",
     featured &&
-      "hover:border-board-ink hover:bg-board-ink hover:text-board focus-visible:outline-figure",
+      "border-board-ink bg-board-ink text-board hover:border-white hover:bg-white focus-visible:outline-figure",
   );
   switch (cta.kind) {
     case "disabled":

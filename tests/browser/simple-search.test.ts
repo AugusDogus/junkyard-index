@@ -57,7 +57,7 @@ async function open(
   // next/font defines the font in the app. The padding stands in for the site
   // header the sticky toolbar sits under, so the toolbar covers nothing.
   await page.addStyleTag({
-    content: ':root{--font-chivo-mono:"Chivo Mono"}body{padding-top:6.375rem}',
+    content: ":root{--font-brand:ui-monospace}body{padding-top:6.375rem}",
   });
   await (
     ready === "results"

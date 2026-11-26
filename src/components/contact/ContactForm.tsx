@@ -77,7 +77,7 @@ export function ContactForm() {
         <div className="bg-primary/10 mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full">
           <Mail className="text-signal h-6 w-6" />
         </div>
-        <h1 className="mb-2 text-3xl font-bold tracking-tight">Contact Us</h1>
+        <h1 className="mb-2 text-3xl font-medium tracking-tight">Contact Us</h1>
         <p className="text-muted-foreground">
           Have a question, feedback, or need help? We&apos;d love to hear from
           you.
@@ -89,7 +89,7 @@ export function ContactForm() {
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-500/10">
             <CheckCircle className="h-6 w-6 text-green-500" />
           </div>
-          <h2 className="mb-2 text-xl font-semibold">Message Sent!</h2>
+          <h2 className="mb-2 text-xl font-medium">Message Sent!</h2>
           <p className="text-muted-foreground mb-6">
             Thanks for reaching out. We&apos;ll get back to you as soon as
             possible.

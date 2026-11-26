@@ -6,13 +6,13 @@ export function HomePricing() {
     <section
       id="pricing"
       aria-labelledby="home-pricing-title"
-      className="border-ink border-t-2"
+      className="border-rule-strong border-t"
     >
       <div className="shell py-24 sm:py-32">
         <div className="mb-10 grid gap-4 lg:grid-cols-12 lg:items-end lg:gap-8">
           <h2
             id="home-pricing-title"
-            className="text-section leading-[1.02] font-extrabold lg:col-span-5"
+            className="text-section leading-[1.02] font-medium lg:col-span-5"
           >
             Pricing
           </h2>

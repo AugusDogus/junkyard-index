@@ -2,20 +2,13 @@ import "~/styles/globals.css";
 
 import { Analytics } from "@vercel/analytics/next";
 import { type Metadata } from "next";
-import { Chivo_Mono } from "next/font/google";
 
 import { TailwindIndicator } from "~/components/tailwind-indicator";
 import { ThemeProvider } from "~/components/theme/theme-provider";
+import { brandFont } from "./fonts";
 import { rootMetadata } from "./root-metadata";
 
 export const metadata: Metadata = rootMetadata;
-
-// Wayfind sets every glyph in Chivo Mono (src/styles/tokens.css).
-const chivoMono = Chivo_Mono({
-  subsets: ["latin"],
-  variable: "--font-chivo-mono",
-  fallback: ["ui-monospace", "monospace"],
-});
 
 export default function RootLayout({
   children,
@@ -23,7 +16,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${chivoMono.variable} bg-background`}
+      className={`${brandFont.variable} bg-background`}
       suppressHydrationWarning
     >
       <head>

@@ -8,9 +8,9 @@ import { cn } from "~/lib/utils";
  * a known older publication, and a neutral label when untracked. With `coverage`, a page listing several
  * yards also says how many are current, rather than only the newest date.
  *
- * The square is the live state: filled cobalt when every yard is current,
- * outlined cobalt when only some are. A stale feed is Wayfind's late row,
- * an amber fill under ink text.
+ * The square is the live state: filled in the accent when every yard is
+ * current, outlined when only some are. A stale feed is a late row: the
+ * figure colour's fill under board text.
  */
 export function FreshnessBadge({
   publishedAt,
@@ -25,7 +25,7 @@ export function FreshnessBadge({
   const stale = InventoryStaleness.label(publishedAt, Date.now());
   if (stale !== null) {
     return (
-      <p className="bg-figure text-board inline-block px-2.5 py-1 text-sm font-extrabold text-pretty">
+      <p className="bg-figure text-board inline-block px-2.5 py-1 text-sm font-medium text-pretty">
         {stale}, so some listings may be gone.
       </p>
     );
@@ -36,7 +36,7 @@ export function FreshnessBadge({
       <span
         className={cn(
           "size-2.5 shrink-0",
-          partial ? "border-signal border-2" : "bg-signal",
+          partial ? "border-signal border" : "bg-signal",
         )}
         aria-hidden="true"
       />

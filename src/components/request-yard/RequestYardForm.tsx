@@ -62,7 +62,7 @@ export function RequestYardForm({
         <div className="bg-primary/10 mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full">
           <Warehouse className="text-signal h-6 w-6" />
         </div>
-        <h1 className="mb-2 text-3xl font-bold tracking-tight">
+        <h1 className="mb-2 text-3xl font-medium tracking-tight">
           Request a Yard
         </h1>
         <p className="text-muted-foreground text-balance">
@@ -76,7 +76,7 @@ export function RequestYardForm({
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-500/10">
             <CheckCircle className="h-6 w-6 text-green-500" />
           </div>
-          <h2 className="mb-2 text-xl font-semibold">Request Received!</h2>
+          <h2 className="mb-2 text-xl font-medium">Request Received!</h2>
           <p className="text-muted-foreground mb-6">
             Thanks for the suggestion. We&apos;ll review it and reach out if we
             add the yard.

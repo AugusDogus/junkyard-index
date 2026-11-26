@@ -99,7 +99,7 @@ export function SearchStartPanel({
       <div className="max-w-2xl">
         <h2
           id="search-start-title"
-          className="text-2xl font-semibold text-balance"
+          className="text-2xl font-medium text-balance"
         >
           Search from broad to exact.
         </h2>

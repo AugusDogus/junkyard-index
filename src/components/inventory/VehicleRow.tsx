@@ -90,11 +90,11 @@ export function VehicleRow({
       >
         <div className="min-w-0">
           <div className="flex items-start gap-3">
-            <h3 className="min-w-0 flex-1 text-[1.0625rem] leading-snug font-extrabold tracking-[-0.01em]">
+            <h3 className="min-w-0 flex-1 text-[1.0625rem] leading-snug font-medium tracking-[-0.01em]">
               {title}
             </h3>
             {YardInventory.isNew(vehicle, publishedAt) && (
-              <span className="border-signal text-signal shrink-0 border-2 px-1.5 text-xs leading-5 font-extrabold">
+              <span className="border-signal text-signal shrink-0 border px-1.5 text-xs leading-5 font-medium">
                 New
               </span>
             )}
@@ -108,13 +108,13 @@ export function VehicleRow({
             </p>
           )}
           {lastChecked && (
-            <p className="bg-figure text-board mt-2 inline-block px-1.5 py-0.5 text-xs font-extrabold">
+            <p className="bg-figure text-board mt-2 inline-block px-1.5 py-0.5 text-xs font-medium">
               {lastChecked}
             </p>
           )}
           {location && (
             <div className="mt-2">
-              <p className="bg-ink text-paper inline-block px-2 py-0.5 text-sm font-extrabold tabular-nums">
+              <p className="bg-ink text-paper inline-block px-2 py-0.5 text-sm font-medium tabular-nums">
                 {location}
               </p>
             </div>

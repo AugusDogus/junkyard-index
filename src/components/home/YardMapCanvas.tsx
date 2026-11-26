@@ -368,19 +368,19 @@ const YardMapCanvas = memo(function YardMapCanvas({
           type="button"
           variant="outline"
           size="icon"
-          className="bg-paper-3 hover:bg-ink"
+          className="bg-paper-3"
           aria-label="Return to the map overview"
           title="Map overview"
           onClick={showOverview}
         >
           <Scan aria-hidden="true" />
         </Button>
-        <div className="bg-paper-3 border-ink flex flex-col border-2">
+        <div className="bg-paper-3 border-rule-strong flex flex-col border">
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="hover:bg-ink hover:text-paper size-8"
+            className="size-8"
             aria-label="Zoom in"
             disabled={current.zoom >= 18}
             onClick={() => zoomBy(1)}
@@ -391,7 +391,7 @@ const YardMapCanvas = memo(function YardMapCanvas({
             type="button"
             variant="ghost"
             size="icon"
-            className="hover:bg-ink hover:text-paper border-t-ink size-8 border-t-2"
+            className="border-t-rule-strong size-8 border-t"
             aria-label="Zoom out"
             disabled={current.zoom <= 1}
             onClick={() => zoomBy(-1)}
@@ -403,7 +403,7 @@ const YardMapCanvas = memo(function YardMapCanvas({
       {(loading ? showLoading : tileError || loadError) && (
         <p
           role="status"
-          className="bg-paper-3 border-ink absolute bottom-3 left-3 max-w-60 border-2 p-3 text-xs"
+          className="bg-paper-3 border-rule-strong absolute bottom-3 left-3 max-w-60 border p-3 text-xs"
         >
           {loading
             ? "Loading map…"

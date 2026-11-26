@@ -23,10 +23,10 @@ interface HeaderContentProps {
 
 export function HeaderContent({ auth }: HeaderContentProps) {
   return (
-    <header className="bg-paper border-ink sticky top-0 z-50 border-b-2">
+    <header className="bg-paper border-rule-strong sticky top-0 z-50 border-b">
       <a
         href="#main-content"
-        className="bg-paper text-ink focus-visible:outline-focus fixed top-2 left-2 z-50 -translate-y-[200%] border-2 px-4 py-3 focus:translate-y-0 focus:outline-2"
+        className="bg-paper text-ink focus-visible:outline-focus fixed top-2 left-2 z-50 -translate-y-[200%] border px-4 py-3 focus:translate-y-0 focus:outline-2"
         onClick={(event) => {
           const main = document.querySelector("main");
           if (!main) return;
@@ -43,7 +43,7 @@ export function HeaderContent({ auth }: HeaderContentProps) {
           <Link
             href="/"
             data-brand-link
-            className="text-ink focus-visible:outline-focus shrink-0 text-lg leading-none font-extrabold tracking-[-0.03em] whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-solid sm:text-xl md:text-2xl"
+            className="text-ink focus-visible:outline-focus shrink-0 text-lg leading-none font-medium tracking-[-0.055em] whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-solid sm:text-xl md:text-2xl"
           >
             Junkyard Index
           </Link>
@@ -85,7 +85,7 @@ function MainLinks() {
   );
 }
 
-/** The current section carries a 2px ink bar, like a platform sign's arrow. */
+/** The current section carries a 1px ink rule under its name. */
 function MainLink({ href, children }: { href: string; children: string }) {
   const pathname = usePathname();
   const current = pathname === href || pathname.startsWith(`${href}/`);
@@ -94,7 +94,7 @@ function MainLink({ href, children }: { href: string; children: string }) {
       href={href}
       aria-current={pathname === href ? "page" : current ? "true" : undefined}
       className={cn(
-        "board-step focus-visible:outline-focus flex items-center border-b-2 px-1.5 text-[0.8125rem] font-medium whitespace-nowrap focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid first:-ml-1.5 sm:px-3 sm:text-[0.9375rem] sm:first:-ml-3",
+        "board-step focus-visible:outline-focus flex items-center border-b px-1.5 text-[0.8125rem] font-medium whitespace-nowrap focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid first:-ml-1.5 sm:px-3 sm:text-[0.9375rem] sm:first:-ml-3",
         current
           ? "border-ink text-ink"
           : "text-ink-2 hover:text-signal border-transparent",

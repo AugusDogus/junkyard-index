@@ -123,15 +123,15 @@ export default async function ChainPage({
       />
       <Breadcrumbs crumbs={crumbs} />
       <header>
-        <h1 className="text-display-s leading-[1.02] font-extrabold">
+        <h1 className="text-display-s leading-[1.02] font-medium">
           <KeepHyphenated text={chain.name} /> inventory
         </h1>
         <p className="text-lead text-ink-2 mt-5 max-w-[56ch] leading-[1.45]">
-          <span className="text-ink font-extrabold tabular-nums">
+          <span className="text-ink font-medium tabular-nums">
             {InventoryFormat.plural(chain.yards.length, "yard", "yards")}
           </span>{" "}
           in {regions}, listing{" "}
-          <span className="text-ink font-extrabold tabular-nums">
+          <span className="text-ink font-medium tabular-nums">
             {InventoryFormat.count(vehicles)}
           </span>{" "}
           vehicles.
@@ -144,12 +144,12 @@ export default async function ChainPage({
       {/* The largest yards on the board: the one ink band on the page. */}
       <section
         aria-labelledby="largest-title"
-        className="bg-board text-board-ink border-ink mt-(--space-2xl) border-2 px-4 py-8 sm:p-8 lg:p-10"
+        className="bg-board text-board-ink border-rule-strong mt-(--space-2xl) border px-4 py-8 sm:p-8 lg:p-10"
       >
         <div className="grid gap-y-3 lg:grid-cols-12 lg:items-baseline lg:gap-x-8">
           <h2
             id="largest-title"
-            className="text-section leading-[1.02] font-extrabold lg:col-span-7"
+            className="text-section leading-[1.02] font-medium lg:col-span-7"
           >
             Largest <KeepHyphenated text={chain.name} /> yards
           </h2>
@@ -168,15 +168,15 @@ export default async function ChainPage({
         >
           <h2
             id="states-title"
-            className="text-section leading-[1.02] font-extrabold lg:sticky lg:top-28 lg:col-span-4 lg:self-start"
+            className="text-section leading-[1.02] font-medium lg:sticky lg:top-28 lg:col-span-4 lg:self-start"
           >
             Every <KeepHyphenated text={chain.name} /> yard, by state
           </h2>
-          <div className="border-ink border-t-2 lg:col-span-8">
+          <div className="border-rule-strong border-t lg:col-span-8">
             {YardPath.byRegion(chain.yards).map(({ region, yards }) => (
               <details key={region.slug} className="group border-rule border-b">
                 <summary className="board-step hover:bg-paper-2 active:bg-paper-2 focus-visible:outline-focus flex list-none items-center justify-between gap-4 px-2 py-3 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid [&::-webkit-details-marker]:hidden">
-                  <span className="text-[0.9375rem] font-extrabold">
+                  <span className="text-[0.9375rem] font-medium">
                     {region.name}
                   </span>
                   <span className="flex items-center gap-4">
@@ -184,7 +184,7 @@ export default async function ChainPage({
                       {InventoryFormat.plural(yards.length, "yard", "yards")}
                     </span>
                     <span
-                      className="border-ink group-open:bg-ink group-open:text-paper grid size-8 shrink-0 place-items-center border-2"
+                      className="border-rule-strong group-open:border-ink grid size-8 shrink-0 place-items-center border"
                       aria-hidden="true"
                     >
                       <Plus className="size-4 group-open:hidden" />

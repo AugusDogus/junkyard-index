@@ -92,19 +92,19 @@ export function HomeFaq() {
     >
       <h2
         id="home-faq-title"
-        className="text-section leading-[1.02] font-extrabold lg:sticky lg:top-28 lg:col-span-4 lg:self-start"
+        className="text-section leading-[1.02] font-medium lg:sticky lg:top-28 lg:col-span-4 lg:self-start"
       >
         Frequently asked questions
       </h2>
-      <div className="border-ink border-t-2 lg:col-span-8">
+      <div className="border-rule-strong border-t lg:col-span-8">
         {FAQ_ITEMS.map(({ question, answer }) => (
           <details key={question} className="group border-rule border-b">
             <summary className="board-step hover:text-signal focus-visible:outline-focus flex w-full list-none items-center justify-between gap-6 py-6 text-left outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid sm:py-7 [&::-webkit-details-marker]:hidden">
-              <h3 className="text-title leading-tight font-extrabold tracking-[-0.02em]">
+              <h3 className="text-title leading-tight font-medium tracking-[-0.02em]">
                 {question}
               </h3>
               <span
-                className="border-ink group-open:bg-ink group-open:text-paper grid size-9 shrink-0 place-items-center border-2"
+                className="border-rule-strong group-open:border-ink grid size-9 shrink-0 place-items-center border"
                 aria-hidden="true"
               >
                 <Plus className="size-4 group-open:hidden" />

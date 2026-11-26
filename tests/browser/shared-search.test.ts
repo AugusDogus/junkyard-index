@@ -649,8 +649,7 @@ for (const width of [360, 390, 1390]) {
       // next/font defines this in the app; without it text is proportional.
       // The padding stands in for the site header the toolbar sticks under.
       await page.addStyleTag({
-        content:
-          ':root{--font-chivo-mono:"Chivo Mono"}body{padding-top:6.375rem}',
+        content: ":root{--font-brand:ui-monospace}body{padding-top:6.375rem}",
       });
       const count = page.getByRole("heading", {
         name: "12,345 vehicles",
