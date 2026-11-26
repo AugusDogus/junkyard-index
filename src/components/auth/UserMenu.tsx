@@ -12,7 +12,7 @@ import {
 import { useTheme } from "next-themes";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import {
   DropdownMenu,
@@ -57,6 +57,9 @@ function UserMenuContent({ user: initialUser }: UserMenuProps) {
   const { data: session } = useSession();
   const { setTheme } = useTheme();
   const [isSigningOut, setIsSigningOut] = useState(false);
+  // Whether the menu was last used with a keyboard, so closing it returns
+  // focus to the trigger only for keyboard users.
+  const usedKeyboard = useRef(false);
 
   // Use session user if available (for real-time updates), otherwise fall back to initial user
   const user = session?.user ?? initialUser;
@@ -93,11 +96,21 @@ function UserMenuContent({ user: initialUser }: UserMenuProps) {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+      <DropdownMenuTrigger
+        asChild
+        onPointerDown={() => {
+          usedKeyboard.current = false;
+        }}
+        onKeyDown={() => {
+          usedKeyboard.current = true;
+        }}
+      >
+        {/* The ring stays put on hover: an ink ring around a photo reads as
+            a stray outline. Initials get the quiet ghost-button fill. */}
         <Button
           variant="outline"
           size="sm"
-          className="relative size-8 overflow-hidden rounded-full p-0"
+          className="hover:border-rule-strong hover:bg-accent relative size-8 overflow-hidden rounded-full p-0"
         >
           {/* Fill the circle inside the border and clip to it, so the photo
           neither spills past the ring nor leaves a gap at its sides. */}
@@ -112,7 +125,24 @@ function UserMenuContent({ user: initialUser }: UserMenuProps) {
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56" align="end">
+      <DropdownMenuContent
+        className="w-56"
+        align="end"
+        onKeyDown={() => {
+          usedKeyboard.current = true;
+        }}
+        onPointerDown={() => {
+          usedKeyboard.current = false;
+        }}
+        onPointerDownOutside={() => {
+          usedKeyboard.current = false;
+        }}
+        // Radix returns focus to the trigger on close, and browsers then draw
+        // its focus ring even after a tap or click. Return it for keyboards only.
+        onCloseAutoFocus={(event) => {
+          if (!usedKeyboard.current) event.preventDefault();
+        }}
+      >
         <DropdownMenuLabel>
           <div className="flex flex-col space-y-1">
             {user.name && (
