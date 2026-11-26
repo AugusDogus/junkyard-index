@@ -165,12 +165,20 @@ export default async function JunkyardsPage() {
         aria-labelledby="chains-title"
         className="bg-board text-board-ink border-ink mt-(--section-gap-s) border-2 px-4 py-8 sm:p-8 lg:p-10"
       >
-        <h2
-          id="chains-title"
-          className="text-section leading-[1.02] font-extrabold"
-        >
-          By chain
-        </h2>
+        <div className="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-3">
+          <h2
+            id="chains-title"
+            className="text-section leading-[1.02] font-extrabold"
+          >
+            By chain
+          </h2>
+          <Link
+            href="/chains"
+            className="text-board-ink hover:text-figure focus-visible:outline-figure text-[1.0625rem] font-extrabold underline decoration-1 underline-offset-[0.3em] hover:decoration-2 focus-visible:outline-2 focus-visible:outline-solid"
+          >
+            All chains
+          </Link>
+        </div>
         {/* Read down each column, like the states above. */}
         <ul className="border-board-ink mt-(--space-xl) gap-x-10 border-t-2 sm:columns-2 lg:columns-3">
           {chains.map((chain) => (
