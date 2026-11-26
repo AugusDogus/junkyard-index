@@ -141,7 +141,10 @@ describe("cacheYardInventory", () => {
 });
 
 describe("expireInventoryCaches", () => {
-  test("expires the inventory tag and only the changed sources and yards", async () => {
+  // Immediately, not stale-while-revalidate: a page rendered right after
+  // must read the new data, since Vercel's CDN then keeps that render for a
+  // day (yard model pages) and ISR keeps it until the next expiry.
+  test("expires the inventory tag and only the changed sources and yards, at once", async () => {
     expect(
       await withRecordedCache(`
         cache.expireInventoryCaches({
@@ -151,9 +154,9 @@ describe("expireInventoryCaches", () => {
         });
       `),
     ).toEqual([
-      { revalidate: "daily-inventory", profile: "max" },
-      { revalidate: "inventory-source:calton", profile: "max" },
-      { revalidate: "inventory-yard:pyp:1", profile: "max" },
+      { revalidate: "daily-inventory", profile: { expire: 0 } },
+      { revalidate: "inventory-source:calton", profile: { expire: 0 } },
+      { revalidate: "inventory-yard:pyp:1", profile: { expire: 0 } },
     ]);
   });
 
@@ -161,8 +164,8 @@ describe("expireInventoryCaches", () => {
     expect(
       await withRecordedCache(`cache.expireInventoryCaches({ kind: "all" });`),
     ).toEqual([
-      { revalidate: "daily-inventory", profile: "max" },
-      { revalidate: "inventory-sources", profile: "max" },
+      { revalidate: "daily-inventory", profile: { expire: 0 } },
+      { revalidate: "inventory-sources", profile: { expire: 0 } },
     ]);
   });
 });
