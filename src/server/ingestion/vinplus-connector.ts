@@ -23,6 +23,8 @@ import { sharedProviderHostTurn } from "./shared-provider-host";
 export interface VinplusOptions<E, R> {
   startCursor?: unknown;
   maxPages?: number;
+  /** Run time; defaults to now. */
+  asOf?: number;
   readControl?: (
     control: VinplusControl,
   ) => Effect.Effect<string, VinplusError>;
@@ -79,6 +81,7 @@ export function vinplusRequestBudget(
 export function streamVinplusInventory<E, R>(options: VinplusOptions<E, R>) {
   return Effect.gen(function* () {
     const budget = options.maxPages ?? 8;
+    const asOf = options.asOf ?? Date.now();
     if (!Number.isInteger(budget) || budget < 1 || budget > 16)
       return yield* Effect.fail(
         VinplusError.create("chunk budget", "Use an integer from 1 to 16"),
@@ -149,7 +152,7 @@ export function streamVinplusInventory<E, R>(options: VinplusOptions<E, R>) {
           const next = inspectVinplusEvidence(tenant, nextEvidence);
           const yards = [...cursor.yards.slice(0, index), nextEvidence];
           if (next.kind === "complete") {
-            vinplusSnapshot(tenant, next.records);
+            vinplusSnapshot(tenant, next.records, asOf);
             if (yards.length < VINPLUS_TENANTS.length) yards.push([]);
           }
           const nextCursor: VinplusCursor = {
@@ -183,7 +186,7 @@ export function streamVinplusInventory<E, R>(options: VinplusOptions<E, R>) {
         if (result.kind !== "complete")
           throw new Error("Terminal yard still has pending controls");
         return {
-          ...vinplusSnapshot(tenant, result.records),
+          ...vinplusSnapshot(tenant, result.records, asOf),
           warnings: result.warnings,
         };
       }),

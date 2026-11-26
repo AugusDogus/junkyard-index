@@ -60,7 +60,8 @@ function validate(input: unknown): VinplusCursor {
         throw new Error(
           "VinPlus checkpoint skips required controls for an earlier yard",
         );
-      const snapshot = vinplusSnapshot(tenant, progress.records);
+      // Only VIN ownership is checked here, so photo timing is irrelevant.
+      const snapshot = vinplusSnapshot(tenant, progress.records, Date.now());
       for (const vehicle of snapshot.vehicles) {
         const prior = vins.get(vehicle.vin);
         if (prior !== undefined)

@@ -15,6 +15,8 @@ import {
   vinplusQualification,
   vinplusUsAutoSupplyLive,
 } from "./vinplus-test-fixtures";
+// The frozen census was captured through 2026-11-13.
+const asOf = Date.parse("2026-11-14T12:00:00Z");
 const first = () => {
   const tenant = VINPLUS_TENANTS[0];
   if (!tenant) throw new Error("Missing Pocatello configuration");
@@ -86,7 +88,7 @@ test.each([
       throw new Error("Missing qualified tenant evidence");
     const result = inspectVinplusEvidence(tenant, bodies);
     if (result.kind !== "complete") throw new Error("Incomplete yard census");
-    const snapshot = vinplusSnapshot(tenant, result.records);
+    const snapshot = vinplusSnapshot(tenant, result.records, asOf);
     expect(snapshot.vehicles).toHaveLength(accepted);
     expect(snapshot.observedVins).toHaveLength(observed);
     expect(
@@ -150,7 +152,7 @@ describe("frozen public VinPlus protocol", () => {
     expect(result.kind).toBe("complete");
     if (result.kind !== "complete")
       throw new Error("Pending terminal evidence");
-    const snapshot = vinplusSnapshot(first(), result.records);
+    const snapshot = vinplusSnapshot(first(), result.records, asOf);
     expect(snapshot.vehicles).toHaveLength(710);
     expect(snapshot.accounting).toEqual({
       recordsProcessed: 720,
