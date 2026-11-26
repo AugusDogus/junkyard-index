@@ -307,16 +307,16 @@
   outline: none;
 }
 
-/* A yard is a square stop on the line, the way a station sits on a map.
-   Every yard is drawn: a small dot while it crowds a neighbor, growing to
-   the full stop once zooming in gives it room. The outline is the paper
-   color, so dots read in light and dark mode even where they overlap. */
+/* Every yard is drawn: a small dot while it crowds a neighbor, growing once
+   zooming in gives it room. The 1px halo is the paper color, so dots stay
+   apart in light and dark mode even where they overlap. The marker canvas
+   (YardMapMarkerCanvas) draws the same marks once it runs. */
 .yard-map-pin > span {
-  width: 15px;
-  height: 15px;
-  border: 2px solid var(--color-paper-3);
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--color-paper);
+  border-radius: 50%;
   background: var(--color-ink);
-  box-shadow: 0 1px 3px var(--color-scrim);
   transition:
     width var(--dur-micro) var(--ease-out),
     height var(--dur-micro) var(--ease-out),
@@ -331,10 +331,8 @@
 }
 
 .yard-map-pin[data-size="dot"] > span {
-  width: 9px;
-  height: 9px;
-  border-width: 1px;
-  box-shadow: none;
+  width: 8px;
+  height: 8px;
 }
 
 @media (hover: hover) {
