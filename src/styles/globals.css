@@ -292,62 +292,20 @@
   background: var(--color-paper-2) !important;
 }
 
-.yard-map-marker:hover,
-.yard-map-marker:focus-within,
-.yard-map-marker:has([aria-pressed="true"]) {
-  z-index: 1;
-}
-
+/* The marker canvas (YardMapMarkerCanvas) draws every yard; the pin is its
+   invisible hit box, Tab stop and label. */
 .yard-map-pin {
-  scale: calc(1 / var(--yard-map-scale, 1));
-  display: grid;
-  place-items: center;
+  position: absolute;
+  display: block;
   width: 32px;
   height: 32px;
   outline: none;
 }
 
-/* Every yard is drawn: a small dot while it crowds a neighbor, growing once
-   zooming in gives it room. The 1px halo is the paper color, so dots stay
-   apart in light and dark mode even where they overlap. The marker canvas
-   (YardMapMarkerCanvas) draws the same marks once it runs. */
-.yard-map-pin > span {
-  width: 12px;
-  height: 12px;
-  border: 1px solid var(--color-paper);
-  border-radius: 50%;
-  background: var(--color-ink);
-  transition:
-    width var(--dur-micro) var(--ease-out),
-    height var(--dur-micro) var(--ease-out),
-    transform var(--dur-micro) var(--ease-out),
-    background-color var(--dur-micro) steps(1);
-}
-
-/* The marker canvas draws every square once it runs; the pins stay for
-   taps, focus and screen readers. */
-.yard-map[data-markers="canvas"] .yard-map-pin > span {
-  visibility: hidden;
-}
-
-.yard-map-pin[data-size="dot"] > span {
-  width: 8px;
-  height: 8px;
-}
-
-@media (hover: hover) {
-  .yard-map-pin:hover > span {
-    transform: scale(1.25);
-  }
-}
-
-/* The chosen yard: the accent fill plus a ring, so it differs from the other
- * stops by shape too (at night the accent and the ink pins are both pale). */
-.yard-map-pin[aria-pressed="true"] > span {
-  background: var(--color-signal);
-  outline: 2px solid var(--color-signal);
-  outline-offset: 2px;
-  transform: scale(1.35);
+.yard-map-pin:hover,
+.yard-map-pin:focus,
+.yard-map-pin[aria-pressed="true"] {
+  z-index: 1;
 }
 
 .yard-map-pin:focus-visible {
@@ -355,10 +313,34 @@
   outline-offset: -2px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .yard-map-pin > span {
-    transition: none;
-  }
+/* Every yard as a plain dot until the canvas draws: an 8px dot while it
+   crowds a neighbor, 12px once clear, with the canvas's 1px paper halo.
+   The stroke widths undo the map's fit scale, so the dots keep the canvas's
+   size; on four paths, not one element per yard, that costs nothing. */
+.yard-map-dots {
+  position: absolute;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.yard-map-dots path {
+  fill: none;
+  stroke: var(--color-ink);
+  stroke-linecap: round;
+  stroke-width: calc(6px / var(--yard-map-scale, 1));
+}
+
+.yard-map-dots .yard-map-dots-halo {
+  stroke: var(--color-paper);
+  stroke-width: calc(8px / var(--yard-map-scale, 1));
+}
+
+.yard-map-dots .yard-map-dots-clear {
+  stroke-width: calc(10px / var(--yard-map-scale, 1));
+}
+
+.yard-map-dots .yard-map-dots-halo.yard-map-dots-clear {
+  stroke-width: calc(12px / var(--yard-map-scale, 1));
 }
 
 /* Pigeon dims the whole map for its wheel and two-finger hints. A small

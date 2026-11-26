@@ -1,5 +1,4 @@
 import { memo, useRef, type MouseEvent, type PointerEvent } from "react";
-import type { YardMapMarkerSize } from "~/lib/yard-map-marker";
 import { YardPath } from "~/lib/yard-path";
 import type { MapYard } from "./yard-map-data";
 
@@ -9,13 +8,16 @@ import type { MapYard } from "./yard-map-data";
  * the click, so the map can tell a tap on stacked dots from a tap on one
  * pin; keyboard activation has `detail` 0.
  *
- * Memoized with stable callbacks from the map: a view change then redraws
- * only the pins whose size, Tab stop or selection changed, not all of them.
+ * The marker canvas draws the yard; the pin is its invisible 32px hit box,
+ * Tab stop and label, centered on `x`, `y` in the pin layer. Memoized with
+ * stable callbacks from the map: a tap or a pan then redraws only the pins
+ * whose Tab stop or selection changed, not all of them.
  */
 export const YardMapPin = memo(function YardMapPin({
   yard,
+  x,
+  y,
   selected,
-  size,
   tabIndex,
   onSelect,
   register,
@@ -23,8 +25,10 @@ export const YardMapPin = memo(function YardMapPin({
   onHoverYard,
 }: {
   yard: MapYard;
+  /** The yard's place in the pin layer, in pixels. */
+  x: number;
+  y: number;
   selected: boolean;
-  size: YardMapMarkerSize;
   tabIndex: 0 | -1;
   onSelect: (yard: MapYard, event: MouseEvent<HTMLButtonElement>) => void;
   /** Called with the pin's button, and with null when it unmounts. */
@@ -52,14 +56,14 @@ export const YardMapPin = memo(function YardMapPin({
   return (
     <button
       type="button"
+      style={{ left: x - 16, top: y - 16 }}
       ref={(button) => register(key, button)}
       tabIndex={tabIndex}
       onFocus={() => onFocusYard(key)}
-      className="yard-map-pin"
+      className="yard-map-pin pigeon-click-block"
       aria-label={`${yard.name}, ${yard.city}, ${yard.state}`}
       aria-pressed={selected}
       title={`${yard.name} · ${yard.vehicleCount.toLocaleString("en-US")} vehicles`}
-      data-size={size}
       onPointerDown={(event) => {
         if (!event.isPrimary) {
           if (gesture.current) gesture.current.dragged = true;
@@ -93,8 +97,6 @@ export const YardMapPin = memo(function YardMapPin({
         }
         onSelect(yard, event);
       }}
-    >
-      <span aria-hidden="true" />
-    </button>
+    />
   );
 });

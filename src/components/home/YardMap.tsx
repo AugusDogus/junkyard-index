@@ -73,15 +73,20 @@ export function YardMap({ yards, vehicleCount, layout }: YardMapProps) {
     ) {
       return;
     }
-    const box = element.getBoundingClientRect();
-    if (box.top >= 0 && box.bottom <= window.innerHeight) return;
-    const reduceMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
-    element.scrollIntoView({
-      block: "nearest",
-      behavior: reduceMotion ? "auto" : "smooth",
+    // Measure in the next frame, with the layout the browser does anyway,
+    // instead of forcing the map's layout right after the tap.
+    const frame = window.requestAnimationFrame(() => {
+      const box = element.getBoundingClientRect();
+      if (box.top >= 0 && box.bottom <= window.innerHeight) return;
+      const reduceMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+      element.scrollIntoView({
+        block: "nearest",
+        behavior: reduceMotion ? "auto" : "smooth",
+      });
     });
+    return () => window.cancelAnimationFrame(frame);
   }, [panel]);
 
   // Back and shared links reopen the yard. With a saved view the map is
