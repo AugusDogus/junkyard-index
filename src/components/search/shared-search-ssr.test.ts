@@ -250,11 +250,29 @@ test("bare /search renders the same page for a crawler and a person", async () =
   expect(crawler).toContain("Search salvage yard inventory");
 }, 15_000);
 
-test("a person's specific search still renders results on the server", async () => {
+test("a signed-in person's specific search still renders results on the server", async () => {
   const html = await renderSharedSearchFixture(
-    `fixtureGuest=1&q=toyota&fixtureUserAgent=${encodeURIComponent(PERSON_USER_AGENT)}`,
+    `q=toyota&fixtureUserAgent=${encodeURIComponent(PERSON_USER_AGENT)}`,
   );
   expect(serverSearchCount(html)).toBeGreaterThan(0);
   expect(html).toContain("InstantSearchInitialResults");
   expect(html).toContain("Toyota Venza");
 }, 15_000);
+
+// Scrapers that send a browser's user agent and no cookies loaded yard and
+// model page links about 1,000 times a day, each a server search. A guest
+// searches from the browser after hydration instead, so they spend nothing.
+for (const query of [
+  "q=toyota",
+  "yards%5B%5D=Pick+Your+Part+-+Sun+Valley&sources%5B%5D=pyp&yardTypes=all&arrivalWindow%5B%5D=7d",
+]) {
+  test(`a guest's specific search renders the loading search without a server search: ${query}`, async () => {
+    const html = await renderSharedSearchFixture(
+      `fixtureGuest=1&${query}&fixtureUserAgent=${encodeURIComponent(PERSON_USER_AGENT)}`,
+    );
+    expect(serverSearchCount(html)).toBe(0);
+    expect(html).toContain('aria-label="Loading search"');
+    expect(html).not.toContain("InstantSearchInitialResults");
+    expect(html).not.toContain("Toyota Venza");
+  }, 15_000);
+}

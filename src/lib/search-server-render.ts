@@ -3,14 +3,20 @@ import { SearchRadius } from "./search-radius";
 
 /**
  * Whether /search runs an Algolia search, and where. Every search spends the
- * shared monthly quota, so only a person asking for specific results gets a
- * server search. The default page and nearby searches whose origin only the
- * browser knows `skip` it: they render a skeleton and search from the
- * browser. A `crawler` (crawlers, link-preview fetchers and other non-person
- * clients) gets the same skeleton but never searches at all, not even from a
- * rendering crawler's browser.
+ * shared monthly quota, so only a signed-in person asking for specific
+ * results gets a server search. Everyone else `skip`s it: the page renders a
+ * skeleton and searches from the browser after hydration, which costs a
+ * person the same single search. Scrapers that send a browser's user agent
+ * but run no scripts then search nothing; on Nov 26, 2026 such a fleet made
+ * about 1,000 server searches a day from guest page loads of yard and model
+ * page links. A `crawler` (crawlers, link-preview fetchers and other
+ * non-person clients) gets the same skeleton but never searches at all, not
+ * even from a rendering crawler's browser.
  */
 export type SearchServerRender = "search" | "skip" | "crawler";
+
+/** Whether the request carries a signed-in account's session. */
+export type SearchVisitor = "signed-in" | "guest";
 
 type SearchParams = Readonly<
   Record<string, string | readonly string[] | undefined>
@@ -61,11 +67,13 @@ export const SearchServerRender = {
 
   decide(input: {
     userAgent: string | null;
+    visitor: SearchVisitor;
     params: SearchParams;
   }): SearchServerRender {
     if (SearchServerRender.isNonPersonUserAgent(input.userAgent))
       return "crawler";
-    return SearchServerRender.isDefaultSearch(input.params) ||
+    return input.visitor === "guest" ||
+      SearchServerRender.isDefaultSearch(input.params) ||
       SearchServerRender.isNearbyWithoutOrigin(input.params)
       ? "skip"
       : "search";

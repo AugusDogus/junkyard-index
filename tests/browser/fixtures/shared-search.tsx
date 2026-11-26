@@ -35,6 +35,7 @@ const serverSearch: SearchServerRender =
     ? "search"
     : SearchServerRender.decide({
         userAgent: fixtureUserAgent,
+        visitor: isLoggedIn ? "signed-in" : "guest",
         params: Object.fromEntries(
           [...params].filter(([key]) => !key.startsWith("fixture")),
         ),

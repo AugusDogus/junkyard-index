@@ -15,16 +15,62 @@ const CUBOT_UNDERSCORE =
 const CUBOT_SLASH =
   "Mozilla/5.0 (Linux; Android 9; CUBOT/P30) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.230 Mobile Safari/537.36";
 
+// Production user agents from the Nov 26, 2026 scraper fleet: browser
+// strings, no cookies, no scripts run (Vercel Web Analytics counted none of
+// their page views).
+const SCRAPER_CHROME =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36";
+const SCRAPER_FIREFOX =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:156.0) Gecko/20100101 Firefox/156.0";
+
 describe("SearchServerRender.decide", () => {
   test.each([PERSON, IPHONE, CUBOT_WEBVIEW, CUBOT_UNDERSCORE, CUBOT_SLASH])(
-    "searches on the server for a person's specific search",
+    "searches on the server for a signed-in person's specific search",
     (userAgent) => {
       expect(
         SearchServerRender.decide({
           userAgent,
+          visitor: "signed-in",
           params: { q: "Toyota Venza", minYear: "2011" },
         }),
       ).toBe("search");
+    },
+  );
+
+  // A guest's search runs once from the browser instead, so a client that
+  // sends a browser's user agent but runs no scripts spends nothing.
+  test.each([
+    [PERSON, { q: "Toyota Venza", minYear: "2011" }],
+    [IPHONE, { q: "Toyota Venza" }],
+    // A yard page's "new this week" link.
+    [
+      SCRAPER_CHROME,
+      {
+        "yards[]": "Pick Your Part - Sun Valley",
+        "sources[]": "pyp",
+        yardTypes: "all",
+        "arrivalWindow[]": "7d",
+      },
+    ],
+    // A yard make page's "new this week" link.
+    [
+      SCRAPER_FIREFOX,
+      {
+        q: "Kia",
+        "yards[]": "Pull N Save - Glendale",
+        "sources[]": "pullnsave",
+        yardTypes: "all",
+        "arrivalWindow[]": "7d",
+      },
+    ],
+    // A model page's search link.
+    [SCRAPER_CHROME, { q: "Cadillac CTS" }],
+  ])(
+    "skips the server search for a guest's specific search %#",
+    (userAgent, params) => {
+      expect(
+        SearchServerRender.decide({ userAgent, visitor: "guest", params }),
+      ).toBe("skip");
     },
   );
 
@@ -43,7 +89,11 @@ describe("SearchServerRender.decide", () => {
     "GPTBot/1.2 (+https://openai.com/gptbot)",
   ])("treats %s as a crawler", (userAgent) => {
     expect(
-      SearchServerRender.decide({ userAgent, params: { q: "Toyota" } }),
+      SearchServerRender.decide({
+        userAgent,
+        visitor: "guest",
+        params: { q: "Toyota" },
+      }),
     ).toBe("crawler");
   });
 
@@ -61,7 +111,11 @@ describe("SearchServerRender.decide", () => {
     "Java/17.0.10",
   ])("treats %s as a crawler", (userAgent) => {
     expect(
-      SearchServerRender.decide({ userAgent, params: { q: "Toyota" } }),
+      SearchServerRender.decide({
+        userAgent,
+        visitor: "guest",
+        params: { q: "Toyota" },
+      }),
     ).toBe("crawler");
   });
 
@@ -69,7 +123,11 @@ describe("SearchServerRender.decide", () => {
     "treats a client without a user agent as a crawler (%p)",
     (userAgent) => {
       expect(
-        SearchServerRender.decide({ userAgent, params: { q: "Toyota" } }),
+        SearchServerRender.decide({
+          userAgent,
+          visitor: "guest",
+          params: { q: "Toyota" },
+        }),
       ).toBe("crawler");
     },
   );
@@ -83,6 +141,7 @@ describe("SearchServerRender.decide", () => {
         SearchServerRender.decide({
           userAgent:
             "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+          visitor: "guest",
           params,
         }),
       ).toBe("crawler");
@@ -98,16 +157,21 @@ describe("SearchServerRender.decide", () => {
   ])(
     "skips the server search for a nearby search without a URL origin %p",
     (params) => {
-      expect(SearchServerRender.decide({ userAgent: PERSON, params })).toBe(
-        "skip",
-      );
+      expect(
+        SearchServerRender.decide({
+          userAgent: PERSON,
+          visitor: "signed-in",
+          params,
+        }),
+      ).toBe("skip");
     },
   );
 
-  test("searches on the server for a nearby search with its origin in the URL", () => {
+  test("searches on the server for a signed-in nearby search with its origin in the URL", () => {
     expect(
       SearchServerRender.decide({
         userAgent: PERSON,
+        visitor: "signed-in",
         params: { q: "Civic", lat: "33.448", lng: "-112.074", radius: "50" },
       }),
     ).toBe("search");
@@ -120,9 +184,13 @@ describe("SearchServerRender.decide", () => {
     { subscription: "success" },
     { q: undefined },
   ])("skips the server search for the default page %p", (params) => {
-    expect(SearchServerRender.decide({ userAgent: PERSON, params })).toBe(
-      "skip",
-    );
+    expect(
+      SearchServerRender.decide({
+        userAgent: PERSON,
+        visitor: "signed-in",
+        params,
+      }),
+    ).toBe("skip");
   });
 
   test.each([
@@ -131,9 +199,16 @@ describe("SearchServerRender.decide", () => {
     { "makes[]": ["Toyota"] },
     { yardTypes: "all" },
     { q: "Civic", utm_source: "newsletter" },
-  ])("searches on the server when the URL asks for %p", (params) => {
-    expect(SearchServerRender.decide({ userAgent: PERSON, params })).toBe(
-      "search",
-    );
-  });
+  ])(
+    "searches on the server when a signed-in person's URL asks for %p",
+    (params) => {
+      expect(
+        SearchServerRender.decide({
+          userAgent: PERSON,
+          visitor: "signed-in",
+          params,
+        }),
+      ).toBe("search");
+    },
+  );
 });
