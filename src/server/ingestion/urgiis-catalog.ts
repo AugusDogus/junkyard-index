@@ -83,15 +83,19 @@ export function iisDeclaresSupplier(raw: string, site: UrgiisSite) {
   const { ids, knownSupplierBundle } = supplierDeclaration(raw, site);
   return ids.length > 0 || knownSupplierBundle;
 }
+/** False unless `raw` is one HTML document that ends with its closing
+ * body and html tags, as a render the origin finished does. */
+export function iisDocumentComplete(raw: string) {
+  const html = stripInventoryRawText(raw);
+  return (
+    [/<html\b/gi, /<body\b/gi, /<\/body\s*>/gi, /<\/html\s*>/gi].every(
+      (p) => [...html.matchAll(p)].length === 1,
+    ) && /<\/body\s*>\s*<\/html\s*>\s*$/i.test(html)
+  );
+}
 export function iisDocument(raw: string, site: UrgiisSite) {
   const html = stripInventoryRawText(raw);
-  if (
-    Buffer.byteLength(raw) > 4 * 1024 * 1024 ||
-    [/<html\b/gi, /<body\b/gi, /<\/body\s*>/gi, /<\/html\s*>/gi].some(
-      (p) => [...html.matchAll(p)].length !== 1,
-    ) ||
-    !/<\/body\s*>\s*<\/html\s*>\s*$/i.test(html)
-  )
+  if (Buffer.byteLength(raw) > 4 * 1024 * 1024 || !iisDocumentComplete(raw))
     throw new Error("IIS document is oversized or truncated");
   const { ids, knownSupplierBundle } = supplierDeclaration(raw, site);
   if (

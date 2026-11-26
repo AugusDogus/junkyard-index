@@ -1,5 +1,5 @@
 import { expect, spyOn, test } from "bun:test";
-import { Effect, Either } from "effect";
+import { Effect, Either, Fiber, TestClock, TestContext } from "effect";
 import {
   ProviderChunkClock,
   ProviderTurnDeferred,
@@ -315,3 +315,97 @@ test("URG IIS reads that share a turn keep the URG gap after a slotted request a
     fetch.mockRestore();
   }
 }, 60_000);
+
+// Norb's on November 26, 2026: Cloudflare kept serving `/parts/ACURA` from a
+// render the origin cut off after 10.7 seconds (67,462 bytes, no closing
+// tags) for hours. A query string misses that cache rule when the request
+// carries the `urg_hv` cookie, and the plugin does not reflect it.
+const truncatedMake =
+  '<!DOCTYPE html><html><head></head><body><div id="x-main"><div class="entry-content">\n<!-- plugin=object-cache-pro metric#ms-total=10672.79 -->';
+const completeMake =
+  '<!DOCTYPE html><html><head></head><body><div id="iiscont"></div></body></html>';
+const cached = (body: string, status: string) =>
+  new Response(body, {
+    headers: { "content-type": "text/html", "cf-cache-status": status },
+  });
+
+test("a URG IIS page Cloudflare serves truncated from its cache is reread past the cache", async () => {
+  const make = tenant.origin + "/parts/ACURA";
+  const fetch = spyOn(globalThis, "fetch")
+    .mockRejectedValue(
+      new Error("Unexpected extra request in offline IIS test"),
+    )
+    .mockResolvedValueOnce(cached(truncatedMake, "HIT"))
+    .mockResolvedValueOnce(cached(completeMake, "BYPASS"));
+  try {
+    expect(await Effect.runPromise(readUrgiisPage(make, tenant))).toBe(
+      completeMake,
+    );
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch.mock.calls[0]?.[0]).toBe(make);
+    const busted = String(fetch.mock.calls[1]?.[0]);
+    expect(busted).toMatch(
+      /^https:\/\/example\.com\/parts\/ACURA\?cb=[0-9a-f]{16}$/,
+    );
+    expect(new Headers(fetch.mock.calls[1]?.[1]?.headers).get("cookie")).toBe(
+      "urg_hv=1",
+    );
+  } finally {
+    fetch.mockRestore();
+  }
+});
+
+test("a URG IIS cache-busted reread that is still served from the cache fails closed", async () => {
+  const fetch = spyOn(globalThis, "fetch").mockImplementation(
+    Object.assign(async () => cached(truncatedMake, "HIT"), {
+      preconnect: globalThis.fetch.preconnect,
+    }),
+  );
+  try {
+    // Its retries back off 4 and 8 seconds on the test clock.
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const fiber = yield* Effect.fork(
+          readUrgiisPage(tenant.origin + "/parts/ACURA", tenant).pipe(
+            Effect.either,
+          ),
+        );
+        yield* TestClock.adjust("1 minute");
+        return yield* Fiber.join(fiber);
+      }).pipe(Effect.provide(TestContext.TestContext)),
+    );
+    if (result._tag !== "Left") throw new Error("Expected a cached reread");
+    if (result.left instanceof ProviderTurnDeferred) throw result.left;
+    expect(result.left.message).toContain("cf-cache-status HIT");
+    expect(result.left.message).toContain("cache-busting");
+    expect(result.left.message).toContain("Prior inventory is preserved");
+    // Three attempts, each the cached page and its cached reread.
+    expect(fetch).toHaveBeenCalledTimes(6);
+  } finally {
+    fetch.mockRestore();
+  }
+});
+
+test("a URG IIS page is not reread when it is complete, uncached, or the tenant has no verification cookie", async () => {
+  for (const [site, body, status] of [
+    [tenant, completeMake, "HIT"],
+    [tenant, truncatedMake, "MISS"],
+    [{ ...tenant, cookie: null }, truncatedMake, "HIT"],
+  ] as const) {
+    const fetch = spyOn(globalThis, "fetch")
+      .mockRejectedValue(
+        new Error("Unexpected extra request in offline IIS test"),
+      )
+      .mockResolvedValueOnce(cached(body, status));
+    try {
+      expect(
+        await Effect.runPromise(
+          readUrgiisPage(site.origin + "/parts/ACURA", site),
+        ),
+      ).toBe(body);
+      expect(fetch).toHaveBeenCalledTimes(1);
+    } finally {
+      fetch.mockRestore();
+    }
+  }
+});
