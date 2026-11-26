@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { CanonicalVehicle } from "./types";
 import { normalizeCanonicalMake } from "./normalization";
 import { NorthwestRecord, type NorthwestAssessment } from "./northwest-record";
+import { northwestVehiclePhoto } from "./vehicle-photo";
 
 export type NorthwestCandidate = Omit<CanonicalVehicle, "source"> & {
   source: "northwest";
@@ -44,6 +45,7 @@ export type NorthwestRecordResult =
       optionalConflicts: NorthwestOptionalConflict[];
     };
 
+/** Image claims resolve against their page here; photo acceptance is in the transform. */
 export function northwestOptionalValue(
   field: NorthwestOptionalField,
   value: string | null,
@@ -63,7 +65,7 @@ export function northwestOptionalValue(
   if (field === "imageUrl") {
     const url = URL.parse(value, sourceUrl);
     return url &&
-      url.origin === "https://northwestautoparts.com" &&
+      url.protocol === "https:" &&
       !url.username &&
       !url.password &&
       !url.search &&
@@ -129,5 +131,6 @@ export function transformNorthwestRecord(
       record.sourceUrl,
     );
   }
+  candidate.imageUrl = northwestVehiclePhoto(candidate.imageUrl);
   return { status: "candidate", assessment, candidate, optionalConflicts };
 }

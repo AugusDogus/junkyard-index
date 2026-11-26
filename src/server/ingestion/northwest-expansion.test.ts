@@ -168,6 +168,7 @@ test("Northwest replays all 36 makes and 334 models through its real client and 
   );
   let cursor: NorthwestCursor = NorthwestCursor.initial;
   let count = 0;
+  const photos: string[] = [];
   let terminal: NorthwestStreamResult | undefined;
   for (let chunk = 0; chunk < 60; chunk++) {
     const result: NorthwestStreamResult = await Effect.runPromise(
@@ -178,6 +179,7 @@ test("Northwest replays all 36 makes and 334 models through its real client and 
           onBatch: (vehicles) =>
             Effect.sync(() => {
               count += vehicles.length;
+              for (const v of vehicles) if (v.imageUrl) photos.push(v.imageUrl);
               expect(
                 vehicles.every(
                   (v) =>
@@ -212,6 +214,11 @@ test("Northwest replays all 36 makes and 334 models through its real client and 
   }
   expect(cursor.phase).toBe("complete");
   expect(count).toBe(6688);
+  // Each of the 138 captured cards with a CloudFront data-src keeps its photo.
+  expect(photos.length).toBe(138);
+  expect(photos).toContain(
+    "https://da8h1v3w8q6n5.cloudfront.net/ak01/images/K574/K574_0.jpg",
+  );
   expect(terminal?.accounting).toEqual({
     recordsProcessed: 6934,
     recordsRejected: 246,

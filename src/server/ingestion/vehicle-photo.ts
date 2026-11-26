@@ -37,6 +37,30 @@ export function midwayVehiclePhoto(raw: unknown): string | null {
   );
 }
 
+export function northwestVehiclePhoto(raw: unknown): string | null {
+  return vehiclePhoto(
+    raw,
+    "da8h1v3w8q6n5.cloudfront.net",
+    /^\/ak01\/images\/[^/]+\/[^/]+\.jpe?g$/i,
+  );
+}
+
+/** The search API names a stock's photo before the yard uploads it, so a new
+ * arrival's URL can 404 for about a week; the page falls back to its placeholder. */
+export function usAutoSupplyVehiclePhoto(
+  raw: unknown,
+  stock: string,
+): string | null {
+  const photo = vehiclePhoto(
+    raw,
+    "usautosupplymi.com",
+    /^\/inventory-photos\/STK\d{6}\.jpg$/,
+  );
+  return photo === `https://usautosupplymi.com/inventory-photos/${stock}.jpg`
+    ? photo
+    : null;
+}
+
 export function tritownVehiclePhoto(raw: unknown): string | null {
   return vehiclePhoto(
     raw,

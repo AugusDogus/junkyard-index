@@ -119,3 +119,40 @@ test("duplicate and physical-yard floors cannot be bypassed", () => {
     input[i] = { ...original, stock: `STK${String(i).padStart(6, "0")}` };
   expect(() => vinplusSnapshot(config, input)).toThrow("25% duplicate");
 });
+test("US Auto Supply keeps its stock-bound photo from the frozen census", () => {
+  const usAutoSupply = VINPLUS_TENANTS.find(
+    (value) => value.yardId === "us_auto_supply",
+  );
+  const bodies = vinplusCensus()[2];
+  if (!usAutoSupply || !bodies)
+    throw new Error("Missing US Auto Supply census");
+  const result = inspectVinplusEvidence(usAutoSupply, bodies);
+  if (result.kind !== "complete") throw new Error("Incomplete census");
+  const { vehicles } = vinplusSnapshot(usAutoSupply, result.records);
+  expect(vehicles.length).toBeGreaterThan(0);
+  for (const vehicle of vehicles)
+    expect(vehicle.imageUrl).toBe(
+      `https://usautosupplymi.com/inventory-photos/${vehicle.stockNumber}.jpg`,
+    );
+  const [first] = result.records;
+  if (!first) throw new Error("Missing record");
+  for (const imageUrl of [
+    "https://usautosupplymi.com/inventory-photos/STK000001.jpg",
+    `http://usautosupplymi.com/inventory-photos/${first.stock}.jpg`,
+    `https://example.com/inventory-photos/${first.stock}.jpg`,
+    null,
+  ])
+    expect(
+      vinplusSnapshot({ ...usAutoSupply, minimum: 1 }, [{ ...first, imageUrl }])
+        .vehicles[0]?.imageUrl,
+    ).toBeNull();
+});
+test("tenants without a photo contract keep no photo", () => {
+  const input = records().map((record) => ({
+    ...record,
+    imageUrl: `https://usautosupplymi.com/inventory-photos/${record.stock}.jpg`,
+  }));
+  expect(
+    vinplusSnapshot(config, input).vehicles.every((v) => v.imageUrl === null),
+  ).toBe(true);
+});
