@@ -10,9 +10,14 @@ import {
 import { HomePricing } from "~/components/home/HomePricing";
 import { HomeFaq } from "~/components/home/HomeFaq";
 import { HomeClosingCta } from "~/components/home/HomeClosingCta";
+import { HomeStateIndex } from "~/components/home/HomeStateIndex";
 import { getHomepageInventory } from "~/lib/homepage-inventory";
 import { InventoryStaleness } from "~/lib/inventory-staleness";
-import { getInventoryCheckDates } from "~/server/yard-inventory";
+import { YardPath } from "~/lib/yard-path";
+import {
+  getInventoryCheckDates,
+  getRoutedYards,
+} from "~/server/yard-inventory";
 import { JsonLd } from "~/components/JsonLd";
 import { env } from "~/env";
 import { homeMetadata } from "./home-metadata";
@@ -23,10 +28,15 @@ export async function generateHomeMetadata() {
 }
 
 export async function HomeLandingPage() {
-  const [{ inventory, section }, checkDates] = await Promise.all([
+  const [{ inventory, section }, checkDates, routedYards] = await Promise.all([
     loadYardMapSection(),
     getInventoryCheckDates(),
+    getRoutedYards(),
   ]);
+  const regions = YardPath.byRegion(routedYards).map(({ region, yards }) => ({
+    region,
+    yards: yards.length,
+  }));
   const now = Date.now();
   const recentVehicles = inventory.recentVehicles.map((vehicle) => ({
     ...vehicle,
@@ -104,6 +114,7 @@ export async function HomeLandingPage() {
         >
           <RecentVehicles vehicles={recentVehicles} />
         </Suspense>
+        <HomeStateIndex regions={regions} />
         <HomeFaq />
         <HomePricing />
         <HomeClosingCta />
