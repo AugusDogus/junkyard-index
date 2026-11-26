@@ -119,6 +119,18 @@ describe("SearchServerRender.decide", () => {
     ).toBe("crawler");
   });
 
+  // A session cookie is no proof of a person: the user agent decides first.
+  test("treats a signed-in crawler as a crawler", () => {
+    expect(
+      SearchServerRender.decide({
+        userAgent:
+          "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+        visitor: "signed-in",
+        params: { q: "Toyota" },
+      }),
+    ).toBe("crawler");
+  });
+
   test.each([null, "", "   "])(
     "treats a client without a user agent as a crawler (%p)",
     (userAgent) => {

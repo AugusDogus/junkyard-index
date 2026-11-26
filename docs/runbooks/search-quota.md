@@ -34,6 +34,9 @@ on the 21st when that matters.
 
 - The meter sees browser calls only. Server renders and alert matching spend
   quota without events, which is why Algolia's emails stay in place.
+- Since Nov 26, 2026, only signed-in visitors get a server-rendered /search.
+  A guest's first search runs in the browser and is metered, so the meter's
+  trend rose while Algolia's total did not.
 - A page hidden before PostHog loads can lose its event.
 
 ## Why there is no usage API probe
