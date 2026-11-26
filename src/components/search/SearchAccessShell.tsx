@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import {
   useEffect,
   useMemo,
+  useState,
   useSyncExternalStore,
   type ReactNode,
 } from "react";
@@ -70,18 +71,46 @@ const subscribeNever = () => () => {};
 const noHeldKey = () => null;
 
 /**
- * Rendering crawlers run scripts, so for them the search never mounts: each
- * of its searches would spend the shared monthly Algolia quota. They keep
- * the skeleton a person's page shows until it hydrates, so the server
- * renders the same page for both.
+ * The search before it runs: the skeleton, and a way to start it that
+ * appears only if the search has not replaced this after a few seconds.
+ * Without `onStart` the button waits for hydration, which starts the search
+ * anyway.
+ */
+function PendingSearch({ onStart }: { onStart?: () => void }) {
+  return (
+    <>
+      <p className="shell text-ink-2 animate-in fade-in fill-mode-backwards pt-3 text-sm delay-3000">
+        Search not loading?{" "}
+        <button
+          type="button"
+          onClick={onStart}
+          className="text-ink hover:text-signal focus-visible:outline-focus underline decoration-1 underline-offset-[0.3em] hover:decoration-2 focus-visible:outline-2 focus-visible:outline-solid"
+        >
+          Start search
+        </button>
+      </p>
+      <SearchPageSkeleton />
+    </>
+  );
+}
+
+/**
+ * Rendering crawlers run scripts, so for them the search never mounts on its
+ * own: each of its searches would spend the shared monthly Algolia quota.
+ * They keep the page a person sees until it hydrates, so the server renders
+ * the same page for both. A person taken for a crawler can start the search,
+ * which then runs as it would for a skipped server search.
  */
 export function SearchAccessShell(props: SearchAccessShellProps) {
-  // Branch before any hook: the browser search's hooks prime keys and fetch
+  const [started, setStarted] = useState(false);
+  if (props.serverSearch !== "crawler")
+    return <BrowserSearchShell {...props} />;
+  // Branch before the browser search's hooks, which prime keys and fetch
   // capabilities, none of which a crawler needs.
-  return props.serverSearch === "crawler" ? (
-    <SearchPageSkeleton />
+  return started ? (
+    <BrowserSearchShell {...props} serverSearch="skip" />
   ) : (
-    <BrowserSearchShell {...props} />
+    <PendingSearch onStart={() => setStarted(true)} />
   );
 }
 
@@ -167,9 +196,9 @@ function BrowserSearchShell({
     routing.onUrlChange(window.location.href);
   }, [routing, searchParams]);
 
-  if (isSearchPending || (serverSearch === "skip" && !hydrated)) {
-    return <SearchPageSkeleton />;
-  }
+  // Before hydration, the same page a crawler gets.
+  if (serverSearch === "skip" && !hydrated) return <PendingSearch />;
+  if (isSearchPending) return <SearchPageSkeleton />;
   const hiddenKey = hidden.list.join(",");
 
   if (expressionMode) {

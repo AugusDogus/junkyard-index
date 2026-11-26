@@ -7,6 +7,10 @@ import { ErrorBoundary } from "~/components/ErrorBoundary";
 import { Footer } from "~/components/Footer";
 import { Header } from "~/components/Header";
 import { ScrollToTop } from "~/components/ScrollToTop";
+import {
+  SearchBrowseIndex,
+  type SearchBrowse,
+} from "~/components/search/SearchBrowseIndex";
 import { SearchPageBody } from "~/components/search/SearchPageBody";
 import { SearchPageSkeleton } from "~/components/search/SearchPageSkeleton";
 import { SearchErrorFallback } from "~/components/search/SearchErrorFallback";
@@ -16,11 +20,41 @@ import { SearchServerRender } from "~/lib/search-server-render";
 import { searchPageMetadata } from "./search-metadata";
 import { InventoryStaleness } from "~/lib/inventory-staleness";
 import { getHomepageYards } from "~/server/homepage-yards";
-import { getInventoryCheckDates } from "~/server/yard-inventory";
+import { YardPath } from "~/lib/yard-path";
+import { getMakes } from "~/server/vehicle-models";
+import {
+  getInventoryCheckDates,
+  getRoutedYards,
+} from "~/server/yard-inventory";
 import { searchKeyGrants } from "~/server/search-key-grant";
 import { getHiddenSources } from "~/server/source-control/hidden-sources-loader";
 import { auth } from "~/lib/auth";
 import { api, HydrateClient } from "~/trpc/server";
+
+const BROWSE_MAKES = 12;
+
+/**
+ * The browse links, from the cached yard directory and make counts that the
+ * homepage and /cars also read. They are optional page text, so a failed
+ * read leaves them out instead of failing the search.
+ */
+async function loadBrowse(): Promise<SearchBrowse | null> {
+  try {
+    const [yards, makes] = await Promise.all([getRoutedYards(), getMakes()]);
+    return {
+      regions: YardPath.byRegion(yards).map(({ region }) => region),
+      makes: makes
+        .slice(0, BROWSE_MAKES)
+        .map(({ name, href }) => ({ name, href })),
+    };
+  } catch (error) {
+    console.error(
+      "/search rendered without its state and make links: reading the cached yard directory or make counts failed. Search itself is unaffected. Check the inventory cache and Turso reads.",
+      error,
+    );
+    return null;
+  }
+}
 
 interface SearchPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -68,13 +102,14 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   ]);
   const isLoggedIn = Boolean(session?.user);
   const renderedAt = Date.now();
-  const [searchKey, checkDates] = await Promise.all([
+  const [searchKey, checkDates, browse] = await Promise.all([
     searchKeyGrants.forRender({
       userId: session?.user.id ?? null,
       headers: reqHeaders,
       nowMs: renderedAt,
     }),
     getInventoryCheckDates(),
+    loadBrowse(),
     api.status.searchCapabilities.prefetch(),
     isLoggedIn
       ? api.subscription.getAccountOverview.prefetch()
@@ -110,6 +145,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
               </HydrateClient>
             </Suspense>
           </ErrorBoundary>
+          {browse && <SearchBrowseIndex {...browse} />}
         </SearchPageBody>
       </div>
       <Footer />

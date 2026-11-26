@@ -18,10 +18,10 @@ type SearchParams = Readonly<
 
 // Crawlers, link unfurlers, monitors, headless browsers and command-line
 // fetchers. Rendering crawlers such as Googlebot run the page's scripts, so
-// a browser search would spend the quota too. The lookbehind keeps Cubot phones, whose model names end
-// in "bot", on the server search.
+// a browser search would spend the quota too. The lookbehinds keep Cubot
+// phones ("CUBOT X30", "CUBOT_X50", "CUBOT/P30") on the search.
 const NON_PERSON_USER_AGENT =
-  /(?<!cu)bot\b|bot[/_]|crawl|spider|slurp|facebookexternalhit|embedly|whatsapp|preview|inspectiontool|lighthouse|headless|curl\/|wget\/|python-|scrapy|okhttp|java\/|go-http-client|axios\/|node-fetch|undici/i;
+  /(?<!cu)bot\b|(?<!cu)bot[/_]|crawl|spider|slurp|facebookexternalhit|embedly|whatsapp|preview|inspectiontool|lighthouse|headless|curl\/|wget\/|python-|scrapy|okhttp|java\/|go-http-client|axios\/|node-fetch|undici/i;
 
 // Params that never change the search: campaign tags and checkout return.
 const NON_SEARCH_PARAM = /^(utm_[a-z_]+|gclid|fbclid|msclkid|subscription)$/;
