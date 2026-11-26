@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import {
   INVENTORY_HIDDEN_AFTER_DAYS,
@@ -71,4 +71,33 @@ export async function loadSourceFreshness(
       // production in November 2026; 50 ms for 14 days on November 24).
       .groupBy(sql`+${ingestionSourceRun.source}`)
   );
+}
+
+/**
+ * One source's latest accepted publication in the last
+ * SOURCE_FRESHNESS_LOOKBACK_DAYS, or null when it has none: what one yard's
+ * pages need, read through the (source, started_at) index instead of every
+ * source's runs.
+ */
+export async function loadSourcePublishedAt(
+  database: LibSQLDatabase,
+  now: Date,
+  source: string,
+): Promise<number | null> {
+  const [row] = await database
+    .select({
+      lastPublishedAt: sql<number | null>`max(case
+        when ${SourcePublication.acceptedSql}
+        then ${SourcePublication.publishedAt}
+      end)`,
+    })
+    .from(ingestionSourceRun)
+    .innerJoin(ingestionRun, eq(ingestionRun.id, ingestionSourceRun.runId))
+    .where(
+      and(
+        eq(ingestionSourceRun.source, source),
+        sql`${ingestionSourceRun.startedAt} > ${now.getTime() - SOURCE_FRESHNESS_LOOKBACK_DAYS * 24 * 60 * 60 * 1000}`,
+      ),
+    );
+  return row?.lastPublishedAt ?? null;
 }

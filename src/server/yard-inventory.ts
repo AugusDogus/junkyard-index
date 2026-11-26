@@ -26,8 +26,11 @@ import {
   type YardVehicle,
 } from "~/lib/yard-inventory";
 import { getSourceFreshness } from "~/server/ingestion/source-freshness";
+import { loadSourcePublishedAt as loadOneSourcePublishedAt } from "~/server/ingestion/durable-health";
+import { getHomepageYards } from "~/server/homepage-yards";
 import { StateNewArrivals } from "~/server/state-new-arrivals";
 import { cacheShownInventory } from "~/server/source-control/hidden-sources-loader";
+import { and, eq } from "drizzle-orm";
 import { yardCheck, yardInventory } from "~/schema";
 import { YardCheck } from "~/lib/yard-check";
 import { YardSummaryStore } from "./yard-summary-store";
@@ -366,54 +369,125 @@ export const findRegionYards = cache(async (regionSlug: string) => {
 
 const NEARBY_YARDS = 6;
 
+/** A yard of a source, as the yard's cache entries are keyed. */
+type YardKey = { source: string; code: string };
+
 /**
- * Everything a yard's inventory pages show, or null when no yard lives at
- * /junkyards/{regionSlug}/{yardSlug}.
+ * Each routed yard of a region by its URL slug: the small entry a yard page
+ * resolves its URL with (a few KB), rather than the whole directory (about
+ * 300 KB, 39 cache read units on every render).
  */
-export const getYardPageData = cache(
-  async (regionSlug: string, yardSlug: string) => {
-    const yard = await findYard(regionSlug, yardSlug);
-    if (!yard) return null;
-    const [summary, checkDates, routed, chains] = await Promise.all([
-      getYardSummary(yard.source, yard.code),
-      getInventoryCheckDates(),
-      getRoutedYards(),
-      getChains(),
+const getRegionYardRoutes = cacheShownInventory(
+  async (
+    hidden,
+    regionSlug: string,
+  ): Promise<Readonly<Record<string, YardKey>>> =>
+    Object.fromEntries(
+      routedYards(await getHomepageYards(db, hidden))
+        .filter((yard) => yard.path.region.slug === regionSlug)
+        .map((yard) => [
+          yard.path.slug,
+          { source: yard.source, code: yard.code },
+        ]),
+    ),
+  ["yard-routes-v1", ...RETIRED_INGESTION_SOURCES],
+);
+
+/** What a yard's pages show around its vehicles. */
+type YardContext = {
+  yard: RoutedYard;
+  publishedAt: string | null;
+  checkedAt: string | null;
+  checkUnknown: boolean;
+  nearby: { yard: RoutedYard; miles: number }[];
+  chain: { name: string; href: string; yards: number } | null;
+};
+
+/**
+ * One yard's details, nearby yards, chain and check dates, in one small
+ * entry (a few KB) instead of the directory and the every-source and
+ * every-yard date maps each render read. A miss reads the directory query
+ * (about 800 rows), one source's recent runs and one yard_check row.
+ */
+const getYardContext = cacheShownInventory(
+  async (hidden, source: string, code: string): Promise<YardContext | null> => {
+    const now = new Date();
+    const [directory, lastPublishedAt, checks] = await Promise.all([
+      getHomepageYards(db, hidden),
+      loadOneSourcePublishedAt(db, now, source),
+      db
+        .select({
+          source: yardCheck.source,
+          code: yardCheck.locationCode,
+          lastCheckedAt: yardCheck.lastCheckedAt,
+        })
+        .from(yardCheck)
+        .where(
+          and(eq(yardCheck.source, source), eq(yardCheck.locationCode, code)),
+        ),
     ]);
-    const chain = chains.find((candidate) =>
+    const routed = routedYards(directory);
+    const yard = routed.find(
+      (candidate) => candidate.source === source && candidate.code === code,
+    );
+    if (!yard) return null;
+    // As getInventoryCheckDates would give for this yard and its source.
+    const checkDates: InventoryCheckDates = {
+      sources:
+        lastPublishedAt !== null &&
+        isIngestionSource(source) &&
+        !isRetiredIngestionSource(source)
+          ? { [source]: new Date(lastPublishedAt).toISOString() }
+          : {},
+      yards: YardCheck.checkDates(checks),
+    };
+    const chain = YardBrand.chains(routed).find((candidate) =>
       candidate.yards.some((member) => member.path.href === yard.path.href),
     );
-    const nearby = routed
-      .filter((other) => other.path.href !== yard.path.href)
-      .map((other) => ({
-        yard: other,
-        miles: calculateDistance(yard.lat, yard.lng, other.lat, other.lng),
-      }))
-      .sort((a, b) => a.miles - b.miles)
-      .slice(0, NEARBY_YARDS);
+    const key = `${yard.source}:${yard.code}`;
     return {
       yard,
-      summary,
-      publishedAt: checkDates.yards[`${yard.source}:${yard.code}`] ?? null,
+      publishedAt: checkDates.yards[key] ?? null,
       checkedAt: InventoryStaleness.checkedAt(
         checkDates,
         yard.source,
         yard.code,
       ),
-      checkUnknown: checkDates.yards[`${yard.source}:${yard.code}`] === null,
-      nearby,
+      checkUnknown: checkDates.yards[key] === null,
+      nearby: routed
+        .filter((other) => other.path.href !== yard.path.href)
+        .map((other) => ({
+          yard: other,
+          miles: calculateDistance(yard.lat, yard.lng, other.lat, other.lng),
+        }))
+        .sort((a, b) => a.miles - b.miles)
+        .slice(0, NEARBY_YARDS),
       chain: chain
         ? { name: chain.name, href: chain.href, yards: chain.yards.length }
         : null,
     };
   },
+  ["yard-context-v1", ...RETIRED_INGESTION_SOURCES],
 );
 
-/** The yard at /junkyards/{regionSlug}/{yardSlug}, if one lives there. */
-export const findYard = cache(
-  async (regionSlug: string, yardSlug: string): Promise<RoutedYard | null> =>
-    (await getRoutedYards()).find(
-      (yard) =>
-        yard.path.region.slug === regionSlug && yard.path.slug === yardSlug,
-    ) ?? null,
+/**
+ * Everything a yard's inventory pages show, or null when no yard lives at
+ * /junkyards/{regionSlug}/{yardSlug}. Reads three small entries (the
+ * region's routes, the yard's context and its summary), so a page render
+ * stays a few cache read units however many yards the site lists.
+ */
+export const getYardPageData = cache(
+  async (regionSlug: string, yardSlug: string) => {
+    // An unknown region never reaches the cache, so crawled garbage URLs
+    // store and read nothing.
+    if (!Region.fromSlug(regionSlug)) return null;
+    const routes = await getRegionYardRoutes(regionSlug);
+    const target = Object.hasOwn(routes, yardSlug) ? routes[yardSlug] : null;
+    if (!target) return null;
+    const [context, summary] = await Promise.all([
+      getYardContext(target.source, target.code),
+      getYardSummary(target.source, target.code),
+    ]);
+    return context ? { ...context, summary } : null;
+  },
 );
