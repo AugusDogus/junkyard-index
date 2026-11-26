@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, type SQL } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "~/lib/db";
 import { Region } from "~/lib/region";
@@ -33,14 +33,9 @@ import { cacheShownInventory } from "~/server/source-control/hidden-sources-load
 import { vehicle, yardCheck, yardInventory } from "~/schema";
 import { YardCheck } from "~/lib/yard-check";
 
-async function loadYardVehicles(
-  source: string,
-  code: string,
-): Promise<YardVehicle[]> {
-  // No ORDER BY: with it, SQLite walks vehicle_recent_idx across every live
-  // vehicle in the country. Without it, vehicle_location_code_idx reads only
-  // this yard's rows, which sort cheaply here.
-  const rows = await db
+/** A yard's live vehicles matching `where`, with the fields its pages show. */
+function selectYardRows(where: SQL | undefined) {
+  return db
     .select({
       vin: vehicle.vin,
       year: vehicle.year,
@@ -61,13 +56,12 @@ async function loadYardVehicles(
       detailsUrl: vehicle.detailsUrl,
     })
     .from(vehicle)
-    .where(
-      and(
-        eq(vehicle.locationCode, code),
-        eq(vehicle.source, source),
-        isNull(vehicle.missingSinceAt),
-      ),
-    );
+    .where(where);
+}
+
+type YardVehicleRow = Awaited<ReturnType<typeof selectYardRows>>[number];
+
+function toYardVehicles(rows: readonly YardVehicleRow[]): YardVehicle[] {
   return YardInventory.sort(
     rows.map(({ firstSeenAt, observedArrivalAt, ...row }) =>
       YardInventory.vehicle({
@@ -77,6 +71,29 @@ async function loadYardVehicles(
       }),
     ),
   );
+}
+
+/** A yard's live vehicles, newest first, and the raw makes they came with. */
+type YardVehiclesRead = { vehicles: YardVehicle[]; rawMakes: string[] };
+
+async function loadYardVehicles(
+  source: string,
+  code: string,
+): Promise<YardVehiclesRead> {
+  // No ORDER BY: with it, SQLite walks vehicle_recent_idx across every live
+  // vehicle in the country. Without it, vehicle_location_code_idx reads only
+  // this yard's rows, which sort cheaply here.
+  const rows = await selectYardRows(
+    and(
+      eq(vehicle.locationCode, code),
+      eq(vehicle.source, source),
+      isNull(vehicle.missingSinceAt),
+    ),
+  );
+  return {
+    vehicles: toYardVehicles(rows),
+    rawMakes: rows.map((row) => row.make),
+  };
 }
 
 /**
@@ -91,23 +108,20 @@ const readYardVehicles = cache(loadYardVehicles);
  * again only when that source's yards change (see cacheSourceInventory).
  */
 const getYardSummary = cacheSourceInventory(
-  async (source: string, code: string): Promise<YardSummary> =>
-    YardInventory.summary(await readYardVehicles(source, code)),
-  ["yard-summary-v3"],
+  async (source: string, code: string): Promise<YardSummary> => {
+    const read = await readYardVehicles(source, code);
+    return YardInventory.summary(read.vehicles, read.rawMakes);
+  },
+  ["yard-summary-v4"],
 );
 
 /** A slice of a yard's vehicles and the fingerprint of the read it came from. */
 type YardSlice = { fingerprint: string; vehicles: YardVehicle[] };
 
-/**
- * Slice `index` of a yard's live vehicles, newest first. A yard's pages are
- * each one slice. Make pages filter all of them: per-make entries built from
- * these would nest one unstable_cache in another, and Next.js skips the cache
- * for the inner call, so every miss would read the whole yard again.
- */
+/** Slice `index` of a yard's live vehicles, newest first. A yard page is one slice. */
 const getYardSlice = cacheSourceInventory(
   async (source: string, code: string, index: number): Promise<YardSlice> => {
-    const vehicles = await readYardVehicles(source, code);
+    const { vehicles } = await readYardVehicles(source, code);
     return {
       fingerprint: YardInventory.fingerprint(vehicles),
       vehicles: YardInventory.slice(vehicles, index),
@@ -129,27 +143,48 @@ async function freshYard(
   source: string,
   code: string,
 ): Promise<YardRead<YardVehicle[]>> {
-  const vehicles = await readYardVehicles(source, code);
-  return { summary: YardInventory.summary(vehicles), data: vehicles };
+  const read = await readYardVehicles(source, code);
+  return {
+    summary: YardInventory.summary(read.vehicles, read.rawMakes),
+    data: read.vehicles,
+  };
 }
 
-/** Every live vehicle of a yard, newest first, from its cached slices. */
-const getAllYardVehicles = cache(
+/** One make's list at a yard and the fingerprint of that list. */
+type YardMakeEntry = { fingerprint: string; vehicles: YardVehicle[] };
+
+/**
+ * One make's live vehicles at a yard, newest first, read by the raw
+ * spellings the yard's summary saw, through vehicle_yard_make_live_idx: a
+ * miss reads only the rows the make and model pages show, not the yard. Those
+ * pages were most of what crawlers rendered (about 47,000 yard model pages a
+ * day in November 2026), and each miss of the old whole-yard slices read
+ * 1-12K rows.
+ */
+const getYardMakeEntry = cacheSourceInventory(
   async (
     source: string,
     code: string,
-    summary: YardSummary,
-  ): Promise<YardRead<YardVehicle[]>> => {
-    const slices = await Promise.all(
-      Array.from(
-        { length: YardInventory.sliceCount(summary.total) },
-        (_, index) => getYardSlice(source, code, index),
-      ),
+    makeKey: string,
+    spellings: readonly string[],
+  ): Promise<YardMakeEntry> => {
+    const rows =
+      spellings.length === 0
+        ? []
+        : await selectYardRows(
+            and(
+              eq(vehicle.source, source),
+              eq(vehicle.locationCode, code),
+              inArray(vehicle.make, [...spellings]),
+              isNull(vehicle.missingSinceAt),
+            ),
+          );
+    const vehicles = toYardVehicles(rows).filter(
+      (entry) => VehicleName.makeKey(entry.make) === makeKey,
     );
-    return slices.every((slice) => slice.fingerprint === summary.fingerprint)
-      ? { summary, data: slices.flatMap((slice) => slice.vehicles) }
-      : freshYard(source, code);
+    return { fingerprint: YardInventory.fingerprint(vehicles), vehicles };
   },
+  ["yard-make-list-v1"],
 );
 
 /** Which vehicles of a yard a page lists: all of them, or one make's. */
@@ -158,7 +193,7 @@ export type YardScope = { kind: "yard" } | { kind: "make"; key: string };
 /**
  * Page `page` of a yard's vehicles in `scope`, newest first (null past the
  * last page), with the summary that agrees with it. A yard page reads only
- * the cached slice that holds it.
+ * the cached slice that holds it; a make page only its make's list.
  */
 export async function getYardVehiclePage(
   yard: Pick<RoutedYard, "source" | "code">,
@@ -186,19 +221,31 @@ export async function getYardVehiclePage(
   return { ...fresh, data: YardInventory.page(fresh.data, page) };
 }
 
-/** Every vehicle of one make at a yard, by make key, newest first. */
+/**
+ * Every vehicle of one make at a yard, by make key, newest first, with a
+ * summary that agrees with it. A list read after the summary (ingestion
+ * changed the make in between) is shown as read, with the summary's count
+ * and arrivals for that make taken from it, so no render reads the yard.
+ */
 export async function getYardMakeVehicles(
   yard: Pick<RoutedYard, "source" | "code">,
   summary: YardSummary,
   makeKey: string,
 ): Promise<YardRead<YardVehicle[]>> {
-  const read = await getAllYardVehicles(yard.source, yard.code, summary);
-  return {
-    ...read,
-    data: read.data.filter(
-      (vehicle) => VehicleName.makeKey(vehicle.make) === makeKey,
-    ),
-  };
+  const list = YardInventory.makeList(summary, makeKey);
+  if (!list) return { summary, data: [] };
+  const entry = await getYardMakeEntry(
+    yard.source,
+    yard.code,
+    makeKey,
+    list.spellings,
+  );
+  return entry.fingerprint === list.fingerprint
+    ? { summary, data: entry.vehicles }
+    : {
+        summary: YardInventory.withMake(summary, makeKey, entry.vehicles),
+        data: entry.vehicles,
+      };
 }
 
 async function loadSourcePublishedAt(): Promise<

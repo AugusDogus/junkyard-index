@@ -319,9 +319,11 @@ describe("YardInventory.summary", () => {
       }),
     ),
   ]);
+  // The raw vehicle.make values the rows came with.
+  const rawMakes = ["HONDA", "Honda", "FORD", "Other", "FORD", "HONDA"];
 
   test("counts makes and new arrivals as the whole list does", () => {
-    const summary = YardInventory.summary(yard);
+    const summary = YardInventory.summary(yard, rawMakes);
     expect(summary.total).toBe(6);
     expect(summary.makes).toEqual(YardInventory.makeCounts(yard));
     const counted = YardInventory.newArrivalsFrom(
@@ -334,7 +336,7 @@ describe("YardInventory.summary", () => {
   });
 
   test("counts one make's new arrivals against the whole yard", () => {
-    const summary = YardInventory.summary(yard);
+    const summary = YardInventory.summary(yard, rawMakes);
     const hondas = yard.filter((vehicle) => vehicle.make === "Honda");
     const counted = YardInventory.newArrivalsFrom(
       YardInventory.makeArrivals(summary, "HONDA"),
@@ -350,8 +352,40 @@ describe("YardInventory.summary", () => {
     });
   });
 
+  test("lists each make's raw spellings and fingerprint, for reading it alone", () => {
+    const summary = YardInventory.summary(yard, rawMakes);
+    const hondas = yard.filter((vehicle) => vehicle.make === "Honda");
+    expect(YardInventory.makeList(summary, "HONDA")).toEqual({
+      key: "HONDA",
+      fingerprint: YardInventory.fingerprint(hondas),
+      spellings: ["HONDA", "Honda"],
+    });
+    expect(YardInventory.makeList(summary, "TESLA")).toBeNull();
+  });
+
+  test("takes one make's count, total and arrivals from a list read later", () => {
+    const summary = YardInventory.summary(yard, rawMakes);
+    // One Honda left after the summary was read.
+    const hondas = yard.filter(
+      (vehicle) => vehicle.make === "Honda" && vehicle.vin !== "B",
+    );
+    const patched = YardInventory.withMake(summary, "HONDA", hondas);
+    expect(patched.total).toBe(summary.total - 1);
+    expect(YardInventory.makeArrivals(patched, "HONDA")).toEqual(
+      YardInventory.arrivals(hondas),
+    );
+    expect(patched.makes.find((make) => make.key === "FORD")).toEqual(
+      summary.makes.find((make) => make.key === "FORD"),
+    );
+    expect(YardInventory.makeList(patched, "HONDA")).toEqual({
+      key: "HONDA",
+      fingerprint: YardInventory.fingerprint(hondas),
+      spellings: ["HONDA", "Honda"],
+    });
+  });
+
   test("fingerprints the read, so lists from another read of the same size differ", () => {
-    const summary = YardInventory.summary(yard);
+    const summary = YardInventory.summary(yard, rawMakes);
     expect(summary.fingerprint).toBe(YardInventory.fingerprint([...yard]));
     const swapped = yard.map((vehicle) =>
       vehicle.vin === "A" ? make("G", "HONDA", "2026-11-18") : vehicle,

@@ -42,6 +42,7 @@ function run(scenario: string): unknown {
             YardInventory.vehicle({ ...row, firstSeenAt: firstSeenAt.getTime(), observedArrivalAt: null }),
           ),
         ),
+        rows.map((row) => row.make),
       );
     const inventory = await import("./src/server/yard-inventory.ts");
     const yard = { source: "pyp", code: "1" };
