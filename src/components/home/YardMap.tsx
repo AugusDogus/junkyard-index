@@ -6,7 +6,9 @@ import {
   lazy,
   Suspense,
   useDeferredValue,
+  useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
 } from "react";
@@ -15,22 +17,54 @@ import YardMapCanvas from "~/components/home/YardMapCanvas";
 import { YardLinks } from "~/components/home/YardLinks";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import type { MapYard } from "./yard-map-data";
+import {
+  yardMapLayoutClasses,
+  type MapYard,
+  type YardMapLayout,
+  type YardMapSelection,
+} from "./yard-map-data";
 import { YardDirectory } from "./YardDirectory";
 import { useApproximateLocation } from "~/hooks/use-approximate-location";
 import { sortYardsByDistance, type YardLocation } from "~/lib/yard-directory";
 import { cn } from "~/lib/utils";
+import { YardMapUrl } from "~/lib/yard-map-url";
+import { YardPath } from "~/lib/yard-path";
 const YardLocationControls = lazy(() => import("./YardLocationControls"));
 
 type YardMapProps = {
   yards: MapYard[];
   vehicleCount: number;
+  layout: YardMapLayout;
 };
 
-export function YardMap({ yards, vehicleCount }: YardMapProps) {
+export function YardMap({ yards, vehicleCount, layout }: YardMapProps) {
   const [filter, setFilter] = useState("");
   const [directoryOpen, setDirectoryOpen] = useState(false);
-  const [selected, setSelected] = useState<MapYard | null>(null);
+  const [selection, setSelection] = useState<YardMapSelection | null>(null);
+  const selected = selection?.yard ?? null;
+  const selectFromDirectory = useCallback(
+    (yard: MapYard) => setSelection({ yard, focus: "zoom" }),
+    [],
+  );
+
+  // Back and shared links reopen the yard. With a saved view the map is
+  // already there; a link with only the yard zooms to it.
+  useLayoutEffect(() => {
+    const key = YardMapUrl.yard(window.location.search);
+    const yard = key && yards.find((yard) => YardPath.key(yard) === key);
+    if (!yard) return;
+    setSelection({
+      yard,
+      focus: YardMapUrl.view(window.location.search) ? "keep" : "zoom",
+    });
+  }, [yards]);
+
+  const selectedKey = selected && YardPath.key(selected);
+  useEffect(
+    () =>
+      YardMapUrl.schedule((search) => YardMapUrl.withYard(search, selectedKey)),
+    [selectedKey],
+  );
   const approximateLocation = useApproximateLocation();
   // The location controls report the visitor's chosen location, which falls
   // back to the approximate one; until they load, the approximate one sorts.
@@ -116,22 +150,35 @@ export function YardMap({ yards, vehicleCount }: YardMapProps) {
           <ArrowUpRight className="size-4" aria-hidden="true" />
         </Link>
       </div>
-      <div className="homepage-map-layout border-ink grid grid-cols-[minmax(0,1fr)] overflow-hidden border-t-2 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="homepage-map-canvas relative isolate min-w-0">
-          <YardMapCanvas
-            yards={yards}
-            selected={selected}
-            onSelect={setSelected}
-          />
+      <div
+        className={cn(
+          "border-ink grid grid-cols-[minmax(0,1fr)] overflow-hidden border-t-2 lg:grid-cols-[minmax(0,1fr)_360px]",
+          yardMapLayoutClasses[layout].layout,
+        )}
+      >
+        {/* Phones show the yard card under the map, not over the pin. */}
+        <div className="relative isolate flex min-w-0 flex-col">
+          <div
+            className={cn(
+              "relative min-w-0",
+              yardMapLayoutClasses[layout].canvas,
+            )}
+          >
+            <YardMapCanvas
+              yards={yards}
+              selection={selection}
+              onSelect={setSelection}
+            />
+          </div>
           {selected && (
             <div
               onKeyDown={(event) => {
                 if (event.key === "Escape") {
                   event.stopPropagation();
-                  setSelected(null);
+                  setSelection(null);
                 }
               }}
-              className="bg-paper-3 border-ink shadow-card absolute top-3 right-16 left-3 z-10 border-2 p-4 pr-11 sm:right-auto sm:max-w-80"
+              className="bg-paper-3 border-ink sm:shadow-card relative z-10 border-t-2 p-4 pr-11 sm:absolute sm:top-3 sm:left-3 sm:max-w-80 sm:border-2"
             >
               <p className="text-signal text-[0.9375rem] font-extrabold text-pretty">
                 {selected.name}
@@ -157,7 +204,7 @@ export function YardMap({ yards, vehicleCount }: YardMapProps) {
                 variant="ghost"
                 size="icon"
                 aria-label="Close yard details"
-                onClick={() => setSelected(null)}
+                onClick={() => setSelection(null)}
                 className="absolute top-2 right-2 size-8"
               >
                 <X aria-hidden="true" />
@@ -221,7 +268,7 @@ export function YardMap({ yards, vehicleCount }: YardMapProps) {
               key={`${deferredFilter}:${chosenKey}`}
               yards={filtered}
               selected={selected}
-              onSelect={setSelected}
+              onSelect={selectFromDirectory}
             />
             <Suspense
               fallback={

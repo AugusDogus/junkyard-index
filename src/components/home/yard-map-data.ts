@@ -42,3 +42,22 @@ export const MapYard = {
     };
   },
 } as const;
+
+/**
+ * The open yard and how the map brings it into view: `zoom` in close (picked
+ * from the directory or a shared link), `center` at the current zoom (picked
+ * on the map), or `keep` the view (restored with its view after Back).
+ */
+export type YardMapSelection = {
+  yard: MapYard;
+  focus: "zoom" | "center" | "keep";
+};
+
+/** The homepage's map strip, or the taller map on the /map page. */
+export type YardMapLayout = "home" | "page";
+
+/** Each layout's height classes, in globals.css, for the map and its frame. */
+export const yardMapLayoutClasses = {
+  home: { layout: "homepage-map-layout", canvas: "homepage-map-canvas" },
+  page: { layout: "map-page-layout", canvas: "map-page-canvas" },
+} as const satisfies Record<YardMapLayout, { layout: string; canvas: string }>;

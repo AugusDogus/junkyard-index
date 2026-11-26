@@ -1,7 +1,11 @@
 import { Suspense } from "react";
 import { YardMap } from "~/components/home/YardMap";
 import { getHomepageInventory } from "~/lib/homepage-inventory";
-import { MapYard } from "./yard-map-data";
+import {
+  MapYard,
+  yardMapLayoutClasses,
+  type YardMapLayout,
+} from "./yard-map-data";
 
 export type YardMapSectionProps = {
   yards: MapYard[];
@@ -28,21 +32,27 @@ export async function loadYardMapSection() {
 }
 
 /** The yard map with its loading frame and the confirm-first note. */
-export function YardMapSection({ yards, vehicleCount }: YardMapSectionProps) {
+export function YardMapSection({
+  yards,
+  vehicleCount,
+  layout,
+}: YardMapSectionProps & { layout: YardMapLayout }) {
   return (
     <>
       <Suspense
         fallback={
           <div aria-hidden="true" className="border-ink border-2">
             <div className="bg-board h-16" />
-            <div className="homepage-map-layout bg-paper-2 border-ink border-t-2">
-              <div className="homepage-map-canvas" />
+            <div
+              className={`${yardMapLayoutClasses[layout].layout} bg-paper-2 border-ink border-t-2`}
+            >
+              <div className={yardMapLayoutClasses[layout].canvas} />
               <div className="bg-paper-3 border-ink h-[54px] border-t-2 lg:hidden" />
             </div>
           </div>
         }
       >
-        <YardMap yards={yards} vehicleCount={vehicleCount} />
+        <YardMap yards={yards} vehicleCount={vehicleCount} layout={layout} />
       </Suspense>
       <p className="text-ink-2 mt-3 text-sm text-pretty">
         Confirm vehicle availability with the yard before visiting.

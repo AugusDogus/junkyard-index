@@ -87,7 +87,7 @@ export async function HomeLandingPage() {
           </div>
           <HomeSearchHero />
           <div className="mt-4">
-            <YardMapSection {...section} />
+            <YardMapSection {...section} layout="home" />
           </div>
         </section>
         <Suspense
