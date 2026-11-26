@@ -169,14 +169,27 @@ export const SearchInputHistory = {
     inputHistory.delete(window);
     if (draft) pushSubmittedSearch(draft.previous, window.location.href);
   },
-  write(url: string, navigationKey: (url: string) => string) {
+  /**
+   * `typingKey` ignores the query, so typing replaces its entry. `searchKey`
+   * covers the whole search, so a canonical rewrite of a URL another
+   * navigation pushed (such as a saved search) does not add a second entry.
+   */
+  write(
+    url: string,
+    keys: {
+      typingKey: (url: string) => string;
+      searchKey: (url: string) => string;
+    },
+  ) {
     const draft = inputHistory.get(window);
+    const current = window.location.href;
     if (draft?.kind === "submitting") {
       inputHistory.delete(window);
       pushSubmittedSearch(draft.previous, url);
     } else if (
-      draft?.kind === "typing" &&
-      navigationKey(url) === navigationKey(window.location.href)
+      (draft?.kind === "typing" &&
+        keys.typingKey(url) === keys.typingKey(current)) ||
+      keys.searchKey(url) === keys.searchKey(current)
     ) {
       window.history.replaceState(window.history.state, "", url);
     } else {
@@ -552,26 +565,32 @@ export function createSearchRouting(
     router: {
       ...routing.router,
       push(url: string) {
-        SearchInputHistory.write(url, (href) => {
-          const location = new URL(href);
-          // URLs omit the yard scope their query implies. Spell it out, then
-          // exclude the query: expression edits that select yard types are
-          // still treated as typing.
-          const params = location.searchParams;
-          const selection = SearchYardSelection.fromUrl(params);
-          if (selection.kind !== "explicit") {
-            const types = SearchYardSelection.effectiveTypes(selection);
-            SearchFilterUrl.write(
-              params,
-              "yardTypes",
-              types.length ? types : ["all"],
-            );
-          }
-          params.delete("q");
-          const state = routing.stateMapping.routeToState(
-            routing.router.parseURL({ location }),
+        const searchKey = (href: string) =>
+          JSON.stringify(
+            routing.stateMapping.routeToState(
+              routing.router.parseURL({ location: new URL(href) }),
+            ),
           );
-          return JSON.stringify(state);
+        SearchInputHistory.write(url, {
+          searchKey,
+          typingKey(href) {
+            const location = new URL(href);
+            // URLs omit the yard scope their query implies. Spell it out, then
+            // exclude the query: expression edits that select yard types are
+            // still treated as typing.
+            const params = location.searchParams;
+            const selection = SearchYardSelection.fromUrl(params);
+            if (selection.kind !== "explicit") {
+              const types = SearchYardSelection.effectiveTypes(selection);
+              SearchFilterUrl.write(
+                params,
+                "yardTypes",
+                types.length ? types : ["all"],
+              );
+            }
+            params.delete("q");
+            return searchKey(location.href);
+          },
         });
       },
     },
