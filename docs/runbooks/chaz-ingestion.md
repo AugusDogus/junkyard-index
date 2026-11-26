@@ -68,8 +68,14 @@ missed, failed or rejected run, every model page is read as gap. Only owned HTTP
 URLs are allowed. It never requests donor details, images, hidden routes,
 part searches or an inferred model route. Supplier declarations must all agree
 on `MD08`. Complete document, native owner, address and phone checks apply.
-Redirects, partial content, non-HTML responses and request failures stop the run
-without automatic retry.
+Redirects, partial content, non-HTML responses, request failures and any other
+non-200 status stop the run without automatic retry. An origin HTTP 502, 503 or
+504 instead defers the chunk (`ProviderNotReadyDeferred`): the LiteSpeed origin
+answers these on single pages for minutes while neighbouring pages still answer
+200 (2026-11-26 failed all three daily runs this way). A chunk that already
+validated GETs returns that checkpoint paused; a chunk with no progress defers,
+and the run retries the same page after the five-minute deferral delay for up
+to three hours without progress.
 
 Closing controls repeat contact, the make directory and every model page read
 this run whose cards differ from its badge or fall below its expected count

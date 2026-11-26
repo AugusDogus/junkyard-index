@@ -1,5 +1,10 @@
 import { sharedProviderHostSlot } from "./shared-provider-host";
 import { Data, Effect } from "effect";
+import { RetryableHttpStatusError } from "./errors";
+import {
+  ProviderChunkClock,
+  ProviderNotReadyDeferred,
+} from "./provider-chunk-clock";
 import { fetchProviderResponse } from "./provider-http-client";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import {
@@ -19,6 +24,11 @@ export class ChazProviderError extends Data.TaggedError("ChazProviderError")<{
     return `Chaz ${this.operation}: ${detail}. No advanced checkpoint was accepted; prior inventory is preserved. Inspect the native source and resume only from the last validated checkpoint.`;
   }
 }
+
+/** The LiteSpeed origin answers these for minutes on single pages while its
+ * neighbours still answer 200 (production 2026-11-26), so they defer the chunk
+ * instead of failing the run. */
+const ORIGIN_UNAVAILABLE_STATUSES = [502, 503, 504];
 
 /** One native page inside its URG host slot. The caller's own pacing gate
  * belongs outside the shared host turn, so it does not hold the lane. */
@@ -42,9 +52,12 @@ export function fetchChazPage(url: string) {
         retry: {
           timeoutMs: 20_000,
           retryLimit: 0,
+          retryableStatusCodes: ORIGIN_UNAVAILABLE_STATUSES,
           retryNetworkErrors: false,
         },
         onResponse: (response) => {
+          // The shared client raises these as RetryableHttpStatusError.
+          if (ORIGIN_UNAVAILABLE_STATUSES.includes(response.status)) return;
           if (
             response.status !== 200 ||
             response.redirected ||
@@ -83,8 +96,19 @@ export function fetchChazPage(url: string) {
     );
   }).pipe(
     sharedProviderHostSlot(url),
-    Effect.mapError(
-      (cause) => new ChazProviderError({ operation: url, cause }),
+    Effect.mapError((cause) =>
+      ProviderChunkClock.isDeferral(cause)
+        ? cause
+        : cause instanceof RetryableHttpStatusError
+          ? new ProviderNotReadyDeferred({
+              provider: "Chaz",
+              detail:
+                url +
+                " answered HTTP " +
+                cause.status +
+                " while the origin is unavailable.",
+            })
+          : new ChazProviderError({ operation: url, cause }),
     ),
   );
 }
