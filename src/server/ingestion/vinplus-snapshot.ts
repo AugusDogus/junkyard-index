@@ -16,9 +16,29 @@ import type { VinplusTenant } from "./vinplus-configuration";
 import type { CanonicalVehicle } from "./types";
 import { usAutoSupplyVehiclePhoto } from "./vehicle-photo";
 
+/** US Auto Supply lists a stock's photo URL at arrival but uploads the file
+ * 3 to 6 days later (probed 2026-11-26: 30/30 stocks added 6+ days earlier
+ * served a photo, 0/9 added 3 or fewer days earlier did). The margin keeps
+ * buyers from seeing broken photos; the next daily run picks the photo up. */
+const US_AUTO_SUPPLY_PHOTO_LAG_MS = 8 * 86_400_000;
+
+function usAutoSupplyUploadedPhoto(
+  record: VinplusRecord,
+  asOf: number,
+): string | null {
+  const added = vinplusPublicDate(record.dateAdded);
+  if (!added) return null;
+  const day = added.kind === "calendar" ? added.value : added.calendarDate;
+  return asOf - Date.parse(`${day}T00:00:00Z`) >= US_AUTO_SUPPLY_PHOTO_LAG_MS
+    ? usAutoSupplyVehiclePhoto(record.imageUrl, record.stock)
+    : null;
+}
+
+/** `asOf` is the run time, used to tell which photos the yard has uploaded. */
 export function vinplusSnapshot(
   tenant: VinplusTenant,
   records: readonly VinplusRecord[],
+  asOf: number,
 ) {
   const vehicles: CanonicalVehicle[] = [];
   const observedVins: string[] = [];
@@ -89,7 +109,7 @@ export function vinplusSnapshot(
       stockNumber: record.stock,
       imageUrl:
         tenant.photos === "us-auto-supply"
-          ? usAutoSupplyVehiclePhoto(record.imageUrl, record.stock)
+          ? usAutoSupplyUploadedPhoto(record, asOf)
           : null,
       availableDate: vinplusPublicDate(record.dateAdded)?.value ?? null,
       locationCode: yard.code,
