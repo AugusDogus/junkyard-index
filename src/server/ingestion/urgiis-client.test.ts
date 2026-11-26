@@ -379,8 +379,9 @@ test("a URG IIS cache-busted reread that is still served from the cache fails cl
     expect(result.left.message).toContain("cf-cache-status HIT");
     expect(result.left.message).toContain("cache-busting");
     expect(result.left.message).toContain("Prior inventory is preserved");
-    // Three attempts, each the cached page and its cached reread.
-    expect(fetch).toHaveBeenCalledTimes(6);
+    expect(result.left.kind).toBe("cached");
+    // Not retried: one cached page and its cached reread, two host turns.
+    expect(fetch).toHaveBeenCalledTimes(2);
   } finally {
     fetch.mockRestore();
   }
@@ -407,5 +408,24 @@ test("a URG IIS page is not reread when it is complete, uncached, or the tenant 
     } finally {
       fetch.mockRestore();
     }
+  }
+});
+
+test("a URG IIS page Cloudflare serves cut off inside a script is reread, not a defect", async () => {
+  const fetch = spyOn(globalThis, "fetch")
+    .mockRejectedValue(
+      new Error("Unexpected extra request in offline IIS test"),
+    )
+    .mockResolvedValueOnce(cached('<html><head><script>var urgid = "x', "HIT"))
+    .mockResolvedValueOnce(cached(completeMake, "BYPASS"));
+  try {
+    const exit = await Effect.runPromiseExit(
+      readUrgiisPage(tenant.origin + "/parts/ACURA", tenant),
+    );
+    expect(exit._tag).toBe("Success");
+    if (exit._tag === "Success") expect(exit.value).toBe(completeMake);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  } finally {
+    fetch.mockRestore();
   }
 });
