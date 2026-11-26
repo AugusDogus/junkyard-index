@@ -2,18 +2,12 @@
 
 import { YardService } from "~/lib/yard-service";
 import { YardServiceLine } from "~/components/junkyards/YardServiceLine";
-import {
-  ArrowUpRight,
-  ChevronRight,
-  Copy,
-  ImageOff,
-  MapPin,
-} from "lucide-react";
+import { ArrowUpRight, ChevronRight, Copy, MapPin } from "lucide-react";
 import Link from "next/link";
 import { Analytics } from "~/lib/analytics";
 import { memo, useCallback, useState } from "react";
 import { toast } from "sonner";
-import { VehicleImage } from "~/components/search/VehicleImage";
+import { NoPhotoStrip, VehicleImage } from "~/components/search/VehicleImage";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { ArrivalDate } from "~/lib/arrival-date";
@@ -90,37 +84,25 @@ function VehicleCardComponent({
       aria-label={title}
       className="border-rule bg-paper text-ink flex h-full min-w-0 flex-col overflow-hidden border"
     >
-      {primaryImage ? (
-        <div className="border-rule border-b">
-          <div className="bg-paper-2 relative aspect-[2/1] overflow-hidden">
-            <VehicleImage
-              priority={priority}
-              src={primaryImage}
-              alt={title}
-              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-            />
-            {stockNumber && (
-              <Badge className="border-rule-strong bg-paper text-ink absolute top-2 right-2 rounded-none border tabular-nums">
-                Stock #{stockNumber}
-              </Badge>
-            )}
+      <VehicleImage
+        priority={priority}
+        src={primaryImage}
+        alt={title}
+        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+        frame={(photo) => (
+          <div className="border-rule border-b">
+            <div className="bg-paper-2 relative aspect-[2/1] overflow-hidden">
+              {photo}
+              {stockNumber && (
+                <Badge className="border-rule-strong bg-paper text-ink absolute top-2 right-2 rounded-none border tabular-nums">
+                  Stock #{stockNumber}
+                </Badge>
+              )}
+            </div>
           </div>
-        </div>
-      ) : (
-        // About a fifth of listings have no photo. A slim strip says so and
-        // carries the stock number, instead of a large empty picture box.
-        <div className="border-rule bg-paper-2 text-ink-3 flex min-h-9 items-center justify-between gap-3 border-b px-3 py-1.5 text-xs sm:px-4">
-          <span className="flex items-center gap-1.5">
-            <ImageOff aria-hidden="true" className="size-3.5 shrink-0" />
-            No photo
-          </span>
-          {stockNumber && (
-            <span className="text-ink-2 truncate tabular-nums">
-              Stock #{stockNumber}
-            </span>
-          )}
-        </div>
-      )}
+        )}
+        missing={<NoPhotoStrip stockNumber={stockNumber} />}
+      />
 
       <div className="flex-1 space-y-3 p-3 sm:p-4">
         <div>
@@ -145,7 +127,7 @@ function VehicleCardComponent({
             </Badge>
           )}
           {lastChecked && (
-            <p className="bg-figure text-board mt-2 inline-block px-1.5 py-0.5 text-xs font-medium">
+            <p className="border-warning text-warning mt-2 inline-block border px-1.5 py-0.5 text-xs font-medium">
               {lastChecked}
             </p>
           )}

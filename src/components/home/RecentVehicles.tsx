@@ -1,12 +1,12 @@
 "use client";
 
-import { ArrowUpRight, Car, Pause, Play } from "lucide-react";
+import { ArrowUpRight, Pause, Play } from "lucide-react";
 import AutoScroll from "embla-carousel-auto-scroll";
 import useEmblaCarousel from "embla-carousel-react";
 import { useInView } from "motion/react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { VehicleImage } from "~/components/search/VehicleImage";
+import { NoPhotoStrip, VehicleImage } from "~/components/search/VehicleImage";
 import { Button } from "~/components/ui/button";
 import type { RecentVehicle } from "~/lib/homepage-inventory";
 import { VehicleName } from "~/lib/vehicle-name";
@@ -143,20 +143,17 @@ export function RecentVehicles({
                     draggable={false}
                     className="board-step border-board-rule hover:bg-board-2 focus-visible:outline-figure group flex min-w-0 flex-[0_0_16rem] flex-col border-y border-r outline-none focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-solid sm:flex-[0_0_19rem]"
                   >
-                    <div className="bg-board-2 border-board-rule relative flex aspect-[4/3] w-full shrink-0 items-center justify-center overflow-hidden border-b">
-                      {vehicle.imageUrl ? (
-                        <VehicleImage
-                          src={vehicle.imageUrl}
-                          alt=""
-                          sizes="(min-width: 640px) 304px, 256px"
-                        />
-                      ) : (
-                        <Car
-                          className="text-board-muted size-10"
-                          aria-hidden="true"
-                        />
+                    <VehicleImage
+                      src={vehicle.imageUrl}
+                      alt=""
+                      sizes="(min-width: 640px) 304px, 256px"
+                      frame={(photo) => (
+                        <div className="bg-board-2 border-board-rule relative aspect-[4/3] w-full shrink-0 overflow-hidden border-b">
+                          {photo}
+                        </div>
                       )}
-                    </div>
+                      missing={<NoPhotoStrip surface="board" />}
+                    />
                     <div className="flex min-w-0 flex-1 flex-col gap-1 p-4">
                       <p className="flex items-start justify-between gap-3">
                         <span className="line-clamp-2 text-base leading-snug font-medium">
@@ -171,7 +168,7 @@ export function RecentVehicles({
                         {vehicle.city}, {vehicle.state}
                       </p>
                       {vehicle.lastChecked && (
-                        <p className="bg-figure text-board self-start px-1.5 py-0.5 text-xs font-medium">
+                        <p className="border-board-warning text-board-warning self-start border px-1.5 py-0.5 text-xs font-medium">
                           {vehicle.lastChecked}
                         </p>
                       )}
