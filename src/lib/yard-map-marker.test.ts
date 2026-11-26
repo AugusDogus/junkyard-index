@@ -55,20 +55,22 @@ describe("yard map marker sizes", () => {
     expect(YardMapMarker.sizes([phoenix, phoenix], 18)).toEqual(["dot", "dot"]);
   });
 
-  test("sizing 450 yards stays fast", () => {
+  test("sizing compares only nearby yards, not every pair", () => {
+    // 50,000 yards over the lower 48 at a zoom where few are near each other.
+    // The sweep takes tens of milliseconds; comparing every pair (over a
+    // billion comparisons) takes many seconds, so the generous limit only
+    // fails on a quadratic regression, not on a slow machine.
     let seed = 11;
     const next = () => {
       seed = (seed * 1103515245 + 12345) % 2 ** 31;
       return seed / 2 ** 31;
     };
-    const yards = Array.from({ length: 450 }, () =>
-      yard(30 + next() * 15, -120 + next() ** 2 * 45),
+    const yards = Array.from({ length: 50_000 }, () =>
+      yard(30 + next() * 15, -120 + next() * 45),
     );
     const started = performance.now();
-    for (const zoom of [3, 4, 5, 6, 7, 8, 9, 10]) {
-      expect(YardMapMarker.sizes(yards, zoom)).toHaveLength(450);
-    }
-    expect(performance.now() - started).toBeLessThan(80);
+    expect(YardMapMarker.sizes(yards, 10)).toHaveLength(50_000);
+    expect(performance.now() - started).toBeLessThan(2_000);
   });
 });
 

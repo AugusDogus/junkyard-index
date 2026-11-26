@@ -281,6 +281,12 @@
   cursor: grabbing;
 }
 
+/* Pins take their cursor from the layer, not the map, so the map's cursor
+   changing on every press does not restyle hundreds of pins. */
+.yard-map-pin-layer {
+  cursor: pointer;
+}
+
 /* Override Pigeon's inline light background while map tiles are loading. */
 .yard-map div:has(> .yard-map-tiles) {
   background: var(--color-paper-2) !important;

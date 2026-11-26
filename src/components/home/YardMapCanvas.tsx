@@ -113,8 +113,15 @@ const YardMapCanvas = memo(function YardMapCanvas({
    * few yards the tap covers, or zooms in on a crowd too long to list.
    * Keyboard activation picks the focused yard.
    */
+  // The latest values `activate` reads, so it can stay one function: a new
+  // one would redraw every memoized pin on each zoom and on first measure.
+  const tapContext = useRef({ pins, zoom: current.zoom, size });
+  useLayoutEffect(() => {
+    tapContext.current = { pins, zoom: current.zoom, size };
+  });
   const activate = useCallback(
     (yard: MapYard, event: MouseEvent<HTMLButtonElement>) => {
+      const { pins, zoom, size } = tapContext.current;
       const tapped =
         event.detail === 0
           ? [yard]
@@ -137,21 +144,22 @@ const YardMapCanvas = memo(function YardMapCanvas({
             );
       const [first, ...others] = tapped.length > 0 ? tapped : [yard];
       if (!first) return;
-      const action = YardMapMarker.tap(1 + others.length, current.zoom);
+      const action = YardMapMarker.tap(1 + others.length, zoom);
       if (action === "select") onSelect({ yard: first, focus: "center" });
       else if (action === "choose") onChoose([first, ...others]);
       else {
         requestView(
           YardMapMarker.frame(
             [first, ...others],
-            current.zoom,
+            zoom,
             size.width,
             size.height,
           ),
         );
       }
     },
-    [pins, onSelect, onChoose, requestView, current.zoom, size],
+    // onSelect, onChoose and requestView are stable callbacks.
+    [onSelect, onChoose, requestView],
   );
   const registerPin = useCallback(
     (key: string, button: HTMLButtonElement | null) => {
