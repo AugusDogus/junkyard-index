@@ -37,9 +37,11 @@ that same time and stamps it on success, so an hourly cron refreshes every
    migration rewrote identities, which also clears and refills
    `yard_summary`. Deploys store any missing summary after migrating
    (`inventory:project`). A page whose cached summary was evicted reads the
-   stored one back (one row), and a yard make or model page reads only its
-   make's rows (`vehicle_yard_make_live_idx`). Yard model pages render on
-   each request and are never stored as ISR pages;
+   stored one back (one row), and a yard make page reads only its make's
+   rows (`vehicle_yard_make_live_idx`). Yard model pages render on each
+   request and are never stored as ISR pages; each reads its model's rows
+   (about 5) through the same index without caching them, since almost
+   every render is a first visit to its URL;
 2. requests the pages changed since the last IndexNow announcement, waits
    2 minutes for them to regenerate, and announces them
    (`indexnow-announcement`, production only);

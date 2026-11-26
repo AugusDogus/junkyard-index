@@ -41,10 +41,16 @@ async function open(make: string, model: string): Promise<Opened> {
       key: VehicleName.modelKey("Chevrolet", name),
       name,
       slug: name.toLowerCase(),
+      rawModels: [name],
     }));
+    globalThis.modelLookups = 0;
     mock.module("~/server/vehicle-models", () => ({
-      getMakePageData: async (slug) =>
-        slug === "chevrolet" || slug === "chevy" ? { make: chevrolet, models, yards: new Map() } : null,
+      getYardModelPageData: async (makeSlug, modelSlug) => {
+        globalThis.modelLookups++;
+        if (makeSlug !== "chevrolet" && makeSlug !== "chevy") return null;
+        const model = models.find((candidate) => candidate.slug === modelSlug);
+        return model ? { make: chevrolet, model } : null;
+      },
       getMakeSlugs: async () => new Map([["CHEVROLET", "chevrolet"]]),
     }));
     const { YardInventory } = await import("~/lib/yard-inventory");
@@ -62,10 +68,12 @@ async function open(make: string, model: string): Promise<Opened> {
         state === "tx" && yard === "calton"
           ? { yard: { source: "pyp", code: "1", path }, summary, publishedAt: null, nearby: [], chain: null }
           : null,
-      // The page reads only its make's cached list, never the whole yard.
-      getYardMakeVehicles: async (yard, cached, makeKey) => {
+      // The page reads only its model's cached list, never the whole yard.
+      getYardModelVehicles: async (yard, cached, makeKey, model) => {
         globalThis.makeReads++;
-        return { summary: cached, data: makeKey === "CHEVROLET" ? vehicles : [] };
+        return makeKey === "CHEVROLET"
+          ? YardInventory.forModel(vehicles, makeKey, model.key)
+          : [];
       },
     }));
     const route = await import(process.argv[3]);
@@ -119,7 +127,7 @@ describe("yard model page", () => {
     });
   });
 
-  test("lists the model's vehicles from the make's list, with its metadata", async () => {
+  test("lists the model's vehicles from the model's list, with its metadata", async () => {
     const opened = await open("chevrolet", "silverado");
     expect(opened.outcome).toEqual({ vehicles: 3, total: 3 });
     expect(opened.metadata).toEqual({

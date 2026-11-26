@@ -35,6 +35,7 @@ const LEGACY_SCHEMA = `
     vin text primary key,
     source text not null default 'pyp',
     make text not null default 'Ford',
+    model text not null default 'F-150',
     location_code text not null,
     location_name text not null default 'Yard',
     location_city text not null default 'Unknown',

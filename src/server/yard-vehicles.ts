@@ -97,4 +97,30 @@ export const YardVehicles = {
       (entry) => VehicleName.makeKey(entry.make) === makeKey,
     );
   },
+
+  /**
+   * One model's live vehicles at a yard, newest first, read by its make's
+   * raw spellings and the model's raw values through
+   * vehicle_yard_make_live_idx: only that model's rows.
+   */
+  async model(
+    database: LibSQLDatabase,
+    source: string,
+    code: string,
+    make: { key: string; spellings: readonly string[] },
+    model: { key: string; rawModels: readonly string[] },
+  ): Promise<YardVehicle[]> {
+    if (make.spellings.length === 0 || model.rawModels.length === 0) return [];
+    const rows = await selectYardRows(
+      database,
+      and(
+        eq(vehicle.source, source),
+        eq(vehicle.locationCode, code),
+        inArray(vehicle.make, [...make.spellings]),
+        inArray(vehicle.model, [...model.rawModels]),
+        isNull(vehicle.missingSinceAt),
+      ),
+    );
+    return YardInventory.forModel(toYardVehicles(rows), make.key, model.key);
+  },
 } as const;

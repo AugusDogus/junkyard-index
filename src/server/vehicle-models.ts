@@ -156,6 +156,56 @@ function yardsByKey(yards: readonly RoutedYard[]): Map<string, RoutedYard> {
   return new Map(yards.map((yard) => [`${yard.source}:${yard.code}`, yard]));
 }
 
+/** What a yard's model page needs of a model: how to name, link and read it. */
+export type ModelName = Pick<ModelEntry, "key" | "name" | "slug" | "rawModels">;
+
+/**
+ * The model of `make` at `modelSlug` (or another spelling of it), or null.
+ * A yard's model page reads this small entry instead of the make's whole
+ * rollup, which every /cars model needs but runs to 1.7 MB (208 cache read
+ * units) for Chevrolet. A miss reads the make's snapshot row.
+ */
+const getMakeModelName = cacheShownInventory(
+  async (
+    hidden,
+    make: MakeEntry,
+    modelSlug: string,
+  ): Promise<ModelName | null> => {
+    const models = MakeInventory.models(
+      make,
+      await InventorySnapshot.makeModels(db, make.key, hidden),
+    );
+    const wanted = VehicleName.modelKey(
+      make.name,
+      modelSlug.replace(/-/g, " "),
+    );
+    const model = models.find(
+      (candidate) =>
+        candidate.key === wanted ||
+        VehicleName.sameSlug(candidate.slug, modelSlug),
+    );
+    return model
+      ? {
+          key: model.key,
+          name: model.name,
+          slug: model.slug,
+          rawModels: model.rawModels,
+        }
+      : null;
+  },
+  ["make-model-name-v1"],
+);
+
+/** The make and model a yard's model page lists, or null when either is unknown. */
+export const getYardModelPageData = cache(
+  async (makeSlug: string, modelSlug: string) => {
+    const make = await findMake(makeSlug);
+    if (!make) return null;
+    const model = await getMakeModelName(make, modelSlug);
+    return model ? { make, model } : null;
+  },
+);
+
 /** A make's models, most vehicles first. */
 export async function getMakeModels(make: MakeEntry): Promise<ModelEntry[]> {
   return MakeInventory.models(make, await getMakeRollup(make.key));
