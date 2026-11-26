@@ -263,13 +263,14 @@ for (const query of ["q=toyota+venza", "", "sort=distance"]) {
       });
       await page.route("http://unused.test/**", (route) => route.abort());
       await page.goto(`http://shared-search.test/search?${fixtureQuery}`);
-      await page.getByRole("link", { name: "Browse salvage yards" }).waitFor();
+      // Page load means the fixture has hydrated; give a search time to start.
       await page.waitForTimeout(1000);
       expect(await requestLog(page)).toEqual([]);
       expect(
         requests.filter((url) => url.includes("/api/") || /algolia/i.test(url)),
       ).toEqual([]);
-      expect(await page.getByLabel("Loading search").count()).toBe(0);
+      // It keeps the loading search a person sees before hydration.
+      expect(await page.getByLabel("Loading search").count()).toBe(1);
       expect(await page.getByRole("searchbox").count()).toBe(0);
     } finally {
       await closePage(page);

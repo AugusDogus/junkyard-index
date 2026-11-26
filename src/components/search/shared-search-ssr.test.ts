@@ -216,19 +216,39 @@ test("a person's default page renders the skeleton without a server search", asy
   expect(html).not.toContain("Toyota Venza");
 }, 15_000);
 
+// A crawler sees what a person's page shows before it hydrates: the same
+// heading, intro and loading search, never a server search. Only the browser
+// search that follows hydration is withheld (src/lib/search-server-render.ts).
 for (const query of ["q=toyota", "utm_source=newsletter", "sort=distance"]) {
-  test(`a crawler gets a static page without a search: ${query}`, async () => {
+  test(`a crawler gets the loading search without a server search: ${query}`, async () => {
     const html = await renderSharedSearchFixture(
       `fixtureGuest=1&${query}&fixtureUserAgent=${encodeURIComponent(GOOGLEBOT_USER_AGENT)}`,
     );
     expect(serverSearchCount(html)).toBe(0);
-    expect(html).toContain("Search results are not rendered for automated");
-    expect(html).toContain('href="/junkyards"');
-    expect(html).not.toContain('aria-label="Loading search"');
+    expect(html).toContain("Search salvage yard inventory");
+    expect(html).toContain('aria-label="Loading search"');
     expect(html).not.toContain("InstantSearchInitialResults");
     expect(html).not.toContain("Toyota Venza");
   }, 15_000);
 }
+
+/** The rendered page, without the per-render arrival timestamp. */
+function pageMarkup(html: string) {
+  return html.replace(/ data-arrival-reference-time="\d+"/, "");
+}
+
+test("bare /search renders the same page for a crawler and a person", async () => {
+  const render = (userAgent: string) =>
+    renderSharedSearchFixture(
+      `fixtureGuest=1&fixtureUserAgent=${encodeURIComponent(userAgent)}`,
+    );
+  const [crawler, person] = await Promise.all([
+    render(GOOGLEBOT_USER_AGENT),
+    render(PERSON_USER_AGENT),
+  ]);
+  expect(pageMarkup(crawler)).toBe(pageMarkup(person));
+  expect(crawler).toContain("Search salvage yard inventory");
+}, 15_000);
 
 test("a person's specific search still renders results on the server", async () => {
   const html = await renderSharedSearchFixture(
