@@ -13,10 +13,18 @@ function read(
   knownValues: readonly string[] = [],
 ): string[] {
   if (params.has(`${key}[]`)) return params.getAll(`${key}[]`).filter(Boolean);
+  return splitLegacy(params.getAll(key), knownValues);
+}
+
+/** Splits legacy comma lists, keeping the longest known names whole. */
+function splitLegacy(
+  lists: readonly string[],
+  knownValues: readonly string[] = [],
+): string[] {
   const candidates = [...knownValues].sort(
     (left, right) => right.length - left.length,
   );
-  return params.getAll(key).flatMap((value) => {
+  return lists.flatMap((value) => {
     const values: string[] = [];
     let remaining = value;
     while (remaining) {
@@ -39,4 +47,4 @@ function read(
   });
 }
 
-export const SearchFilterUrl = { read, write } as const;
+export const SearchFilterUrl = { read, write, splitLegacy } as const;

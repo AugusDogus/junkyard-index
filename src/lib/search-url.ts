@@ -1,5 +1,18 @@
-import type { ArrivalWindow } from "./arrival-window";
+import {
+  createLoader,
+  createParser,
+  createSerializer,
+  parseAsFloat,
+  parseAsInteger,
+  parseAsNativeArrayOf,
+  parseAsNumberLiteral,
+  parseAsString,
+  parseAsStringLiteral,
+} from "nuqs/server";
+import { ArrivalWindow } from "./arrival-window";
+import { SearchArea } from "./search-area";
 import { SearchFilterUrl } from "./search-filter-url";
+import { SEARCH_RADIUS_MILES, type SearchRadiusMiles } from "./search-radius";
 import { SearchYardSelection } from "./search-yard-selection";
 import type { YardType } from "./yard-service";
 
@@ -12,7 +25,7 @@ export interface SearchUrl {
   expression?: boolean;
   arrivalWindow?: ArrivalWindow;
   area?: { lat: number; lng: number };
-  radius?: number;
+  radius?: SearchRadiusMiles;
   facets?: Partial<Record<SearchUrlFacet, readonly string[]>>;
   minYear?: number;
   maxYear?: number;
@@ -21,6 +34,68 @@ export interface SearchUrl {
   /** A non-default sort key. */
   sort?: string;
 }
+
+/** Repeated values. Empty ones are dropped. */
+const values = parseAsNativeArrayOf(
+  createParser({ parse: (value) => value || null, serialize: String }),
+);
+
+/**
+ * Every /search key, in the order `format` writes them. A list key `x` reads
+ * the repeated `x[]`; `legacyX` reads the comma list older links wrote.
+ */
+const parsers = {
+  legacyArrivalWindow: values,
+  arrivalWindow: values,
+  lat: parseAsFloat,
+  lng: parseAsFloat,
+  radius: parseAsNumberLiteral(SEARCH_RADIUS_MILES),
+  q: parseAsString,
+  syntax: parseAsStringLiteral(["expression"]),
+  legacyMakes: values,
+  makes: values,
+  legacyColors: values,
+  colors: values,
+  legacyStates: values,
+  states: values,
+  legacyYards: values,
+  yards: values,
+  legacySources: values,
+  sources: values,
+  minYear: parseAsInteger,
+  maxYear: parseAsInteger,
+  legacyYardTypes: values,
+  yardTypes: values,
+  sort: parseAsString,
+};
+
+const urlKeys = {
+  legacyArrivalWindow: "arrivalWindow",
+  arrivalWindow: "arrivalWindow[]",
+  legacyMakes: "makes",
+  makes: "makes[]",
+  legacyColors: "colors",
+  colors: "colors[]",
+  legacyStates: "states",
+  states: "states[]",
+  legacyYards: "yards",
+  yards: "yards[]",
+  legacySources: "sources",
+  sources: "sources[]",
+  legacyYardTypes: "yardTypes",
+  yardTypes: "yardTypes[]",
+} as const;
+
+const LEGACY_KEYS = {
+  makes: "legacyMakes",
+  colors: "legacyColors",
+  states: "legacyStates",
+  yards: "legacyYards",
+  sources: "legacySources",
+} as const satisfies Record<SearchUrlFacet, keyof typeof parsers>;
+
+const serialize = createSerializer(parsers, { urlKeys });
+const load = createLoader(parsers, { urlKeys });
 
 /**
  * The one writer of search URLs. The router and links that open a search
@@ -33,44 +108,98 @@ function format(
   url: SearchUrl,
   locked?: URLSearchParams,
 ): string {
-  const params = new URLSearchParams();
-  if (url.arrivalWindow)
-    SearchFilterUrl.write(params, "arrivalWindow", [url.arrivalWindow]);
-  if (url.area) {
-    params.set("lat", String(url.area.lat));
-    params.set("lng", String(url.area.lng));
-  }
-  if (url.radius !== undefined) params.set("radius", String(url.radius));
-  if (url.query) {
-    params.set("q", url.query);
-    if (url.expression) params.set("syntax", "expression");
-  }
+  const q = url.query || null;
+  const syntax = q && url.expression ? "expression" : null;
+  const facets: Partial<
+    Record<SearchUrlFacet | (typeof LEGACY_KEYS)[SearchUrlFacet], string[]>
+  > = {};
   for (const key of FACET_KEYS) {
-    const values = url.facets?.[key];
-    if (values) {
-      SearchFilterUrl.write(params, key, values.filter(Boolean));
-      continue;
-    }
-    for (const paramKey of [key, `${key}[]`]) {
-      for (const value of locked?.getAll(paramKey) ?? []) {
-        params.append(paramKey, value);
-      }
-    }
+    const edited = url.facets?.[key];
+    facets[key] = edited
+      ? edited.filter(Boolean)
+      : (locked?.getAll(`${key}[]`) ?? []);
+    facets[LEGACY_KEYS[key]] = edited ? [] : (locked?.getAll(key) ?? []);
   }
-  if (url.minYear !== undefined) params.set("minYear", String(url.minYear));
-  if (url.maxYear !== undefined) params.set("maxYear", String(url.maxYear));
   // Only a non-default yard scope is written. `all` stays explicit so a reload
   // cannot reapply the self-service default.
-  if (url.yardTypes && !SearchYardSelection.isImplied(params, url.yardTypes))
-    SearchFilterUrl.write(
-      params,
-      "yardTypes",
-      url.yardTypes.length ? url.yardTypes : ["all"],
-    );
-  if (url.sort) params.set("sort", url.sort);
-
-  const queryString = params.toString();
+  const yardTypes =
+    url.yardTypes &&
+    !SearchYardSelection.isImplied(
+      new URLSearchParams(serialize({ q, syntax })),
+      url.yardTypes,
+    )
+      ? url.yardTypes.length
+        ? [...url.yardTypes]
+        : ["all"]
+      : null;
+  const search = serialize({
+    ...facets,
+    arrivalWindow: url.arrivalWindow ? [url.arrivalWindow] : null,
+    lat: url.area?.lat ?? null,
+    lng: url.area?.lng ?? null,
+    radius: url.radius ?? null,
+    q,
+    syntax,
+    minYear: url.minYear ?? null,
+    maxYear: url.maxYear ?? null,
+    yardTypes,
+    sort: url.sort ?? null,
+  });
+  // nuqs leaves brackets and commas unencoded. Re-encode the way the
+  // InstantSearch router and Next do, so all three write the same bytes.
+  const queryString = new URLSearchParams(search).toString();
   return queryString ? `${pathname}?${queryString}` : pathname;
 }
 
-export const SearchUrl = { facets: FACET_KEYS, format } as const;
+/**
+ * Reads a search URL. Repeated `x[]` keys win over legacy comma lists, which
+ * `knownYardNames` splits without breaking names that contain commas.
+ */
+function parse(
+  params: URLSearchParams,
+  knownYardNames: readonly string[] = [],
+): SearchUrl {
+  const loaded = load(params);
+  const url: SearchUrl = {};
+  const arrivalWindow = ArrivalWindow.parse(
+    loaded.arrivalWindow[0] ??
+      SearchFilterUrl.splitLegacy(loaded.legacyArrivalWindow)[0],
+  );
+  if (arrivalWindow) url.arrivalWindow = arrivalWindow;
+  const area = SearchArea.schema.safeParse({
+    lat: loaded.lat,
+    lng: loaded.lng,
+    radiusMiles: loaded.radius,
+  });
+  if (area.success) url.area = { lat: area.data.lat, lng: area.data.lng };
+  if (loaded.radius !== null) url.radius = loaded.radius;
+  if (loaded.q) url.query = loaded.q;
+  if (loaded.syntax) url.expression = true;
+  const facets: SearchUrl["facets"] = {};
+  for (const key of FACET_KEYS) {
+    const repeated = loaded[key];
+    const read = repeated.length
+      ? repeated
+      : SearchFilterUrl.splitLegacy(
+          loaded[LEGACY_KEYS[key]],
+          key === "yards" ? knownYardNames : [],
+        );
+    if (read.length) facets[key] = read;
+  }
+  if (Object.keys(facets).length) url.facets = facets;
+  if (loaded.minYear !== null) url.minYear = loaded.minYear;
+  if (loaded.maxYear !== null) url.maxYear = loaded.maxYear;
+  const selection = SearchYardSelection.fromUrl(params);
+  if (selection.kind !== "default")
+    url.yardTypes = SearchYardSelection.effectiveTypes(selection);
+  if (loaded.sort) url.sort = loaded.sort;
+  return url;
+}
+
+export const SearchUrl = {
+  facets: FACET_KEYS,
+  parsers,
+  urlKeys,
+  format,
+  parse,
+} as const;
