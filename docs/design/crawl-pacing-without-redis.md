@@ -266,12 +266,13 @@ Hand-backs re-plan nothing: the pass admits the yielded run from the report.
 | Added per day                          | Turso rows read | Turso rows written | Workflow events |
 | -------------------------------------- | --------------: | -----------------: | --------------: |
 | 4 to 6 watchdog plans, 0 to 4 Run nows |     80K to 160K |                  0 |        40 to 80 |
-| 8 URG IIS hand-backs                   |       about 100 |                 16 |       about 190 |
+| 8 URG IIS hand-backs                   |       about 100 |                 32 |       about 190 |
 | Kernel capacity deferrals              |               0 |                  0 |          5 each |
 | `fetched` reports (about 100 runs)     |               0 |                  0 |       about 300 |
+| Starting marks (about 110 starts)      |               0 |          about 220 |               0 |
 
 Monthly: about 2.4M to 4.8M rows read (0.1 to 0.2% of the Developer plan's
-2.5B), under 1K rows written, and about 20K Workflow events, $0.40 a month at
+2.5B), about 8K rows written (0.03% of 25M), and about 20K Workflow events, $0.40 a month at
 $20 per million events. Redis pacing: 0 commands.
 
 ## Follow-up not done here
