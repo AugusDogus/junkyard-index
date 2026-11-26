@@ -26,9 +26,10 @@ export class ChazProviderError extends Data.TaggedError("ChazProviderError")<{
 }
 
 /** The LiteSpeed origin answers these for minutes on single pages while its
- * neighbours still answer 200 (production 2026-11-26), so they defer the chunk
+ * neighbours still answer 200 (production 2026-11-26), and rate limits with
+ * 429 after a few hundred pages in a day of reruns, so they defer the chunk
  * instead of failing the run. */
-const ORIGIN_UNAVAILABLE_STATUSES = [502, 503, 504];
+const ORIGIN_UNAVAILABLE_STATUSES = [429, 502, 503, 504];
 
 /** One native page inside its URG host slot. The caller's own pacing gate
  * belongs outside the shared host turn, so it does not hold the lane. */
