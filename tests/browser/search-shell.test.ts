@@ -278,6 +278,30 @@ for (const query of ["q=toyota+venza", "", "sort=distance"]) {
   }, 30_000);
 }
 
+test("a person taken for a crawler can start the search", async () => {
+  const userAgent =
+    "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
+  const { page } = await open(
+    `q=toyota+venza&fixtureGuest=1&fixtureUserAgent=${encodeURIComponent(userAgent)}`,
+  );
+  try {
+    expect(await requestLog(page)).toEqual([]);
+    await page.getByRole("button", { name: "Start search" }).click();
+    await page.getByRole("heading", { name: "2011 Toyota Venza" }).waitFor();
+    expect(
+      (await requestLog(page)).some(
+        ({ params }) => params.query === "toyota venza",
+      ),
+    ).toBe(true);
+    // The started search keeps the page's one H1.
+    expect(await page.locator("h1").allTextContents()).toEqual([
+      "Search salvage yard inventory",
+    ]);
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
+
 test("a server-rendered person search is not repeated by the browser after hydration", async () => {
   const userAgent =
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";

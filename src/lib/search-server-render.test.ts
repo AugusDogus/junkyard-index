@@ -9,9 +9,14 @@ const IPHONE =
 // Cubot brand ends in "bot".
 const CUBOT_WEBVIEW =
   "Mozilla/5.0 (Linux; Android 10; CUBOT X30 Build/QP1A.190711.020; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.6099.230 Mobile Safari/537.36";
+// Some Cubot models join the brand to the model with "_" or "/".
+const CUBOT_UNDERSCORE =
+  "Mozilla/5.0 (Linux; Android 12; CUBOT_X50 Build/SP1A.210812.016; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.6099.230 Mobile Safari/537.36";
+const CUBOT_SLASH =
+  "Mozilla/5.0 (Linux; Android 9; CUBOT/P30) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.230 Mobile Safari/537.36";
 
 describe("SearchServerRender.decide", () => {
-  test.each([PERSON, IPHONE, CUBOT_WEBVIEW])(
+  test.each([PERSON, IPHONE, CUBOT_WEBVIEW, CUBOT_UNDERSCORE, CUBOT_SLASH])(
     "searches on the server for a person's specific search",
     (userAgent) => {
       expect(
