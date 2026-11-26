@@ -98,7 +98,7 @@ function unionDrift(union: YearCounts, counts: YearCounts): Error {
         (differing.length > DRIFT_YEARS_SHOWN
           ? "; " + (differing.length - DRIFT_YEARS_SHOWN) + " more years"
           : "") +
-        "); the yard most likely published a change while it was read, so the source retries after the usual delay within its daily attempts",
+        "); the yard's searches and analytics update separately and disagreed during this crawl, so the source retries after the usual delay within its daily attempts",
     ),
   );
 }
