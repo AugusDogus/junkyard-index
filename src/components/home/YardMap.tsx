@@ -10,6 +10,7 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { YardLocationFooter } from "./YardLocationFooter";
@@ -44,6 +45,7 @@ export function YardMap({ yards, vehicleCount, layout }: YardMapProps) {
   const [filter, setFilter] = useState("");
   const [directoryOpen, setDirectoryOpen] = useState(false);
   const [panel, setPanel] = useState<YardMapPanel | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const selection = panel?.kind === "yard" ? panel.selection : null;
   const selected = selection?.yard ?? null;
   const setSelection = useCallback(
@@ -59,6 +61,28 @@ export function YardMap({ yards, vehicleCount, layout }: YardMapProps) {
     (yard: MapYard) => setSelection({ yard, focus: "zoom" }),
     [setSelection],
   );
+
+  // On phones the card or list opens under the map, often below the fold.
+  // Bring it into view so a tap visibly does something. Not when Back
+  // restores it: the browser restores the scroll position then.
+  useEffect(() => {
+    const element = panelRef.current;
+    if (
+      !element ||
+      (panel?.kind === "yard" && panel.selection.focus === "keep")
+    ) {
+      return;
+    }
+    const box = element.getBoundingClientRect();
+    if (box.top >= 0 && box.bottom <= window.innerHeight) return;
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    element.scrollIntoView({
+      block: "nearest",
+      behavior: reduceMotion ? "auto" : "smooth",
+    });
+  }, [panel]);
 
   // Back and shared links reopen the yard. With a saved view the map is
   // already there; a link with only the yard zooms to it.
@@ -187,6 +211,7 @@ export function YardMap({ yards, vehicleCount, layout }: YardMapProps) {
           </div>
           {panel && (
             <div
+              ref={panelRef}
               onKeyDown={(event) => {
                 if (event.key === "Escape") {
                   event.stopPropagation();
@@ -218,6 +243,14 @@ export function YardMap({ yards, vehicleCount, layout }: YardMapProps) {
               </Button>
             </div>
           )}
+          {/* Says what a tap opened, wherever the panel sits on screen. */}
+          <p aria-live="polite" className="sr-only">
+            {panel?.kind === "yard"
+              ? `${panel.selection.yard.name}, ${panel.selection.yard.city}, ${panel.selection.yard.state}: details shown.`
+              : panel?.kind === "choice"
+                ? `${panel.yards.length} yards here. Pick one from the list.`
+                : ""}
+          </p>
         </div>
         <div className="bg-paper-3 border-rule-strong flex min-h-0 min-w-0 flex-col border-t lg:border-t-0 lg:border-l">
           <div className="flex min-h-13 items-center justify-between gap-2 px-4 py-2">

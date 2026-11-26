@@ -376,3 +376,45 @@ test("a tap on a crowd too long to list zooms in until its yards separate", asyn
     await closePage(page);
   }
 }, 20_000);
+
+test("on a phone, a card that opens below the fold scrolls into view and is announced", async () => {
+  const page = await createPage(browser, {
+    viewport: { width: 390, height: 844 },
+  });
+  try {
+    page.setDefaultTimeout(5_000);
+    await serveFixture(page, Promise.resolve());
+    await page.goto("http://yard-map.test/?at=40%2C-97%2C8");
+    const pin = page.getByRole("button", {
+      name: "Yard 10, Town, TX",
+      exact: true,
+    });
+    await pin.waitFor();
+    // Page above and below the map, as on /map, scrolled so the map's
+    // bottom edge meets the bottom of the screen: the card that opens under
+    // the map starts out of view.
+    await page.evaluate(() => {
+      document.body.style.padding = "600px 0 1500px";
+      const map = document.querySelector(".yard-map");
+      if (!map) throw new Error("The map did not render.");
+      window.scrollBy(0, map.getBoundingClientRect().bottom - innerHeight);
+    });
+    const before = await page.evaluate(() => scrollY);
+    expect(before).toBeGreaterThan(0);
+    await pin.click();
+    await page.waitForFunction(() => {
+      const card = document
+        .querySelector('[aria-label="Close yard details"]')
+        ?.parentElement?.getBoundingClientRect();
+      return (
+        card !== undefined && card.top >= 0 && card.bottom <= innerHeight + 1
+      );
+    });
+    expect(await page.evaluate(() => scrollY)).toBeGreaterThan(before);
+    expect(
+      await page.locator('[aria-live="polite"]').first().textContent(),
+    ).toBe("Yard 10, Town, TX: details shown.");
+  } finally {
+    await closePage(page);
+  }
+}, 20_000);
