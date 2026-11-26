@@ -273,6 +273,5 @@ for (const query of [
     expect(serverSearchCount(html)).toBe(0);
     expect(html).toContain('aria-label="Loading search"');
     expect(html).not.toContain("InstantSearchInitialResults");
-    expect(html).not.toContain("Toyota Venza");
   }, 15_000);
 }

@@ -201,11 +201,12 @@ test("a person on the default page gets results after hydration without a server
     expect(html).toContain('<meta name="fixture-server-searches" content="0">');
     expect(html).not.toContain("InstantSearchInitialResults");
     await page.getByRole("heading", { name: "2011 Toyota Venza" }).waitFor();
+    await page.waitForTimeout(1000);
     expect(
-      (await requestLog(page)).some(
+      (await requestLog(page)).filter(
         ({ params }) => (params.hitsPerPage ?? 0) > 0,
       ),
-    ).toBe(true);
+    ).toHaveLength(1);
   } finally {
     await closePage(page);
   }
@@ -312,12 +313,14 @@ test("a guest's specific search gets results after hydration without a server se
     expect(html).toContain('<meta name="fixture-server-searches" content="0">');
     expect(html).not.toContain("InstantSearchInitialResults");
     await page.getByRole("heading", { name: "2011 Toyota Venza" }).waitFor();
+    // Give a repeated search time to start: a guest spends exactly one.
+    await page.waitForTimeout(1000);
     expect(
-      (await requestLog(page)).some(
+      (await requestLog(page)).filter(
         ({ params }) =>
           params.query === "toyota venza" && (params.hitsPerPage ?? 0) > 0,
       ),
-    ).toBe(true);
+    ).toHaveLength(1);
   } finally {
     await closePage(page);
   }
