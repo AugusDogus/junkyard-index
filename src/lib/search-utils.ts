@@ -1,7 +1,13 @@
 import type { ArrivalWindow } from "./arrival-window";
 import type { SearchArea } from "./search-area";
+import { SearchUrl } from "./search-url";
 import { SearchYardSelection } from "./search-yard-selection";
-import { SearchFilterUrl } from "~/lib/search-filter-url";
+import {
+  getMaximumSearchableVehicleYear,
+  getSearchableVinPattern,
+  getSearchSortRouteKey,
+  MINIMUM_SEARCHABLE_VEHICLE_YEAR,
+} from "~/components/search/search-routing";
 import type { YardType } from "~/lib/yard-service";
 interface SearchFilters {
   expression?: string;
@@ -19,58 +25,42 @@ interface SearchFilters {
   sortBy?: string;
 }
 
+/** Writes the URL the search router would write for these saved criteria. */
 export function buildSearchUrl(
   query: string | null,
   filters: SearchFilters,
 ): string {
-  const params = new URLSearchParams();
-
-  if (filters.expression !== undefined) params.set("syntax", "expression");
-  const searchValue = filters.expression ?? filters.vinPattern ?? query;
-  if (searchValue) {
-    params.set("q", searchValue);
-  }
-
-  if (filters.makes && filters.makes.length > 0) {
-    SearchFilterUrl.write(params, "makes", filters.makes);
-  }
-  if (filters.colors && filters.colors.length > 0) {
-    SearchFilterUrl.write(params, "colors", filters.colors);
-  }
-  if (filters.states && filters.states.length > 0) {
-    SearchFilterUrl.write(params, "states", filters.states);
-  }
-  if (filters.salvageYards && filters.salvageYards.length > 0) {
-    SearchFilterUrl.write(params, "yards", filters.salvageYards);
-  }
-  if (filters.sources && filters.sources.length > 0) {
-    SearchFilterUrl.write(params, "sources", filters.sources);
-  }
-  const yardTypes = SearchYardSelection.effectiveTypes(
-    SearchYardSelection.fromSaved(filters.yardTypes),
-  );
-  // The self-service default and expression-owned types need no parameter.
-  if (!SearchYardSelection.isImplied(params, yardTypes)) {
-    if (yardTypes.length) SearchFilterUrl.write(params, "yardTypes", yardTypes);
-    else params.set("yardTypes", "all");
-  }
-  if (filters.minYear) {
-    params.set("minYear", filters.minYear.toString());
-  }
-  if (filters.maxYear) {
-    params.set("maxYear", filters.maxYear.toString());
-  }
-  if (filters.arrivalWindow)
-    SearchFilterUrl.write(params, "arrivalWindow", [filters.arrivalWindow]);
-  if (filters.near) {
-    params.set("lat", String(filters.near.lat));
-    params.set("lng", String(filters.near.lng));
-    params.set("radius", String(filters.near.radiusMiles));
-  }
-  if (filters.sortBy) {
-    params.set("sort", filters.sortBy);
-  }
-
-  const queryString = params.toString();
-  return queryString ? `/search?${queryString}` : "/search";
+  const expression = filters.expression !== undefined;
+  const searchValue = filters.expression ?? filters.vinPattern ?? query ?? "";
+  const vinPattern = expression ? null : getSearchableVinPattern(searchValue);
+  const sort = filters.sortBy
+    ? getSearchSortRouteKey(filters.sortBy)
+    : undefined;
+  return SearchUrl.format("/search", {
+    arrivalWindow: filters.arrivalWindow,
+    area: filters.near,
+    radius: filters.near?.radiusMiles,
+    query: vinPattern?.normalized ?? searchValue,
+    expression,
+    facets: {
+      makes: filters.makes,
+      colors: filters.colors,
+      states: filters.states,
+      yards: filters.salvageYards,
+      sources: filters.sources,
+    },
+    // The router omits the full searchable range.
+    minYear:
+      filters.minYear && filters.minYear !== MINIMUM_SEARCHABLE_VEHICLE_YEAR
+        ? filters.minYear
+        : undefined,
+    maxYear:
+      filters.maxYear && filters.maxYear !== getMaximumSearchableVehicleYear()
+        ? filters.maxYear
+        : undefined,
+    yardTypes: SearchYardSelection.effectiveTypes(
+      SearchYardSelection.fromSaved(filters.yardTypes),
+    ),
+    sort,
+  });
 }

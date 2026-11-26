@@ -13,7 +13,7 @@ describe("shared search criteria", () => {
         success: true,
         data: { query: "civic", filters: { sortBy: "distance" } },
       });
-      expect(buildSearchUrl("civic", { sortBy })).toContain(`sort=${sortBy}`);
+      expect(buildSearchUrl("civic", { sortBy })).toContain("sort=distance");
     }
   });
   test("preserves saved Boolean criteria and future-inventory values on a rename", () => {

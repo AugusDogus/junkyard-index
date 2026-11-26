@@ -12,6 +12,7 @@ import {
 import { isIngestionSource } from "~/lib/ingestion-source";
 import type { DataSource } from "~/lib/types";
 import { SearchFilterUrl } from "~/lib/search-filter-url";
+import { SearchUrl } from "~/lib/search-url";
 import { VinPattern } from "~/lib/vin-pattern";
 
 export const SEARCH_SORT_OPTIONS: readonly {
@@ -69,6 +70,12 @@ export function getSearchSortKey(indexName: string): string {
 
 export function getSearchSortIndex(key: string): string {
   return KEY_TO_INDEX[key] ?? ALGOLIA_NEWEST_INDEX_NAME;
+}
+
+/** The `sort` URL value for a stored key or index; undefined means newest. */
+export function getSearchSortRouteKey(sort: string): string | undefined {
+  const index = KEY_TO_INDEX[sort] ?? sort;
+  return index === ALGOLIA_NEWEST_INDEX_NAME ? undefined : INDEX_TO_KEY[index];
 }
 export function sanitizeSearchSources(values: unknown): DataSource[] {
   if (!Array.isArray(values)) return [];
@@ -222,14 +229,6 @@ const ADVANCED_REFINEMENTS = [
   { routeKey: "yards", refinementKey: "locationName" },
 ] as const;
 
-const ADVANCED_URL_KEYS = [
-  "makes",
-  "colors",
-  "states",
-  "yards",
-  "sources",
-] as const;
-
 interface AdvancedRouteFilters {
   makes?: string[];
   colors?: string[];
@@ -277,33 +276,6 @@ function parseAdvancedUrlFilters(
     if (!Number.isNaN(parsed)) Object.assign(filters, { [key]: parsed });
   }
   return filters;
-}
-
-function writeAdvancedUrlFilters(
-  params: URLSearchParams,
-  state: Record<string, unknown>,
-  fallback?: URLSearchParams,
-): void {
-  for (const key of ADVANCED_URL_KEYS) {
-    const value = state[key];
-    if (Array.isArray(value) && value.length > 0) {
-      SearchFilterUrl.write(
-        params,
-        key,
-        value.filter((item): item is string => typeof item === "string"),
-      );
-      continue;
-    }
-    if (typeof value === "number") {
-      params.set(key, String(value));
-      continue;
-    }
-    for (const paramKey of [key, `${key}[]`]) {
-      for (const fallbackValue of fallback?.getAll(paramKey) ?? []) {
-        params.append(paramKey, fallbackValue);
-      }
-    }
-  }
 }
 
 function advancedRouteFromUiState(
@@ -426,64 +398,57 @@ export function createSearchRouting(
         location: SearchLocation;
       }): string {
         const baseUrl = location.href.split("?")[0] ?? location.href;
-        const params = new URLSearchParams();
         const locationParams = new URLSearchParams(location.search);
         const ownedParams = SearchOwnedUrlParams.current(location);
         const arrivalWindow = ArrivalWindow.fromUrl(ownedParams);
-        if (arrivalWindow)
-          SearchFilterUrl.write(params, "arrivalWindow", [arrivalWindow]);
-        const area = SearchArea.fromUrl(ownedParams);
-        if (area) {
-          params.set("lat", String(area.lat));
-          params.set("lng", String(area.lng));
-        }
-        const radius = SearchRadius.parse(ownedParams.get("radius"));
-        if (radius !== null) params.set("radius", String(radius));
+        const expression = locationParams.get("syntax") === "expression";
         const vinPattern =
-          vinPatternIndexReady && locationParams.get("syntax") !== "expression"
+          vinPatternIndexReady && !expression
             ? getSearchableVinPattern(locationParams.get("q"))
             : null;
-        if (vinPattern) params.set("q", vinPattern.normalized);
 
         const state = routeState[indexName] ?? {};
 
-        if (state.query && !vinPattern) {
-          params.set("q", String(state.query));
+        const facets: SearchUrl["facets"] = {};
+        for (const key of SearchUrl.facets) {
+          const values = state[key];
+          if (Array.isArray(values) && values.length > 0)
+            facets[key] = values.filter(
+              (value): value is string => typeof value === "string",
+            );
         }
-        if (params.has("q") && locationParams.get("syntax") === "expression")
-          params.set("syntax", "expression");
         const lockedFallback = new URLSearchParams(locationParams);
         if (arrivalWindow)
           for (const key of ["states", "yards", "sources"]) {
             lockedFallback.delete(key);
             lockedFallback.delete(`${key}[]`);
           }
-        writeAdvancedUrlFilters(
-          params,
-          state,
+        const radius = SearchRadius.parse(ownedParams.get("radius"));
+        return SearchUrl.format(
+          baseUrl,
+          {
+            arrivalWindow,
+            area: SearchArea.fromUrl(ownedParams),
+            radius: radius ?? undefined,
+            query:
+              vinPattern?.normalized ??
+              (state.query ? String(state.query) : undefined),
+            expression,
+            facets,
+            minYear:
+              typeof state.minYear === "number" ? state.minYear : undefined,
+            maxYear:
+              typeof state.maxYear === "number" ? state.maxYear : undefined,
+            yardTypes:
+              Array.isArray(state.yardTypes) && state.yardTypes.length
+                ? state.yardTypes.includes("all")
+                  ? []
+                  : sanitizeYardTypes(state.yardTypes)
+                : undefined,
+            sort: state.sort ? String(state.sort) : undefined,
+          },
           advancedFilterPolicy.preserveUrlFilters ? lockedFallback : undefined,
         );
-        for (const key of ["minYear", "maxYear"] as const) {
-          if (typeof state[key] === "number")
-            params.set(key, String(state[key]));
-        }
-        // Only a non-default yard scope is written. `all` stays explicit so a
-        // reload cannot reapply the self-service default.
-        if (Array.isArray(state.yardTypes) && state.yardTypes.length) {
-          const types = state.yardTypes.includes("all")
-            ? []
-            : sanitizeYardTypes(state.yardTypes);
-          if (!SearchYardSelection.isImplied(params, types))
-            SearchFilterUrl.write(
-              params,
-              "yardTypes",
-              types.length ? types : ["all"],
-            );
-        }
-        if (state.sort) params.set("sort", String(state.sort));
-
-        const queryString = params.toString();
-        return queryString ? `${baseUrl}?${queryString}` : baseUrl;
       },
       parseURL({ location }: { location: SearchLocation }) {
         const params = new URLSearchParams(location.search);
