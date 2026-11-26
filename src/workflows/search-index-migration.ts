@@ -86,19 +86,23 @@ export async function searchIndexMigrationWorkflow(force = false) {
     }
 
     let state = initialized.state;
+    let migration: Awaited<ReturnType<typeof finalizeSearchIndexMigrationStep>>;
     try {
       while (true) {
         const batch = await runSearchIndexMigrationBatchStep(state);
         state = batch.state;
         if (batch.done) break;
       }
-      const migration = await finalizeSearchIndexMigrationStep(state);
-      return { status: "completed" as const, migration };
+      migration = await finalizeSearchIndexMigrationStep(state);
     } catch (error) {
       // Batches that ran rewrote vehicles; pages must not keep the old
       // identities until their daily expiry.
       if (state.batchesProcessed > 0) await expireInventoryAfterMigrationStep();
       throw error;
     }
+    // The migration rewrote identities on every source's vehicles. In a
+    // step of its own, so retrying it never repeats the finalize.
+    await expireInventoryAfterMigrationStep();
+    return { status: "completed" as const, migration };
   }
 }
