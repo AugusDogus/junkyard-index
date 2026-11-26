@@ -33,6 +33,7 @@ function passOperations(
 ) {
   const events: string[] = [];
   const watchdogs: PassWatchdog[] = [];
+  const startedWith: Array<[string, readonly string[]]> = [];
   let failStarts = options.failStarts ?? 0;
   const operations: IngestionPassOperations = {
     plan: async () => {
@@ -45,13 +46,15 @@ function passOperations(
       events.push(`plan:${next.status}`);
       return next;
     },
-    startRuns: async (runIds) => {
+    startRuns: async (runs) => {
+      const runIds = runs.map((run) => run.runId);
       if (failStarts > 0) {
         failStarts--;
         events.push(`start-error:${runIds.join(",")}`);
         throw new Error("Workflow API unavailable");
       }
       events.push(`start:${runIds.join(",")}`);
+      for (const run of runs) startedWith.push([run.runId, run.claims.lanes]);
     },
     nextReport: async (deadline, watchdog) => {
       const report = reports.shift();
@@ -76,7 +79,7 @@ function passOperations(
       events.push("deliver");
     },
   };
-  return { operations, events, watchdogs };
+  return { operations, events, watchdogs, startedWith };
 }
 
 describe("runIngestionPass", () => {
@@ -727,6 +730,88 @@ describe("runIngestionPass with runs that change lanes", () => {
     );
 
     expect(events).toEqual(["plan:active", "start:urgiis"]);
+  });
+});
+
+describe("runIngestionPass with runs it must not let overlap", () => {
+  const urg = (...lanes: string[]): HostClaims => ({
+    lanes,
+    places: [{ group: "urg", capacity: 3 }],
+  });
+
+  test("keeps a failed run's lanes until the plan that resumes it", async () => {
+    const { operations, events } = passOperations(
+      [
+        {
+          status: "active",
+          runs: [
+            { runId: "pratt", claims: urg("66.42.115.19"), started: false },
+            { runId: "urgiis", claims: urg("66.42.115.19"), started: false },
+          ],
+          held: [],
+          retryAt: null,
+        },
+        {
+          status: "active",
+          runs: [
+            // Its workflow failed while fetching; this plan resumes it.
+            { runId: "pratt", claims: urg("66.42.115.19"), started: true },
+            { runId: "urgiis", claims: urg("66.42.115.19"), started: false },
+          ],
+          held: [],
+          retryAt: null,
+        },
+      ],
+      [{ runId: "pratt", failed: true }, "timeout"],
+    );
+
+    await expect(runIngestionPass(operations)).rejects.toThrow(
+      "Waited for more reports",
+    );
+
+    expect(events).toEqual([
+      "plan:active",
+      "start:pratt",
+      "report:pratt",
+      `deadline:${FAILED_RUN_RESUME_DELAY_MS}`,
+      "timeout",
+      "plan:active",
+      "start:pratt",
+    ]);
+  });
+
+  test("starts each run with the claims it may fetch with", async () => {
+    const { operations, startedWith } = passOperations(
+      [
+        {
+          status: "active",
+          runs: [
+            { runId: "aviation", claims: urg("aws"), started: false },
+            // Attached before this pass: it may hold every lane it might
+            // reach, but may fetch only from those no other run holds.
+            {
+              runId: "urgiis",
+              claims: urg("chucks", "66.42.115.19", "norbs"),
+              started: true,
+            },
+            { runId: "pratt", claims: urg("66.42.115.19"), started: true },
+          ],
+          held: [],
+          retryAt: null,
+        },
+      ],
+      [],
+    );
+
+    await expect(runIngestionPass(operations)).rejects.toThrow(
+      "Waited for more reports",
+    );
+
+    expect(startedWith).toEqual([
+      ["aviation", ["aws"]],
+      ["urgiis", ["chucks", "norbs"]],
+      ["pratt", []],
+    ]);
   });
 });
 

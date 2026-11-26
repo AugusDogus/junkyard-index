@@ -16,13 +16,14 @@ import type { HostClaims } from "./host-claims";
 import type { DurableIngestionSource } from "./durable-source";
 
 /**
- * Set when the day's pass admitted the run for the shared hosts its next
- * chunk needs: a chunk that needs others ends the fetch so the pass can admit
- * them (`DurableWorkflowChunkResult.needsClaims`). Absent for a run nothing
- * admitted (a local run, or one without shared hosts), which keeps fetching.
+ * `admittedClaims`: the shared host claims the day's pass admitted the run
+ * with. Each chunk is checked against them, and one that needs others ends
+ * the fetch so the pass can admit them (`DurableWorkflowChunkResult.
+ * needsClaims`). Absent for a run nothing admitted (a local run, or one
+ * started without the pass), which keeps fetching.
  */
 interface ClaimHandBack {
-  handsBackClaims?: boolean;
+  admittedClaims?: HostClaims;
 }
 
 export interface DurableSourceOperations<
@@ -32,6 +33,7 @@ export interface DurableSourceOperations<
   runChunk: (
     runId: string,
     cursor: DurableWorkflowCursor<Source>,
+    admitted?: HostClaims,
   ) => Promise<
     DurableWorkflowChunkResult<Source> | DurableWorkflowChunkDeferral<Source>
   >;
@@ -47,6 +49,7 @@ export interface DurableIngestionOperations extends ClaimHandBack {
   runChunk: <Source extends DurableIngestionSource>(
     runId: string,
     cursor: DurableWorkflowCursor<Source>,
+    admitted?: HostClaims,
   ) => Promise<
     DurableWorkflowChunkResult<Source> | DurableWorkflowChunkDeferral<Source>
   >;
@@ -130,7 +133,7 @@ export async function ingestDurableSource<
   operations: DurableSourceOperations<NoInfer<Source>>;
 }): Promise<DurableWorkflowChunkResult<Source>> {
   // Workflow step proxies serialize method receivers, including sibling callbacks.
-  const { runChunk, markFailed, sleepUntil, handsBackClaims } =
+  const { runChunk, markFailed, sleepUntil, admittedClaims } =
     params.operations;
   let cursor = params.initialCursor;
   const source = cursor.source;
@@ -149,7 +152,7 @@ export async function ingestDurableSource<
           );
         await sleepUntil(cursor.retryAt);
       }
-      const result = await runChunk(params.runId, cursor);
+      const result = await runChunk(params.runId, cursor, admittedClaims);
       if (result.cursor.source !== source) {
         throw new Error(
           `Source ${source} returned a ${result.cursor.source} cursor`,
@@ -172,7 +175,7 @@ export async function ingestDurableSource<
       if (result.status !== "paused") return result;
       // The pass starts the run again from this checkpoint once the hosts
       // its next chunk needs are free.
-      if (handsBackClaims && result.needsClaims) return result;
+      if (admittedClaims && result.needsClaims) return result;
       cursor = result.cursor;
     }
   } catch (error) {

@@ -151,14 +151,21 @@ export async function runDurableSourceChunk<
 >(params: {
   runId: string;
   cursor: DurableCursorFor<Source>;
+  /** Whether the run may fetch from `cursor`'s hosts; absent, it always may. */
+  mayFetch?: (cursor: DurableCursorFor<Source>) => boolean;
 }): Promise<
-  DurableSourceChunkResult<Source> | DurableSourceChunkDeferral<Source>
+  | DurableSourceChunkResult<Source>
+  | DurableSourceChunkDeferral<Source>
+  | { status: "unadmitted"; cursor: DurableCursorFor<Source> }
 > {
   const checkpoint = await repository.getCheckpoint({
     runId: params.runId,
     requestedCursor: params.cursor,
   });
   if (checkpoint) return checkpoint;
+  // A resumed run may stand at hosts the pass did not admit it for.
+  if (params.mayFetch && !params.mayFetch(params.cursor))
+    return { status: "unadmitted", cursor: params.cursor };
 
   const fetched = await fetchDurableSourceChunk(params.cursor).catch(
     async (error: unknown) => {

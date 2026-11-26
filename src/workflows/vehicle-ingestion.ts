@@ -10,7 +10,10 @@ import {
   openDailySearchAlertCheck,
   searchAlertsEnabled,
 } from "~/server/alerts/search-alert-check-runtime";
-import { getAttachedIngestionWorkflowRuns } from "~/server/ingestion/durable-ingestion";
+import {
+  attachDurableIngestionWorkflow,
+  getAttachedIngestionWorkflowRuns,
+} from "~/server/ingestion/durable-ingestion";
 import {
   startIdleRunWorkflows,
   type RunWorkflowState,
@@ -19,6 +22,7 @@ import {
   claimCommitTurn,
   runIngestionPass,
   type IngestionRunReport,
+  type StartedRun,
 } from "~/server/ingestion/ingestion-pass-orchestrator";
 import {
   commitDurableIngestion,
@@ -57,7 +61,7 @@ import { searchProjectorWorkflow } from "./search-projector";
 import { PublicationModeFlag } from "~/server/ingestion/publication-mode-flag";
 import { withSearchWriteLock } from "./search-write-lock";
 import { IngestionDay } from "~/server/ingestion/ingestion-day";
-import type { HostClaims } from "~/server/ingestion/host-claims";
+import { HostClaims } from "~/server/ingestion/host-claims";
 
 // Fallbacks for signals that never arrive, such as a workflow that died.
 // Each commit claim attempt also keeps a waiter live in the commit queue,
@@ -86,19 +90,30 @@ async function ingestionWorkflowState(
   }
 }
 
-/** Starts or resumes each source run whose workflow is not live. */
+/**
+ * Starts or resumes each source run whose workflow is not live, with the
+ * claims it may fetch with. The new workflow is attached at once, so a pass
+ * that replaces this one sees the run as started rather than admitting
+ * another run on its hosts before the workflow's own first step.
+ */
 async function startIngestionRunWorkflowsStep(
-  runIds: readonly string[],
+  runs: readonly StartedRun[],
   day: string,
 ) {
   "use step";
 
+  const claims = new Map(runs.map((run) => [run.runId, run.claims]));
   await startIdleRunWorkflows({
-    runIds,
+    runIds: runs.map((run) => run.runId),
     attachedWorkflows: getAttachedIngestionWorkflowRuns,
     workflowState: ingestionWorkflowState,
     start: async (runId) => {
-      await start(vehicleIngestionWorkflow, [runId, day]);
+      const run = await start(vehicleIngestionWorkflow, [
+        runId,
+        day,
+        claims.get(runId) ?? HostClaims.none,
+      ]);
+      await attachDurableIngestionWorkflow(runId, run.runId);
     },
   });
 }
@@ -189,11 +204,13 @@ export async function vehicleIngestionPassWorkflow(day: string) {
       watchdog = sleep(PASS_WATCHDOG_INTERVAL).then(timeout);
       return prepareIngestionPassStep(day);
     },
-    startRuns: (runIds) => startIngestionRunWorkflowsStep(runIds, day),
+    startRuns: (runs) => startIngestionRunWorkflowsStep(runs, day),
     nextReport: async (deadline, mode) => {
+      // The day's end goes first: a report already waiting must not make an
+      // expired pass admit runs. It stays pending for the next wait.
       const next = await Promise.race([
-        pendingReport,
         dayEnded,
+        pendingReport,
         // A source's retry, a failure pause or a stopped run's hosts.
         ...(deadline === null ? [] : [sleep(new Date(deadline)).then(timeout)]),
         ...(mode === "interval" ? [watchdog] : []),
@@ -224,7 +241,12 @@ export async function vehicleIngestionPassWorkflow(day: string) {
  * (reconciliation and Algolia publication) waits its turn. The run is
  * released once its inventory is searchable; alerts are checked daily.
  */
-export async function vehicleIngestionWorkflow(runId: string, day?: string) {
+export async function vehicleIngestionWorkflow(
+  runId: string,
+  day?: string,
+  // The claims the pass admitted the run with (see `StartedRun`).
+  claims?: HostClaims,
+) {
   "use workflow";
 
   using ingestionRun = createHook({ token: IngestionTokens.run(runId) });
@@ -240,7 +262,7 @@ export async function vehicleIngestionWorkflow(runId: string, day?: string) {
   let completed = false;
   let yielded: HostClaims | null = null;
   try {
-    const result = await runSourceIngestion(runId, day);
+    const result = await runSourceIngestion(runId, day, claims);
     failed = false;
     completed = result.status === "completed";
     if (result.status === "yielded") {
@@ -254,17 +276,38 @@ export async function vehicleIngestionWorkflow(runId: string, day?: string) {
   } finally {
     if (yielded !== null) {
       // Still fetching: the pass starts it again once its hosts are free.
-      await reportIngestionRunStep({ runId, yielded });
+      await reportToPass({ runId, yielded });
     } else {
       // A completed run reported itself after publishing; any other outcome
       // shows the provider delayed while its last inventory stays up.
       if (!completed) await reportProviderStatusStep(runId);
-      if (day !== undefined) await reportIngestionRunStep({ runId, failed });
+      if (day !== undefined) await reportToPass({ runId, failed });
     }
   }
 }
 
-async function runSourceIngestion(runId: string, day: string | undefined) {
+/**
+ * Reports to the pass, never failing the run: a report the step could not
+ * deliver after its retries only delays the pass until its next plan, which
+ * reads the run's state from the database.
+ */
+async function reportToPass(
+  report: Extract<IngestionRunReport, { runId: string }>,
+) {
+  try {
+    await reportIngestionRunStep(report);
+  } catch (error) {
+    console.warn(
+      `[Workflow] Run ${report.runId} could not report to its pass; the pass sees it at its next plan: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+async function runSourceIngestion(
+  runId: string,
+  day: string | undefined,
+  claims: HostClaims | undefined,
+) {
   const { workflowRunId } = getWorkflowMetadata();
   await attachDurableIngestionWorkflowStep(runId, workflowRunId);
   const markRunFailed = (failedRunId: string, message: string) =>
@@ -278,8 +321,9 @@ async function runSourceIngestion(runId: string, day: string | undefined) {
     reconcile: reconcileDurableIngestionStep,
     markRunFailed,
     waitForPublicationMode,
-    // The day's pass admitted this run for the hosts its next chunk needs.
-    handsBackClaims: day !== undefined,
+    // A run the day's pass started may fetch only with the claims it was
+    // admitted with; an older start passed none, so it hands back first.
+    ...(day !== undefined ? { admittedClaims: claims ?? HostClaims.none } : {}),
   };
   // Each source's run fetches and stages in parallel with the others. A run
   // with no accepted source released at validation and never waits for the

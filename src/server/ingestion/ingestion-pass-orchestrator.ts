@@ -74,11 +74,18 @@ export type PassWatchdog = "interval" | "silence" | "none";
  */
 export type IngestionPassOutcome = "completed" | "already-complete" | "expired";
 
+/** A run the pass starts or resumes, with the claims it may fetch with: its
+ * chunks hand back to the pass before needing any others. */
+export interface StartedRun {
+  runId: string;
+  claims: HostClaims;
+}
+
 export interface IngestionPassOperations {
   /** Resumes active runs and creates runs for due sources. */
   plan: () => Promise<IngestionPassPlan>;
   /** Starts or resumes each run's workflow; a live one keeps running. */
-  startRuns: (runIds: readonly string[]) => Promise<void>;
+  startRuns: (runs: readonly StartedRun[]) => Promise<void>;
   /** The next report, or "timeout" once `deadline` (a time, when not null),
    * the `watchdog` or the pass's day end arrives. */
   nextReport: (
@@ -122,12 +129,18 @@ export async function runIngestionPass(
     console.warn(
       `[Workflow] Ingestion pass ${step} failed; planning again in ${PASS_STEP_RETRY_DELAY_MS / 60_000} minutes. Runs already started keep running: ${error instanceof Error ? error.message : String(error)}`,
     );
-    await nextReport(now() + PASS_STEP_RETRY_DELAY_MS, "none");
+    const until = now() + PASS_STEP_RETRY_DELAY_MS;
+    // Reports that arrive meanwhile are dropped: the next plan reads every
+    // run's state from the database.
+    while (true) {
+      const report = await nextReport(until, "none");
+      if (report === "timeout" || "replan" in report) return;
+    }
   };
   let startedRuns = false;
-  // Runs this pass admitted that have not reported fetching or stopping,
-  // with the claims it admitted them with.
-  let fetching = new Map<string, HostClaims>();
+  // Runs that may be fetching, with the claims they hold. `admitted` marks
+  // the ones this pass admitted, whose claims are what they may fetch with.
+  let fetching = new Map<string, { claims: HostClaims; admitted: boolean }>();
   while (true) {
     let next: IngestionPassPlan;
     try {
@@ -142,30 +155,57 @@ export async function runIngestionPass(
       await nextReport(next.retryAt, "none");
       continue;
     }
-    const admittedBefore = fetching;
+    const before = fetching;
     fetching = new Map();
     const waiting: PlannedRun[] = [];
     for (const run of next.runs) {
       if (HostClaims.isNone(run.claims)) continue;
-      const admitted = admittedBefore.get(run.runId);
+      const known = before.get(run.runId);
       // A run this pass admitted whose workflow has not attached yet keeps
       // its claims; one that detached to need others waits for them.
-      if (admitted && (run.started || HostClaims.equal(admitted, run.claims)))
-        fetching.set(run.runId, admitted);
-      else if (run.started) fetching.set(run.runId, run.claims);
+      if (
+        known?.admitted &&
+        (run.started || HostClaims.equal(known.claims, run.claims))
+      )
+        fetching.set(run.runId, known);
+      else if (run.started)
+        fetching.set(run.runId, { claims: run.claims, admitted: false });
       else waiting.push(run);
     }
     waiting.sort((a, b) => a.claims.lanes.length - b.claims.lanes.length);
     const admit = () => {
       const admitted = HostClaims.admit(waiting, [
-        ...fetching.values(),
+        ...[...fetching.values()].map((run) => run.claims),
         ...next.held,
       ]);
       for (const run of admitted) {
         waiting.splice(waiting.indexOf(run), 1);
-        fetching.set(run.runId, run.claims);
+        fetching.set(run.runId, { claims: run.claims, admitted: true });
       }
       return admitted.map((run) => run.runId);
+    };
+    // A run this pass did not admit holds every lane it might reach, but its
+    // resumed workflow may fetch only from those no other run holds; at any
+    // other it hands back and waits for admission.
+    const startedRun = (runId: string): StartedRun => {
+      const run = fetching.get(runId);
+      if (!run) return { runId, claims: HostClaims.none };
+      if (run.admitted) return { runId, claims: run.claims };
+      const others = new Set(
+        [
+          ...fetching.entries(),
+          ...next.held.map((claims) => ["", { claims }] as const),
+        ]
+          .filter(([other]) => other !== runId)
+          .flatMap(([, other]) => other.claims.lanes),
+      );
+      return {
+        runId,
+        claims: {
+          lanes: run.claims.lanes.filter((lane) => !others.has(lane)),
+          places: run.claims.places,
+        },
+      };
     };
     admit();
     const started = next.runs
@@ -174,7 +214,7 @@ export async function runIngestionPass(
     startedRuns = true;
     if (started.length > 0) {
       try {
-        await startRuns(started);
+        await startRuns(started.map(startedRun));
       } catch (error) {
         // Admitted runs keep their claims, so the next plan starts them.
         await retryLater("start", error);
@@ -190,25 +230,30 @@ export async function runIngestionPass(
         waiting.length > 0 ? "interval" : "silence",
       );
       if (report === "timeout" || "replan" in report) break;
-      fetching.delete(report.runId);
       // A run that reports was started elsewhere; it never needs admission.
       const reported = waiting.findIndex((run) => run.runId === report.runId);
       if (reported >= 0) waiting.splice(reported, 1);
       if ("yielded" in report) {
+        fetching.delete(report.runId);
         // It is mid-crawl, so it goes first once its next hosts are free.
         waiting.unshift({
           runId: report.runId,
           claims: report.yielded,
           started: false,
         });
-      } else if (!("fetched" in report)) {
+      } else if ("fetched" in report) {
+        fetching.delete(report.runId);
+      } else {
         pending.delete(report.runId);
+        // A run that failed while fetching is resumed by the next plan from
+        // its checkpoint, so it keeps its claims until then.
         if (report.failed) resumeAt ??= now() + FAILED_RUN_RESUME_DELAY_MS;
+        else fetching.delete(report.runId);
       }
       const admitted = admit();
       if (admitted.length > 0) {
         try {
-          await startRuns(admitted);
+          await startRuns(admitted.map(startedRun));
         } catch (error) {
           await retryLater("start", error);
           break;
