@@ -1,13 +1,14 @@
 "use client";
 
 import { nextYardPin } from "~/lib/yard-map-focus";
-import { YardPath } from "~/lib/yard-path";
+import { YardMapMarker } from "~/lib/yard-map-marker";
+import { YardMapUrl } from "~/lib/yard-map-url";
 import { Minus, Plus, Scan } from "lucide-react";
 import { Map, Overlay } from "pigeon-maps";
 import { YardMapTile, YardMapTilesReady } from "./YardMapTile";
 import { yardTileProvider } from "~/lib/yard-map-tiles";
 import { useYardMapView } from "~/hooks/use-yard-map-view";
-import { YardMapPin } from "./YardMapPin";
+import { YardMapCluster, YardMapPin } from "./YardMapPin";
 import {
   type CSSProperties,
   memo,
@@ -18,7 +19,7 @@ import {
   useState,
 } from "react";
 import { Button } from "~/components/ui/button";
-import type { MapYard } from "./yard-map-data";
+import type { MapYard, YardMapSelection } from "./yard-map-data";
 import {
   getYardMapFitCss,
   getYardMapView,
@@ -27,22 +28,21 @@ import {
 
 const YardMapCanvas = memo(function YardMapCanvas({
   yards,
-  selected,
+  selection,
   onSelect,
 }: {
   yards: MapYard[];
-  selected: MapYard | null;
-  onSelect: (yard: MapYard | null) => void;
+  selection: YardMapSelection | null;
+  onSelect: (selection: YardMapSelection | null) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const pins = useMemo(() => yards.filter(hasMapCoordinates), [yards]);
+  const selected = selection?.yard ?? null;
   const [focusedKey, setFocusedKey] = useState<string | null>(null);
-  const pinRefs = useRef(new globalThis.Map<string, HTMLButtonElement>());
-  const activeKey = pins.some((yard) => YardPath.key(yard) === focusedKey)
-    ? focusedKey
-    : pins[0]
-      ? YardPath.key(pins[0])
-      : null;
+  const markerRefs = useRef(new globalThis.Map<string, HTMLButtonElement>());
+  // A mouse click in the map lets the plain wheel zoom until the pointer
+  // leaves; until then the wheel scrolls the page past the map.
+  const [wheelZoom, setWheelZoom] = useState(false);
   const mapRef = useRef<Map>(null);
   // An estimate until the layout effect measures the canvas. The page is
   // served from the CDN, so it can't depend on the visitor's device; the fit
@@ -89,6 +89,25 @@ const YardMapCanvas = memo(function YardMapCanvas({
   }, [loading]);
 
   const current = view ?? overview;
+  const markers = useMemo(
+    () => YardMapMarker.group(pins, current.zoom, selected),
+    [pins, current.zoom, selected],
+  );
+  const activeKey = markers.some((marker) => marker.key === focusedKey)
+    ? focusedKey
+    : (markers[0]?.key ?? null);
+
+  // Back and shared links return to the same view. Before paint, so a
+  // client-side Back never shows the overview first.
+  useLayoutEffect(() => {
+    const restored = YardMapUrl.view(window.location.search);
+    if (restored) syncView(restored);
+  }, [syncView]);
+
+  useEffect(
+    () => YardMapUrl.schedule((search) => YardMapUrl.withView(search, view)),
+    [view],
+  );
   // Match getYardMapView's narrow or wide overview before the actual size is
   // known. A container query picks the frame, so a wrong size guess does
   // not change the framing on hydration.
@@ -135,13 +154,26 @@ const YardMapCanvas = memo(function YardMapCanvas({
     return () => observer.disconnect();
   }, []);
 
+  // Closing the yard card keeps the view; only the overview control resets it.
   useEffect(() => {
-    requestView(
-      selected && hasMapCoordinates(selected)
-        ? { center: [selected.lat, selected.lng], zoom: 9 }
-        : null,
-    );
-  }, [selected, requestView]);
+    if (!selection || !hasMapCoordinates(selection.yard)) return;
+    const { yard, focus } = selection;
+    if (focus === "zoom") {
+      requestView({ center: [yard.lat, yard.lng], zoom: 9 });
+    } else if (focus === "center") {
+      requestView((pending) => ({
+        zoom: (pending ?? overview).zoom,
+        center: [yard.lat, yard.lng],
+      }));
+    }
+    // Not on `overview`: it changes with the map's size, which must not
+    // re-center the map.
+  }, [selection, requestView]);
+
+  const showOverview = () => {
+    onSelect(null);
+    requestView(null);
+  };
 
   const zoomBy = (amount: number) => {
     requestView((pending) => {
@@ -159,25 +191,34 @@ const YardMapCanvas = memo(function YardMapCanvas({
       className="yard-map focus-visible:outline-focus relative h-full overflow-hidden outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid"
       style={{ containerType: "size" }}
       role="region"
-      tabIndex={pins.length === 0 ? 0 : -1}
+      tabIndex={markers.length === 0 ? 0 : -1}
       aria-label="Map of indexed junkyard locations"
-      aria-description="Use arrow keys to move between yard pins, Enter to select, Shift and arrow keys to pan, plus and minus to zoom, and Home to return to the overview."
+      aria-description="Use arrow keys to move between yard pins and groups, Enter to select a yard or zoom into a group, Shift and arrow keys to pan, plus and minus to zoom, and Home to return to the overview."
       onErrorCapture={() => setTileError(true)}
+      onPointerDown={(event) => {
+        if (event.pointerType === "mouse") setWheelZoom(true);
+      }}
+      onPointerLeave={() => setWheelZoom(false)}
       onKeyDown={(event) => {
-        const pinIndex = pins.findIndex(
-          (yard) => pinRefs.current.get(YardPath.key(yard)) === event.target,
+        const markerIndex = markers.findIndex(
+          (marker) => markerRefs.current.get(marker.key) === event.target,
         );
-        if (event.target !== event.currentTarget && pinIndex < 0) return;
+        if (event.target !== event.currentTarget && markerIndex < 0) return;
         const next = !event.shiftKey
-          ? nextYardPin(pinIndex, pins.length, event.key)
+          ? nextYardPin(markerIndex, markers.length, event.key)
           : null;
-        const yard = next === null ? undefined : pins[next];
-        if (yard) {
+        const marker = next === null ? undefined : markers[next];
+        if (marker) {
           event.preventDefault();
-          const key = YardPath.key(yard);
-          setFocusedKey(key);
-          requestView({ ...current, center: [yard.lat, yard.lng] });
-          pinRefs.current.get(key)?.focus({ preventScroll: true });
+          setFocusedKey(marker.key);
+          requestView({
+            ...current,
+            center:
+              marker.kind === "yard"
+                ? [marker.yard.lat, marker.yard.lng]
+                : marker.center,
+          });
+          markerRefs.current.get(marker.key)?.focus({ preventScroll: true });
           return;
         }
         const offsets: Record<string, [number, number]> = {
@@ -203,8 +244,7 @@ const YardMapCanvas = memo(function YardMapCanvas({
           zoomBy(event.key === "-" ? -1 : 1);
         } else if (event.key === "Home") {
           event.preventDefault();
-          onSelect(null);
-          requestView(null);
+          showOverview();
         }
       }}
     >
@@ -226,8 +266,8 @@ const YardMapCanvas = memo(function YardMapCanvas({
             boxClassname="yard-map-tiles"
             animate={false}
             zoomSnap={false}
-            metaWheelZoom
-            metaWheelZoomWarning="Hold Ctrl or ⌘ while scrolling to zoom"
+            metaWheelZoom={!wheelZoom}
+            metaWheelZoomWarning="Click the map or hold Ctrl or ⌘ to zoom"
             twoFingerDrag
             onBoundsChanged={({ center, zoom, initial }) => {
               if (
@@ -241,27 +281,51 @@ const YardMapCanvas = memo(function YardMapCanvas({
             }}
             attribution={false}
           >
-            {pins.map((yard) => (
-              <Overlay
-                key={`${yard.source}:${yard.code}`}
-                anchor={[yard.lat, yard.lng]}
-                offset={[12, 12]}
-                className="yard-map-marker"
-              >
-                <YardMapPin
-                  yard={yard}
-                  tabIndex={YardPath.key(yard) === activeKey ? 0 : -1}
-                  buttonRef={(button) => {
-                    const key = YardPath.key(yard);
-                    if (button) pinRefs.current.set(key, button);
-                    else pinRefs.current.delete(key);
-                  }}
-                  onFocus={() => setFocusedKey(YardPath.key(yard))}
-                  selected={selected === yard}
-                  onSelect={() => onSelect(yard)}
-                />
-              </Overlay>
-            ))}
+            {markers.map((marker) => {
+              const buttonRef = (button: HTMLButtonElement | null) => {
+                if (button) markerRefs.current.set(marker.key, button);
+                else markerRefs.current.delete(marker.key);
+              };
+              const tabIndex = marker.key === activeKey ? 0 : -1;
+              const onFocus = () => setFocusedKey(marker.key);
+              return (
+                <Overlay
+                  key={marker.key}
+                  anchor={
+                    marker.kind === "yard"
+                      ? [marker.yard.lat, marker.yard.lng]
+                      : marker.center
+                  }
+                  offset={[16, 16]}
+                  className="yard-map-marker"
+                >
+                  {marker.kind === "yard" ? (
+                    <YardMapPin
+                      yard={marker.yard}
+                      tabIndex={tabIndex}
+                      buttonRef={buttonRef}
+                      onFocus={onFocus}
+                      selected={selected === marker.yard}
+                      onSelect={() =>
+                        onSelect({ yard: marker.yard, focus: "center" })
+                      }
+                    />
+                  ) : (
+                    <YardMapCluster
+                      yards={marker.yards}
+                      tabIndex={tabIndex}
+                      buttonRef={buttonRef}
+                      onFocus={onFocus}
+                      onOpen={() =>
+                        requestView(
+                          YardMapMarker.split(marker, size.width, size.height),
+                        )
+                      }
+                    />
+                  )}
+                </Overlay>
+              );
+            })}
           </Map>
         </YardMapTilesReady.Provider>
       </div>
@@ -281,10 +345,7 @@ const YardMapCanvas = memo(function YardMapCanvas({
           className="bg-paper-3 hover:bg-ink"
           aria-label="Return to the map overview"
           title="Map overview"
-          onClick={() => {
-            onSelect(null);
-            requestView(null);
-          }}
+          onClick={showOverview}
         >
           <Scan aria-hidden="true" />
         </Button>

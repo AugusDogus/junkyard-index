@@ -34,6 +34,6 @@ const yards: MapYard[] = Array.from({ length: 40 }, (_, index) => ({
 
 createRoot(document.body).render(
   <AppRouterContext.Provider value={router}>
-    <YardMap yards={yards} vehicleCount={5000} />
+    <YardMap yards={yards} vehicleCount={5000} layout="home" />
   </AppRouterContext.Provider>,
 );

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { YardMapView } from "~/lib/yard-map-projection";
 import { getYardMapTileUrls, loadYardMapTile } from "~/lib/yard-map-tiles";
 
@@ -46,10 +46,10 @@ export function useYardMapView(
 
   // Gestures already move Pigeon's internal view. Adopt them immediately and
   // cancel any pending button/yard navigation so it cannot snap the map back.
-  const syncView = (next: YardMapView) => {
+  const syncView = useCallback((next: YardMapView) => {
     setView(next);
     requestView(next);
-  };
+  }, []);
 
   return {
     view,

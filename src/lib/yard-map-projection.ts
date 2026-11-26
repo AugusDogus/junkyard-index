@@ -12,6 +12,14 @@ export function projectYardLocation({ lat, lng }: YardLocation) {
   };
 }
 
+/** The inverse of `projectYardLocation`, as a `[lat, lng]` map center. */
+export function unprojectYardLocation(x: number, y: number): [number, number] {
+  return [
+    (Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / 1024))) * 180) / Math.PI,
+    (x / 1024) * 360 - 180,
+  ];
+}
+
 export function hasMapCoordinates(location: YardLocation) {
   return (
     hasFiniteCoordinates(location) && (location.lat !== 0 || location.lng !== 0)
@@ -120,11 +128,5 @@ export function getYardMapView(
   // Center the pins in the area left of the controls.
   const x = bounds.left + bounds.width / 2 + controls / 2 / 2 ** (zoom - 2);
   const y = bounds.top + bounds.height / 2;
-  return {
-    center: [
-      (Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / 1024))) * 180) / Math.PI,
-      (x / 1024) * 360 - 180,
-    ],
-    zoom,
-  };
+  return { center: unprojectYardLocation(x, y), zoom };
 }

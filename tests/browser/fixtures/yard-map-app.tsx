@@ -36,7 +36,7 @@ export function YardMapFixture({ width, height }: YardMapFixtureProps) {
   }, []);
   return (
     <div style={{ width, height }}>
-      <YardMapCanvas yards={yards} selected={null} onSelect={() => {}} />
+      <YardMapCanvas yards={yards} selection={null} onSelect={() => {}} />
     </div>
   );
 }

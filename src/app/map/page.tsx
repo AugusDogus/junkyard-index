@@ -29,7 +29,7 @@ export default async function MapPage() {
             its inventory, website and directions.
           </p>
         </div>
-        <YardMapSection {...section} />
+        <YardMapSection {...section} layout="page" />
       </main>
       <Footer status="link" />
     </div>
