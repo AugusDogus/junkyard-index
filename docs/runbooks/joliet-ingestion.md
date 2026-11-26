@@ -203,3 +203,12 @@ entries across 1,411 HTML stocks (1.77%), despite a net count difference of one.
 The disagreement limit is 5% of the HTML inventory. Only agreeing stocks are
 published; HTML-only and API-only stocks are excluded and reported. Exact API
 union-to-analytics reconciliation and all other quality guards still apply.
+
+The analytics counts and year searches also move within a day. On November 26,
+2026, run f4ee8a12 read an API union of 1,415 against analytics of 1,418, with
+1996, 1999 and 2002 each off by one, and the API year searches had changed by
+15:27. A union mismatch is therefore a transient rejection: its message names
+the totals and the first differing years with both counts, prior inventory is
+preserved, and the source retries after the usual delay within its daily
+attempts. The 5% stock disagreement limit and the rejection ratio still end the
+source's day.
