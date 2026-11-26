@@ -29,6 +29,7 @@ import {
   warmChangedInventory,
 } from "~/server/indexnow";
 import { InventorySnapshot } from "~/server/inventory-snapshot";
+import { YardSummaryStore } from "~/server/yard-summary-store";
 import { formatError, throwRetryableStepError } from "./step-errors";
 
 /**
@@ -42,6 +43,19 @@ export async function refreshInventoryCachesStep(): Promise<
   { status: "ok" } | InventoryRefreshFailure
 > {
   "use step";
+
+  // Before the caches expire, so the pages they rebuild read each yard's
+  // summary back (2 rows) instead of its vehicles. A failure here only costs
+  // those reads: pages read the yard instead, as they do without a summary.
+  try {
+    const { stored } = await YardSummaryStore.refresh(db);
+    console.info(`[Workflow] Stored ${stored} yard summaries`);
+  } catch (error) {
+    console.error(
+      `[Workflow] Could not store yard summaries; yard pages read each yard's vehicles when their cached summary is missing until the next refresh stores them. Vehicle data and the inventory refresh are unaffected: ${formatError(error)}`,
+      error,
+    );
+  }
 
   let refresh: InventoryCacheRefresh;
   try {

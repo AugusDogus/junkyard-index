@@ -301,6 +301,24 @@ export const yardInventory = sqliteTable(
 );
 
 /**
+ * Each yard's page summary (count, makes, arrivals; see YardSummary), stored
+ * by the inventory refresh for the publication `built_for` names (the
+ * yard_inventory row's updated_at). A cached summary that falls out of the
+ * data cache is read back from here, 2 rows, instead of from the yard's
+ * vehicles; a row whose `built_for` no longer matches is ignored.
+ */
+export const yardSummary = sqliteTable(
+  "yard_summary",
+  {
+    source: text("source").notNull(),
+    locationCode: text("location_code").notNull(),
+    builtFor: integer("built_for", { mode: "timestamp_ms" }).notNull(),
+    data: text("data").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.source, table.locationCode] })],
+);
+
+/**
  * Live vehicles per source and state that may count as new this week, grouped
  * by their raw arrival fields. Ingestion rebuilds a source's rows with its
  * `yard_inventory` rows, keeping only arrivals from the 8 days before the

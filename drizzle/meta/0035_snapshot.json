@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "53a5fe60-2377-4ecc-816c-18d35f45a15f",
+  "id": "0796632b-e478-4bbf-8ba4-6a3cb72f6356",
   "prevId": "d3b46ea1-dc7a-459c-b90d-29e4088b6184",
   "tables": {
     "account": {
@@ -3748,6 +3748,52 @@
         }
       },
       "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "yard_summary": {
+      "name": "yard_summary",
+      "columns": {
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "location_code": {
+          "name": "location_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "built_for": {
+          "name": "built_for",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "data": {
+          "name": "data",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "yard_summary_source_location_code_pk": {
+          "columns": [
+            "source",
+            "location_code"
+          ],
+          "name": "yard_summary_source_location_code_pk"
+        }
+      },
       "uniqueConstraints": {},
       "checkConstraints": {}
     }
