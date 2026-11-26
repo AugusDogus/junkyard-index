@@ -1,6 +1,14 @@
 "use client";
 
-import { CreditCard, LogOut, Monitor, Moon, Settings, Sun } from "lucide-react";
+import {
+  CreditCard,
+  Ellipsis,
+  LogOut,
+  Monitor,
+  Moon,
+  Settings,
+  Sun,
+} from "lucide-react";
 import { useTheme } from "next-themes";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -118,7 +126,7 @@ function UserMenuContent({ user: initialUser }: UserMenuProps) {
         {/* Theme submenu - visible on mobile, hidden on desktop */}
         <DropdownMenuSub>
           <DropdownMenuSubTrigger className="gap-2 sm:hidden">
-            <Sun className="h-4 w-4 scale-100 rotate-0 dark:scale-0 dark:-rotate-90" />
+            <Sun className="mr-2 h-4 w-4 scale-100 rotate-0 dark:scale-0 dark:-rotate-90" />
             <Moon className="absolute h-4 w-4 scale-0 rotate-90 dark:scale-100 dark:rotate-0" />
             Theme
           </DropdownMenuSubTrigger>
@@ -178,13 +186,12 @@ function UserMenuContent({ user: initialUser }: UserMenuProps) {
             <span>Upgrade from ${PLANS.lite.monthlyPrice}/mo</span>
           </DropdownMenuItem>
         )}
+        <SiteLinks />
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled={isSigningOut} onClick={handleSignOut}>
           <LogOut className="mr-2 h-4 w-4" />
           <span>{isSigningOut ? "Signing out..." : "Sign out"}</span>
         </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <SiteLinks />
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -194,33 +201,41 @@ function UserMenuContent({ user: initialUser }: UserMenuProps) {
 const siteLinkClassName = "text-muted-foreground min-h-11 text-xs sm:min-h-8";
 
 /**
- * The footer links the header lacks. Paid users scroll /search without end
- * and never reach its footer, so the menu carries them, as X and Facebook do.
+ * The footer links the header lacks, behind one row. Paid users scroll
+ * /search without end and never reach its footer, so the menu carries them.
  */
 function SiteLinks() {
   const statusPageUrl = env.NEXT_PUBLIC_STATUS_PAGE_URL;
   return (
-    <DropdownMenuGroup aria-label="Site links">
-      {ACCOUNT_MENU_FOOTER_LINKS.map((link) => (
-        <DropdownMenuItem
-          key={link.kind === "static" ? link.href : link.kind}
-          asChild
-          className={siteLinkClassName}
-        >
-          {link.kind === "request-yard" ? (
-            <TrackedRequestYardLink />
-          ) : (
-            <Link href={link.href}>{link.label}</Link>
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger className="gap-2">
+        <Ellipsis className="mr-2 h-4 w-4" />
+        More
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent>
+        <DropdownMenuGroup aria-label="Site links">
+          {ACCOUNT_MENU_FOOTER_LINKS.map((link) => (
+            <DropdownMenuItem
+              key={link.kind === "static" ? link.href : link.kind}
+              asChild
+              className={siteLinkClassName}
+            >
+              {link.kind === "request-yard" ? (
+                <TrackedRequestYardLink />
+              ) : (
+                <Link href={link.href}>{link.label}</Link>
+              )}
+            </DropdownMenuItem>
+          ))}
+          {statusPageUrl && (
+            <DropdownMenuItem asChild className={siteLinkClassName}>
+              <a href={statusPageUrl} target="_blank" rel="noopener noreferrer">
+                System status
+              </a>
+            </DropdownMenuItem>
           )}
-        </DropdownMenuItem>
-      ))}
-      {statusPageUrl && (
-        <DropdownMenuItem asChild className={siteLinkClassName}>
-          <a href={statusPageUrl} target="_blank" rel="noopener noreferrer">
-            System status
-          </a>
-        </DropdownMenuItem>
-      )}
-    </DropdownMenuGroup>
+        </DropdownMenuGroup>
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
   );
 }
