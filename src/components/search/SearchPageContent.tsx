@@ -5,6 +5,7 @@ import { SearchArea } from "~/lib/search-area";
 import { combineSearchFilters } from "~/lib/compile-search-expression";
 import { SearchYardSelection } from "~/lib/search-yard-selection";
 import { SearchRadius } from "~/lib/search-radius";
+import { SearchUrl } from "~/lib/search-url";
 import { readFullServiceCount } from "~/lib/full-service-search";
 import { ActiveFilterChips } from "./ActiveFilterChips";
 import {
@@ -122,6 +123,20 @@ import { cn } from "~/lib/utils";
 import type { DataSource, SearchResult as SearchResultType } from "~/lib/types";
 import { VinPattern } from "~/lib/vin-pattern";
 import { api } from "~/trpc/react";
+
+// The URL keys this page writes through nuqs. Choosing an arrival window adds
+// a history entry; radius and origin changes replace the current one.
+const AREA_PARSERS = {
+  legacyArrivalWindow: SearchUrl.parsers.legacyArrivalWindow.withOptions({
+    history: "push",
+  }),
+  arrivalWindow: SearchUrl.parsers.arrivalWindow.withOptions({
+    history: "push",
+  }),
+  radius: SearchUrl.parsers.radius,
+  lat: SearchUrl.parsers.lat,
+  lng: SearchUrl.parsers.lng,
+};
 
 function clampRouteYear(
   value: number | null,
@@ -592,18 +607,12 @@ function AlgoliaSearchInner({
   );
 
   const isDistanceSort = sortBy === "distance";
-  const [radius, setRadius] = useQueryState("radius", parseAsString);
-  const radiusMiles = SearchRadius.parse(radius);
-  const [arrivalParams, setArrivalParams] = useQueryStates({
-    arrivalWindow: parseAsString.withOptions({ history: "push" }),
-    "arrivalWindow[]": parseAsString.withOptions({ history: "push" }),
+  const [area, setArea] = useQueryStates(AREA_PARSERS, {
+    urlKeys: SearchUrl.urlKeys,
   });
-  const [originParams, setOriginParams] = useQueryStates({
-    lat: parseAsString,
-    lng: parseAsString,
-  });
+  const radiusMiles = area.radius;
   const arrivalWindow = ArrivalWindow.parse(
-    arrivalParams["arrivalWindow[]"] ?? arrivalParams.arrivalWindow,
+    area.arrivalWindow[0] ?? area.legacyArrivalWindow[0],
   );
   const routedArea = SearchArea.fromUrl(
     new URLSearchParams(searchParams.toString()),
@@ -1166,8 +1175,8 @@ function AlgoliaSearchInner({
       await applyDistancePreference(selectedDistanceMode);
       // Write only a real change: Next writes a nuqs URL back when it
       // commits, which would undo the sort route written just below.
-      if (originParams.lat !== null || originParams.lng !== null)
-        await setOriginParams({ lat: null, lng: null });
+      if (area.lat !== null || area.lng !== null)
+        await setArea({ lat: null, lng: null });
       setShowDistancePreferenceDialog(false);
       toast.success(
         isLoggedIn
@@ -1192,8 +1201,9 @@ function AlgoliaSearchInner({
     }
   }, [
     applyDistancePreference,
-    originParams,
-    setOriginParams,
+    area.lat,
+    area.lng,
+    setArea,
     isLoggedIn,
     pendingDistanceSort,
     radiusMiles,
@@ -1264,14 +1274,16 @@ function AlgoliaSearchInner({
         // write a changed route first, and let nuqs replace its entry.
         const clearedRoute = instantSearch.createURL();
         const clearOwned = (history: "push" | "replace") =>
-          Promise.all([
-            setArrivalParams(
-              { arrivalWindow: null, "arrivalWindow[]": null },
-              { history },
-            ),
-            setRadius(null, { history }),
-            setOriginParams({ lat: null, lng: null }, { history }),
-          ]);
+          setArea(
+            {
+              legacyArrivalWindow: null,
+              arrivalWindow: null,
+              radius: null,
+              lat: null,
+              lng: null,
+            },
+            { history },
+          );
         if (clearedRoute === route) return clearOwned("push");
         writeRoute(clearedRoute);
         // nuqs takes any other pushState for a navigation and drops its queued
@@ -1290,9 +1302,7 @@ function AlgoliaSearchInner({
       arrivalWindow,
       nearbyParams,
       radiusMiles,
-      setArrivalParams,
-      setOriginParams,
-      setRadius,
+      setArea,
       typedYears,
       writeRoute,
     ],
@@ -1395,9 +1405,9 @@ function AlgoliaSearchInner({
   );
 
   const setArrivalWindow = (value: ArrivalWindow | undefined) =>
-    void setArrivalParams({
-      arrivalWindow: null,
-      "arrivalWindow[]": value ?? null,
+    void setArea({
+      legacyArrivalWindow: null,
+      arrivalWindow: value ? [value] : null,
     });
 
   const removeFilter = (filter: ActiveSearchFilter) => {
@@ -1405,7 +1415,7 @@ function AlgoliaSearchInner({
       case "arrival":
         return setArrivalWindow(undefined);
       case "distance":
-        return void setRadius(null);
+        return void setArea({ radius: null });
       case "yardTypes":
         return handleYardTypesChange(defaultYardTypes);
       case "year":
@@ -1575,7 +1585,7 @@ function AlgoliaSearchInner({
       onChooseLocation={openDistancePreference}
       radiusMiles={radiusMiles}
       onRadiusChange={(miles) =>
-        void setRadius(miles === null ? null : String(miles))
+        void setArea({ radius: SearchRadius.parse(miles) })
       }
       yardTypes={selectedYardTypes}
       expression={expressionMode ? query : undefined}
