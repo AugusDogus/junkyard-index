@@ -21,7 +21,7 @@ export function HomeStateIndex({
       <div className="grid gap-y-3 lg:grid-cols-12 lg:items-baseline lg:gap-x-8">
         <h2
           id="home-states-title"
-          className="text-section leading-[1.02] font-extrabold lg:col-span-5"
+          className="text-section leading-[1.02] font-medium lg:col-span-5"
         >
           Junkyards by state
         </h2>
@@ -37,7 +37,7 @@ export function HomeStateIndex({
           .
         </p>
       </div>
-      <ul className="border-ink mt-(--space-xl) gap-x-10 border-t-2 sm:columns-2 lg:columns-4">
+      <ul className="border-rule-strong mt-(--space-xl) gap-x-10 border-t sm:columns-2 lg:columns-4">
         {regions.map(({ region, yards }) => (
           <li
             key={region.slug}
@@ -48,7 +48,7 @@ export function HomeStateIndex({
               prefetch={false}
               className="group board-step hover:bg-paper-2 active:bg-paper-2 focus-visible:outline-focus flex items-baseline justify-between gap-4 px-2 py-2.5 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid"
             >
-              <span className="board-step group-hover:text-signal text-[0.9375rem] leading-snug font-extrabold">
+              <span className="board-step group-hover:text-signal text-[0.9375rem] leading-snug font-medium">
                 {region.name}
               </span>
               <span className="text-ink-2 text-sm whitespace-nowrap tabular-nums">
