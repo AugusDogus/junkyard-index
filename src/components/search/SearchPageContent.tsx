@@ -158,6 +158,8 @@ interface AlgoliaSearchInnerProps {
   vinPatternIndexReady: boolean;
   booleanOrSearchReady: boolean;
   newestSortReady: boolean;
+  /** Writes a URL built for the current search as the router's own write. */
+  writeRoute(url: string): void;
 }
 function hasValidCoordinates(
   value: SearchPageContentProps["userLocation"],
@@ -337,6 +339,7 @@ function AlgoliaSearchInner({
   vinPatternIndexReady,
   booleanOrSearchReady,
   newestSortReady,
+  writeRoute,
 }: AlgoliaSearchInnerProps) {
   const instantSearch = useInstantSearchContext();
   const canUseAdvancedFilters = resolveClientPlanFeatureAccess({
@@ -595,7 +598,7 @@ function AlgoliaSearchInner({
     arrivalWindow: parseAsString.withOptions({ history: "push" }),
     "arrivalWindow[]": parseAsString.withOptions({ history: "push" }),
   });
-  const [, setOriginParams] = useQueryStates({
+  const [originParams, setOriginParams] = useQueryStates({
     lat: parseAsString,
     lng: parseAsString,
   });
@@ -1161,7 +1164,10 @@ function AlgoliaSearchInner({
   const handleDistancePreferenceConfirm = useCallback(async () => {
     try {
       await applyDistancePreference(selectedDistanceMode);
-      await setOriginParams({ lat: null, lng: null });
+      // Write only a real change: Next writes a nuqs URL back when it
+      // commits, which would undo the sort route written just below.
+      if (originParams.lat !== null || originParams.lng !== null)
+        await setOriginParams({ lat: null, lng: null });
       setShowDistancePreferenceDialog(false);
       toast.success(
         isLoggedIn
@@ -1186,6 +1192,7 @@ function AlgoliaSearchInner({
     }
   }, [
     applyDistancePreference,
+    originParams,
     setOriginParams,
     isLoggedIn,
     pendingDistanceSort,
@@ -1243,22 +1250,32 @@ function AlgoliaSearchInner({
       });
       const helper = instantSearch.mainIndex.getHelper();
       if (!helper) return;
-      // Clear facets without searching the old window/radius. Configure performs
-      // the combined search once the URL-controlled filters have been cleared.
-      helper.clearRefinements();
-      for (const type of yardTypes)
-        helper.addDisjunctiveFacetRefinement("yardTypes", type);
-      // Typed years filter results too, so clearing filters drops them as well.
-      if (typedYears?.range) helper.setQuery(typedYears.query);
-      // The route write for the cleared facets runs before nuqs writes these.
-      SearchOwnedUrlParams.hold(
-        new URLSearchParams(),
-        Promise.all([
-          setArrivalParams({ arrivalWindow: null, "arrivalWindow[]": null }),
-          setRadius(null),
-          setOriginParams({ lat: null, lng: null }),
-        ]),
-      );
+      SearchOwnedUrlParams.hold(new URLSearchParams(), () => {
+        const route = instantSearch.createURL();
+        // Clear facets without searching the old window/radius. Configure
+        // performs the combined search once the URL-controlled filters clear.
+        helper.clearRefinements();
+        for (const type of yardTypes)
+          helper.addDisjunctiveFacetRefinement("yardTypes", type);
+        // Typed years filter results too, so clearing filters drops them too.
+        if (typedYears?.range) helper.setQuery(typedYears.query);
+        // nuqs builds its URL from the current one when it flushes, and Next
+        // then writes that URL back over route writes it did not see. So
+        // write a changed route first, and let nuqs replace its entry.
+        const clearedRoute = instantSearch.createURL();
+        if (clearedRoute !== route) writeRoute(clearedRoute);
+        const options: { history: "push" | "replace" } = {
+          history: clearedRoute === route ? "push" : "replace",
+        };
+        return Promise.all([
+          setArrivalParams(
+            { arrivalWindow: null, "arrivalWindow[]": null },
+            options,
+          ),
+          setRadius(null, options),
+          setOriginParams({ lat: null, lng: null }, options),
+        ]);
+      });
       // Clearing a window, or a radius around an origin, changes Configure,
       // which then searches. A radius without an origin was never sent.
       const radiusApplies =
@@ -1275,6 +1292,7 @@ function AlgoliaSearchInner({
       setOriginParams,
       setRadius,
       typedYears,
+      writeRoute,
     ],
   );
   // The default yard scope is not a filter, so clearing all returns to it.
@@ -1874,6 +1892,7 @@ export function SearchPageContent({
           vinPatternIndexReady,
           booleanOrSearchReady,
           newestSortReady,
+          writeRoute,
         }) => (
           <AlgoliaSearchInner
             arrivalReferenceTime={arrivalReferenceTime}
@@ -1885,6 +1904,7 @@ export function SearchPageContent({
             vinPatternIndexReady={vinPatternIndexReady}
             booleanOrSearchReady={booleanOrSearchReady}
             newestSortReady={newestSortReady}
+            writeRoute={writeRoute}
           />
         )}
       </SearchAccessShell>

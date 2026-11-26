@@ -1297,3 +1297,47 @@ test("Clear all with a radius but no location still searches the cleared filters
     await closePage(page);
   }
 }, 30_000);
+
+for (const { label, width, height } of [
+  { label: "phone drawer", width: 390, height: 844 },
+  { label: "desktop", width: 1440, height: 900 },
+]) {
+  test(`Clear all from the ${label} drops years, all yards, window and radius in one entry and one search`, async () => {
+    const { page } = await open(
+      "q=volvo+240&minYear=1963&maxYear=2000&yardTypes%5B%5D=all&sort=oldest&arrivalWindow%5B%5D=7d&radius=50",
+      width,
+      height,
+      { storedLocation: phoenixZip },
+    );
+    try {
+      const chips = page.getByRole("group", { name: "Active filters" });
+      expect(
+        await chips.getByRole("button", { name: /^Remove / }).count(),
+      ).toBe(4);
+      const entries = () => page.evaluate(() => history.length);
+      const before = await entries();
+      const clear = await searchCallsDuring(page, async () => {
+        if (width < 768) {
+          await page.getByRole("button", { name: /^Filters/ }).click();
+          await page
+            .getByRole("dialog", { name: "Filters" })
+            .getByRole("button", { name: "Clear all", exact: true })
+            .click();
+        } else {
+          await chips
+            .getByRole("button", { name: "Clear all", exact: true })
+            .click();
+        }
+      });
+      const params = new URL(page.url()).searchParams;
+      expect([...params.keys()].sort()).toEqual(["q", "sort"]);
+      expect(params.get("q")).toBe("volvo 240");
+      expect(params.get("sort")).toBe("oldest");
+      expect((await entries()) - before).toBe(1);
+      expect(clear.calls).toBe(1);
+      expect(await chips.count()).toBe(0);
+    } finally {
+      await closePage(page);
+    }
+  }, 30_000);
+}
