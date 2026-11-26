@@ -89,13 +89,15 @@ function UserMenuContent({ user: initialUser }: UserMenuProps) {
         <Button
           variant="outline"
           size="sm"
-          className="relative h-8 w-8 rounded-full p-0"
+          className="relative size-8 overflow-hidden rounded-full p-0"
         >
+          {/* Fill the circle inside the border and clip to it, so the photo
+          neither spills past the ring nor leaves a gap at its sides. */}
           {user.image ? (
             <img
               src={user.image}
               alt={user.name || user.email}
-              className="h-8 w-8 rounded-full"
+              className="size-full rounded-full object-cover"
             />
           ) : (
             <span className="text-xs font-medium">{initials}</span>
