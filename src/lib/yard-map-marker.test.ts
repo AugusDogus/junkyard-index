@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { projectYardLocation } from "./yard-map-projection";
+import {
+  projectYardLocation,
+  unprojectYardLocation,
+} from "./yard-map-projection";
 import { YardMapMarker } from "./yard-map-marker";
 
 const yard = (code: string, lat: number, lng: number) => ({
@@ -86,5 +89,53 @@ describe("yard map markers", () => {
     expect(view.zoom).toBe(13);
     expect(view.center[0]).toBeCloseTo(phoenix.lat, 6);
     expect(view.center[1]).toBeCloseTo(phoenix.lng, 6);
+  });
+
+  test("a group never sits under a separate pin", () => {
+    // At zoom 4 one projected unit is 4px. B is 20px east of A and C is 33px
+    // east of A: just clear of A, but within 32px of A and B's group, which
+    // is drawn halfway between them.
+    const at = (code: string, px: number) => {
+      const origin = projectYardLocation(phoenix);
+      const [lat, lng] = unprojectYardLocation(origin.x + px / 4, origin.y);
+      return yard(code, lat, lng);
+    };
+    const markers = YardMapMarker.group(
+      [at("a", 0), at("b", 20), at("c", 33)],
+      4,
+      null,
+    );
+    expect(markers).toHaveLength(1);
+    expect(markers[0]?.kind === "cluster" && markers[0].yards).toHaveLength(3);
+  });
+
+  test("no two drawn markers overlap at any zoom", () => {
+    // A deterministic scatter, dense in places, over the lower 48.
+    let seed = 7;
+    const next = () => {
+      seed = (seed * 1103515245 + 12345) % 2 ** 31;
+      return seed / 2 ** 31;
+    };
+    const yards = Array.from({ length: 300 }, (_, index) =>
+      yard(String(index), 30 + next() * 15, -120 + next() ** 2 * 45),
+    );
+    for (const zoom of [3, 4.5, 6, 8, 10, 12]) {
+      const scale = 2 ** (zoom - 2);
+      const drawn = YardMapMarker.group(yards, zoom, null).map((marker) =>
+        projectYardLocation(
+          marker.kind === "yard"
+            ? marker.yard
+            : { lat: marker.center[0], lng: marker.center[1] },
+        ),
+      );
+      drawn.forEach((a, i) =>
+        drawn.slice(i + 1).forEach((b) => {
+          const apart =
+            Math.abs(a.x - b.x) * scale >= 32 ||
+            Math.abs(a.y - b.y) * scale >= 32;
+          expect(apart).toBe(true);
+        }),
+      );
+    }
   });
 });

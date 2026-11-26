@@ -54,3 +54,56 @@ describe("yard map URL state", () => {
     expect(YardMapUrl.yard("?yard=")).toBeNull();
   });
 });
+
+describe("link clicks that leave the map's page", () => {
+  const plain = {
+    button: 0,
+    metaKey: false,
+    ctrlKey: false,
+    shiftKey: false,
+    altKey: false,
+  };
+  const link = (href: string, target = "", download = false) => ({
+    href,
+    target,
+    download,
+  });
+  const here = "https://example.test/map?at=1%2C2%2C3";
+
+  test("a plain click on another page's link leaves", () => {
+    expect(
+      YardMapUrl.leavesPage(plain, link("https://example.test/junkyards/a"), here),
+    ).toBe(true);
+    expect(
+      YardMapUrl.leavesPage(plain, link("https://other.test/"), here),
+    ).toBe(true);
+  });
+
+  test("new tabs, downloads, other buttons, and non-web links stay", () => {
+    const away = "https://example.test/junkyards/a";
+    expect(YardMapUrl.leavesPage(plain, null, here)).toBe(false);
+    expect(YardMapUrl.leavesPage(plain, link(away, "_blank"), here)).toBe(false);
+    expect(YardMapUrl.leavesPage(plain, link(away, "", true), here)).toBe(false);
+    expect(YardMapUrl.leavesPage({ ...plain, button: 1 }, link(away), here)).toBe(false);
+    for (const modifier of ["metaKey", "ctrlKey", "shiftKey", "altKey"]) {
+      expect(
+        YardMapUrl.leavesPage({ ...plain, [modifier]: true }, link(away), here),
+      ).toBe(false);
+    }
+    expect(YardMapUrl.leavesPage(plain, link("tel:+15550100"), here)).toBe(false);
+    expect(YardMapUrl.leavesPage(plain, link("mailto:a@b.test"), here)).toBe(false);
+  });
+
+  test("a jump within the same page stays", () => {
+    expect(
+      YardMapUrl.leavesPage(
+        plain,
+        link("https://example.test/map?at=1%2C2%2C3#recent-vehicles"),
+        here,
+      ),
+    ).toBe(false);
+    expect(
+      YardMapUrl.leavesPage(plain, link(here, "_self"), here),
+    ).toBe(false);
+  });
+});

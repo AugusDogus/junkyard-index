@@ -70,17 +70,50 @@ function replace(edit: (search: string) => string): void {
   window.history.replaceState(null, "", `${pathname}${next}${hash}`);
 }
 
+type LinkClick = Pick<
+  MouseEvent,
+  "button" | "metaKey" | "ctrlKey" | "shiftKey" | "altKey"
+>;
+
 /**
- * `replace` after the map settles, for an effect to return as its cleanup.
- * Skipped if the visitor has left the page, so a late write never lands on
- * the next page's URL.
+ * Whether a click on `link` navigates this tab to another page. Writing the
+ * URL while that navigation loads would cancel it: Next.js treats
+ * `history.replaceState` as restoring the current page.
  */
-function schedule(edit: (search: string) => string): () => void {
-  const { pathname } = window.location;
-  const timeout = window.setTimeout(() => {
-    if (window.location.pathname === pathname) replace(edit);
-  }, 250);
-  return () => window.clearTimeout(timeout);
+function leavesPage(
+  click: LinkClick,
+  link: { href: string; target: string; download: boolean } | null,
+  current: string,
+): boolean {
+  if (
+    !link ||
+    click.button !== 0 ||
+    click.metaKey ||
+    click.ctrlKey ||
+    click.shiftKey ||
+    click.altKey ||
+    link.download ||
+    (link.target !== "" && link.target !== "_self")
+  ) {
+    return false;
+  }
+  // Not URL.parse: Safari before 18 lacks it.
+  let destination: URL;
+  let here: URL;
+  try {
+    here = new URL(current);
+    destination = new URL(link.href, here);
+  } catch {
+    return false;
+  }
+  if (destination.protocol !== "http:" && destination.protocol !== "https:") {
+    return false;
+  }
+  return (
+    destination.origin !== here.origin ||
+    destination.pathname !== here.pathname ||
+    destination.search !== here.search
+  );
 }
 
 export const YardMapUrl = {
@@ -89,5 +122,5 @@ export const YardMapUrl = {
   yard,
   withYard,
   replace,
-  schedule,
+  leavesPage,
 } as const;

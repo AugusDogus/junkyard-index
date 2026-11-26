@@ -178,3 +178,84 @@ test("overlapping yards form a group that zooms in to separate them", async () =
     await closePage(page);
   }
 }, 20_000);
+
+test("a link click writes the pending map URL at once and stops later writes, so the navigation is not cancelled", async () => {
+  const page = await createPage(browser, {
+    viewport: { width: 1280, height: 900 },
+  });
+  try {
+    page.setDefaultTimeout(5_000);
+    await serveFixture(page, Promise.resolve());
+    // Next.js cancels a pending navigation on any replaceState; count them.
+    await page.addInitScript(() => {
+      const writes: string[] = [];
+      Object.assign(window, { mapUrlWrites: writes });
+      const replace = history.replaceState.bind(history);
+      history.replaceState = (...args) => {
+        replace(...args);
+        writes.push(location.search);
+      };
+    });
+    await page.goto("http://yard-map.test/?at=40%2C-97%2C8");
+    await page.locator(".yard-map-pin").first().waitFor();
+    // A client-side link, like Next.js's, that keeps the page loaded.
+    await page.evaluate(() => {
+      const link = document.createElement("a");
+      link.href = "/junkyards/texas/yard";
+      link.textContent = "Inventory";
+      link.addEventListener("click", (event) => event.preventDefault());
+      document.body.append(link);
+    });
+    const writes = () =>
+      page.evaluate(
+        () => (window as unknown as { mapUrlWrites: string[] }).mapUrlWrites,
+      );
+
+    await page.getByRole("button", { name: "Zoom in" }).click();
+    await page.locator('[aria-busy="false"]').waitFor();
+    // Within the 250ms the map waits before writing its new view.
+    await page.getByRole("link", { name: "Inventory", exact: true }).click();
+    expect(new URL(page.url()).search).toBe("?at=40%2C-97%2C9");
+    const atClick = (await writes()).length;
+
+    await page.getByRole("button", { name: "Zoom in" }).click();
+    await page.waitForTimeout(600);
+    expect((await writes()).length).toBe(atClick);
+    expect(new URL(page.url()).search).toBe("?at=40%2C-97%2C9");
+  } finally {
+    await closePage(page);
+  }
+}, 20_000);
+
+test("opening a group from the keyboard keeps focus on the map", async () => {
+  const page = await createPage(browser, {
+    viewport: { width: 1280, height: 900 },
+  });
+  try {
+    page.setDefaultTimeout(5_000);
+    await serveFixture(page, Promise.resolve());
+    await page.goto("http://yard-map.test/");
+    const group = page.locator(".yard-map-cluster").first();
+    await group.waitFor();
+    const opened = await group.getAttribute("aria-label");
+    const pinsBefore = await page.locator(".yard-map-pin").count();
+    await group.focus();
+    await page.keyboard.press("Enter");
+    await page.waitForFunction(
+      (before) => document.querySelectorAll(".yard-map-pin").length > before,
+      pinsBefore,
+    );
+    // The opened group's button is gone; focus moved to a marker holding
+    // its first yard instead of falling back to the page.
+    const focused = await page.evaluate(() => ({
+      marker: document.activeElement?.classList.contains("yard-map-pin"),
+      label: document.activeElement?.getAttribute("aria-label"),
+      tabIndex: document.activeElement?.getAttribute("tabindex"),
+    }));
+    expect(focused.marker).toBe(true);
+    expect(focused.label).not.toBe(opened);
+    expect(focused.tabIndex).toBe("0");
+  } finally {
+    await closePage(page);
+  }
+}, 20_000);
