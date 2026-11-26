@@ -31,13 +31,13 @@ async function open(): Promise<{ total: number; metadata: unknown }> {
       row: null, space: null, addedAt: index, addedBy: "first-seen",
       imageUrl: null, detailsUrl: null,
     }));
-    const cached = YardInventory.summary(vehicles(100));
+    const cached = YardInventory.summary(vehicles(100), vehicles(100).map((vehicle) => vehicle.make));
     const fresh = vehicles(120);
     const path = { region: { slug: "tx" }, slug: "calton", href: "/junkyards/tx/calton" };
     mock.module("~/server/yard-inventory", () => ({
       getYardPageData: async () => ({ yard: { source: "pyp", code: "1", path }, summary: cached, publishedAt: null, nearby: [], chain: null }),
       getYardVehiclePage: async (yard, summary, scope, page) => ({
-        summary: YardInventory.summary(fresh),
+        summary: YardInventory.summary(fresh, fresh.map((vehicle) => vehicle.make)),
         data: YardInventory.page(fresh, page),
       }),
     }));
