@@ -280,7 +280,7 @@ const failedRun = (cursor: ChazCursor = ChazCursor.initial) =>
     (error: unknown) => error,
   );
 
-test.each([502, 503, 504])(
+test.each([429, 502, 503, 504])(
   "Chaz defers the chunk when its first native GET answers HTTP %i",
   async (status) => {
     const native = transport(undefined, new Map([[CHAZ_CONTACT, status]]));
@@ -337,7 +337,7 @@ test("Chaz keeps a chunk's validated GETs when a later native GET answers HTTP 5
   expect(native.urls.slice(3)).toEqual([CHAZ_MAKES]);
 });
 
-test.each([404, 429, 500])(
+test.each([404, 500])(
   "Chaz HTTP %i stays fatal, also after the chunk advanced",
   async (status) => {
     transport(undefined, new Map([[CHAZ_CONTACT, status]]));
