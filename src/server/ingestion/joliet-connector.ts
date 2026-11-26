@@ -66,6 +66,43 @@ function requireRestart(restarts: number): void {
     );
 }
 
+type YearCounts = ReturnType<typeof jolietYearCounts>;
+const DRIFT_YEARS_SHOWN = 5;
+
+/** Analytics and year searches move within a day, so the exact union check
+ * can fail on a crawl that a fresh crawl later the same day reconciles. The
+ * message names the total and the first differing years. */
+function unionDrift(union: YearCounts, counts: YearCounts): Error {
+  const api = new Map(union.years.map((row) => [row.year, row.count]));
+  const native = new Map(counts.years.map((row) => [row.year, row.count]));
+  const differing = [...new Set([...api.keys(), ...native.keys()])]
+    .sort((a, b) => a - b)
+    .filter((year) => api.get(year) !== native.get(year))
+    .map(
+      (year) =>
+        "year " +
+        year +
+        ": API union " +
+        (api.get(year) ?? 0) +
+        ", counts " +
+        (native.get(year) ?? 0),
+    );
+  return transientRejection(
+    new Error(
+      "Terminal API stock union does not reconcile with native active inventory counts and years (total: API union " +
+        union.count +
+        ", counts " +
+        counts.count +
+        "; " +
+        differing.slice(0, DRIFT_YEARS_SHOWN).join("; ") +
+        (differing.length > DRIFT_YEARS_SHOWN
+          ? "; " + (differing.length - DRIFT_YEARS_SHOWN) + " more years"
+          : "") +
+        "); the yard most likely published a change while it was read, so the source retries after the usual delay within its daily attempts",
+    ),
+  );
+}
+
 /** The overnight publish replaces the official table and counts. A crawl it
  * overtakes starts over under the new context; one that did not must still
  * bind every checkpointed stock to the current table. */
@@ -421,13 +458,9 @@ export function streamJolietInventoryWithRequestGate<E, R>(
               "; row or set date conflicts: " +
               conflicting.join(", "),
           );
-        if (
-          JSON.stringify(jolietYearCounts(seen.values())) !==
-          JSON.stringify(context.counts)
-        )
-          throw new Error(
-            "Terminal API stock union does not reconcile with native active inventory counts and years",
-          );
+        const union = jolietYearCounts(seen.values());
+        if (JSON.stringify(union) !== JSON.stringify(context.counts))
+          throw unionDrift(union, context.counts);
         if (htmlOnly.length) {
           processed += htmlOnly.length;
           excluded += htmlOnly.length;

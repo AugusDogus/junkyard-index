@@ -390,14 +390,21 @@ test("Joliet still requires the complete API union to reconcile exactly with ana
       kind === "analytics" ? jolietTestAnalytics(records.slice(1)) : body,
   });
   let callbacks = 0;
-  await expect(
-    run(undefined, 16, () =>
-      Effect.sync(() => {
-        callbacks++;
-      }),
-    ),
-  ).rejects.toThrow("Terminal API stock union does not reconcile");
+  const drift: unknown = await run(undefined, 16, () =>
+    Effect.sync(() => {
+      callbacks++;
+    }),
+  ).catch((error: unknown) => error);
+  expect(() => {
+    throw drift;
+  }).toThrow("Terminal API stock union does not reconcile");
+  expect(() => {
+    throw drift;
+  }).toThrow("year " + jolietTestRecord.year + ": API union 100, counts 99");
   expect(callbacks).toBe(0);
+  // The analytics and year searches move within a day, so a crawl later
+  // today can reconcile.
+  expect(validationRejectionKind(drift)).toBe("transient");
 });
 
 test("Joliet resumes serialized own-pair coverage and excludes only agreeing cross-query hits", async () => {
