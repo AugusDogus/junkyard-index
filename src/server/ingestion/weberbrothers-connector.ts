@@ -1,7 +1,8 @@
 import { ingestionValidation } from "./ingestion-validation";
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
 import type { ProviderRequestGate } from "~/server/ingestion/provider-http-client";
 import type { ConnectorChunkAccounting } from "~/server/ingestion/connector-chunk";
+import { ProviderChunkClock } from "./provider-chunk-clock";
 import {
   fetchWeberbrothersPage,
   WeberbrothersProviderError,
@@ -56,6 +57,22 @@ const validated = <A>(operation: string, run: () => A) =>
     try: run,
     catch: (cause) => new WeberbrothersProviderError({ operation, cause }),
   });
+/** A transient GET failure (`fetchWeberbrothersPage` defers it) becomes
+ * `Option.none()` once the chunk has `advanced`, so the chunk returns its
+ * validated checkpoint and the next chunk resends that GET. Before any advance
+ * the deferral fails the chunk and the source retries the same cursor later. */
+const unlessTransient =
+  (advanced: boolean) =>
+  <A, E, R>(
+    request: Effect.Effect<A, E, R>,
+  ): Effect.Effect<Option.Option<A>, E, R> =>
+    request.pipe(
+      Effect.map(Option.some),
+      Effect.catchIf(
+        (error: E): boolean => advanced && ProviderChunkClock.isDeferral(error),
+        () => Effect.succeed(Option.none<A>()),
+      ),
+    );
 const serial = Effect.runSync(Effect.makeSemaphore(1));
 const requestGate: ProviderRequestGate = (request) =>
   serial.withPermits(1)(
@@ -130,10 +147,13 @@ export function streamWeberbrothersInventoryWithRequestGate<E, R>(
             operation: "pagination",
             cause: "No literal next listing URL",
           });
-        const html: string = yield* fetchWeberbrothersPage(url, gate);
+        const html = yield* fetchWeberbrothersPage(url, gate).pipe(
+          unlessTransient(pagesProcessed > 0),
+        );
+        if (Option.isNone(html)) break;
         const page: WeberbrothersCatalog = yield* validated(
           "listing " + url,
-          () => parseWeberbrothersCatalog(html, url),
+          () => parseWeberbrothersCatalog(html.value, url),
         );
         if (
           page.page !== cursor.pages.length + 1 ||
@@ -159,9 +179,12 @@ export function streamWeberbrothersInventoryWithRequestGate<E, R>(
             operation: "donor prefix",
             cause: "No next native donor destination",
           });
-        const html = yield* fetchWeberbrothersPage(post.url, gate);
+        const html = yield* fetchWeberbrothersPage(post.url, gate).pipe(
+          unlessTransient(pagesProcessed > 0),
+        );
+        if (Option.isNone(html)) break;
         const record = yield* validated("detail " + post.url, () =>
-          parseWeberbrothersDetail(html, post),
+          parseWeberbrothersDetail(html.value, post),
         );
         const records: WeberbrothersRecord[] = [...cursor.records, record];
         cursor = {
@@ -177,9 +200,12 @@ export function streamWeberbrothersInventoryWithRequestGate<E, R>(
             operation: "closing",
             cause: "No corresponding opening listing",
           });
-        const html = yield* fetchWeberbrothersPage(opening.url, gate);
+        const html = yield* fetchWeberbrothersPage(opening.url, gate).pipe(
+          unlessTransient(pagesProcessed > 0),
+        );
+        if (Option.isNone(html)) break;
         const page = yield* validated("closing " + opening.url, () =>
-          parseWeberbrothersCatalog(html, opening.url),
+          parseWeberbrothersCatalog(html.value, opening.url),
         );
         if (
           JSON.stringify(weberbrothersCatalogMembership(opening)) !==

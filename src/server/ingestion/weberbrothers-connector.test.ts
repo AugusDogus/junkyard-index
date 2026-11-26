@@ -9,6 +9,10 @@ import { WeberbrothersCursor } from "./weberbrothers-cursor";
 import { streamWeberbrothersInventoryWithRequestGate as stream } from "./weberbrothers-connector";
 import { fetchWeberbrothersPage } from "./weberbrothers-client";
 import {
+  ProviderChunkClock,
+  ProviderNotReadyDeferred,
+} from "./provider-chunk-clock";
+import {
   weberbrothersFixturePost as post,
   weberbrothersFixtureRoot as root,
   weberbrothersFixtureListing as listing,
@@ -20,16 +24,22 @@ const originalFetch = globalThis.fetch;
 afterEach(() => {
   globalThis.fetch = originalFetch;
 });
-function mockSource(bodies: string[], status = 200) {
+/** A body served with the default status, a body with its own status, or a
+ * network failure thrown by fetch. */
+type MockReply = string | { body: string; status: number } | Error;
+function mockSource(bodies: MockReply[], status = 200) {
   const urls: string[] = [];
   spyOn(globalThis, "fetch").mockImplementation(
     Object.assign(
       async (input: RequestInfo | URL) => {
         urls.push(String(input));
-        const body = bodies.shift();
-        if (body === undefined) throw new Error("Unexpected test request");
-        return new Response(body, {
-          status,
+        const reply = bodies.shift();
+        if (reply === undefined) throw new Error("Unexpected test request");
+        if (reply instanceof Error) throw reply;
+        const served =
+          typeof reply === "string" ? { body: reply, status } : reply;
+        return new Response(served.body, {
+          status: served.status,
           headers: { "content-type": "text/html" },
         });
       },
@@ -241,6 +251,95 @@ test("denied public reads and uncertain requests are not retried", async () => {
     Effect.runPromise(fetchWeberbrothersPage(root, gate)),
   ).rejects.toThrow("network outcome unknown");
   expect(calls).toBe(1);
+});
+const donor = (index: number) => ({
+  ...post,
+  url: post.url.replace("/product/", "/product/test-" + index + "-"),
+  nativePostId: String(1908003 + index),
+  stock: "TEST" + index,
+});
+const firstDonor = donor(0);
+const secondDonor = donor(1);
+const twoPosts = [firstDonor, secondDonor];
+const serverError = {
+  body: "Error establishing a database connection",
+  status: 500,
+};
+async function detailsCursor() {
+  mockSource([listing(twoPosts)]);
+  const opening = await Effect.runPromise(
+    stream({ ...limits, maxPages: 1, onBatch: () => Effect.void }, gate),
+  );
+  expect(opening.cursor.phase).toBe("details");
+  return opening.cursor;
+}
+const failureOf = (run: Promise<unknown>) =>
+  run.then(
+    () => null,
+    (error: unknown) => error,
+  );
+test("a transient detail failure after progress keeps the validated checkpoint", async () => {
+  const startCursor = await detailsCursor();
+  const urls = mockSource([
+    detail(firstDonor, { vin: "5N1AZ3BS4SC111240" }),
+    serverError,
+  ]);
+  const paused = await Effect.runPromise(
+    stream({ ...limits, startCursor, onBatch: () => Effect.void }, gate),
+  );
+  expect(paused.status).toBe("paused");
+  expect(paused.pagesProcessed).toBe(1);
+  expect(paused.cursor.phase).toBe("details");
+  expect(paused.cursor.phase === "details" && paused.cursor.records).toEqual([
+    expect.objectContaining({ post: firstDonor }),
+  ]);
+  expect(urls).toEqual(twoPosts.map((item) => item.url));
+  const resent = mockSource([
+    detail(secondDonor, { vin: "5N1AZ3BS4SC111241" }),
+    listing(twoPosts),
+  ]);
+  const complete = await Effect.runPromise(
+    stream(
+      {
+        ...limits,
+        startCursor: WeberbrothersCursor.parse(
+          WeberbrothersCursor.serialize(paused.cursor),
+        ),
+        onBatch: () => Effect.void,
+      },
+      gate,
+    ),
+  );
+  expect(complete.status).toBe("complete");
+  expect(complete.count).toBe(2);
+  expect(resent).toEqual([secondDonor.url, root]);
+});
+test("a transient failure before progress defers the chunk", async () => {
+  for (const reply of [serverError, new TypeError("fetch failed")]) {
+    mockSource([reply]);
+    const failure = await failureOf(
+      Effect.runPromise(
+        stream({ ...limits, onBatch: () => Effect.void }, gate),
+      ),
+    );
+    expect(ProviderChunkClock.deferralOf(failure)).toBeInstanceOf(
+      ProviderNotReadyDeferred,
+    );
+  }
+});
+test("a denied detail stays fatal after progress", async () => {
+  const startCursor = await detailsCursor();
+  mockSource([
+    detail(firstDonor, { vin: "5N1AZ3BS4SC111240" }),
+    { body: "Not found", status: 404 },
+  ]);
+  const failure = await failureOf(
+    Effect.runPromise(
+      stream({ ...limits, startCursor, onBatch: () => Effect.void }, gate),
+    ),
+  );
+  expect(String(failure)).toContain("received 404");
+  expect(ProviderChunkClock.deferralOf(failure)).toBeNull();
 });
 test("foreign destinations are refused before issuing requests", async () => {
   const urls = mockSource([]);
