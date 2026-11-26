@@ -9,8 +9,9 @@ export default function robots(): MetadataRoute.Robots {
         userAgent: "*",
         allow: "/",
         // Auth pages and parameterized /search stay crawlable so crawlers
-        // can see their noindex. Crawler renders of /search skip the Algolia
-        // search (src/lib/search-server-render.ts), so crawling is free.
+        // can see their noindex. /search never searches Algolia for a
+        // crawler, on the server or in its browser: it renders a static page
+        // instead (src/lib/search-server-render.ts).
         disallow: ["/api/"],
       },
     ],

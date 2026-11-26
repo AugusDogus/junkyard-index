@@ -171,6 +171,7 @@ export function YardInventoryView({
                 ,{" "}
                 <Link
                   className="text-signal font-medium tabular-nums underline underline-offset-4"
+                  rel="nofollow"
                   href={buildSearchUrl(filter ? filterName(filter) : "", {
                     arrivalWindow: "7d",
                     salvageYards: [yard.name],

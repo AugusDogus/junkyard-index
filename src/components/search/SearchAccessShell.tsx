@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   useEffect,
@@ -35,7 +36,10 @@ interface SearchAccessShellProps {
   knownYardNames?: readonly string[];
   isLoggedIn: boolean;
   searchKey: SearchKeyGrant;
-  /** "skip" renders the skeleton on the server and searches after hydration. */
+  /**
+   * "skip" renders the skeleton on the server and searches after hydration.
+   * "crawler" renders a static page and never mounts InstantSearch.
+   */
   serverSearch: SearchServerRender;
   children(input: {
     planAccess: PlanAccessState;
@@ -66,7 +70,39 @@ function ConsumeSearchHydration() {
 const subscribeNever = () => () => {};
 const noHeldKey = () => null;
 
-export function SearchAccessShell({
+/**
+ * /search for a non-person client. Rendering crawlers run scripts, so the
+ * search itself must never mount: each of its searches would spend the
+ * shared monthly Algolia quota. Yard pages carry the same inventory.
+ */
+function CrawlerSearchState() {
+  return (
+    <main className="shell py-12">
+      <p className="text-muted-foreground max-w-prose">
+        Search results are not rendered for automated clients. Each yard&apos;s
+        page lists its current vehicles.
+      </p>
+      <Link
+        href="/junkyards"
+        className="mt-4 inline-block font-medium underline underline-offset-4"
+      >
+        Browse salvage yards
+      </Link>
+    </main>
+  );
+}
+
+export function SearchAccessShell(props: SearchAccessShellProps) {
+  // Branch before any hook: the browser search's hooks prime keys and fetch
+  // capabilities, none of which a crawler needs.
+  return props.serverSearch === "crawler" ? (
+    <CrawlerSearchState />
+  ) : (
+    <BrowserSearchShell {...props} />
+  );
+}
+
+function BrowserSearchShell({
   isLoggedIn,
   knownYardNames,
   serverSearch,

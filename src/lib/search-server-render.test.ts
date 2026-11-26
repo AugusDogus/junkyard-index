@@ -36,10 +36,10 @@ describe("SearchServerRender.decide", () => {
     "curl/8.5.0",
     "python-requests/2.32.3",
     "GPTBot/1.2 (+https://openai.com/gptbot)",
-  ])("skips the server search for %s", (userAgent) => {
+  ])("treats %s as a crawler", (userAgent) => {
     expect(
       SearchServerRender.decide({ userAgent, params: { q: "Toyota" } }),
-    ).toBe("skip");
+    ).toBe("crawler");
   });
 
   // Seen in production logs or common monitors; each one that searched on
@@ -54,18 +54,33 @@ describe("SearchServerRender.decide", () => {
     "Scrapy/2.11.2 (+https://scrapy.org)",
     "okhttp/4.12.0",
     "Java/17.0.10",
-  ])("skips the server search for %s", (userAgent) => {
+  ])("treats %s as a crawler", (userAgent) => {
     expect(
       SearchServerRender.decide({ userAgent, params: { q: "Toyota" } }),
-    ).toBe("skip");
+    ).toBe("crawler");
   });
 
   test.each([null, "", "   "])(
-    "skips the server search without a user agent (%p)",
+    "treats a client without a user agent as a crawler (%p)",
     (userAgent) => {
       expect(
         SearchServerRender.decide({ userAgent, params: { q: "Toyota" } }),
-      ).toBe("skip");
+      ).toBe("crawler");
+    },
+  );
+
+  // A crawler never searches, even where a person would search from the
+  // browser after hydration.
+  test.each([{}, { sort: "distance" }, { q: "Civic", radius: "50" }])(
+    "treats a crawler on a page a person would skip as a crawler %p",
+    (params) => {
+      expect(
+        SearchServerRender.decide({
+          userAgent:
+            "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+          params,
+        }),
+      ).toBe("crawler");
     },
   );
 

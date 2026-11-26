@@ -226,7 +226,6 @@ test("a crawler's /search render has one H1 and an intro before hydration", asyn
       "Search live donor vehicles across salvage yard networks",
     );
     // Hydrated, the page keeps exactly one H1 with the same name.
-    await page.getByRole("heading", { name: "2011 Toyota Venza" }).waitFor();
     expect(await page.locator("h1").allTextContents()).toEqual([
       "Search salvage yard inventory",
     ]);
@@ -241,6 +240,42 @@ test("a crawler's /search render has one H1 and an intro before hydration", asyn
     await closePage(page);
   }
 }, 30_000);
+
+// Rendering crawlers such as Googlebot run scripts. Each search they ran
+// would spend the shared monthly Algolia quota.
+for (const query of ["q=toyota+venza", "", "sort=distance"]) {
+  test(`a rendering crawler never searches after hydration: ${query || "default page"}`, async () => {
+    const userAgent =
+      "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
+    const fixtureQuery = `${query}&fixtureGuest=1&fixtureUserAgent=${encodeURIComponent(userAgent)}`;
+    const page = await createPage(browser);
+    const requests: string[] = [];
+    page.on("request", (request) => requests.push(request.url()));
+    try {
+      const html = await renderSharedSearchFixture(fixtureQuery);
+      await page.route("http://shared-search.test/**", (route) => {
+        const url = new URL(route.request().url());
+        return url.pathname === "/app.js"
+          ? route.fulfill({ contentType: "text/javascript", body: script })
+          : url.pathname === "/search"
+            ? route.fulfill({ contentType: "text/html", body: html })
+            : route.abort();
+      });
+      await page.route("http://unused.test/**", (route) => route.abort());
+      await page.goto(`http://shared-search.test/search?${fixtureQuery}`);
+      await page.getByRole("link", { name: "Browse salvage yards" }).waitFor();
+      await page.waitForTimeout(1000);
+      expect(await requestLog(page)).toEqual([]);
+      expect(
+        requests.filter((url) => url.includes("/api/") || /algolia/i.test(url)),
+      ).toEqual([]);
+      expect(await page.getByLabel("Loading search").count()).toBe(0);
+      expect(await page.getByRole("searchbox").count()).toBe(0);
+    } finally {
+      await closePage(page);
+    }
+  }, 30_000);
+}
 
 test("a server-rendered person search is not repeated by the browser after hydration", async () => {
   const userAgent =

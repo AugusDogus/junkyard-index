@@ -206,19 +206,25 @@ function serverSearchCount(html: string) {
   return Number(count);
 }
 
-for (const [label, query] of [
-  [
-    "a crawler's specific search",
-    `fixtureGuest=1&q=toyota&fixtureUserAgent=${encodeURIComponent(GOOGLEBOT_USER_AGENT)}`,
-  ],
-  [
-    "a person's default page",
+test("a person's default page renders the skeleton without a server search", async () => {
+  const html = await renderSharedSearchFixture(
     `fixtureGuest=1&utm_source=newsletter&fixtureUserAgent=${encodeURIComponent(PERSON_USER_AGENT)}`,
-  ],
-] as const) {
-  test(`${label} renders the skeleton without a server search`, async () => {
-    const html = await renderSharedSearchFixture(query);
+  );
+  expect(serverSearchCount(html)).toBe(0);
+  expect(html).toContain('aria-label="Loading search"');
+  expect(html).not.toContain("InstantSearchInitialResults");
+  expect(html).not.toContain("Toyota Venza");
+}, 15_000);
+
+for (const query of ["q=toyota", "utm_source=newsletter", "sort=distance"]) {
+  test(`a crawler gets a static page without a search: ${query}`, async () => {
+    const html = await renderSharedSearchFixture(
+      `fixtureGuest=1&${query}&fixtureUserAgent=${encodeURIComponent(GOOGLEBOT_USER_AGENT)}`,
+    );
     expect(serverSearchCount(html)).toBe(0);
+    expect(html).toContain("Search results are not rendered for automated");
+    expect(html).toContain('href="/junkyards"');
+    expect(html).not.toContain('aria-label="Loading search"');
     expect(html).not.toContain("InstantSearchInitialResults");
     expect(html).not.toContain("Toyota Venza");
   }, 15_000);
