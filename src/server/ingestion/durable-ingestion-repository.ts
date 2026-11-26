@@ -328,10 +328,12 @@ export function createDurableIngestionRepository(
                   done: sql<number>`coalesce(case when json_valid(${ingestionSourceRun.nextCursor}) then json_array_length(${ingestionSourceRun.nextCursor}, '$.completed') end, 0)`,
                 })
                 .from(ingestionSourceRun)
+                // By primary key: SQLite picks the source index otherwise,
+                // which walks every retained URG IIS run.
                 .where(
-                  and(
-                    inArray(ingestionSourceRun.runId, urgiisRunIds),
-                    eq(ingestionSourceRun.source, "urgiis"),
+                  inArray(
+                    ingestionSourceRun.id,
+                    urgiisRunIds.map((runId) => sourceRunId(runId, "urgiis")),
                   ),
                 )
             ).map((row) => [row.runId, Number(row.done)]),

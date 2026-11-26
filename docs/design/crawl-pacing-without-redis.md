@@ -63,6 +63,15 @@ again once those claims are free; a restarted workflow resumes from the
 checkpoint. So URG IIS starts at 07:00, and Pratt waits for it only while it
 reads Lambert (`66.42.115.19`), and Lambert waits only while Pratt fetches.
 
+The pass starts every run with the claims it may fetch with (a workflow
+argument). The chunk step checks them before it fetches and after every
+chunk, including a stored checkpoint that a resumed workflow replays, so a run
+never fetches from a lane it was not admitted for, whatever state its
+workflow was restarted in. A run this pass admitted gets the claims it was
+admitted with. A run it found already started (after a pass restart) may
+fetch only from its lanes that no other fetching run holds; anywhere else it
+hands back.
+
 - **Commands a day:** 0 for pacing. Redis is back to the limiter and the
   Hollander cache, about 1.3K a day. Measured costs elsewhere are under
   "Cost of the pass" below.
@@ -74,7 +83,8 @@ reads Lambert (`66.42.115.19`), and Lambert waits only while Pratt fetches.
 - **Failure modes:**
   - A dead run holds its claims until it reports. A run whose workflow died
     is resumed by the pass's watchdog re-plan or failure re-plan, as today,
-    and keeps its claims while it fetches. While a run waits for claims, the
+    and keeps its claims while it fetches. A run that reports `failed` keeps
+    its claims until the plan that resumes it. While a run waits for claims, the
     watchdog is an absolute 30 minutes from each plan, so a run whose
     reports go elsewhere (an older deployment) frees its claims within one
     interval of leaving the `sources` stage, however many other reports
@@ -83,9 +93,11 @@ reads Lambert (`66.42.115.19`), and Lambert waits only while Pratt fetches.
     started them, so a run that crosses 07:00 (a cold URG IIS census) still
     reaches a listening pass. With no pass listening the report is dropped
     and the next pass plans from Turso; any other delivery failure retries
-    the report step.
+    the report step, and a report still undelivered after its retries is
+    logged without failing the run.
   - A pass stops admitting at the end of its ingestion day (07:00 UTC) and
-    expires at its next plan, so two days' passes never admit at once.
+    expires at its next plan, so two days' passes never admit at once. Its
+    day end wins over a report already waiting.
   - A failed plan or start step (a Turso or Workflow API blip) does not fail
     the pass: it waits 5 minutes, or until a re-plan request, and plans
     again. An admitted run whose start failed keeps its claims, so the next
@@ -97,6 +109,10 @@ reads Lambert (`66.42.115.19`), and Lambert waits only while Pratt fetches.
     every unfinished tenant's lane (`SourceHostClaims.held`), since its
     workflow may be on a deployment that does not yield. One this pass
     admitted keeps the claims it was admitted with. No lease or TTL guesses.
+  - The start step attaches the new workflow as soon as `start()` returns,
+    so a pass that replaces this one (Run now on another deployment, the next
+    day's pass) sees the run as started rather than admitting another run on
+    its lanes before the workflow's own first step.
   - A run stopped while fetching (admin Stop, or Stop and run) keeps its
     whole-run claims for `STOPPED_CHUNK_MS` (6 minutes, the chunk wall
     limit) after `released_at`: its workflow is cancelled, but a chunk step
@@ -114,10 +130,12 @@ reads Lambert (`66.42.115.19`), and Lambert waits only while Pratt fetches.
     is on another deployment than the one serving Run now, that pass is
     cancelled and a pass on current code is started (`PassHandoff`), so the
     run starts on current code, as on main; the admin message says so.
-  - The pass learns that a run it started is fetching once the run's
-    workflow attaches (its first step). A pass that restarts in that window
-    could admit a second run in the lane; the window is seconds, and only
-    after a pass restart. A run that yields releases its run token before
+  - The pass learns that a run it started is fetching once its start step
+    attaches the workflow. A pass that replaces it between `start()` and
+    that write could admit a second run in the lane; the window is
+    milliseconds. A pass on the deployment before this design attaches in
+    the workflow's first step instead, so on merge day the window is
+    seconds. A run that yields releases its run token before
     reporting, so its next workflow cannot deduplicate against it.
 - **Size:** medium. Pure admission module, pass loop, two reports, a claims
   table per source, store swap. Connectors do not change.
@@ -229,7 +247,7 @@ pages, roughly an hour).
 Each plan (`prepareWakeup`) reads about 15.8K Turso rows in production (Nov
 25, read-only measurement of each statement, the commit lease UPDATEs measured
 as SELECTs over the same WHERE). 15.2K of them are the pre-existing
-recent-failures query; this design adds 1 row (the tenant read) and 1 row
+recent-failures query; this design adds 1 row (the tenant read, by primary key) and 1 row
 (stopped runs, through the retention index). A plan writes no rows unless a
 commit lease expires or a slot is released.
 

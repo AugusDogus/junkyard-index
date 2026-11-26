@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { DURABLE_INGESTION_SOURCES } from "./durable-source";
+import {
+  DURABLE_INGESTION_SOURCES,
+  DURABLE_INITIAL_SOURCE_CURSORS,
+} from "./durable-source";
 import { heavyTruckPartsHostPolicy } from "./heavytruckparts-host-slot";
 import { HostClaims } from "./host-claims";
 import {
@@ -159,21 +162,76 @@ describe("SourceHostClaims for URG IIS progress", () => {
 });
 
 describe("SourceHostClaims.handBack", () => {
-  test("names the next tenant's claims when it reads another lane", () => {
-    expect(SourceHostClaims.handBack("urgiis", lambert - 1, lambert)).toEqual(
-      SourceHostClaims.next("urgiis", lambert),
-    );
-  });
-
-  test("hands nothing back within a tenant, at the end, or for fixed lanes", () => {
-    expect(SourceHostClaims.handBack("urgiis", 2, 2)).toBeNull();
+  test("names the next tenant's claims when it reads a lane the run was not admitted for", () => {
     expect(
       SourceHostClaims.handBack(
         "urgiis",
-        URGIIS_TENANTS.length - 1,
+        SourceHostClaims.next("urgiis", lambert - 1),
+        lambert,
+      ),
+    ).toEqual(SourceHostClaims.next("urgiis", lambert));
+  });
+
+  test("lets a re-admitted run replay its checkpoint without handing back again", () => {
+    // A restarted workflow's first chunk returns the stored checkpoint, one
+    // tenant past the cursor it asked for; the pass admitted it for that tenant.
+    expect(
+      SourceHostClaims.handBack(
+        "urgiis",
+        SourceHostClaims.next("urgiis", 1),
+        1,
+      ),
+    ).toBeNull();
+  });
+
+  test("hands nothing back within a tenant, at the end, or for fixed lanes", () => {
+    expect(
+      SourceHostClaims.handBack(
+        "urgiis",
+        SourceHostClaims.next("urgiis", 2),
+        2,
+      ),
+    ).toBeNull();
+    expect(
+      SourceHostClaims.handBack(
+        "urgiis",
+        SourceHostClaims.next("urgiis", URGIIS_TENANTS.length - 1),
         URGIIS_TENANTS.length,
       ),
     ).toBeNull();
-    expect(SourceHostClaims.handBack("pratt", 0, 0)).toBeNull();
+    expect(
+      SourceHostClaims.handBack("pratt", SourceHostClaims.of("pratt"), 0),
+    ).toBeNull();
+  });
+
+  test("hands back a lane another run holds, even if the run held it before a pass restart", () => {
+    // Admitted only for the lanes no other fetching run holds.
+    expect(
+      SourceHostClaims.handBack(
+        "urgiis",
+        SourceHostClaims.next("urgiis", 0),
+        lambert,
+      ),
+    ).toEqual(SourceHostClaims.next("urgiis", lambert));
+  });
+});
+
+describe("SourceHostClaims.ofCursor", () => {
+  test("reads the tenant a URG IIS cursor reads next", () => {
+    const initial = DURABLE_INITIAL_SOURCE_CURSORS.find(
+      (cursor) => cursor.source === "urgiis",
+    );
+    if (!initial) throw new Error("URG IIS has no initial cursor");
+    expect(SourceHostClaims.ofCursor(initial)).toEqual(
+      SourceHostClaims.next("urgiis", 0),
+    );
+    // A run admitted for a later tenant never fetches from the start: its
+    // workflow replays the stored checkpoint instead.
+    expect(
+      HostClaims.covers(
+        SourceHostClaims.next("urgiis", lambert),
+        SourceHostClaims.ofCursor(initial),
+      ),
+    ).toBe(false);
   });
 });

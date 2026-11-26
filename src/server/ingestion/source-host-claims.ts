@@ -122,24 +122,32 @@ export const SourceHostClaims = {
       : SourceHostClaims.of(source);
   },
 
+  /** What the chunk that reads from `cursor` needs. */
+  ofCursor(cursor: DurableSourceCursor): HostClaims {
+    return SourceHostClaims.next(
+      cursor.source,
+      SourceHostClaims.tenantsDone(cursor),
+    );
+  },
+
   /** URG IIS tenants `cursor` has finished; 0 for every other source. */
   tenantsDone(cursor: DurableSourceCursor): number {
     return cursor.source === "urgiis" ? cursor.completed.length : 0;
   },
 
   /**
-   * The claims a run must hand back to the pass for, after a chunk moved it
-   * from `before` to `after` finished tenants: those of its next chunk, when
-   * they are not all held by the chunk it just ran. Null when it may go on.
+   * What a run that the pass admitted for `admitted` must hand back to the
+   * pass for, once a chunk (fetched, or a stored checkpoint a restarted
+   * workflow replayed) left it with `tenantsDone` finished tenants: the
+   * claims of its next chunk, when `admitted` does not cover them. Null
+   * when it may go on.
    */
   handBack(
     source: DurableIngestionSource,
-    before: number,
-    after: number,
+    admitted: HostClaims,
+    tenantsDone: number,
   ): HostClaims | null {
-    const next = SourceHostClaims.next(source, after);
-    return HostClaims.covers(SourceHostClaims.next(source, before), next)
-      ? null
-      : next;
+    const next = SourceHostClaims.next(source, tenantsDone);
+    return HostClaims.covers(admitted, next) ? null : next;
   },
 } as const;

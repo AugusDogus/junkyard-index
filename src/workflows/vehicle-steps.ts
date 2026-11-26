@@ -34,6 +34,7 @@ import {
 import {
   durableSourceChunkProgressError,
   type DurableIngestionSource,
+  type DurableSourceCursor,
 } from "~/server/ingestion/durable-source";
 import {
   finalizeSearchIndexMigration,
@@ -46,6 +47,7 @@ import type { IngestionRunReport } from "~/server/ingestion/ingestion-pass-orche
 import { IngestionTokens } from "./ingestion-tokens";
 import { deliverPassReport } from "./pass-report-delivery";
 import { SourceHostClaims } from "~/server/ingestion/source-host-claims";
+import { HostClaims } from "~/server/ingestion/host-claims";
 import {
   recordDurableRunFailure,
   recordDurableSourceRejections,
@@ -185,7 +187,7 @@ validateDurableIngestionSourcesStep.maxRetries = 2;
 
 export async function runDurableSourceChunkStep<
   Source extends DurableIngestionSource,
->(runId: string, cursor: DurableWorkflowCursor<Source>) {
+>(runId: string, cursor: DurableWorkflowCursor<Source>, admitted?: HostClaims) {
   "use step";
 
   console.info("[Workflow] Starting source chunk", {
@@ -193,9 +195,15 @@ export async function runDurableSourceChunkStep<
     source: cursor.source,
   });
   const requestedCursor = await resolveDurableWorkflowCursor(runId, cursor);
-  const result = await runDurableSourceChunk({
+  const result = await runDurableSourceChunk<Source>({
     runId,
     cursor: requestedCursor,
+    ...(admitted
+      ? {
+          mayFetch: (at: DurableSourceCursor) =>
+            HostClaims.covers(admitted, SourceHostClaims.ofCursor(at)),
+        }
+      : {}),
   }).catch((error: unknown) => {
     try {
       Sentry.logger.warn("Vehicle ingestion source attempt failed", {
@@ -221,6 +229,25 @@ export async function runDurableSourceChunkStep<
     });
     return { ...result, cursor };
   }
+  if (result.status === "unadmitted") {
+    // Nothing was fetched: the run hands its claims back and waits for the
+    // pass to admit it for these hosts.
+    console.info(
+      "[Workflow] Source chunk needs hosts it was not admitted for",
+      {
+        runId,
+        source: cursor.source,
+      },
+    );
+    return {
+      cursor,
+      status: "paused" as const,
+      count: 0,
+      pagesProcessed: 0,
+      errors: [],
+      needsClaims: SourceHostClaims.ofCursor(result.cursor),
+    };
+  }
   recordUrgiisBlockedTenant({
     runId,
     before: requestedCursor,
@@ -236,11 +263,13 @@ export async function runDurableSourceChunkStep<
     result,
   );
   if (progressError) throw new FatalError(progressError);
+  // Also after a stored checkpoint a resumed workflow replayed: the pass
+  // admitted the run for where that checkpoint stands.
   const needsClaims =
-    result.status === "paused"
+    admitted && result.status === "paused"
       ? SourceHostClaims.handBack(
           result.cursor.source,
-          SourceHostClaims.tenantsDone(requestedCursor),
+          admitted,
           SourceHostClaims.tenantsDone(result.cursor),
         )
       : null;

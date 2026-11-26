@@ -846,7 +846,7 @@ describe("a chunk that needs shared hosts the run was not admitted with", () => 
       runId: "run-1",
       initialCursor,
       operations: {
-        handsBackClaims: true,
+        admittedClaims: { lanes: ["urg:higgins"], places: [] },
         runChunk: async () => {
           chunks++;
           return handsBack;
@@ -882,7 +882,7 @@ describe("a chunk that needs shared hosts the run was not admitted with", () => 
     const staging = await stageDurableIngestion({
       runId: "run-1",
       operations: makeOperations({
-        handsBackClaims: true,
+        admittedClaims: { lanes: ["urg:higgins"], places: [] },
         initialize: async (runId) => ({
           status: "started",
           runId,
