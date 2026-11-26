@@ -487,6 +487,7 @@ export async function expireInventoryAfterMigrationStep() {
   "use step";
 
   await YardSummaryStore.clear(db);
+  await YardSummaryStore.fill(db, new Date());
   expireInventoryCaches({ kind: "all" });
 }
 
@@ -500,6 +501,7 @@ export async function finalizeSearchIndexMigrationStep(
     // The migration rewrote identities on every source's vehicles, which
     // stored yard summaries name too.
     await YardSummaryStore.clear(db);
+    await YardSummaryStore.fill(db, new Date());
     expireInventoryCaches({ kind: "all" });
     console.info("[Workflow] Completed search index schema migration", result);
     return result;

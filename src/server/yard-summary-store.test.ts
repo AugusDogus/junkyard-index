@@ -77,15 +77,17 @@ test("stores a summary for each yard whose publication it has not seen, and read
   });
 });
 
-test("ignores a summary stored for an earlier publication until the next refresh", async () => {
+test("serves the summary of the last refresh until the next one replaces it", async () => {
   const database = drizzle(client);
   await addVehicle("A", "1", "HONDA");
   await publish("1", 100);
   await YardSummaryStore.refresh(database, NOW);
 
+  // Published since: the cached pages still show the last refresh's read,
+  // and so does the stored summary, so no page reads the yard.
   await addVehicle("B", "1", "HONDA");
   await publish("1", 200);
-  expect(await YardSummaryStore.read(database, "pyp", "1")).toBeNull();
+  expect((await YardSummaryStore.read(database, "pyp", "1"))?.total).toBe(1);
 
   expect(await YardSummaryStore.refresh(database, NOW)).toEqual({
     stored: 1,
@@ -161,4 +163,19 @@ test("records when each yard's content last changed", async () => {
     "select content_changed_at from yard_summary",
   );
   expect(Number(changed.rows[0]?.content_changed_at)).toBe(3_000);
+});
+
+test("fills only yards without a summary, as a deploy does", async () => {
+  const database = drizzle(client);
+  await addVehicle("A", "1", "HONDA");
+  await addVehicle("B", "2", "Ford");
+  await publish("1", 100);
+  await YardSummaryStore.refresh(database, NOW);
+  await publish("1", 200);
+  await publish("2", 100);
+
+  // Yard 1 has a summary (older than its publication); yard 2 has none.
+  expect(await YardSummaryStore.fill(database, NOW)).toEqual({ stored: 1 });
+  expect((await YardSummaryStore.read(database, "pyp", "2"))?.total).toBe(1);
+  expect(await YardSummaryStore.fill(database, NOW)).toEqual({ stored: 0 });
 });

@@ -34,10 +34,12 @@ that same time and stamps it on success, so an hourly cron refreshes every
    published since whose summary was not rebuilt, and every yard of a run
    that ended without publishing. It expires all of them
    (`inventory-sources`) when that time is unknown or a search-index
-   migration rewrote identities, which also clears `yard_summary`. A page
-   whose cached summary was evicted reads the stored one back (2 rows), and
-   a yard make or model page reads only its make's rows
-   (`vehicle_yard_make_live_idx`);
+   migration rewrote identities, which also clears and refills
+   `yard_summary`. Deploys store any missing summary after migrating
+   (`inventory:project`). A page whose cached summary was evicted reads the
+   stored one back (one row), and a yard make or model page reads only its
+   make's rows (`vehicle_yard_make_live_idx`). Yard model pages render on
+   each request and are never stored as ISR pages;
 2. requests the pages changed since the last IndexNow announcement, waits
    2 minutes for them to regenerate, and announces them
    (`indexnow-announcement`, production only);
