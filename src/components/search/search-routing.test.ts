@@ -433,3 +433,63 @@ describe("default yard scope stays out of the URL", () => {
     expect(written.searchParams.get("q")).toBe("yardType:full_service");
   });
 });
+
+describe("search history writes", () => {
+  function withBrowser(href: string, run: (writes: string[]) => void) {
+    const previousWindow = Object.getOwnPropertyDescriptor(
+      globalThis,
+      "window",
+    );
+    const writes: string[] = [];
+    const browser = {
+      location: new URL(href),
+      history: {
+        state: null,
+        pushState(_state: unknown, _title: string, url: string) {
+          writes.push(`push ${url}`);
+          browser.location = new URL(url);
+        },
+        replaceState(_state: unknown, _title: string, url: string) {
+          writes.push(`replace ${url}`);
+          browser.location = new URL(url);
+        },
+      },
+    };
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: browser,
+    });
+    try {
+      run(writes);
+    } finally {
+      if (previousWindow)
+        Object.defineProperty(globalThis, "window", previousWindow);
+      else Reflect.deleteProperty(globalThis, "window");
+    }
+  }
+
+  test("rewriting a navigated URL for the same search replaces its entry", () => {
+    const routing = createSearchRouting(ALGOLIA_INDEX_NAME, false, false);
+    const canonical =
+      "https://example.com/search?q=Volvo&minYear=1963&maxYear=2000&yardTypes%5B%5D=all";
+    withBrowser(
+      "https://example.com/search?q=Volvo&yardTypes=all&minYear=1963&maxYear=2000&sort=newest",
+      (writes) => {
+        routing.router.push(canonical);
+        expect(writes).toEqual([`replace ${canonical}`]);
+      },
+    );
+  });
+
+  test("a different search still adds a history entry", () => {
+    const routing = createSearchRouting(ALGOLIA_INDEX_NAME, false, false);
+    const next = "https://example.com/search?q=Saab&yardTypes%5B%5D=all";
+    withBrowser(
+      "https://example.com/search?q=Volvo&yardTypes%5B%5D=all",
+      (writes) => {
+        routing.router.push(next);
+        expect(writes).toEqual([`push ${next}`]);
+      },
+    );
+  });
+});
