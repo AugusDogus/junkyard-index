@@ -366,6 +366,78 @@ test("Enter on a stacked dot opens that yard, with every yard one arrow key away
   }
 }, 20_000);
 
+test("a keyboard zoom keeps focus on the pin, whose hit boxes skip paint only while zooming", async () => {
+  const page = await createPage(browser, {
+    viewport: { width: 1280, height: 900 },
+  });
+  try {
+    page.setDefaultTimeout(5_000);
+    await serveFixture(page, Promise.resolve());
+    await page.goto("http://yard-map.test/");
+    const stops = page.locator('.yard-map-pin[tabindex="0"]');
+    await stops.first().waitFor();
+    await stops.first().focus();
+    await page.keyboard.press("ArrowDown");
+    // Each change of the layer while the zoom runs: whether it is zooming,
+    // whether its pins skip paint, and the focus.
+    await page.evaluate(() => {
+      const samples: string[] = [];
+      Object.assign(window, { samples });
+      const layer = document.querySelector(".yard-map-pin-layer");
+      if (!layer) throw new Error("The pin layer is missing.");
+      new MutationObserver(() =>
+        samples.push(
+          `${layer.hasAttribute("data-zooming")} ${getComputedStyle(layer).contentVisibility} ${document.activeElement?.getAttribute("aria-label")}`,
+        ),
+      ).observe(layer, { attributes: true, attributeFilter: ["data-zooming"] });
+    });
+    const samples = () =>
+      page.evaluate(() =>
+        "samples" in window && Array.isArray(window.samples)
+          ? window.samples.map(String)
+          : [],
+      );
+    await page.keyboard.press("+");
+    await page.waitForFunction(() => {
+      const layer = document.querySelector(".yard-map-pin-layer");
+      return (
+        "samples" in window &&
+        Array.isArray(window.samples) &&
+        window.samples.length >= 2 &&
+        !layer?.hasAttribute("data-zooming")
+      );
+    });
+    expect(await samples()).toEqual([
+      "true visible Yard 1, Town, TX",
+      "false visible Yard 1, Town, TX",
+    ]);
+
+    // Without keyboard focus on a pin, they skip paint until it ends.
+    await page.mouse.click(5, 5);
+    await page.evaluate(() => {
+      if ("samples" in window && Array.isArray(window.samples))
+        window.samples.length = 0;
+    });
+    await page.getByRole("button", { name: "Zoom in" }).click();
+    await page.waitForFunction(() => {
+      const layer = document.querySelector(".yard-map-pin-layer");
+      return (
+        "samples" in window &&
+        Array.isArray(window.samples) &&
+        window.samples.length >= 2 &&
+        !layer?.hasAttribute("data-zooming")
+      );
+    });
+    expect(
+      (await samples()).map((sample) =>
+        sample.split(" ").slice(0, 2).join(" "),
+      ),
+    ).toEqual(["true hidden", "false visible"]);
+  } finally {
+    await closePage(page);
+  }
+}, 20_000);
+
 test("a tap on a crowd too long to list zooms in until its yards separate", async () => {
   // On a phone the fixture's 40 yards stack into one tall column of dots.
   const page = await createPage(browser, {

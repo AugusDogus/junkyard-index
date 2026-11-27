@@ -15,6 +15,10 @@ import type { YardLocation } from "~/lib/yard-directory";
  * sit where they belong at `view`, so they move only when `view` changes.
  * During a pinch the pins' invisible hit boxes scale with the map; the
  * marker canvas draws what the visitor sees at a constant size.
+ *
+ * While the live zoom differs from `view`'s, the layer is marked zooming and
+ * its pins skip paint (globals.css): each pin still painted its hit box on
+ * every frame, which cost more than drawing the markers.
  */
 export function YardMapPinLayer({
   view,
@@ -45,7 +49,11 @@ export function YardMapPinLayer({
     transformOrigin: "0 0",
   } satisfies CSSProperties;
   return (
-    <div className="yard-map-pin-layer" style={style}>
+    <div
+      className="yard-map-pin-layer"
+      style={style}
+      data-zooming={scale === 1 ? undefined : ""}
+    >
       {children}
     </div>
   );

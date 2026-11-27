@@ -1,10 +1,15 @@
 import { expect, test } from "bun:test";
+import { renderToStaticMarkup } from "react-dom/server";
 import {
   projectYardLocation,
   unprojectYardLocation,
   type YardMapView,
 } from "~/lib/yard-map-projection";
-import { yardMapPinAnchor, yardMapPinOffset } from "./YardMapPinLayer";
+import {
+  YardMapPinLayer,
+  yardMapPinAnchor,
+  yardMapPinOffset,
+} from "./YardMapPinLayer";
 
 /** `view` panned by `dx`, `dy` screen pixels. */
 const pan = (view: YardMapView, dx: number, dy: number): YardMapView => {
@@ -49,4 +54,17 @@ test("pins anchored to the grid land where the view puts them", () => {
     expect(Math.abs(anchorFromCenter.x)).toBeLessThanOrEqual(1024);
     expect(Math.abs(anchorFromCenter.y)).toBeLessThanOrEqual(1024);
   }
+});
+
+test("the layer is marked zooming while the map zooms past its pins' layout", () => {
+  const view: YardMapView = { center: [35, -81], zoom: 5 };
+  const layer = (zoom: number) =>
+    renderToStaticMarkup(
+      <YardMapPinLayer anchor={view.center} view={view} mapState={{ zoom }}>
+        <button type="button" className="yard-map-pin" />
+      </YardMapPinLayer>,
+    );
+  expect(layer(5)).not.toContain("data-zooming");
+  expect(layer(5.4)).toContain('data-zooming=""');
+  expect(layer(4.2)).toContain('data-zooming=""');
 });

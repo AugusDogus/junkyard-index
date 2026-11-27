@@ -327,6 +327,20 @@
   z-index: 1;
 }
 
+/* While the map zooms past the pins' layout (YardMapPinLayer), they skip
+   paint. Their styles stay, so the zoom restyles nothing. Not while a pin
+   has keyboard focus or a mouse over it, which skipping would take away,
+   nor while the static dots stand in for the canvas. */
+.yard-map-pin-layer[data-zooming]:not(:has(:focus-visible, .yard-map-dots)) {
+  content-visibility: hidden;
+}
+
+@media (hover: hover) {
+  .yard-map-pin-layer[data-zooming]:hover {
+    content-visibility: visible;
+  }
+}
+
 .yard-map-pin:focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: -2px;
