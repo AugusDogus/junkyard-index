@@ -16,17 +16,28 @@ import {
   fetchCitymotorsPage,
 } from "./citymotors-client";
 import {
+  CITYMOTORS_BROWSER_LANDING,
   CITYMOTORS_CHUNK_DEADLINE_MS,
   CITYMOTORS_COMPLETION_RESERVE_MS,
   CITYMOTORS_RATE_LIMIT_BACKOFF_MS,
   CITYMOTORS_WORST_CASE_REQUEST_MS,
   streamCitymotorsInventoryWithRequestGate,
 } from "./citymotors-connector";
-import { CitymotorsCursor, CitymotorsCursorSchema } from "./citymotors-cursor";
+import {
+  CitymotorsCursor,
+  CitymotorsCursorSchema,
+  citymotorsCensusKey,
+} from "./citymotors-cursor";
+import {
+  MODEL_CENSUS_DAY_MS,
+  MODEL_CENSUS_SWEEP_DAYS,
+  ModelCensus,
+} from "./model-census";
 import type { CitymotorsCanonicalVehicle } from "./citymotors-transform";
 import { CITYMOTORS_CATALOG } from "./citymotors-yard-metadata";
 import {
   DocumentTransport,
+  type BrowserDocumentPage,
   type LazyDocumentTransport,
 } from "./document-transport";
 import { DURABLE_SOURCE_DEFINITIONS } from "./durable-source";
@@ -977,12 +988,349 @@ test("City Motors validates checkpoint integrity, native order and request budge
       records: [...cursor.records, ...cursor.records],
     }),
   ).toThrow();
-  expect(() => CitymotorsCursor.parse(" ".repeat(1024 * 1024 + 1))).toThrow(
-    "1 MiB",
+  expect(() => CitymotorsCursor.parse(" ".repeat(4 * 1024 * 1024 + 1))).toThrow(
+    "4 MiB",
   );
   const wire = CitymotorsCursor.serialize(partial.cursor);
   await expect(
     run(partial.cursor, 32, () => Effect.fail(new Error("Caller unavailable"))),
   ).rejects.toThrow("Caller unavailable");
   expect(CitymotorsCursor.serialize(partial.cursor)).toBe(wire);
+});
+
+const DAY = 20_000;
+const atDay = (day: number) => () => day * MODEL_CENSUS_DAY_MS + 7 * 3_600_000;
+const donor = (index: number): typeof citymotorsFixturePost => ({
+  ...citymotorsFixturePost,
+  url: citymotorsFixturePost.url.replace(/\/$/, `-${index}/`),
+});
+const donorVin = (index: number, revision = 0) =>
+  "5UXCW2C09L9" + String(100000 + revision * 1000 + index);
+
+/** A yard whose catalog and donor pages a test can change between runs. */
+function mockYard(listed: (typeof citymotorsFixturePost)[]) {
+  const yard = {
+    listed,
+    vins: new Map(listed.map((post, index) => [post.url, donorVin(index)])),
+    requests: [] as string[],
+  };
+  globalThis.fetch = Object.assign(
+    async (input: RequestInfo | URL) => {
+      const url = input instanceof Request ? input.url : String(input);
+      yard.requests.push(url);
+      const vin = yard.vins.get(url);
+      if (url !== CITYMOTORS_CATALOG && vin === undefined)
+        throw new Error("Unexpected native request " + url);
+      return new Response(
+        url === CITYMOTORS_CATALOG
+          ? citymotorsFixtureCatalog(yard.listed)
+          : citymotorsFixtureDetail({ url, vin }),
+        { headers: { "content-type": "text/html" } },
+      );
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  return yard;
+}
+const detailReads = (requests: readonly string[]) =>
+  requests.filter((url) => url !== CITYMOTORS_CATALOG);
+
+/** Runs one whole City Motors census in chunks of `maxPages` GETs and
+ * returns the emitted vehicles, the terminal cursor and the warnings. */
+async function census(day: number, previousCursor: unknown, maxPages = 32) {
+  const vehicles: CitymotorsCanonicalVehicle[] = [];
+  const warnings: string[] = [];
+  let cursor: CitymotorsCursor = CitymotorsCursor.initial;
+  for (let chunk = 0; chunk < 64 && cursor.phase !== "complete"; chunk++) {
+    const result = await Effect.runPromise(
+      streamCitymotorsInventoryWithRequestGate(
+        {
+          startCursor: cursor,
+          previousCursor,
+          now: atDay(day),
+          maxPages,
+          onBatch: (batch) =>
+            Effect.sync(() => {
+              vehicles.push(...batch);
+            }),
+        },
+        gate,
+      ),
+    );
+    warnings.push(...result.warnings);
+    cursor = CitymotorsCursor.parse(CitymotorsCursor.serialize(result.cursor));
+  }
+  if (cursor.phase !== "complete") throw new Error("Census did not complete");
+  // The durable store keeps the terminal cursor as wire text.
+  return {
+    vehicles,
+    warnings,
+    terminal: JSON.parse(CitymotorsCursor.serialize(cursor)),
+  };
+}
+
+test("City Motors reads a new donor's detail and reuses every unchanged listed donor's last accepted record", async () => {
+  const yard = mockYard(Array.from({ length: 10 }, (_, i) => donor(i)));
+  const cold = await census(DAY, null);
+  expect(detailReads(yard.requests)).toHaveLength(10);
+  expect(cold.terminal.census.models).toHaveLength(10);
+
+  yard.requests.length = 0;
+  yard.listed = [...yard.listed, donor(10)];
+  yard.vins.set(donor(10).url, donorVin(10));
+  const warm = await census(DAY, cold.terminal);
+  expect(detailReads(yard.requests)).toEqual([donor(10).url]);
+  // Membership is still read live: every catalog page, then its closing.
+  expect(
+    yard.requests.filter((url) => url === CITYMOTORS_CATALOG),
+  ).toHaveLength(2);
+  expect(warm.vehicles.map((vehicle) => vehicle.vin).sort()).toEqual(
+    Array.from({ length: 11 }, (_, i) => donorVin(i)).sort(),
+  );
+  expect(warm.warnings).toContain(
+    "City Motors donor census: Read 1 of 11 model pages (new 1); carried 10.",
+  );
+});
+
+test("City Motors drops a donor the catalog no longer lists, without reading any detail", async () => {
+  const yard = mockYard(Array.from({ length: 10 }, (_, i) => donor(i)));
+  const cold = await census(DAY, null);
+  yard.requests.length = 0;
+  yard.listed = yard.listed.filter((post) => post.url !== donor(3).url);
+  const warm = await census(DAY, cold.terminal);
+  expect(detailReads(yard.requests)).toEqual([]);
+  expect(warm.vehicles).toHaveLength(9);
+  expect(warm.vehicles.map((vehicle) => vehicle.vin)).not.toContain(
+    donorVin(3),
+  );
+  expect(warm.terminal.census.models).toHaveLength(9);
+});
+
+test("City Motors reads a donor again when its catalog card changes, and publishes what it reads", async () => {
+  const yard = mockYard(Array.from({ length: 10 }, (_, i) => donor(i)));
+  const cold = await census(DAY, null);
+  yard.requests.length = 0;
+  const changed = {
+    ...donor(4),
+    imageUrl: donor(4).imageUrl.replace("IMG_9541", "IMG_9600"),
+  };
+  yard.listed = yard.listed.map((post) =>
+    post.url === changed.url ? changed : post,
+  );
+  // The re-listed card belongs to another donor at the same address.
+  yard.vins.set(changed.url, donorVin(4, 1));
+  const warm = await census(DAY, cold.terminal);
+  expect(detailReads(yard.requests)).toEqual([changed.url]);
+  const vins = warm.vehicles.map((vehicle) => vehicle.vin);
+  expect(vins).toContain(donorVin(4, 1));
+  expect(vins).not.toContain(donorVin(4));
+  expect(
+    warm.vehicles.find((vehicle) => vehicle.vin === donorVin(4, 1))?.imageUrl,
+  ).toBe(changed.imageUrl);
+});
+
+test("City Motors sweeps one sixth of its unchanged donors the next day and reads every donor after a missed day", async () => {
+  const yard = mockYard(Array.from({ length: 30 }, (_, i) => donor(i)));
+  const cold = await census(DAY, null);
+  yard.requests.length = 0;
+  const next = await census(DAY + 1, cold.terminal);
+  const swept = yard.listed
+    .filter(
+      (post) =>
+        ModelCensus.slice(citymotorsCensusKey(post)) ===
+        (DAY + 1) % MODEL_CENSUS_SWEEP_DAYS,
+    )
+    .map((post) => post.url);
+  expect(swept.length).toBeGreaterThan(0);
+  expect(swept.length).toBeLessThan(30);
+  expect(detailReads(yard.requests)).toEqual(swept);
+  expect(next.vehicles).toHaveLength(30);
+
+  yard.requests.length = 0;
+  await census(DAY + 3, next.terminal);
+  expect(detailReads(yard.requests)).toHaveLength(30);
+});
+
+test("City Motors carries donors across paused chunks and spends its GET budget only on reads", async () => {
+  const yard = mockYard(Array.from({ length: 10 }, (_, i) => donor(i)));
+  const cold = await census(DAY, null);
+  yard.requests.length = 0;
+  yard.listed = [donor(10), ...yard.listed, donor(11)];
+  yard.vins.set(donor(10).url, donorVin(10));
+  yard.vins.set(donor(11).url, donorVin(11));
+  const warm = await census(DAY, cold.terminal, 1);
+  expect(detailReads(yard.requests)).toEqual([donor(10).url, donor(11).url]);
+  expect(warm.vehicles).toHaveLength(12);
+});
+
+test("City Motors reads a donor whose card photo changed by closing again on the next run", async () => {
+  const yard = mockYard(Array.from({ length: 3 }, (_, i) => donor(i)));
+  const drifted = {
+    ...donor(1),
+    imageUrl: donor(1).imageUrl.replace("IMG_9541", "IMG_9700"),
+  };
+  // The first catalog read lists the old photo, the closing read the new one.
+  let listings = 0;
+  const mocked = globalThis.fetch;
+  globalThis.fetch = Object.assign(
+    async (input: RequestInfo | URL) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url === CITYMOTORS_CATALOG && ++listings === 2)
+        yard.listed = yard.listed.map((post) =>
+          post.url === drifted.url ? drifted : post,
+        );
+      return mocked(input);
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  const first = await census(DAY, null);
+  expect(
+    first.vehicles.find((vehicle) => vehicle.vin === donorVin(1))?.imageUrl,
+  ).toBeNull();
+  yard.requests.length = 0;
+  const second = await census(DAY, first.terminal);
+  expect(detailReads(yard.requests)).toEqual([drifted.url]);
+  expect(
+    second.vehicles.find((vehicle) => vehicle.vin === donorVin(1))?.imageUrl,
+  ).toBe(drifted.imageUrl);
+});
+
+test("City Motors starts a cold census from a pre-incremental or unreadable previous cursor", async () => {
+  const yard = mockYard(Array.from({ length: 3 }, (_, i) => donor(i)));
+  const legacy = await census(DAY, {
+    source: "citymotors",
+    version: 1,
+    phase: "complete",
+  });
+  expect(detailReads(yard.requests)).toHaveLength(3);
+  expect(legacy.warnings.join("\n")).not.toContain("not a readable");
+  yard.requests.length = 0;
+  const unreadable = await census(DAY, {
+    ...legacy.terminal,
+    census: { ...legacy.terminal.census, models: "tampered" },
+  });
+  expect(detailReads(yard.requests)).toHaveLength(3);
+  expect(unreadable.warnings).toContain(
+    "Previous City Motors checkpoint is not a readable terminal census; reading every donor page.",
+  );
+});
+
+test("City Motors refuses a checkpoint whose carried donor differs from its census evidence", async () => {
+  const yard = mockYard(Array.from({ length: 10 }, (_, i) => donor(i)));
+  const cold = await census(DAY, null);
+  yard.listed = [donor(10), ...yard.listed];
+  yard.vins.set(donor(10).url, donorVin(10));
+  const paused = await Effect.runPromise(
+    streamCitymotorsInventoryWithRequestGate(
+      {
+        previousCursor: cold.terminal,
+        now: atDay(DAY),
+        maxPages: 1,
+        onBatch: () => Effect.void,
+      },
+      gate,
+    ),
+  );
+  // The catalog GET left the new donor due first; read it, then tamper.
+  const read = await Effect.runPromise(
+    streamCitymotorsInventoryWithRequestGate(
+      {
+        startCursor: paused.cursor,
+        now: atDay(DAY),
+        maxPages: 1,
+        onBatch: () => Effect.void,
+      },
+      gate,
+    ),
+  );
+  const cursor = read.cursor;
+  if (cursor.phase !== "closing")
+    throw new Error("Expected every remaining donor to carry");
+  expect(cursor.records).toHaveLength(11);
+  expect(() =>
+    CitymotorsCursor.checkpoint({
+      ...cursor,
+      records: cursor.records.map((record, index) =>
+        index === 5
+          ? {
+              ...record,
+              fields: record.fields.map(([label, value]) =>
+                label === "VIN" ? [label, donorVin(5, 2)] : [label, value],
+              ),
+            }
+          : record,
+      ),
+    }),
+  ).toThrow("carried donor differs");
+});
+
+test("City Motors ends a timed-out GET's in-page fetch before it sends that GET again", async () => {
+  // Only the client's combined deadline ends the hung read; the browser's own
+  // longer timeout never fires in this test.
+  const timeout = spyOn(AbortSignal, "timeout").mockImplementation(
+    () => new AbortController().signal,
+  );
+  const events: string[] = [];
+  let active = 0;
+  globalThis.fetch = Object.assign(
+    async (_input: RequestInfo | URL, init?: RequestInit) => {
+      events.push(`fetch starts with ${active} in flight`);
+      if (events.length > 1)
+        return new Response(citymotorsFixtureCatalog(), {
+          headers: { "content-type": "text/html" },
+        });
+      active++;
+      return new Promise<Response>((_, reject) =>
+        init?.signal?.addEventListener("abort", () => {
+          active--;
+          events.push("first fetch aborted");
+          reject(init.signal?.reason);
+        }),
+      );
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  let current = "about:blank";
+  const page: BrowserDocumentPage = {
+    url: () => current,
+    goto: async (url) => {
+      current = url;
+      return null;
+    },
+    // Both serialized in-page functions run against the mocked global fetch.
+    evaluate: async (run, request) => run(request),
+    cancel: async (run, key) => {
+      events.push("cancel");
+      run(key);
+    },
+  };
+  const documents = DocumentTransport.browser(
+    page,
+    { fetchAfter: CITYMOTORS_BROWSER_LANDING },
+    CITYMOTORS_BROWSER_REQUEST_TIMEOUT_MS,
+  );
+  try {
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const fiber = yield* Effect.fork(
+          streamCitymotorsInventoryWithRequestGate(
+            { maxPages: 1, onBatch: () => Effect.void },
+            gate,
+            { lease: Effect.void, open: Effect.succeed(documents) },
+          ),
+        );
+        yield* TestClock.adjust(CITYMOTORS_REQUEST_BUDGET_MS);
+        return yield* Fiber.join(fiber);
+      }).pipe(Effect.provide(TestContext.TestContext)),
+    );
+    expect(result.pagesProcessed).toBe(1);
+    expect(events).toEqual([
+      "fetch starts with 0 in flight",
+      "cancel",
+      "first fetch aborted",
+      "fetch starts with 0 in flight",
+    ]);
+  } finally {
+    timeout.mockRestore();
+  }
 });

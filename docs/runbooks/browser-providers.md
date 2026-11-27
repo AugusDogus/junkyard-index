@@ -180,7 +180,7 @@ in `source_control`), stays on Hyperbrowser and has no Kernel cap.
 | -------------- | -------- | --------: | ----------: | ---------------------------------- |
 | U Pull R Parts | headful  |     $0.25 |       $1.80 | about $0.02 to $0.03               |
 | 603            | headless |     $0.15 |       $0.60 | about $0.01 warm, about $0.05 cold |
-| City Motors    | headless |     $0.15 |       $1.50 | about $0.01 to $0.04               |
+| City Motors    | headless |     $0.15 |       $1.50 | about $0.01 warm, about $0.04 cold |
 
 A count-only soak of 603 on Kernel from a workstation on November 24, 2026,
 with direct egress, as recorded by the soak's local `kernel_browser_usage`:
@@ -193,8 +193,9 @@ It matches 603's last accepted production run (November 23: 973). The first
 603 run after a gap of more than a day is a cold census (every donor
 article); later days carry unchanged articles and read about 170 documents.
 
-City Motors reads its whole census (213 GETs in November 2026) every day. Most
-of a census's browser time is the origin rendering donor pages its LiteSpeed
+City Motors reads its whole catalog every day but carries unchanged donors, so
+a warm day sends about 47 GETs and a cold census 213 (November 2026). Most of a
+census's browser time is the origin rendering donor pages its LiteSpeed
 cache does not hold, about 10 seconds each; cached pages take under half a
 second. Two count-only soaks on November 25, 2026 did not complete, because
 the origin itself stopped answering some donor pages (one page did not answer

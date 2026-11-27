@@ -28,10 +28,10 @@ export const KERNEL_USD_PER_SECOND: Readonly<
  * $0.94 a month together), so the metered budgets stay within about $4: U
  * Pull R Parts may spend at most $1.80 of it (a healthy month is $0.60 to
  * $0.95), 603 $0.60 (a warm month is about $0.30, and each cold census after
- * a missed or failed run adds about $0.05) and City Motors $1.50 (a full
- * census costs about $0.01 to $0.04, depending on how many donor pages the
- * origin's cache holds, so an uncached 31-day month is about $1.24 and the
- * rest covers retries), whatever their crawls cost.
+ * a missed or failed run adds about $0.05) and City Motors $1.50 (a warm
+ * census, reading only new, changed and swept donors, costs about $0.01, a
+ * cold one reading all of them about $0.04, so even an all-cold 31-day month
+ * is about $1.24 and the rest covers retries), whatever their crawls cost.
  */
 export const KERNEL_MONTHLY_BUDGET_USD = {
   upullrparts: 1.8,
@@ -45,7 +45,7 @@ export type MeteredKernelSource = keyof typeof KERNEL_MONTHLY_BUDGET_USD;
 const KERNEL_DAY_CRAWL_COST: Readonly<Record<MeteredKernelSource, string>> = {
   upullrparts: "about $0.03",
   six03: "about $0.01, or about $0.05 for a cold census",
-  citymotors: "about $0.01 to $0.04",
+  citymotors: "about $0.01, or about $0.04 for a cold census",
 };
 
 /**
@@ -54,8 +54,8 @@ const KERNEL_DAY_CRAWL_COST: Readonly<Record<MeteredKernelSource, string>> = {
  * retry a bad day needs, while a crawl stuck failing cannot spend the month's
  * budget in a few days. A warm 603 day costs about $0.01 and a cold census
  * (every donor article) about $0.05, so $0.15 fits a cold census with every
- * chunk retried. A City Motors census costs up to about $0.04 when the
- * origin's cache holds few donor pages, so $0.15 fits three such attempts.
+ * chunk retried. A cold City Motors census (every donor page) costs up to
+ * about $0.04, so $0.15 fits three such attempts.
  */
 export const KERNEL_DAILY_BUDGET_USD = {
   upullrparts: 0.25,

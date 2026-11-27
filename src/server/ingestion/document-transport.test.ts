@@ -11,6 +11,8 @@ import {
   type BrowserDocumentMode,
   type BrowserDocumentPage,
   type BrowserRoutablePage,
+  type InPageDocument,
+  type InPageRequest,
   type BrowserRoute,
   type BrowserSessions,
   type LazyDocumentTransport,
@@ -125,6 +127,7 @@ function fakePage(
       return navigate(url);
     },
     // Runs the serialized in-page function against the mocked global fetch.
+    cancel: async (run, key) => run(key),
     evaluate: async (run, request) => {
       log.push("fetch " + request.url);
       timeouts.push(request.timeoutMs);
@@ -446,6 +449,7 @@ test("an aborted request settles without waiting for the browser", async () => {
   const page: BrowserDocumentPage = {
     url: () => "about:blank",
     goto: () => new Promise(() => {}),
+    cancel: async (run, key) => run(key),
     evaluate: () => new Promise(() => {}),
   };
   const lifetime = new AbortController();
@@ -468,6 +472,7 @@ test("navigation keeps repeated response headers as separate values", async () =
         { name: "set-cookie", value: "b=2; Path=/" },
       ],
     }),
+    cancel: async (run, key) => run(key),
     evaluate: () => Promise.reject(new Error("unexpected in-page fetch")),
   };
   const response = await DocumentTransport.browser(page, "navigation")(
@@ -533,25 +538,40 @@ function routedPage() {
     return outcome;
   };
   let read = "unread";
+  const cancelled: string[] = [];
+  // One evaluate serves both in-page functions, as Playwright's does.
+  function evaluate(
+    run: (request: InPageRequest) => Promise<InPageDocument>,
+    request: InPageRequest,
+  ): Promise<InPageDocument>;
+  function evaluate(run: (key: string) => void, key: string): Promise<void>;
+  async function evaluate(
+    _run: unknown,
+    request: InPageRequest | string,
+  ): Promise<InPageDocument | void> {
+    if (typeof request === "string") {
+      cancelled.push(request);
+      return;
+    }
+    read = await send({ type: "fetch", url: request.url });
+    return {
+      status: 200,
+      url: request.url,
+      redirected: false,
+      headers: [],
+      body: null,
+    };
+  }
   const page: BrowserRoutablePage = {
     url: () => "about:blank",
     goto: async () => null,
-    evaluate: async (_run, request) => {
-      read = await send({ type: "fetch", url: request.url });
-      return {
-        status: 200,
-        url: request.url,
-        redirected: false,
-        headers: [],
-        body: null,
-      };
-    },
+    evaluate,
     route: async (url, route) => {
       routes.push(url);
       handler = route;
     },
   };
-  return { page, routes, send, read: () => read };
+  return { page, routes, send, read: () => read, cancelled };
 }
 
 test("a prepared page that keeps page subresources routes every request and drops only rendering ones", async () => {
@@ -628,9 +648,53 @@ test("a prepared page without subresources loads only the transport's documents 
     accept: "text/html",
     timeoutMs: 1000,
     maximumBytes: 1,
+    abortKey: "read-1",
   });
   expect(read()).toBe("continue");
   expect(await send({ type: "fetch", url: NORTHWEST_MAKES })).toBe("abort");
+});
+
+test("aborting a request aborts its in-page fetch instead of leaving it to the browser's timeout", async () => {
+  let inPage: AbortSignal | undefined;
+  let started: () => void = () => {};
+  const fetching = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  spyOn(globalThis, "fetch").mockImplementation(
+    Object.assign(
+      async (_input: RequestInfo | URL, init?: RequestInit) => {
+        inPage = init?.signal ?? undefined;
+        started();
+        return new Promise<Response>((_, reject) =>
+          init?.signal?.addEventListener("abort", () =>
+            reject(init.signal?.reason),
+          ),
+        );
+      },
+      { preconnect: originalFetch.preconnect },
+    ),
+  );
+  const { transport } = fakePage(
+    { fetchAfter: new URL(SIX03_CATALOG).origin + "/cdn-cgi/trace" },
+    ok,
+  );
+  const lifetime = new AbortController();
+  const pending = transport(SIX03_CATALOG, {
+    signal: lifetime.signal,
+    headers: { Accept: "text/html" },
+  });
+  await fetching;
+  expect(inPage?.aborted).toBe(false);
+  lifetime.abort(new Error("request budget"));
+  await expect(pending).rejects.toThrow("request budget");
+  expect(inPage?.aborted).toBe(true);
+});
+
+test("a prepared page cancels an in-page read through the page's own evaluate", async () => {
+  const { page, cancelled } = routedPage();
+  const prepared = await DocumentTransport.preparePage(page, "none");
+  await prepared.cancel(() => {}, "read-2");
+  expect(cancelled).toEqual(["read-2"]);
 });
 
 const busy = new ProviderTurnDeferred({
@@ -699,6 +763,7 @@ const servingPage = (
       current = url;
       return respond(url);
     },
+    cancel: async (run, key) => run(key),
     evaluate: () => Promise.reject(new Error("unexpected in-page fetch")),
   };
 };
@@ -762,6 +827,7 @@ test("an interrupted request still stops the session", async () => {
   const { sessions, events } = fakeSessions({
     url: () => "about:blank",
     goto: () => new Promise(() => {}),
+    cancel: async (run, key) => run(key),
     evaluate: () => new Promise(() => {}),
   });
   const exit = await Effect.runPromiseExit(
@@ -915,6 +981,7 @@ test("a City Motors chunk lands on Cloudflare's edge once, then reads every docu
       current = url;
       return navigation({ status: 200, url, headers: {} });
     },
+    cancel: async (run, key) => run(key),
     evaluate: async (run, request) => {
       log.push(`fetch ${request.url} ${request.timeoutMs}`);
       return run(request);
@@ -1184,6 +1251,7 @@ test("a Northwest chunk reads all its pages in one URG turn, so its session neve
         body: northwestDocuments[url] ?? "",
       });
     },
+    cancel: async (run, key) => run(key),
     evaluate: (run, request) => run(request),
   };
   const { sessions, events } = fakeSessions(page);

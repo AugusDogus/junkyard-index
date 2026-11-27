@@ -228,6 +228,7 @@ describe("durable ingestion cursors", () => {
     ["byot", 16],
     ["aviation", 4],
     ["six03", 4],
+    ["citymotors", 4],
   ] as const)(
     "%s preserves its source-specific wire byte guard",
     (source, limitMiB) => {
@@ -242,7 +243,7 @@ describe("durable ingestion cursors", () => {
       }
     },
   );
-  test.each(["rustyhook", "chaz", "citymotors", "coutu"] as const)(
+  test.each(["rustyhook", "chaz", "coutu"] as const)(
     "%s rejects oversized wire before JSON decoding",
     (source) => {
       for (const wire of [
