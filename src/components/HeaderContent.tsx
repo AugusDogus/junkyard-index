@@ -80,18 +80,31 @@ function MainLinks() {
       <MainLink href="/map">Map</MainLink>
       <MainLink href="/cars">Cars</MainLink>
       <MainLink href="/pricing">Pricing</MainLink>
-      <MainLink href="/search">Search</MainLink>
+      {/* Search renders on every request, so don't run it for every page
+      view that shows the header. */}
+      <MainLink href="/search" prefetch={false}>
+        Search
+      </MainLink>
     </>
   );
 }
 
 /** The current section carries a 1px ink rule under its name. */
-function MainLink({ href, children }: { href: string; children: string }) {
+function MainLink({
+  href,
+  prefetch,
+  children,
+}: {
+  href: string;
+  prefetch?: false;
+  children: string;
+}) {
   const pathname = usePathname();
   const current = pathname === href || pathname.startsWith(`${href}/`);
   return (
     <Link
       href={href}
+      prefetch={prefetch}
       aria-current={pathname === href ? "page" : current ? "true" : undefined}
       className={cn(
         "board-step focus-visible:outline-focus flex items-center border-b px-1.5 text-[0.8125rem] font-medium whitespace-nowrap focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid first:-ml-1.5 sm:px-3 sm:text-[0.9375rem] sm:first:-ml-3",
