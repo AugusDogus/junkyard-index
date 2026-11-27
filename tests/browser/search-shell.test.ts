@@ -1846,6 +1846,45 @@ test("refines after a link to the same search still write the URL", async () => 
   }
 }, 30_000);
 
+// Next drops a pending navigation when a newer one starts. A newer one to
+// this same URL leaves the page here, so refines must write again.
+test("refines after a pending link is superseded by a link to this URL still write the URL", async () => {
+  const { page } = await open(
+    `utm_source=newsletter&fixtureLinks=1&fixtureLinkTo=${encodeURIComponent("/search")}`,
+  );
+  try {
+    await page.getByRole("link", { name: "Fixture link", exact: true }).click();
+    await page.waitForFunction(() => location.search === "");
+    await page.waitForTimeout(300);
+    await page.getByRole("link", { name: "Pricing link", exact: true }).click();
+    await page.getByRole("link", { name: "Fixture link", exact: true }).click();
+    await page.waitForTimeout(400);
+    expect(
+      (await navigations(page)).map((navigation) => navigation.href),
+    ).toEqual([
+      "http://shared-search.test/search",
+      "http://shared-search.test/search",
+    ]);
+    const length = await page.evaluate(() => history.length);
+    const sort = await searchCallsDuring(page, () =>
+      pickSort(page, "Oldest First"),
+    );
+    expect(sort.calls).toBe(1);
+    expect(new URL(page.url()).searchParams.get("sort")).toBe("oldest");
+    expect(await page.evaluate(() => history.length)).toBe(length + 1);
+    await openFilterPanel(page);
+    const window = await searchCallsDuring(page, () =>
+      page.getByRole("button", { name: "Last 7 days", exact: true }).click(),
+    );
+    expect(window.calls).toBe(1);
+    expect(new URL(page.url()).searchParams.getAll("arrivalWindow[]")).toEqual([
+      "7d",
+    ]);
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
+
 // The server renders the new page with its own clock, which the window
 // filter reads; the search must not run the old window with it.
 test("a link that drops the window searches once, without the window", async () => {
