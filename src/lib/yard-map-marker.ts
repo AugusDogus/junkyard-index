@@ -32,39 +32,66 @@ export type YardMapTap = "select" | "choose" | "zoom";
 /** Projected units to screen pixels at `zoom` (Pigeon's 256px world at 0). */
 const pixelsPerUnit = (zoom: number) => 2 ** (zoom - 2);
 
+/** Zoom steps per level that marker sizes are worked out at. */
+const SIZE_STEPS_PER_ZOOM = 8;
+
 /**
- * Each yard's size at `zoom`, in the same order as `yards`. A sweep along x
- * only compares yards less than a pin apart, so hundreds of yards size in
- * well under a millisecond.
+ * The zoom step `zoom`'s marker sizes are worked out at. Every caller sizes
+ * through it (`sizes`), so the server's static dots and the canvas agree, and
+ * a pinch re-sizes only when it crosses a step.
  */
-function sizes(
+const sizeZoom = (zoom: number) =>
+  Math.round(zoom * SIZE_STEPS_PER_ZOOM) / SIZE_STEPS_PER_ZOOM;
+
+/**
+ * Sizes `yards` at any zoom, in the same order as `yards`. The yards are
+ * projected and ordered along x once; a sweep along x then compares only
+ * yards less than a pin apart, so each zoom sizes hundreds of yards in well
+ * under a millisecond. Each zoom step is worked out once, so a pinch back
+ * and forth sizes nothing again.
+ */
+function sizer(
   yards: readonly YardLocation[],
-  zoom: number,
-): YardMapMarkerSize[] {
-  const scale = pixelsPerUnit(zoom);
-  const points = yards.map((yard) => {
-    const point = projectYardLocation(yard);
-    return { x: point.x * scale, y: point.y * scale };
-  });
+): (zoom: number) => readonly YardMapMarkerSize[] {
+  const points = yards.map(projectYardLocation);
   const order = points
     .map((_, index) => index)
     .sort((a, b) => (points[a]?.x ?? 0) - (points[b]?.x ?? 0));
-  const crowded = new Set<number>();
-  order.forEach((index, position) => {
-    const point = points[index];
-    if (!point) return;
-    for (let next = position + 1; next < order.length; next++) {
-      const otherIndex = order[next];
-      const other = otherIndex === undefined ? undefined : points[otherIndex];
-      if (otherIndex === undefined || !other) continue;
-      if (other.x - point.x >= PIN_PX) break;
-      if (Math.abs(other.y - point.y) < PIN_PX) {
-        crowded.add(index);
-        crowded.add(otherIndex);
+  const known = new Map<number, YardMapMarkerSize[]>();
+  return (zoom) => {
+    const step = sizeZoom(zoom);
+    const cached = known.get(step);
+    if (cached) return cached;
+    const scale = pixelsPerUnit(step);
+    const crowded = new Set<number>();
+    order.forEach((index, position) => {
+      const point = points[index];
+      if (!point) return;
+      for (let next = position + 1; next < order.length; next++) {
+        const otherIndex = order[next];
+        const other = otherIndex === undefined ? undefined : points[otherIndex];
+        if (otherIndex === undefined || !other) continue;
+        if ((other.x - point.x) * scale >= PIN_PX) break;
+        if (Math.abs(other.y - point.y) * scale < PIN_PX) {
+          crowded.add(index);
+          crowded.add(otherIndex);
+        }
       }
-    }
-  });
-  return yards.map((_, index) => (crowded.has(index) ? "dot" : "pin"));
+    });
+    const sized = yards.map(
+      (_, index): YardMapMarkerSize => (crowded.has(index) ? "dot" : "pin"),
+    );
+    known.set(step, sized);
+    return sized;
+  };
+}
+
+/** Each yard's size at `zoom`'s step (`sizeZoom`), in the order of `yards`. */
+function sizes(
+  yards: readonly YardLocation[],
+  zoom: number,
+): readonly YardMapMarkerSize[] {
+  return sizer(yards)(zoom);
 }
 
 /**
@@ -119,4 +146,11 @@ function frame(
   };
 }
 
-export const YardMapMarker = { sizes, hits, tap, frame } as const;
+export const YardMapMarker = {
+  sizeZoom,
+  sizer,
+  sizes,
+  hits,
+  tap,
+  frame,
+} as const;
