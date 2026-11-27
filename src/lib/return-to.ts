@@ -35,4 +35,15 @@ function parse(input: unknown): ReturnTo {
   }
 }
 
-export const ReturnTo = { parse } as const;
+/** The destination in a query string such as `location.search`. */
+function fromSearch(search: string): ReturnTo {
+  return parse(new URLSearchParams(search).get("returnTo"));
+}
+
+/** Where a signed-in visitor goes instead of a sign-in or sign-up page. */
+function forSignedIn(returnTo: ReturnTo): ReturnTo {
+  // Unknown auth routes also fall back to sign-in, so exclude the whole shell.
+  return returnTo.startsWith("/auth/") ? parse("/search") : returnTo;
+}
+
+export const ReturnTo = { parse, fromSearch, forSignedIn } as const;
