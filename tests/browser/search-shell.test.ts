@@ -1638,3 +1638,46 @@ test("a VIN to words and back searches only the new mode", async () => {
     await closePage(page);
   }
 }, 30_000);
+
+// A saved search opens through Next's router while the search is running;
+// the fixture's router takes any write it did not make as that navigation.
+test("a saved search opened while searching updates the search, and Back restores it", async () => {
+  const { page } = await open("q=volvo&sort=oldest");
+  try {
+    const chips = page.getByRole("group", { name: "Active filters" });
+    const length = await page.evaluate(() => history.length);
+    const opened = await searchCallsDuring(page, () =>
+      page.evaluate(() =>
+        history.pushState(
+          null,
+          "",
+          "/search?q=Volvo&yardTypes=all&minYear=1963&maxYear=2000&sort=newest",
+        ),
+      ),
+    );
+    expect(opened.calls).toBe(1);
+    expect(opened.requests[0]).toMatchObject({
+      indexName: "vehicles_newest",
+      params: { query: "Volvo" },
+    });
+    expect(await page.getByRole("searchbox").inputValue()).toBe("Volvo");
+    expect(await chips.getByRole("button", { name: /^Remove / }).count()).toBe(
+      2,
+    );
+    // Nothing rewrites the opened URL into a second entry.
+    expect(await page.evaluate(() => history.length)).toBe(length + 1);
+    const back = await searchCallsDuring(page, async () => {
+      await page.goBack();
+    });
+    expect(back.calls).toBeLessThanOrEqual(1);
+    for (const request of back.requests)
+      expect(request).toMatchObject({
+        indexName: "vehicles_oldest",
+        params: { query: "volvo" },
+      });
+    expect(await page.getByRole("searchbox").inputValue()).toBe("volvo");
+    expect(await chips.count()).toBe(0);
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
