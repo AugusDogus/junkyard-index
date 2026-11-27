@@ -347,8 +347,9 @@ export function useSearchUrlOwner({
   );
 
   // Next reports each navigation it starts (a Link, router.push) before it
-  // requests the page. Clicks it leaves to the browser start none, and a
-  // navigation to this same URL changes nothing to protect.
+  // requests the page. Clicks it leaves to the browser start none. A
+  // navigation to this same URL changes nothing to protect, and Next drops
+  // any navigation still in flight for it, so the page stays here.
   useEffect(() => {
     const stopLeaving = () => {
       leaving.current = false;
@@ -362,8 +363,10 @@ export function useSearchUrlOwner({
         destination.origin === here.origin &&
         destination.pathname === here.pathname &&
         destination.search === here.search
-      )
+      ) {
+        stopLeaving();
         return;
+      }
       leaving.current = true;
       leftFrom.current = here.href;
     });
