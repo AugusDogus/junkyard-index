@@ -22,7 +22,7 @@ test("request-yard utility form is explicitly noindex", () => {
   expect(metadata.robots).toEqual({ index: false, follow: true });
 });
 
-test("the footer and the header both link the chains hub", () => {
+test("the footer links the chains hub", () => {
   const html = renderToStaticMarkup(<FooterLinks />);
   expect(html).toMatch(/href="\/chains"[^>]*>Chains<\/a>/);
 });
