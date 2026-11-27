@@ -17,6 +17,7 @@ import { SearchErrorFallback } from "~/components/search/SearchErrorFallback";
 import { SearchPageContent } from "~/components/search/SearchPageContent";
 import { db } from "~/lib/db";
 import { SearchServerRender } from "~/lib/search-server-render";
+import { SearchUrl } from "~/lib/search-url";
 import { searchPageMetadata } from "./search-metadata";
 import { InventoryStaleness } from "~/lib/inventory-staleness";
 import { getHomepageYards } from "~/server/homepage-yards";
@@ -73,9 +74,9 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   }
 
   // Only legacy comma lists need a dictionary. Modern URLs preserve each value.
-  const knownYardNames = [params.yards]
-    .flat()
-    .some((value) => value?.includes(","))
+  const knownYardNames = SearchUrl.load(params).legacyYards.some((value) =>
+    value.includes(","),
+  )
     ? (await getHomepageYards(db, await getHiddenSources()))
         .map((yard) => yard.name)
         .filter((name) => name.includes(","))

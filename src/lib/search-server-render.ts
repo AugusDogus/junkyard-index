@@ -1,5 +1,4 @@
-import { SearchArea } from "./search-area";
-import { SearchRadius } from "./search-radius";
+import { SearchUrl } from "./search-url";
 
 /**
  * Whether /search runs an Algolia search, and where. Every search spends the
@@ -29,16 +28,20 @@ type SearchParams = Readonly<
 const NON_PERSON_USER_AGENT =
   /(?<!cu)bot\b|(?<!cu)bot[/_]|crawl|spider|slurp|facebookexternalhit|embedly|whatsapp|preview|inspectiontool|lighthouse|headless|curl\/|wget\/|python-|scrapy|okhttp|java\/|go-http-client|axios\/|node-fetch|undici/i;
 
+/** The loader takes mutable lists, so read readonly ones through a copy. */
+function load(params: SearchParams) {
+  return SearchUrl.load(
+    Object.fromEntries(
+      Object.entries(params).map(([key, value]) => [
+        key,
+        typeof value === "string" || value === undefined ? value : [...value],
+      ]),
+    ),
+  );
+}
+
 // Params that never change the search: campaign tags and checkout return.
 const NON_SEARCH_PARAM = /^(utm_[a-z_]+|gclid|fbclid|msclkid|subscription)$/;
-
-function urlParams(params: SearchParams): URLSearchParams {
-  const url = new URLSearchParams();
-  for (const [key, value] of Object.entries(params))
-    for (const item of [value].flat())
-      if (item !== undefined) url.append(key, item);
-  return url;
-}
 
 export const SearchServerRender = {
   isNonPersonUserAgent(userAgent: string | null): boolean {
@@ -51,11 +54,10 @@ export const SearchServerRender = {
    * does not see, so the browser would search again once it loads them.
    */
   isNearbyWithoutOrigin(params: SearchParams): boolean {
-    const url = urlParams(params);
-    const nearby =
-      url.get("sort") === "distance" ||
-      SearchRadius.parse(url.get("radius")) !== null;
-    return nearby && SearchArea.fromUrl(url) === undefined;
+    // Read as the browser's search reads the same URL.
+    const values = load(params);
+    const nearby = values.sort === "distance" || values.radius !== null;
+    return nearby && SearchUrl.fromValues(values).area === undefined;
   },
 
   /** No param asks for anything but the default results. */
