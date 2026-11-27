@@ -13,9 +13,6 @@ import type { MapYard } from "./yard-map-data";
 
 type Point = [number, number];
 
-/** Live zoom steps the dot and pin sizes are worked out at. */
-const SIZE_STEPS_PER_ZOOM = 8;
-
 /**
  * Every yard's marker, drawn on one canvas from Pigeon's live view. Pigeon
  * redraws its children on each frame of a pan, pinch or wheel zoom, so the
@@ -58,12 +55,11 @@ export function YardMapMarkerCanvas({
       })),
     [pins],
   );
-  const sizeZoom = mapState
-    ? Math.round(mapState.zoom * SIZE_STEPS_PER_ZOOM) / SIZE_STEPS_PER_ZOOM
-    : null;
+  const sizer = useMemo(() => YardMapMarker.sizer(pins), [pins]);
+  const sizeZoom = mapState ? YardMapMarker.sizeZoom(mapState.zoom) : null;
   const sizes = useMemo(
-    () => (sizeZoom === null ? [] : YardMapMarker.sizes(pins, sizeZoom)),
-    [pins, sizeZoom],
+    () => (sizeZoom === null ? [] : sizer(sizeZoom)),
+    [sizer, sizeZoom],
   );
 
   /** Draws the current view; false when there is nothing to draw on yet. */

@@ -51,6 +51,22 @@ describe("yard map marker sizes", () => {
     ).toEqual(["pin", "pin"]);
   });
 
+  test("sizes are worked out at whole zoom steps, so every caller agrees", () => {
+    // 31.5px apart at zoom 6, 32.8px at 6.06: still a step short of 6.125.
+    const pair = [phoenix, east(phoenix, 31.5, 6)];
+    expect(YardMapMarker.sizeZoom(6.06)).toBe(6);
+    expect(YardMapMarker.sizes(pair, 6.06)).toEqual(["dot", "dot"]);
+    expect(YardMapMarker.sizes(pair, 6.07)).toEqual(["pin", "pin"]);
+    expect(YardMapMarker.sizer(pair)(6.06)).toEqual(["dot", "dot"]);
+  });
+
+  test("a sizer works each zoom step out once", () => {
+    const size = YardMapMarker.sizer([phoenix, mesa, denver]);
+    const first = size(4.01);
+    expect(size(3.99)).toBe(first);
+    expect(size(4.2)).not.toBe(first);
+  });
+
   test("yards at the same spot stay dots at every zoom", () => {
     expect(YardMapMarker.sizes([phoenix, phoenix], 18)).toEqual(["dot", "dot"]);
   });
