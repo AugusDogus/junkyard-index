@@ -7,14 +7,18 @@ const inlineLinkClassName =
   "text-ink hover:text-signal underline decoration-1 underline-offset-[0.3em] hover:decoration-2 focus-visible:outline-focus focus-visible:outline-2 focus-visible:outline-solid";
 
 /**
- * Every state hub as a plain link. The yard directory above is virtualized,
- * so its server HTML holds only a few yards; this list is how crawlers get
- * from the homepage to every state and, from there, every yard.
+ * Every state hub and chain hub as a plain link. The yard directory above is
+ * virtualized, so its server HTML holds only a few yards; these lists are how
+ * crawlers get from the homepage to every state and chain and, from there,
+ * every yard.
  */
 export function HomeStateIndex({
   regions,
+  chains,
 }: {
   regions: readonly { region: Region; yards: number }[];
+  /** Brands with more than one yard, largest first. */
+  chains: readonly { name: string; href: string; yards: number }[];
 }) {
   return (
     <section aria-labelledby="home-states-title" className="shell py-12">
@@ -59,6 +63,40 @@ export function HomeStateIndex({
           </li>
         ))}
       </ul>
+      {chains.length > 0 && (
+        <>
+          <h3
+            id="home-chains-title"
+            className="text-title mt-(--space-2xl) leading-[1.1] font-medium"
+          >
+            Junkyards by chain
+          </h3>
+          <ul
+            aria-labelledby="home-chains-title"
+            className="border-rule-strong mt-(--space-lg) gap-x-10 border-t sm:columns-2 lg:columns-3"
+          >
+            {chains.map((chain) => (
+              <li
+                key={chain.href}
+                className="border-rule break-inside-avoid border-b"
+              >
+                <Link
+                  href={chain.href}
+                  prefetch={false}
+                  className="group board-step hover:bg-paper-2 active:bg-paper-2 focus-visible:outline-focus flex items-baseline justify-between gap-4 px-2 py-2.5 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid"
+                >
+                  <span className="board-step group-hover:text-signal text-[0.9375rem] leading-snug font-medium">
+                    {chain.name} inventory
+                  </span>
+                  <span className="text-ink-2 text-sm whitespace-nowrap tabular-nums">
+                    {InventoryFormat.count(chain.yards)} yards
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </section>
   );
 }

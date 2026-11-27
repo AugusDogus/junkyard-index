@@ -15,6 +15,7 @@ import { getHomepageInventory } from "~/lib/homepage-inventory";
 import { InventoryStaleness } from "~/lib/inventory-staleness";
 import { YardPath } from "~/lib/yard-path";
 import {
+  getChains,
   getInventoryCheckDates,
   getRoutedYards,
 } from "~/server/yard-inventory";
@@ -28,11 +29,16 @@ export async function generateHomeMetadata() {
 }
 
 export async function HomeLandingPage() {
-  const [{ inventory, section }, checkDates, routedYards] = await Promise.all([
-    loadYardMapSection(),
-    getInventoryCheckDates(),
-    getRoutedYards(),
-  ]);
+  const [{ inventory, section }, checkDates, routedYards, chains] =
+    await Promise.all([
+      loadYardMapSection(),
+      getInventoryCheckDates(),
+      getRoutedYards(),
+      getChains(),
+    ]);
+  const yardHrefs = new Map(
+    routedYards.map((yard) => [YardPath.key(yard), yard.path.href]),
+  );
   const regions = YardPath.byRegion(routedYards).map(({ region, yards }) => ({
     region,
     yards: yards.length,
@@ -46,6 +52,10 @@ export async function HomeLandingPage() {
       vehicle.locationCode,
       now,
     ),
+    yardHref:
+      yardHrefs.get(
+        YardPath.key({ source: vehicle.source, code: vehicle.locationCode }),
+      ) ?? null,
   }));
 
   return (
@@ -114,7 +124,14 @@ export async function HomeLandingPage() {
         >
           <RecentVehicles vehicles={recentVehicles} />
         </Suspense>
-        <HomeStateIndex regions={regions} />
+        <HomeStateIndex
+          regions={regions}
+          chains={chains.map(({ name, href, yards }) => ({
+            name,
+            href,
+            yards: yards.length,
+          }))}
+        />
         <HomeFaq />
         <HomePricing />
         <HomeClosingCta />

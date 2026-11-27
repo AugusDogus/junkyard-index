@@ -21,3 +21,8 @@ test("the footer links to the yard map, which signed-in visitors can reach", () 
 test("request-yard utility form is explicitly noindex", () => {
   expect(metadata.robots).toEqual({ index: false, follow: true });
 });
+
+test("the footer and the header both link the chains hub", () => {
+  const html = renderToStaticMarkup(<FooterLinks />);
+  expect(html).toMatch(/href="\/chains"[^>]*>Chains<\/a>/);
+});

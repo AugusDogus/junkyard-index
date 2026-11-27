@@ -71,3 +71,10 @@ test("Discord's decorative icon is hidden from assistive technology", () => {
   expect(html).toContain('aria-hidden="true"');
   expect(html).not.toContain('role="img"');
 });
+
+test("the main links include the chains hub", () => {
+  expect(renderHeader("/")).toMatch(/href="\/chains"[^>]*>Chains<\/a>/);
+  expect(renderHeader("/chains/pick-n-pull")).toMatch(
+    /aria-current="true"[^>]*href="\/chains"|href="\/chains"[^>]*aria-current="true"/,
+  );
+});

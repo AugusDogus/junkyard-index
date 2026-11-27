@@ -77,6 +77,7 @@ function MainLinks() {
   return (
     <>
       <MainLink href="/junkyards">Junkyards</MainLink>
+      <MainLink href="/chains">Chains</MainLink>
       <MainLink href="/map">Map</MainLink>
       <MainLink href="/cars">Cars</MainLink>
       <MainLink href="/pricing">Pricing</MainLink>

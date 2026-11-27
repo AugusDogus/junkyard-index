@@ -32,6 +32,7 @@ const FOOTER_GROUPS: readonly {
         label: "Junkyards",
         alsoIn: "header",
       },
+      { kind: "static", href: "/chains", label: "Chains", alsoIn: "header" },
       {
         kind: "static",
         href: "/cars",

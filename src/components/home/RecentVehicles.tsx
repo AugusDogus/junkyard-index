@@ -32,8 +32,14 @@ function usePrefersReducedMotion(): boolean | null {
 export function RecentVehicles({
   vehicles,
 }: {
-  /** With "Last checked N days ago" when the vehicle's yard is stale. */
-  vehicles: (RecentVehicle & { lastChecked: string | null })[];
+  /**
+   * With "Last checked N days ago" when the vehicle's yard is stale, and the
+   * yard's page, which each card links, or null when the yard has none.
+   */
+  vehicles: (RecentVehicle & {
+    lastChecked: string | null;
+    yardHref: string | null;
+  })[];
 }) {
   const ref = useRef<HTMLElement>(null);
   const inView = useInView(ref);
@@ -138,7 +144,13 @@ export function RecentVehicles({
                 return (
                   <Link
                     key={index}
-                    href={`/search?q=${encodeURIComponent(title)}`}
+                    // The yard's page lists the car, newest first. A search
+                    // result page is noindexed, so crawlers skip it.
+                    href={
+                      vehicle.yardHref ??
+                      `/search?q=${encodeURIComponent(title)}`
+                    }
+                    rel={vehicle.yardHref ? undefined : "nofollow"}
                     prefetch={false}
                     draggable={false}
                     className="board-step border-board-rule hover:bg-board-2 focus-visible:outline-figure group flex min-w-0 flex-[0_0_16rem] flex-col border-y border-r outline-none focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-solid sm:flex-[0_0_19rem]"
