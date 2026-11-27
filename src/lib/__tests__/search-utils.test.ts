@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createSearchRouting } from "~/components/search/search-routing";
+import { SearchUrlTestFixtures } from "~/components/search/search-url-test-fixtures";
 import { SearchCriteria } from "~/lib/search-criteria";
 import {
   parseSavedSearchFilters,
@@ -65,13 +65,7 @@ test("saved filters retain comma yards through storage, reopening, editing, and 
     buildSearchUrl(edited.data.query, edited.data.filters),
     "https://example.com",
   );
-  const routing = createSearchRouting("vehicles", true, true);
-  const restored = routing.stateMapping.routeToState(
-    routing.router.parseURL({
-      location: { href: url.href, search: url.search },
-    }),
-  );
-  expect(restored.vehicles?.refinementList).toEqual({
+  expect(SearchUrlTestFixtures.read(url.href).refinementList).toEqual({
     locationName: filters.salvageYards,
     yardTypes: filters.yardTypes,
   });
@@ -83,19 +77,9 @@ test("saved filters retain comma yards through storage, reopening, editing, and 
 });
 
 describe("saved search URLs are already canonical", () => {
-  // Reopening a saved search needs Lite, so use the paid, fully ready router.
-  const routing = createSearchRouting("vehicles", true, true);
-  function rewrite(href: string) {
-    const location = new URL(href);
-    return routing.router.createURL({
-      location,
-      routeState: routing.stateMapping.stateToRoute(
-        routing.stateMapping.routeToState(
-          routing.router.parseURL({ location }),
-        ),
-      ),
-    });
-  }
+  // Reopening a saved search needs Lite, so read it as a paid, fully ready
+  // search. The page writes the search it opens; a canonical URL is unchanged.
+  const rewrite = (href: string) => SearchUrlTestFixtures.write(href);
 
   const cases: [string, string | null, SavedSearchFilters][] = [
     ["query only", "Volvo", {}],

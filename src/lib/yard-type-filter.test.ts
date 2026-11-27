@@ -21,7 +21,7 @@ import {
   savedSearchMatchCriteriaKey,
 } from "./saved-search-filters";
 import { buildSearchUrl } from "./search-utils";
-import { createSearchRouting } from "~/components/search/search-routing";
+import { SearchUrlTestFixtures } from "~/components/search/search-url-test-fixtures";
 import { COMMON_ALGOLIA_INDEX_SETTINGS } from "~/server/ingestion/algolia-settings-plan";
 
 const services: Service[] = [
@@ -86,23 +86,11 @@ describe("yard type filters", () => {
       }),
     );
     const url = buildSearchUrl("Volvo", filters);
-    const location = {
-      href: `https://example.com${url}`,
-      search: new URL(url, "https://example.com").search,
-    };
-    const routing = createSearchRouting("vehicles", true, true);
-    const state = routing.stateMapping.routeToState(
-      routing.router.parseURL({ location }),
-    );
-    expect(state.vehicles?.refinementList).toEqual({
-      yardTypes: filters.yardTypes,
+    const href = `https://example.com${url}`;
+    expect(SearchUrlTestFixtures.read(href).refinementList).toEqual({
+      yardTypes: ["self_service", "full_service"],
     });
-    expect(
-      routing.router.createURL({
-        location,
-        routeState: routing.stateMapping.stateToRoute(state),
-      }),
-    ).toBe(location.href);
+    expect(SearchUrlTestFixtures.write(href)).toBe(href);
     expect(filtersSchema.safeParse({ yardTypes: ["both"] }).success).toBe(
       false,
     );
@@ -112,23 +100,15 @@ describe("yard type filters", () => {
   });
 
   test("drops unsupported URL types and clears selected types", () => {
-    const routing = createSearchRouting("vehicles", true, true);
-    const location = {
-      href: "https://example.com/search?yardTypes=both,unknown,self_service",
-      search: "?yardTypes=both,unknown,self_service",
-    };
-    expect(routing.router.parseURL({ location })).toEqual({
-      vehicles: { yardTypes: ["self_service"] },
+    const href =
+      "https://example.com/search?yardTypes=both,unknown,self_service";
+    expect(SearchUrlTestFixtures.read(href).refinementList).toEqual({
+      yardTypes: ["self_service"],
     });
     expect(
-      routing.router.createURL({
-        location,
-        routeState: routing.stateMapping.stateToRoute({
-          vehicles: {
-            sortBy: "vehicles_newest",
-            refinementList: { yardTypes: [] },
-          },
-        }),
+      SearchUrlTestFixtures.write(href, undefined, {
+        sortBy: "vehicles_newest",
+        refinementList: { yardTypes: [] },
       }),
     ).toBe("https://example.com/search?yardTypes%5B%5D=all");
   });

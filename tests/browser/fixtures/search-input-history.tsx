@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
-import { createRoot } from "react-dom/client";
+import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import {
   PathnameContext,
   SearchParamsContext,
 } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
+import { SearchUrlOrder } from "~/lib/search-url-order";
+import { startTransition, useEffect, useLayoutEffect, useState } from "react";
+import { createRoot } from "react-dom/client";
 import { InstantSearchNext } from "react-instantsearch-nextjs";
 import {
   useRefinementList,
@@ -12,14 +15,18 @@ import {
 } from "react-instantsearch";
 import { VehicleSearchInput } from "~/components/search/VehicleSearchInput";
 import {
-  createSearchRouting,
   getSearchableVinPattern,
   SEARCH_SORT_OPTIONS,
 } from "~/components/search/search-routing";
+import {
+  SearchUrlProvider,
+  SearchUrlSync,
+  useSearchUrl,
+  useSearchUrlOwner,
+} from "~/components/search/search-url-owner";
 import { ALGOLIA_INDEX_NAME, getSearchClient } from "~/lib/algolia-search";
 import { HiddenSources } from "~/lib/hidden-source";
 import { browserSearchKey } from "~/lib/browser-search-key";
-import { createSearchRouteSync } from "~/lib/search-route-sync";
 
 browserSearchKey.prime({
   apiKey: "fixture-key",
@@ -28,17 +35,25 @@ browserSearchKey.prime({
   hiddenSources: [],
 });
 
-// Mirror Next's history bridge, including a new searchParams object per write.
-for (const method of ["pushState", "replaceState"] as const) {
-  const original = window.history[method].bind(window.history);
-  window.history[method] = (...args) => {
-    original(...args);
-    window.dispatchEvent(new Event("fixture-navigation"));
-  };
+const router = {
+  back() {},
+  forward() {},
+  refresh() {},
+  hmrRefresh() {},
+  push() {},
+  replace() {},
+  async prefetch() {},
+};
+
+/** Next marks the history entries it owns with `__NA` (app-router.js). */
+const nextHistoryState = { __NA: true };
+function isNextHistoryState(state: unknown) {
+  return typeof state === "object" && state !== null && "__NA" in state;
 }
 
-function Controls({ params }: { params: URLSearchParams }) {
+function Controls() {
   const { query } = useSearchBox();
+  const searchUrl = useSearchUrl();
   const { refine: sort, currentRefinement } = useSortBy({
     items: SEARCH_SORT_OPTIONS.map(({ indexName, label }) => ({
       value: indexName,
@@ -51,16 +66,14 @@ function Controls({ params }: { params: URLSearchParams }) {
   return (
     <>
       <VehicleSearchInput
-        vinPattern={getSearchableVinPattern(params.get("q"))?.normalized ?? ""}
+        vinPattern={
+          getSearchableVinPattern(searchUrl.values.q)?.normalized ?? ""
+        }
         vinPatternSearchReady
         booleanOrSearchReady
-        onSearchModeChange={async (value) => {
-          const url = new URL(window.location.href);
-          const next = value.vinPattern ?? value.query;
-          if (next) url.searchParams.set("q", next);
-          else url.searchParams.delete("q");
-          window.history.replaceState(window.history.state, "", url);
-        }}
+        onSearchModeChange={async (value) =>
+          searchUrl.setNextQuery(value.vinPattern ?? value.query)
+        }
       />
       <label>
         Sort
@@ -84,49 +97,88 @@ function Controls({ params }: { params: URLSearchParams }) {
   );
 }
 
-function Fixture() {
-  const [location, setLocation] = useState(() => new URL(window.location.href));
-  useEffect(() => {
-    const update = () => setLocation(new URL(window.location.href));
-    window.addEventListener("fixture-navigation", update);
-    window.addEventListener("popstate", update);
-    return () => {
-      window.removeEventListener("fixture-navigation", update);
-      window.removeEventListener("popstate", update);
-    };
-  }, []);
-  const routing = useMemo(() => {
-    const config = createSearchRouting(ALGOLIA_INDEX_NAME, true, true, {
-      knownYardNames: [
-        "RTP Pick-A-Part - Hebron, KY",
-        "RTP Pick-A-Part - Lexington, KY",
-      ],
-    });
-    const sync = createSearchRouteSync(config.router.push);
-    return {
-      ...config,
-      router: {
-        ...config.router,
-        push: sync.push,
-        start: sync.start,
-        dispose: sync.dispose,
-      },
-      onUrlChange: sync.onUrlChange,
-    };
-  }, []);
-  useEffect(() => routing.onUrlChange(location.href), [routing, location]);
+function Search() {
+  const searchUrl = useSearchUrlOwner({
+    policy: {
+      vinPatternIndexReady: true,
+      canUseAdvancedFilters: true,
+      newestSortReady: true,
+    },
+    knownYardNames: [
+      "RTP Pick-A-Part - Hebron, KY",
+      "RTP Pick-A-Part - Lexington, KY",
+    ],
+    routedOptions: "fixture",
+  });
   return (
-    <PathnameContext.Provider value="/search">
-      <SearchParamsContext.Provider value={location.searchParams}>
-        <InstantSearchNext
-          indexName={ALGOLIA_INDEX_NAME}
-          searchClient={getSearchClient(HiddenSources.none, true, false, true)}
-          routing={routing}
-        >
-          <Controls params={location.searchParams} />
-        </InstantSearchNext>
-      </SearchParamsContext.Provider>
-    </PathnameContext.Provider>
+    <InstantSearchNext
+      indexName={ALGOLIA_INDEX_NAME}
+      searchClient={getSearchClient(HiddenSources.none, true, false, true)}
+      initialUiState={searchUrl.initialUiState}
+      onStateChange={searchUrl.onStateChange}
+    >
+      <SearchUrlProvider owner={searchUrl.owner}>
+        <Controls />
+      </SearchUrlProvider>
+      <SearchUrlSync state={searchUrl.sync} />
+    </InstantSearchNext>
+  );
+}
+
+// The same Next history bridge as shared-search.tsx: writes carrying `__NA`
+// are not seen, other writes become the router's URL in a transition, and
+// each committed router state writes its URL back.
+function Fixture() {
+  const [routeParams, setRouteParams] = useState(
+    () => new URLSearchParams(window.location.search),
+  );
+  useLayoutEffect(() => {
+    window.history.replaceState(
+      nextHistoryState,
+      "",
+      `/search?${routeParams.toString()}`,
+    );
+  }, [routeParams]);
+  useEffect(() => {
+    const navigate = (url: string) =>
+      setRouteParams(new URL(url, window.location.href).searchParams);
+    // Like Next's onPopState, Back and Forward commit in a transition, so
+    // other popstate listeners (such as nuqs resetting its queue) run first.
+    const traverse = () =>
+      startTransition(() => navigate(window.location.href));
+    window.addEventListener("popstate", traverse);
+    const { pushState, replaceState } = window.history;
+    for (const [method, original] of [
+      ["pushState", pushState],
+      ["replaceState", replaceState],
+    ] as const)
+      window.history[method] = (
+        data: unknown,
+        unused: string,
+        url?: string | URL | null,
+      ) => {
+        if (isNextHistoryState(data))
+          return original.call(window.history, data, unused, url);
+        original.call(window.history, nextHistoryState, unused, url);
+        const href = url ? String(url) : window.location.href;
+        startTransition(() => navigate(href));
+      };
+    return () => {
+      window.removeEventListener("popstate", traverse);
+      window.history.pushState = pushState;
+      window.history.replaceState = replaceState;
+    };
+  }, []);
+  return (
+    <AppRouterContext.Provider value={router}>
+      <PathnameContext.Provider value="/search">
+        <SearchParamsContext.Provider value={routeParams}>
+          <NuqsAdapter processUrlSearchParams={SearchUrlOrder.apply}>
+            <Search />
+          </NuqsAdapter>
+        </SearchParamsContext.Provider>
+      </PathnameContext.Provider>
+    </AppRouterContext.Provider>
   );
 }
 createRoot(document.body).render(<Fixture />);

@@ -45,7 +45,7 @@ import {
   useSortBy,
   useStats,
 } from "react-instantsearch";
-import { parseAsString, useQueryState, useQueryStates } from "nuqs";
+import { useQueryState } from "nuqs";
 import { ErrorBoundary } from "~/components/ErrorBoundary";
 import {
   AdvancedSearchDialog,
@@ -93,8 +93,8 @@ import {
   getSearchSortKey,
   sanitizeSearchSources,
   SEARCH_SORT_OPTIONS,
-  SearchOwnedUrlParams,
 } from "~/components/search/search-routing";
+import { useSearchUrl } from "~/components/search/search-url-owner";
 import { AnalyticsEvents, buildSearchContext } from "~/lib/analytics-events";
 import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access";
 import type { PlanAccessState } from "~/lib/plan-access";
@@ -123,20 +123,6 @@ import { cn } from "~/lib/utils";
 import type { DataSource, SearchResult as SearchResultType } from "~/lib/types";
 import { VinPattern } from "~/lib/vin-pattern";
 import { api } from "~/trpc/react";
-
-// The URL keys this page writes through nuqs. Choosing an arrival window adds
-// a history entry; radius and origin changes replace the current one.
-const AREA_PARSERS = {
-  legacyArrivalWindow: SearchUrl.parsers.legacyArrivalWindow.withOptions({
-    history: "push",
-  }),
-  arrivalWindow: SearchUrl.parsers.arrivalWindow.withOptions({
-    history: "push",
-  }),
-  radius: SearchUrl.parsers.radius,
-  lat: SearchUrl.parsers.lat,
-  lng: SearchUrl.parsers.lng,
-};
 
 function clampRouteYear(
   value: number | null,
@@ -173,8 +159,6 @@ interface AlgoliaSearchInnerProps {
   vinPatternIndexReady: boolean;
   booleanOrSearchReady: boolean;
   newestSortReady: boolean;
-  /** Writes a URL built for the current search as the router's own write. */
-  writeRoute(url: string): void;
 }
 function hasValidCoordinates(
   value: SearchPageContentProps["userLocation"],
@@ -354,7 +338,6 @@ function AlgoliaSearchInner({
   vinPatternIndexReady,
   booleanOrSearchReady,
   newestSortReady,
-  writeRoute,
 }: AlgoliaSearchInnerProps) {
   const instantSearch = useInstantSearchContext();
   const canUseAdvancedFilters = resolveClientPlanFeatureAccess({
@@ -422,10 +405,8 @@ function AlgoliaSearchInner({
 
   // Desktop filter workspace state
   const [showFilters, setShowFilters] = useState(false);
-  const [searchValueParam, setSearchValueParam] = useQueryState(
-    "q",
-    parseAsString,
-  );
+  const searchUrl = useSearchUrl();
+  const searchValueParam = searchUrl.values.q;
   const searchableVinPattern = useMemo(
     () =>
       vinPatternIndexReady && !expressionMode
@@ -607,16 +588,12 @@ function AlgoliaSearchInner({
   );
 
   const isDistanceSort = sortBy === "distance";
-  const [area, setArea] = useQueryStates(AREA_PARSERS, {
-    urlKeys: SearchUrl.urlKeys,
-  });
+  const area = searchUrl.values;
   const radiusMiles = area.radius;
   const arrivalWindow = ArrivalWindow.parse(
     area.arrivalWindow[0] ?? area.legacyArrivalWindow[0],
   );
-  const routedArea = SearchArea.fromUrl(
-    new URLSearchParams(searchParams.toString()),
-  );
+  const routedArea = SearchUrl.fromValues(area).area;
   // The server passes one clock value through hydration and capability remounts.
   // Advancing it mid-visit would spend another request and discard cached pages.
   const arrivalFilter = ArrivalWindow.filter(
@@ -1164,19 +1141,19 @@ function AlgoliaSearchInner({
       helper
         .setQueryParameter("sortBy", undefined)
         .setIndex(getSearchSortIndex(value));
+      // Not a search request, so InstantSearch reports no state change.
+      searchUrl.writeSearch();
       setSwitchingSort(value);
       return true;
     },
-    [instantSearch],
+    [instantSearch, searchUrl],
   );
 
   const handleDistancePreferenceConfirm = useCallback(async () => {
     try {
       await applyDistancePreference(selectedDistanceMode);
-      // Write only a real change: Next writes a nuqs URL back when it
-      // commits, which would undo the sort route written just below.
       if (area.lat !== null || area.lng !== null)
-        await setArea({ lat: null, lng: null });
+        await searchUrl.writeArea({ lat: null, lng: null }, "replace");
       setShowDistancePreferenceDialog(false);
       toast.success(
         isLoggedIn
@@ -1203,7 +1180,7 @@ function AlgoliaSearchInner({
     applyDistancePreference,
     area.lat,
     area.lng,
-    setArea,
+    searchUrl,
     isLoggedIn,
     pendingDistanceSort,
     radiusMiles,
@@ -1260,31 +1237,25 @@ function AlgoliaSearchInner({
       });
       const helper = instantSearch.mainIndex.getHelper();
       if (!helper) return;
-      SearchOwnedUrlParams.hold(new URLSearchParams(), () => {
-        const route = instantSearch.createURL();
-        // Clear facets without searching the old window/radius. Configure
-        // performs the combined search once the URL-controlled filters clear.
-        helper.clearRefinements();
-        for (const type of yardTypes)
-          helper.addDisjunctiveFacetRefinement("yardTypes", type);
-        // Typed years filter results too, so clearing filters drops them too.
-        if (typedYears?.range) helper.setQuery(typedYears.query);
-        // nuqs builds its URL from the current one when it flushes, and Next
-        // then writes that URL back over route writes it did not see. So
-        // write a changed route first, and let nuqs replace its entry.
-        const clearedRoute = instantSearch.createURL();
-        if (clearedRoute !== route) writeRoute(clearedRoute);
-        return setArea(
-          {
-            legacyArrivalWindow: null,
-            arrivalWindow: null,
-            radius: null,
-            lat: null,
-            lng: null,
-          },
-          { history: clearedRoute === route ? "push" : "replace" },
-        );
-      });
+      // Clear facets without searching the old window/radius. Configure
+      // performs the combined search once the URL-controlled filters clear.
+      helper.clearRefinements();
+      for (const type of yardTypes)
+        helper.addDisjunctiveFacetRefinement("yardTypes", type);
+      // Typed years filter results too, so clearing filters drops them too.
+      if (typedYears?.range) helper.setQuery(typedYears.query);
+      // One URL write for both: nuqs merges writes queued in the same tick.
+      const history = searchUrl.writeSearch();
+      void searchUrl.writeArea(
+        {
+          legacyArrivalWindow: null,
+          arrivalWindow: null,
+          radius: null,
+          lat: null,
+          lng: null,
+        },
+        history ?? "push",
+      );
       // Clearing a window, or a radius around an origin, changes Configure,
       // which then searches. A radius without an origin was never sent.
       const radiusApplies =
@@ -1297,9 +1268,8 @@ function AlgoliaSearchInner({
       arrivalWindow,
       nearbyParams,
       radiusMiles,
-      setArea,
+      searchUrl,
       typedYears,
-      writeRoute,
     ],
   );
   // The default yard scope is not a filter, so clearing all returns to it.
@@ -1308,13 +1278,14 @@ function AlgoliaSearchInner({
     [clearFilters, defaultYardTypes],
   );
 
+  // InstantSearch searches "" for a VIN, so the VIN goes in the next write.
   const handleSearchModeChange = useCallback(
     async (value: { query: string | null; vinPattern: string | null }) => {
-      await setSearchValueParam(
+      searchUrl.setNextQuery(
         value.vinPattern ? VinPattern.normalize(value.vinPattern) : value.query,
       );
     },
-    [setSearchValueParam],
+    [searchUrl],
   );
 
   // Helper: toggle only the values that changed between current and next.
@@ -1400,17 +1371,17 @@ function AlgoliaSearchInner({
   );
 
   const setArrivalWindow = (value: ArrivalWindow | undefined) =>
-    void setArea({
-      legacyArrivalWindow: null,
-      arrivalWindow: value ? [value] : null,
-    });
+    void searchUrl.writeArea(
+      { legacyArrivalWindow: null, arrivalWindow: value ? [value] : null },
+      "push",
+    );
 
   const removeFilter = (filter: ActiveSearchFilter) => {
     switch (filter.kind) {
       case "arrival":
         return setArrivalWindow(undefined);
       case "distance":
-        return void setArea({ radius: null });
+        return void searchUrl.writeArea({ radius: null }, "replace");
       case "yardTypes":
         return handleYardTypesChange(defaultYardTypes);
       case "year":
@@ -1580,7 +1551,10 @@ function AlgoliaSearchInner({
       onChooseLocation={openDistancePreference}
       radiusMiles={radiusMiles}
       onRadiusChange={(miles) =>
-        void setArea({ radius: SearchRadius.parse(miles) })
+        void searchUrl.writeArea(
+          { radius: SearchRadius.parse(miles) },
+          "replace",
+        )
       }
       yardTypes={selectedYardTypes}
       expression={expressionMode ? query : undefined}
@@ -1899,7 +1873,6 @@ export function SearchPageContent({
           vinPatternIndexReady,
           booleanOrSearchReady,
           newestSortReady,
-          writeRoute,
         }) => (
           <AlgoliaSearchInner
             arrivalReferenceTime={arrivalReferenceTime}
@@ -1911,7 +1884,6 @@ export function SearchPageContent({
             vinPatternIndexReady={vinPatternIndexReady}
             booleanOrSearchReady={booleanOrSearchReady}
             newestSortReady={newestSortReady}
-            writeRoute={writeRoute}
           />
         )}
       </SearchAccessShell>

@@ -12,9 +12,13 @@ import { InstantSearchNext } from "react-instantsearch-nextjs";
 import { useInstantSearchContext } from "react-instantsearch";
 import { ErrorBoundary } from "~/components/ErrorBoundary";
 import { HiddenSourcesProvider } from "~/components/HiddenSourcesContext";
-import { SearchAccessRouting } from "~/components/search/search-access-routing";
 import { SearchErrorFallback } from "~/components/search/SearchErrorFallback";
 import { SearchExpressionFeedback } from "~/components/search/SearchExpressionFeedback";
+import {
+  SearchUrlProvider,
+  SearchUrlSync,
+  useSearchUrlOwner,
+} from "~/components/search/search-url-owner";
 import { SearchPageSkeleton } from "./SearchPageSkeleton";
 import { useCheckoutPlanAccess } from "~/hooks/use-checkout-plan-access";
 import {
@@ -46,16 +50,14 @@ interface SearchAccessShellProps {
     vinPatternIndexReady: boolean;
     booleanOrSearchReady: boolean;
     newestSortReady: boolean;
-    /**
-     * Writes a URL built for the current search now, as the router would
-     * after InstantSearch's deferred write. The router then skips that write
-     * and does not replay the URL as a navigation.
-     */
-    writeRoute(url: string): void;
   }): ReactNode;
 }
 
-function ConsumeSearchHydration() {
+function ConsumeSearchHydration({
+  searchesOnMount,
+}: {
+  searchesOnMount(hydrated: boolean): boolean;
+}) {
   const search = useInstantSearchContext();
   useEffect(() => {
     // InstantSearchNext 1.x keeps SSR results in this window slot after hydration.
@@ -69,7 +71,12 @@ function ConsumeSearchHydration() {
     // Cache the hydrated page with the mounted widgets' complete parameters.
     // This render avoids repeating the server search just to prime pagination.
     if (hydrated) search.scheduleRender();
-  }, [search]);
+    // Without server results, InstantSearchNext holds the first search until
+    // its own effect after this one re-enables searching, so ask once the
+    // commit's effects have run.
+    if (searchesOnMount(hydrated))
+      queueMicrotask(() => search.scheduleSearch());
+  }, [search, searchesOnMount]);
   return null;
 }
 
@@ -183,24 +190,19 @@ function BrowserSearchShell({
     canUseAdvancedFilters,
     makeAliasesReady,
   );
-  const routingOptions = {
-    vinPatternIndexReady,
-    booleanOrSearchReady,
-    canUseAdvancedFilters,
-    newestSortReady,
+  // Outside the keyed InstantSearch, so a capability or plan remount keeps
+  // the URL state and starts from it.
+  const searchUrl = useSearchUrlOwner({
+    policy: { vinPatternIndexReady, canUseAdvancedFilters, newestSortReady },
     knownYardNames: knownYardNames ?? [],
-  };
-  const routingKey = SearchAccessRouting.key(routingOptions);
-  // Each keyed InstantSearch instance must own its router's lifecycle state.
-  // The key holds every option, so rebuilding only when it changes is safe.
-  const routing = useMemo(
-    () => SearchAccessRouting.create(routingOptions),
-    [routingKey],
-  );
-
-  useEffect(() => {
-    routing.onUrlChange(window.location.href);
-  }, [routing, searchParams]);
+    routedOptions: JSON.stringify([
+      vinPatternIndexReady,
+      booleanOrSearchReady,
+      canUseAdvancedFilters,
+      newestSortReady,
+      knownYardNames ?? [],
+    ]),
+  });
 
   // Before hydration, the same page a crawler gets.
   if (serverSearch === "skip" && !hydrated) return <PendingSearch />;
@@ -235,22 +237,25 @@ function BrowserSearchShell({
   return (
     <HiddenSourcesProvider hidden={hidden}>
       <InstantSearchNext
-        key={`hidden:${hiddenKey}-${vinPatternIndexReady ? "vin-ready" : "vin-disabled"}-${booleanOrSearchReady ? "boolean-ready" : "boolean-disabled"}-${canUseAdvancedFilters ? "filters-enabled" : "filters-disabled"}-${newestSortReady ? "newest-ready" : "newest-disabled"}-${makeAliasesReady ? "make-aliases-ready" : "make-aliases-disabled"}-${routingKey}`}
+        key={`hidden:${hiddenKey}-${vinPatternIndexReady ? "vin-ready" : "vin-disabled"}-${booleanOrSearchReady ? "boolean-ready" : "boolean-disabled"}-${canUseAdvancedFilters ? "filters-enabled" : "filters-disabled"}-${newestSortReady ? "newest-ready" : "newest-disabled"}-${makeAliasesReady ? "make-aliases-ready" : "make-aliases-disabled"}`}
         searchClient={searchClient}
         indexName={ALGOLIA_INDEX_NAME}
-        routing={routing}
+        initialUiState={searchUrl.initialUiState}
+        onStateChange={searchUrl.onStateChange}
         future={INSTANT_SEARCH_FUTURE}
       >
-        <ConsumeSearchHydration />
-        <ErrorBoundary fallback={SearchErrorFallback}>
-          {children({
-            planAccess,
-            vinPatternIndexReady,
-            booleanOrSearchReady,
-            newestSortReady,
-            writeRoute: routing.router.push,
-          })}
-        </ErrorBoundary>
+        <ConsumeSearchHydration searchesOnMount={searchUrl.searchesOnMount} />
+        <SearchUrlProvider owner={searchUrl.owner}>
+          <ErrorBoundary fallback={SearchErrorFallback}>
+            {children({
+              planAccess,
+              vinPatternIndexReady,
+              booleanOrSearchReady,
+              newestSortReady,
+            })}
+          </ErrorBoundary>
+        </SearchUrlProvider>
+        <SearchUrlSync state={searchUrl.sync} />
       </InstantSearchNext>
     </HiddenSourcesProvider>
   );

@@ -2,6 +2,8 @@ import {
   createLoader,
   createParser,
   createSerializer,
+  type inferParserType,
+  type Nullable,
   parseAsFloat,
   parseAsInteger,
   parseAsNativeArrayOf,
@@ -97,44 +99,21 @@ const LEGACY_KEYS = {
 const serialize = createSerializer(parsers, { urlKeys });
 const load = createLoader(parsers, { urlKeys });
 
-/**
- * The one writer of search URLs. The router and links that open a search
- * (such as saved searches) must agree byte for byte, or the router rewrites
- * the URL after navigation. `locked` supplies raw facet params to keep for a
- * viewer who cannot edit them; a facet in `url.facets` replaces them.
- */
-function format(
-  pathname: string,
+/** Every key's value as nuqs reads it from a /search URL. */
+export type SearchUrlValues = inferParserType<typeof parsers>;
+/** Keys a write sets; a missing key is left as the URL has it. */
+export type SearchUrlWrite = Partial<Nullable<SearchUrlValues>>;
+
+/** The keys nuqs writes for `url`, with every facet in `locked` left out. */
+function writeValues(
   url: SearchUrl,
-  locked?: URLSearchParams,
-): string {
+  locked: readonly SearchUrlFacet[] = [],
+): SearchUrlWrite {
   const q = url.query || null;
   const syntax = q && url.expression ? "expression" : null;
-  const facets: Partial<
-    Record<SearchUrlFacet | (typeof LEGACY_KEYS)[SearchUrlFacet], string[]>
-  > = {};
-  for (const key of FACET_KEYS) {
-    const edited = url.facets?.[key];
-    facets[key] = edited
-      ? edited.filter(Boolean)
-      : (locked?.getAll(`${key}[]`) ?? []);
-    facets[LEGACY_KEYS[key]] = edited ? [] : (locked?.getAll(key) ?? []);
-  }
-  // Only a non-default yard scope is written. `all` stays explicit so a reload
-  // cannot reapply the self-service default.
-  const yardTypes =
-    url.yardTypes &&
-    !SearchYardSelection.isImplied(
-      new URLSearchParams(serialize({ q, syntax })),
-      url.yardTypes,
-    )
-      ? url.yardTypes.length
-        ? [...url.yardTypes]
-        : ["all"]
-      : null;
-  const search = serialize({
-    ...facets,
+  const values: SearchUrlWrite = {
     arrivalWindow: url.arrivalWindow ? [url.arrivalWindow] : null,
+    legacyArrivalWindow: null,
     lat: url.area?.lat ?? null,
     lng: url.area?.lng ?? null,
     radius: url.radius ?? null,
@@ -142,11 +121,49 @@ function format(
     syntax,
     minYear: url.minYear ?? null,
     maxYear: url.maxYear ?? null,
-    yardTypes,
+    // Only a non-default yard scope is written. `all` stays explicit so a
+    // reload cannot reapply the self-service default.
+    yardTypes:
+      url.yardTypes &&
+      !SearchYardSelection.isImplied(
+        new URLSearchParams(serialize({ q, syntax })),
+        url.yardTypes,
+      )
+        ? url.yardTypes.length
+          ? [...url.yardTypes]
+          : ["all"]
+        : null,
+    legacyYardTypes: null,
     sort: url.sort ?? null,
-  });
-  // nuqs leaves brackets and commas unencoded. Re-encode the way the
-  // InstantSearch router and Next do, so all three write the same bytes.
+  };
+  for (const key of FACET_KEYS) {
+    if (locked.includes(key)) continue;
+    values[key] = url.facets?.[key]?.filter(Boolean) ?? null;
+    values[LEGACY_KEYS[key]] = null;
+  }
+  return values;
+}
+
+/**
+ * The canonical form of a search URL, for links that open a search (such
+ * as saved searches and alert emails) and for comparing two URLs. `locked`
+ * supplies raw facet params to keep for a viewer who cannot edit them; a
+ * facet in `url.facets` replaces them.
+ */
+function format(
+  pathname: string,
+  url: SearchUrl,
+  locked?: URLSearchParams,
+): string {
+  const facets: SearchUrlWrite = {};
+  for (const key of FACET_KEYS) {
+    if (url.facets?.[key] || !locked) continue;
+    facets[key] = locked.getAll(`${key}[]`);
+    facets[LEGACY_KEYS[key]] = locked.getAll(key);
+  }
+  const search = serialize({ ...writeValues(url), ...facets });
+  // nuqs leaves brackets and commas unencoded. Re-encode them the way
+  // links have always written them.
   const queryString = new URLSearchParams(search).toString();
   return queryString ? `${pathname}?${queryString}` : pathname;
 }
@@ -159,7 +176,27 @@ function parse(
   params: URLSearchParams,
   knownYardNames: readonly string[] = [],
 ): SearchUrl {
-  const loaded = load(params);
+  return fromValues(load(params), knownYardNames, params);
+}
+
+/** `values` once nuqs applies `write` to them. */
+function merge(
+  values: SearchUrlValues,
+  write: SearchUrlWrite,
+): SearchUrlValues {
+  return load(
+    new URLSearchParams(
+      serialize(new URLSearchParams(serialize(values)), write),
+    ),
+  );
+}
+
+/** Reads the values nuqs holds for a /search URL, as `parse` reads the URL. */
+function fromValues(
+  loaded: SearchUrlValues,
+  knownYardNames: readonly string[] = [],
+  params = new URLSearchParams(serialize(loaded)),
+): SearchUrl {
   const url: SearchUrl = {};
   const arrivalWindow = ArrivalWindow.parse(
     loaded.arrivalWindow[0] ??
@@ -202,4 +239,8 @@ export const SearchUrl = {
   urlKeys,
   format,
   parse,
+  fromValues,
+  writeValues,
+  merge,
+  load,
 } as const;
