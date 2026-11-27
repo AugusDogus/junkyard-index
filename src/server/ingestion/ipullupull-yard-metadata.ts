@@ -6,7 +6,12 @@ import {
   stripInventoryRawText,
 } from "./inventory-html";
 import {
-  fetchProviderText,
+  IPULLUPULL_RETRY,
+  IPullUPullRateLimited,
+  rejectIPullUPullRateLimit,
+} from "./ipullupull-client";
+import {
+  fetchProviderResponse,
   type ProviderRequestGate,
 } from "./provider-http-client";
 
@@ -186,12 +191,17 @@ export function parseIPullUPullYard(
   return null;
 }
 
-function fetchMetadata(url: string, requestGate: ProviderRequestGate) {
-  return fetchProviderText({
+/** A 429 fails as `IPullUPullRateLimited` without a retry, like the catalog. */
+function fetchMetadata(
+  url: string,
+  requestGate: ProviderRequestGate,
+): Effect.Effect<string, Error | IPullUPullRateLimited> {
+  const context = `iPull-uPull yard metadata ${url}`;
+  return fetchProviderResponse({
     url,
-    context: `iPull-uPull yard metadata ${url}`,
+    context,
     requestGate,
-    retry: { retryLimit: 2, retryNetworkErrors: false, jitter: false },
+    retry: IPULLUPULL_RETRY,
     onResponse: (response) => {
       if (
         response.status === 206 ||
@@ -202,17 +212,31 @@ function fetchMetadata(url: string, requestGate: ProviderRequestGate) {
           `Partial or paginated yard metadata from ${url}; retry the complete page.`,
         );
     },
-  });
+  }).pipe(
+    Effect.flatMap(rejectIPullUPullRateLimit(context)),
+    Effect.flatMap((response) =>
+      response.ok
+        ? Effect.tryPromise({
+            try: () => response.text(),
+            catch: (cause) =>
+              new Error(
+                `${context} returned an unreadable body: ${String(cause)}`,
+              ),
+          })
+        : Effect.fail(new Error(`${context} returned HTTP ${response.status}`)),
+    ),
+  );
 }
 
 export function loadIPullUPullDirectory(requestGate: ProviderRequestGate) {
   return fetchMetadata(DIRECTORY_URL, requestGate).pipe(
     Effect.flatMap((html) => Effect.try(() => parseIPullUPullDirectory(html))),
-    Effect.mapError(
-      (cause) =>
-        new Error(
-          `iPull-uPull directory eligibility could not be verified: ${cause.message}. Inspect the public locations page before retrying; no catalog was accepted.`,
-        ),
+    Effect.mapError((cause): Error | IPullUPullRateLimited =>
+      cause instanceof IPullUPullRateLimited
+        ? cause
+        : new Error(
+            `iPull-uPull directory eligibility could not be verified: ${cause.message}. Inspect the public locations page before retrying; no catalog was accepted.`,
+          ),
     ),
   );
 }
@@ -229,6 +253,9 @@ export function loadIPullUPullYards(
       const url = directory.get(city);
       if (!url) continue;
       const page = yield* Effect.either(fetchMetadata(url.href, requestGate));
+      // A rate limit is not one yard's outage: the caller defers the chunk.
+      if (Either.isLeft(page) && page.left instanceof IPullUPullRateLimited)
+        return yield* Effect.fail(page.left);
       if (Either.isLeft(page)) {
         warnings.push(
           `iPull-uPull ${city} metadata unavailable: ${page.left.message}. Retry this yard page; observed VINs preserve prior inventory.`,

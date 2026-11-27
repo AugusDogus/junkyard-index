@@ -202,6 +202,14 @@ const mediaPageNumber = (url: URL) =>
 
 test.each([
   {
+    label: "locations directory",
+    matches: (url: URL) => url.href === "https://ipullupull.com/locations/",
+  },
+  {
+    label: "yard page",
+    matches: (url: URL) => url.pathname === "/locations/fresno-ca/",
+  },
+  {
     label: "CSV export",
     matches: (url: URL) => url.href === IPULLUPULL_EXPORT_URL,
   },

@@ -34,7 +34,8 @@ malformed media, or missing emitted-vehicle coverage abort before callbacks;
 retry from cursor `0`. Explicit empty galleries retain null images with warnings.
 
 HTTP 429 is never retried inside a run (502/503/504 keep two quick retries). A 429
-on the CSV export or the first media page defers the chunk: nothing is emitted, and
+on the locations directory, a yard page, the CSV export or the first media page
+defers the chunk: nothing is emitted, and
 the run retries cursor `0` after 5 minutes or the origin's `Retry-After`, whichever
 is longer, for up to 45 minutes without progress before the next scheduled attempt.
 A 429 after at least one complete media page ends the sweep and publishes the CSV

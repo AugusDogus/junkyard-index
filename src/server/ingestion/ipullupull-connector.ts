@@ -87,7 +87,11 @@ export function streamIPullUPullInventoryWithRequestGate<E, R>(
       },
     };
     if (cursor === 1) return result;
-    const directory = yield* loadIPullUPullDirectory(requestGate);
+    const directory = yield* loadIPullUPullDirectory(requestGate).pipe(
+      Effect.catchTag("IPullUPullRateLimited", (limit) =>
+        Effect.fail(deferRateLimited(limit)),
+      ),
+    );
     const records = yield* fetchIPullUPullCatalog(requestGate).pipe(
       Effect.catchTag("IPullUPullRateLimited", (limit) =>
         Effect.fail(deferRateLimited(limit)),
@@ -161,7 +165,15 @@ export function streamIPullUPullInventoryWithRequestGate<E, R>(
     const cities = new Set(
       accepted.map((record) => record["Yard City"].trim().toUpperCase()),
     );
-    const metadata = yield* loadIPullUPullYards(cities, directory, requestGate);
+    const metadata = yield* loadIPullUPullYards(
+      cities,
+      directory,
+      requestGate,
+    ).pipe(
+      Effect.catchTag("IPullUPullRateLimited", (limit) =>
+        Effect.fail(deferRateLimited(limit)),
+      ),
+    );
     const catalog = yield* fetchIPullUPullMedia(requestGate);
     if (catalog.status === "rate-limited" && catalog.pagesRead === 0)
       return yield* deferRateLimited(catalog.limit);
