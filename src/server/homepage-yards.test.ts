@@ -187,6 +187,7 @@ test("dormant candidates are yards hidden only by the 7-day hide and yards whose
       "0007_yard_metadata.sql",
       "0016_yard_inventory.sql",
       "0021_yard_publication.sql",
+      "0030_source_control.sql",
       "0036_departed_yard.sql",
     ]) {
       if (migration === "0016_yard_inventory.sql")
@@ -203,7 +204,7 @@ test("dormant candidates are yards hidden only by the 7-day hide and yards whose
         readFileSync(
           new URL(`../../drizzle/${migration}`, import.meta.url),
           "utf8",
-        ),
+        ).replaceAll("--> statement-breakpoint", ""),
       );
     }
     await client.executeMultiple(`
@@ -223,11 +224,11 @@ test("dormant candidates are yards hidden only by the 7-day hide and yards whose
       phone: "334-555-0100",
       updatedAt: new Date(),
     });
-    // pyp is past the 7-day hide; meeks is hidden by the owner as well.
+    // pyp is past the 7-day hide; meeks is hidden by the owner as well
+    // (0030_source_control hides it).
     const candidates = await getDormantYardCandidates(
       db,
       HiddenSources.of(["pyp", "meeks"]),
-      HiddenSources.of(["meeks"]),
     );
     expect(
       candidates.map(({ source, code, dormant, vehicleCount }) => ({

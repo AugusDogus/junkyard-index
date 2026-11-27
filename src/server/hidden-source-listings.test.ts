@@ -43,6 +43,7 @@ function run(steps: string): unknown {
       loadHiddenSources: async () => HiddenSources.of(globalThis.hidden),
     }));
     mock.module("~/server/homepage-yards", () => ({
+      getDormantYardCandidates: async () => [],
       getHomepageYards: async (_db, list) => {
         const listed = globalThis.yards
           .filter((yard) => shown(yard.source, list.list))
