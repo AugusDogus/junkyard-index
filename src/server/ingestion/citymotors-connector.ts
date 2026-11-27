@@ -17,10 +17,13 @@ import {
 import {
   CitymotorsCursor,
   CitymotorsCursorSchema,
+  citymotorsCensus,
+  citymotorsCensusPlan,
+  citymotorsPublishedRecords,
   type CitymotorsProgress,
 } from "./citymotors-cursor";
+import { ModelCensus } from "./model-census";
 import {
-  citymotorsCatalogHash,
   parseCitymotorsCatalog,
   parseCitymotorsDetail,
 } from "./citymotors-parser";
@@ -46,7 +49,12 @@ import type { ProviderRequestGate } from "./provider-http-client";
 
 interface CitymotorsOptions<E, R> {
   startCursor?: CitymotorsCursor;
-  /** One unit is one serial native catalog, donor detail or closing GET. */
+  /** Terminal cursor of the last accepted, published run; read only when the
+   * start cursor has not begun a census yet. */
+  previousCursor?: unknown;
+  now?: () => number;
+  /** One unit is one serial native catalog, donor detail or closing GET. A
+   * carried donor costs none. */
   maxPages?: number;
   onBatch: (
     vehicles: CitymotorsCanonicalVehicle[],
@@ -101,6 +109,7 @@ function nextUrl(cursor: CitymotorsProgress): string {
   if (cursor.phase === "catalog")
     return cursor.pages.at(-1)?.next ?? CITYMOTORS_CATALOG;
   if (cursor.phase === "details") {
+    // The checkpoint guarantees this donor is due for a read.
     const post = cursor.pages.flatMap((page) => page.posts)[
       cursor.records.length
     ];
@@ -116,20 +125,41 @@ function advance(cursor: CitymotorsProgress, raw: string): CitymotorsProgress {
     case "catalog": {
       const page = parseCitymotorsCatalog(raw, nextUrl(cursor));
       const pages = [...cursor.pages, page];
+      if (page.next !== null)
+        return CitymotorsCursor.checkpoint({ ...cursor, pages });
+      // Carried donors before the first due read cost no GET.
+      const records = ModelCensus.carriedRun(
+        citymotorsCensusPlan({ ...cursor, pages }),
+        0,
+      );
       return CitymotorsCursor.checkpoint(
-        page.next === null
-          ? { ...cursor, phase: "details", pages, records: [] }
-          : { ...cursor, pages },
+        records.length === pages.flatMap((p) => p.posts).length
+          ? {
+              ...cursor,
+              phase: "closing",
+              pages,
+              records,
+              closing: 0,
+              photoDrift: [],
+            }
+          : { ...cursor, phase: "details", pages, records },
       );
     }
     case "details": {
       const posts = cursor.pages.flatMap((page) => page.posts);
       const post = posts[cursor.records.length];
       if (!post) throw new Error("City Motors native donor context is missing");
-      const records = [...cursor.records, parseCitymotorsDetail(raw, post)];
+      const records = [
+        ...cursor.records,
+        parseCitymotorsDetail(raw, post),
+        ...ModelCensus.carriedRun(
+          citymotorsCensusPlan(cursor),
+          cursor.records.length + 1,
+        ),
+      ];
       return CitymotorsCursor.checkpoint(
         records.length === posts.length
-          ? { ...cursor, phase: "closing", records, closing: 0 }
+          ? { ...cursor, phase: "closing", records, closing: 0, photoDrift: [] }
           : { ...cursor, records },
       );
     }
@@ -139,7 +169,9 @@ function advance(cursor: CitymotorsProgress, raw: string): CitymotorsProgress {
         throw new Error("City Motors native closing context is missing");
       const actual = parseCitymotorsCatalog(raw, expected.url);
       // Required source population/order and literal pagination must remain stable.
-      // Optional photo changes are nullable metadata, never census failures.
+      // Optional photo changes are nullable metadata, never census failures:
+      // the snapshot drops a changed photo, and the census keeps the card as
+      // first read, so the next run reads that donor again.
       const identity = (page: typeof expected) => ({
         page: page.page,
         lastPage: page.lastPage,
@@ -152,32 +184,14 @@ function advance(cursor: CitymotorsProgress, raw: string): CitymotorsProgress {
         throw new Error(
           "City Motors closing catalog changed its ordered donor population or pagination; restart after inspecting native drift",
         );
-      const changed = new Set(
-        expected.posts
-          .filter(
-            (post, index) => post.imageUrl !== actual.posts[index]?.imageUrl,
-          )
-          .map((post) => post.url),
-      );
-      const pages = cursor.pages.map((page, index) => {
-        if (index !== cursor.closing || changed.size === 0) return page;
-        const value = {
-          ...page,
-          posts: page.posts.map((post) =>
-            changed.has(post.url) ? { ...post, imageUrl: null } : post,
-          ),
-        };
-        return { ...value, hash: citymotorsCatalogHash(value) };
-      });
-      const records = cursor.records.map((record) =>
-        changed.has(record.post.url)
-          ? { ...record, post: { ...record.post, imageUrl: null } }
-          : record,
-      );
+      const changed = expected.posts
+        .filter(
+          (post, index) => post.imageUrl !== actual.posts[index]?.imageUrl,
+        )
+        .map((post) => post.url);
       return CitymotorsCursor.checkpoint({
         ...cursor,
-        pages,
-        records,
+        photoDrift: [...cursor.photoDrift, ...changed],
         closing: cursor.closing + 1,
       });
     }
@@ -202,6 +216,16 @@ export function streamCitymotorsInventoryWithRequestGate<E, R>(
         options.startCursor ?? CitymotorsCursor.initial,
       ),
     );
+    const warnings: string[] = [];
+    if (cursor.phase !== "complete") {
+      const pending = cursor;
+      const now = options.now ?? Date.now;
+      const begun = yield* attempt("begin donor census", () =>
+        CitymotorsCursor.begin(pending, now(), options.previousCursor),
+      );
+      cursor = begun.cursor;
+      if (begun.warning) warnings.push(begun.warning);
+    }
     const summary: CitymotorsStreamResult = {
       source: "citymotors",
       status: "paused",
@@ -350,27 +374,41 @@ export function streamCitymotorsInventoryWithRequestGate<E, R>(
       summary.pagesProcessed++;
       if (next.phase === "closing" && next.closing === next.pages.length) {
         const snapshot = yield* attempt("complete native donor census", () => {
-          const result = citymotorsSnapshot(next.records);
+          const result = citymotorsSnapshot(citymotorsPublishedRecords(next));
           validateCitymotorsSnapshot(result);
           return result;
         });
+        // Validated before any callback, so a terminal cursor that cannot be
+        // serialized fails the run before it publishes.
+        const terminal = yield* attempt("close donor census", () =>
+          CitymotorsCursorSchema.parse({
+            source: "citymotors",
+            version: 1,
+            phase: "complete",
+            census: citymotorsCensus(next),
+          }),
+        );
         summary.count = snapshot.vehicles.length;
         summary.accounting = { ...snapshot.accounting };
         summary.observedVins = [...snapshot.observedVins];
-        summary.warnings = snapshot.accounting.recordsRejected
-          ? [
-              "City Motors retained all required identity rejects and their valid VIN presence; optional conflicts remain null.",
-            ]
-          : [];
+        warnings.push(
+          "City Motors donor census: " +
+            ModelCensus.summary(citymotorsCensusPlan(next)),
+        );
+        if (snapshot.accounting.recordsRejected)
+          warnings.push(
+            "City Motors retained all required identity rejects and their valid VIN presence; optional conflicts remain null.",
+          );
         if (options.onYards) yield* options.onYards([{ ...CITYMOTORS_YARD }]);
         yield* options.onBatch(
           snapshot.vehicles.map((vehicle) => ({ ...vehicle })),
         );
-        cursor = { source: "citymotors", version: 1, phase: "complete" };
+        cursor = terminal;
       } else cursor = next;
     }
     return {
       ...summary,
+      warnings,
       cursor,
       status: cursor.phase === "complete" ? "complete" : "paused",
     } satisfies CitymotorsStreamResult;

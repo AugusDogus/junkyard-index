@@ -84,14 +84,17 @@ interface BrowserNavigationResponse {
   request(): BrowserNavigationRequest;
 }
 
-interface InPageRequest {
+export interface InPageRequest {
   readonly url: string;
   readonly accept: string;
   readonly timeoutMs: number;
   readonly maximumBytes: number;
+  /** Global property holding this read's AbortController while it runs, so
+   * `abortInPage` can end it when the client's request ends first. */
+  readonly abortKey: string;
 }
 
-interface InPageDocument {
+export interface InPageDocument {
   readonly status: number;
   readonly url: string;
   readonly redirected: boolean;
@@ -111,6 +114,8 @@ export interface BrowserDocumentPage {
     run: (request: InPageRequest) => Promise<InPageDocument>,
     request: InPageRequest,
   ): Promise<InPageDocument>;
+  /** Runs `run` in the page to end the in-page read registered under `key`. */
+  cancel(run: (key: string) => void, key: string): Promise<void>;
 }
 
 /** How long a browser navigation or in-page fetch may take before the
@@ -196,43 +201,87 @@ async function navigationDocument(
 
 // Serialized into the page. It must not reference module scope.
 async function fetchInPage(request: InPageRequest): Promise<InPageDocument> {
-  const response = await fetch(request.url, {
-    method: "GET",
-    redirect: "manual",
-    cache: "no-store",
-    credentials: "same-origin",
-    headers: { Accept: request.accept },
-    signal: AbortSignal.timeout(request.timeoutMs),
-  });
-  const headers: [string, string][] = [];
-  response.headers.forEach((value, name) => headers.push([name, value]));
-  let body: string | null = null;
-  const reader =
-    response.type === "opaqueredirect" ? undefined : response.body?.getReader();
-  if (reader) {
-    let binary = "";
-    let bytes = 0;
-    try {
-      while (bytes < request.maximumBytes) {
-        const chunk = await reader.read();
-        if (chunk.done) break;
-        const kept = chunk.value.subarray(0, request.maximumBytes - bytes);
-        bytes += kept.byteLength;
-        for (let start = 0; start < kept.length; start += 8192)
-          binary += String.fromCharCode(...kept.subarray(start, start + 8192));
+  // Registered before the first await, so a cancel sent after this read
+  // started always finds it.
+  const controller = new AbortController();
+  Reflect.set(globalThis, request.abortKey, controller);
+  try {
+    const response = await fetch(request.url, {
+      method: "GET",
+      redirect: "manual",
+      cache: "no-store",
+      credentials: "same-origin",
+      headers: { Accept: request.accept },
+      signal: AbortSignal.any([
+        controller.signal,
+        AbortSignal.timeout(request.timeoutMs),
+      ]),
+    });
+    const headers: [string, string][] = [];
+    response.headers.forEach((value, name) => headers.push([name, value]));
+    let body: string | null = null;
+    const reader =
+      response.type === "opaqueredirect"
+        ? undefined
+        : response.body?.getReader();
+    if (reader) {
+      let binary = "";
+      let bytes = 0;
+      try {
+        while (bytes < request.maximumBytes) {
+          const chunk = await reader.read();
+          if (chunk.done) break;
+          const kept = chunk.value.subarray(0, request.maximumBytes - bytes);
+          bytes += kept.byteLength;
+          for (let start = 0; start < kept.length; start += 8192)
+            binary += String.fromCharCode(
+              ...kept.subarray(start, start + 8192),
+            );
+        }
+      } finally {
+        await reader.cancel();
       }
-    } finally {
-      await reader.cancel();
+      body = btoa(binary);
     }
-    body = btoa(binary);
+    return {
+      status: response.status,
+      url: response.url,
+      redirected: response.redirected,
+      headers,
+      body,
+    };
+  } finally {
+    Reflect.deleteProperty(globalThis, request.abortKey);
   }
-  return {
-    status: response.status,
-    url: response.url,
-    redirected: response.redirected,
-    headers,
-    body,
+}
+
+// Serialized into the page. It must not reference module scope.
+function abortInPage(key: string): void {
+  const controller: unknown = Reflect.get(globalThis, key);
+  if (controller instanceof AbortController) controller.abort();
+}
+
+/** Reads `request` by in-page fetch. When `signal` aborts first, the in-page
+ * fetch is aborted too, so the browser does not keep the request open at the
+ * origin until its own timeout while the client already sends it again. */
+async function readInPage(
+  page: BrowserDocumentPage,
+  request: Omit<InPageRequest, "abortKey">,
+  signal: AbortSignal,
+): Promise<InPageDocument> {
+  if (signal.aborted) throw signal.reason;
+  const abortKey = "junkyardInPageRead:" + crypto.randomUUID();
+  // Best effort: a cancel that fails means the page or its session is gone,
+  // which ends the in-page fetch as well; otherwise its own timeout ends it.
+  const cancel = () => {
+    page.cancel(abortInPage, abortKey).catch(() => undefined);
   };
+  signal.addEventListener("abort", cancel, { once: true });
+  try {
+    return await page.evaluate(fetchInPage, { ...request, abortKey });
+  } finally {
+    signal.removeEventListener("abort", cancel);
+  }
 }
 
 /** Request headers other than Accept are left to the browser, which owns
@@ -262,12 +311,16 @@ function browser(
       }
       const current = URL.parse(page.url())?.origin;
       if (mode !== "navigation" && current === target) {
-        const document = await page.evaluate(fetchInPage, {
-          url,
-          accept: init.headers["Accept"] ?? "text/html",
-          timeoutMs: requestTimeoutMs,
-          maximumBytes: IN_PAGE_MAX_BYTES,
-        });
+        const document = await readInPage(
+          page,
+          {
+            url,
+            accept: init.headers["Accept"] ?? "text/html",
+            timeoutMs: requestTimeoutMs,
+            maximumBytes: IN_PAGE_MAX_BYTES,
+          },
+          init.signal,
+        );
         return {
           status: document.status,
           url: document.url,
@@ -358,7 +411,16 @@ export interface BrowserRoute {
   continue(): Promise<void>;
 }
 
-export interface BrowserRoutablePage extends BrowserDocumentPage {
+/** The Playwright page surface `preparePage` wraps: one `evaluate` runs both
+ * of the transport's serialized in-page functions. */
+export interface BrowserRoutablePage {
+  url(): string;
+  goto: BrowserDocumentPage["goto"];
+  evaluate(
+    run: (request: InPageRequest) => Promise<InPageDocument>,
+    request: InPageRequest,
+  ): Promise<InPageDocument>;
+  evaluate(run: (key: string) => void, key: string): Promise<void>;
   route(
     url: string,
     handler: (route: BrowserRoute) => Promise<void>,
@@ -427,6 +489,7 @@ async function preparePage(
         reading.delete(url);
       }
     },
+    cancel: (run, key) => page.evaluate(run, key),
   };
 }
 

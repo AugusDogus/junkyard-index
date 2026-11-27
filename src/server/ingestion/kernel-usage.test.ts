@@ -441,7 +441,7 @@ describe("City Motors Kernel caps", () => {
     expect(
       String(refused instanceof KernelBudgetSpent && refused.message),
     ).toBe(
-      "City Motors has spent $0.15 of its $0.15 daily Kernel cap since 2026-11-25 00:00 UTC (kernel_browser_usage), so no browser was opened; a full day's crawl costs about $0.01 to $0.04, so its chunks are most likely failing and retrying. Its chunks defer, opening no browser, until the cap resets at 2026-11-26 00:00 UTC; a run still deferred after three hours fails and the next scheduled run tries again, and prior inventory is preserved. Read the run's errors in /admin before raising KERNEL_DAILY_BUDGET_USD in kernel-usage.ts.",
+      "City Motors has spent $0.15 of its $0.15 daily Kernel cap since 2026-11-25 00:00 UTC (kernel_browser_usage), so no browser was opened; a full day's crawl costs about $0.01, or about $0.04 for a cold census, so its chunks are most likely failing and retrying. Its chunks defer, opening no browser, until the cap resets at 2026-11-26 00:00 UTC; a run still deferred after three hours fails and the next scheduled run tries again, and prior inventory is preserved. Read the run's errors in /admin before raising KERNEL_DAILY_BUDGET_USD in kernel-usage.ts.",
     );
   });
 });

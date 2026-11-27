@@ -1025,6 +1025,10 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
       await runIngestionEffect(
         streamCitymotorsInventory({
           startCursor: cursor,
+          previousCursor:
+            cursor.phase !== "complete" && cursor.day === null
+              ? await loadPublishedSourceCursor(db, "citymotors")
+              : null,
           maxPages: context.maxPages,
           onBatch: context.onBatch,
           onYards: context.onYards,
