@@ -57,9 +57,9 @@ export const env = createEnv({
     // Search-only key for server renders and alert matching. Never sent to
     // browsers; they get secured keys from /api/search-key.
     ALGOLIA_SEARCH_API_KEY: z.string(),
-    // Search-only parent of browsers' secured keys. Set maxQueriesPerIPPerHour
-    // on it in the Algolia dashboard. Until it is set, browsers receive
-    // ALGOLIA_SEARCH_API_KEY unrestricted.
+    // Search-only parent of browsers' secured keys, with the per-visitor
+    // limits in docs/runbooks/algolia-search-keys.md. Until it is set,
+    // browsers receive ALGOLIA_SEARCH_API_KEY unrestricted.
     ALGOLIA_SEARCH_PARENT_API_KEY: z.string().optional(),
     // The Algolia plan's record cap (free plan: 1,000,000). A full search
     // rebuild copies the live index only when the copy fits under it.
