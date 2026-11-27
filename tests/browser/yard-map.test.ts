@@ -527,3 +527,37 @@ test("on a phone, a card that opens below the fold scrolls into view and is anno
     await closePage(page);
   }
 }, 20_000);
+
+test("markers redraw sharp when the screen's density changes without a resize", async () => {
+  const page = await createPage(browser, {
+    viewport: { width: 1280, height: 900 },
+    deviceScaleFactor: 1,
+  });
+  try {
+    page.setDefaultTimeout(5_000);
+    await serveFixture(page, Promise.resolve());
+    await page.goto("http://yard-map.test/");
+    await page.locator(".yard-map-dots").waitFor({ state: "detached" });
+    const density = () =>
+      page.evaluate(() => {
+        const canvas =
+          document.querySelector<HTMLCanvasElement>(".yard-map-markers");
+        if (!canvas) throw new Error("The marker canvas is missing.");
+        return canvas.width / canvas.getBoundingClientRect().width;
+      });
+    expect(await density()).toBe(1);
+    // As when the window moves to a 2x screen: the same CSS size.
+    const session = await page.context().newCDPSession(page);
+    await session.send("Emulation.setDeviceMetricsOverride", {
+      width: 1280,
+      height: 900,
+      deviceScaleFactor: 2,
+      mobile: false,
+    });
+    await page.waitForFunction(() => devicePixelRatio === 2);
+    await page.waitForTimeout(300);
+    expect(await density()).toBe(2);
+  } finally {
+    await closePage(page);
+  }
+}, 20_000);
