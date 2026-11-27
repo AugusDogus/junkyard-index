@@ -62,9 +62,13 @@ export function YardMapMarkerCanvas({
     [sizer, sizeZoom],
   );
 
-  /** Draws the current view; false when there is nothing to draw on yet. */
-  const draw = useRef<(now: number) => boolean>(() => false);
-  draw.current = (now) => {
+  /**
+   * Draws the current view; false when there is nothing to draw on yet.
+   * Every draw reads `performance.now()`: a frame's own timestamp can
+   * precede a draw made earlier in a busy frame, which stepped tweens back.
+   */
+  const draw = useRef<() => boolean>(() => false);
+  draw.current = () => {
     frame.current = null;
     const canvas = canvasRef.current;
     const context = canvas?.getContext("2d");
@@ -94,41 +98,51 @@ export function YardMapMarkerCanvas({
         density,
         reduceMotion: window.matchMedia("(prefers-reduced-motion: reduce)")
           .matches,
-        now,
+        now: performance.now(),
       },
       readColors(canvas, colors),
       tweens.current,
     );
     if (animating) {
-      frame.current = window.requestAnimationFrame((time) =>
-        draw.current(time),
-      );
+      frame.current = window.requestAnimationFrame(() => draw.current());
     }
     return true;
   };
 
   const schedule = () => {
     if (frame.current !== null) window.cancelAnimationFrame(frame.current);
-    frame.current = window.requestAnimationFrame((time) => {
-      if (draw.current(time)) onDrawn();
+    frame.current = window.requestAnimationFrame(() => {
+      if (draw.current()) onDrawn();
     });
   };
 
   // Pigeon renders this on every frame of a gesture; draw before paint. The
-  // first draw waits for the map's real size and then a frame, so reading
-  // the theme's colors does not force a style pass during hydration; the
-  // pins' own markers show until then.
+  // first draw comes from the observer below; the pins' own markers show
+  // until then.
   useLayoutEffect(() => {
-    if (!measured) return;
-    if (!colors.current) {
-      schedule();
-      return;
-    }
+    if (!measured || !colors.current) return;
     if (frame.current !== null) window.cancelAnimationFrame(frame.current);
-    draw.current(performance.now());
+    draw.current();
   });
 
-  // The theme switches by a class on <html>; redraw in its colors.
+  // The first draw waits for the map's real size, then runs once that
+  // frame's layout is done, so reading the theme's colors forces no style
+  // pass during hydration.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!measured || !canvas) return;
+    const observer = new ResizeObserver(() => {
+      if (!draw.current()) return;
+      observer.disconnect();
+      onDrawn();
+    });
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, [measured, onDrawn]);
+
+  // The theme switches by a class on <html>; redraw in its colors. Moving
+  // the window to a screen of another density changes no size; redraw at
+  // its density.
   useEffect(() => {
     const observer = new MutationObserver(() => {
       if (colors.current) schedule();
@@ -137,8 +151,21 @@ export function YardMapMarkerCanvas({
       attributes: true,
       attributeFilter: ["class"],
     });
+    let density: MediaQueryList | null = null;
+    const onDensity = () => {
+      if (colors.current) schedule();
+      watchDensity();
+    };
+    const watchDensity = () => {
+      density = window.matchMedia(
+        `(resolution: ${window.devicePixelRatio}dppx)`,
+      );
+      density.addEventListener("change", onDensity, { once: true });
+    };
+    watchDensity();
     return () => {
       observer.disconnect();
+      density?.removeEventListener("change", onDensity);
       if (frame.current !== null) window.cancelAnimationFrame(frame.current);
     };
     // `schedule` reads the latest draw through refs.
