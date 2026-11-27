@@ -1681,3 +1681,63 @@ test("a saved search opened while searching updates the search, and Back restore
     await closePage(page);
   }
 }, 30_000);
+
+// A Next Link to a URL with the same search (here, dropping a campaign tag)
+// ends that navigation without a search change; later refines still write.
+test("refines after a link to the same search still write the URL", async () => {
+  const { page } = await open(
+    `utm_source=newsletter&fixtureLinkTo=${encodeURIComponent("/search")}`,
+  );
+  try {
+    await page.getByRole("link", { name: "Fixture link", exact: true }).click();
+    await page.waitForFunction(() => location.search === "");
+    const length = await page.evaluate(() => history.length);
+    const sort = await searchCallsDuring(page, () =>
+      pickSort(page, "Oldest First"),
+    );
+    expect(sort.calls).toBe(1);
+    expect(new URL(page.url()).searchParams.get("sort")).toBe("oldest");
+    expect(await page.evaluate(() => history.length)).toBe(length + 1);
+    await openFilterPanel(page);
+    await page
+      .getByRole("button", { name: "Last 24 hours", exact: true })
+      .click();
+    await page.waitForFunction(() =>
+      new URLSearchParams(location.search).has("arrivalWindow[]"),
+    );
+    expect(new URL(page.url()).searchParams.getAll("arrivalWindow[]")).toEqual([
+      "24h",
+    ]);
+    expect(new URL(page.url()).searchParams.get("sort")).toBe("oldest");
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
+
+// The server renders the new page with its own clock, which the window
+// filter reads; the search must not run the old window with it.
+test("a link that drops the window searches once, without the window", async () => {
+  const { page } = await open(
+    `q=saab&arrivalWindow%5B%5D=7d&fixtureLinkTo=${encodeURIComponent("/search?q=saab")}`,
+  );
+  try {
+    const link = await searchCallsDuring(page, async () => {
+      // Later than the server render, so its clock differs.
+      await page.waitForTimeout(1100);
+      await page
+        .getByRole("link", { name: "Fixture link", exact: true })
+        .click();
+    });
+    expect(new URL(page.url()).searchParams.toString()).toBe("q=saab");
+    expect(link.calls).toBe(1);
+    const filters = await page.evaluate(() => {
+      const log: unknown = JSON.parse(
+        document.documentElement.dataset.searchQueryLog ?? "[]",
+      );
+      return Array.isArray(log) ? JSON.stringify(log) : "";
+    });
+    expect(filters).not.toContain("availableDateTs");
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
