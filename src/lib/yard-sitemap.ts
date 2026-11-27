@@ -1,3 +1,4 @@
+import type { DormantYard } from "./dormant-yard";
 import type { YardMakeInventory } from "./yard-make-inventory";
 import { YardPath } from "./yard-path";
 
@@ -66,6 +67,20 @@ export const YardSitemap = {
         entry(baseUrl, yard.path.href, newest([yard], publications)),
       ),
     ];
+  },
+
+  /**
+   * Yard first pages that stay up while their yard shows no vehicles (see
+   * DormantYard), dated from when it stopped showing them. Their make pages
+   * are noindexed, so they stay out of the makes sitemap.
+   */
+  dormant(
+    baseUrl: string,
+    yards: readonly (Yard & { dormant: DormantYard })[],
+  ): SitemapEntry[] {
+    return yards.map((yard) =>
+      entry(baseUrl, yard.path.href, yard.dormant.since),
+    );
   },
 
   makes(

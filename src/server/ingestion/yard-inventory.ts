@@ -1,5 +1,8 @@
 import type { InStatement } from "@libsql/client";
+import { DORMANT_YARD_DAYS } from "~/lib/dormant-yard";
 import { stateRecentArrivalRefreshStatements } from "./state-recent-arrival";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const columns = `source, location_code, location_name, location_city, state_abbr,
   lat, lng, vehicle_count, inventory_url, updated_at`;
@@ -32,9 +35,16 @@ export function yardInventoryInsertSql(sourceFilter: string) {
   `;
 }
 
+const noLiveVehicle = `not exists (select 1 from vehicle indexed by vehicle_yard_live_idx
+  where vehicle.source = yard_inventory.source
+    and vehicle.location_code = yard_inventory.location_code
+    and vehicle.missing_since_at is null)`;
+
 /**
  * Rebuild summaries without changing their last accepted publication. Each
  * source's recent arrivals, which state pages count, rebuild with them.
+ * A yard left with no live vehicle moves to `departed_yard`, which keeps
+ * its page for DORMANT_YARD_DAYS, and leaves it once it has one again.
  */
 export function yardInventoryRefreshStatements(
   sources: readonly string[],
@@ -46,16 +56,32 @@ export function yardInventoryRefreshStatements(
   return [
     ...stateRecentArrivalRefreshStatements(unique, now),
     {
+      // A yard already recorded keeps the date it first departed.
+      sql: `insert into departed_yard (source, location_code, location_name,
+          location_city, state_abbr, lat, lng, inventory_url, departed_at)
+        select source, location_code, location_name, location_city,
+          state_abbr, lat, lng, inventory_url, ?
+        from yard_inventory where source in (${placeholders})
+          and ${noLiveVehicle}
+        on conflict(source, location_code) do nothing`,
+      args: [now, ...unique],
+    },
+    {
       sql: `delete from yard_inventory where source in (${placeholders})
-        and not exists (select 1 from vehicle indexed by vehicle_yard_live_idx
-          where vehicle.source = yard_inventory.source
-            and vehicle.location_code = yard_inventory.location_code
-            and vehicle.missing_since_at is null)`,
+        and ${noLiveVehicle}`,
       args: unique,
     },
     {
       sql: yardInventoryInsertSql(`and source in (${placeholders})`),
       args: [now, ...unique],
+    },
+    {
+      sql: `delete from departed_yard where departed_at < ?
+        or (source in (${placeholders}) and exists (
+          select 1 from yard_inventory
+          where yard_inventory.source = departed_yard.source
+            and yard_inventory.location_code = departed_yard.location_code))`,
+      args: [now - DORMANT_YARD_DAYS * DAY_MS, ...unique],
     },
   ];
 }

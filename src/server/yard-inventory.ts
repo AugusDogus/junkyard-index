@@ -28,12 +28,17 @@ import {
 } from "~/lib/yard-inventory";
 import { getSourceFreshness } from "~/server/ingestion/source-freshness";
 import { loadSourcePublishedAt as loadOneSourcePublishedAt } from "~/server/ingestion/durable-health";
-import { getHomepageYards } from "~/server/homepage-yards";
+import {
+  getDormantYardCandidates,
+  getHomepageYards,
+} from "~/server/homepage-yards";
 import { StateNewArrivals } from "~/server/state-new-arrivals";
 import { cacheShownInventory } from "~/server/source-control/hidden-sources-loader";
 import { and, eq } from "drizzle-orm";
 import { yardCheck, yardInventory } from "~/schema";
 import { YardCheck } from "~/lib/yard-check";
+import { DormantYard } from "~/lib/dormant-yard";
+import { SourceControlRepository } from "~/server/source-control/source-control-repository";
 import { YardSummaryStore } from "./yard-summary-store";
 import { YardVehicles } from "./yard-vehicles";
 
@@ -402,6 +407,28 @@ export const findRegionYards = cache(async (regionSlug: string) => {
   return yards.length > 0 ? { region, yards } : null;
 });
 
+/** A yard that shows no vehicles but keeps its page (see DormantYard). */
+export type DormantRoutedYard = RoutedYard & { dormant: DormantYard };
+
+/**
+ * Every yard that keeps a page while it shows no vehicles, with its path:
+ * one small entry for the whole site, read by yard pages that resolve a URL
+ * no listed yard has, and by the sitemap. A miss reads the directory query
+ * (about 800 rows), the owner's hidden sources and the dormant candidates
+ * (usually a handful of rows).
+ */
+export const getDormantYards = cacheShownInventory(
+  async (hidden): Promise<DormantRoutedYard[]> => {
+    const [listed, ownerHidden] = await Promise.all([
+      getHomepageYards(db, hidden),
+      SourceControlRepository.hiddenSources(db),
+    ]);
+    const candidates = await getDormantYardCandidates(db, hidden, ownerHidden);
+    return DormantYard.pages(listed, candidates, Date.now());
+  },
+  ["dormant-yards-v1", ...RETIRED_INGESTION_SOURCES],
+);
+
 const NEARBY_YARDS = 6;
 
 /** A yard of a source, as the yard's cache entries are keyed. */
@@ -418,14 +445,17 @@ const getRegionYardRoutes = cacheShownInventory(
     regionSlug: string,
   ): Promise<Readonly<Record<string, YardKey>>> =>
     Object.fromEntries(
-      routedYards(await getHomepageYards(db, hidden))
+      [
+        ...routedYards(await getHomepageYards(db, hidden)),
+        ...(await getDormantYards()),
+      ]
         .filter((yard) => yard.path.region.slug === regionSlug)
         .map((yard) => [
           yard.path.slug,
           { source: yard.source, code: yard.code },
         ]),
     ),
-  ["yard-routes-v1", ...RETIRED_INGESTION_SOURCES],
+  ["yard-routes-v2", ...RETIRED_INGESTION_SOURCES],
 );
 
 /** What a yard's pages show around its vehicles. */
@@ -436,6 +466,8 @@ type YardContext = {
   checkUnknown: boolean;
   nearby: { yard: RoutedYard; miles: number }[];
   chain: { name: string; href: string; yards: number } | null;
+  /** Why the yard shows no vehicles, or null when it is listed. */
+  dormant: DormantYard | null;
 };
 
 /**
@@ -462,9 +494,13 @@ const getYardContext = cacheShownInventory(
         ),
     ]);
     const routed = routedYards(directory);
-    const yard = routed.find(
-      (candidate) => candidate.source === source && candidate.code === code,
-    );
+    const isThisYard = (candidate: { source: string; code: string }) =>
+      candidate.source === source && candidate.code === code;
+    const listed = routed.find(isThisYard);
+    const dormantYard = listed
+      ? null
+      : (await getDormantYards()).find(isThisYard);
+    const yard = listed ?? dormantYard;
     if (!yard) return null;
     // As getInventoryCheckDates would give for this yard and its source.
     const checkDates: InventoryCheckDates = {
@@ -476,8 +512,12 @@ const getYardContext = cacheShownInventory(
           : {},
       yards: YardCheck.checkDates(checks),
     };
+    // A dormant yard is in no chain's list; it links its brand's chain.
+    const brand = YardBrand.of(yard)?.slug;
     const chain = YardBrand.chains(routed).find((candidate) =>
-      candidate.yards.some((member) => member.path.href === yard.path.href),
+      listed
+        ? candidate.yards.some((member) => member.path.href === yard.path.href)
+        : candidate.slug === brand,
     );
     const key = `${yard.source}:${yard.code}`;
     return {
@@ -500,16 +540,24 @@ const getYardContext = cacheShownInventory(
       chain: chain
         ? { name: chain.name, href: chain.href, yards: chain.yards.length }
         : null,
+      dormant: dormantYard?.dormant ?? null,
     };
   },
-  ["yard-context-v1", ...RETIRED_INGESTION_SOURCES],
+  ["yard-context-v2", ...RETIRED_INGESTION_SOURCES],
 );
+
+/** The summary of a yard that shows no vehicles. */
+const NO_VEHICLES: YardSummary = YardInventory.summary([], []);
 
 /**
  * Everything a yard's inventory pages show, or null when no yard lives at
  * /junkyards/{regionSlug}/{yardSlug}. Reads three small entries (the
  * region's routes, the yard's context and its summary), so a page render
  * stays a few cache read units however many yards the site lists.
+ *
+ * A dormant yard shows no vehicles. `heldMakes` are the make keys of the
+ * vehicles an unconfirmed yard's hidden source still holds, whose make
+ * pages stay up, noindexed, until its inventory returns; none otherwise.
  */
 export const getYardPageData = cache(
   async (regionSlug: string, yardSlug: string) => {
@@ -523,6 +571,15 @@ export const getYardPageData = cache(
       getYardContext(target.source, target.code),
       getYardSummary(target.source, target.code),
     ]);
-    return context ? { ...context, summary } : null;
+    if (!context) return null;
+    if (!context.dormant) return { ...context, summary, heldMakes: [] };
+    return {
+      ...context,
+      summary: NO_VEHICLES,
+      heldMakes:
+        context.dormant.kind === "unconfirmed"
+          ? summary.makes.map((make) => make.key)
+          : [],
+    };
   },
 );

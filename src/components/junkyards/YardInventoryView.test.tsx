@@ -114,6 +114,7 @@ function props(vehicles: YardVehicle[]): Props {
     chain: null,
     filter: null,
     hiddenSources: HiddenSources.none,
+    dormant: null,
   };
 }
 
@@ -230,5 +231,49 @@ describe("YardInventoryView staleness", () => {
     );
     expect(html).not.toContain("Last checked");
     expect(html).toContain("Update time unknown");
+  });
+});
+
+describe("YardInventoryView dormant yards", () => {
+  const plain = (html: string) => text(html).replaceAll("&#x27;", "'");
+  const empty = { page: 1, pageCount: 1, firstIndex: 0, vehicles: [] };
+  const dormantProps = (dormant: Props["dormant"]): Props => ({
+    ...props([]),
+    inventory: empty,
+    total: 0,
+    makes: [],
+    publishedAt: "2026-11-01T12:00:00.000Z",
+    checkedAt: "2026-11-01T12:00:00.000Z",
+    dormant,
+  });
+
+  test("says inventory could not be confirmed since the yard's last check instead of counting 0 vehicles", async () => {
+    const html = plain(
+      await render(
+        dormantProps({
+          kind: "unconfirmed",
+          since: "2026-11-01T12:00:00.000Z",
+        }),
+      ),
+    );
+    expect(html).toContain(
+      "We couldn't confirm this yard's inventory after Nov 1, 2026, so none is shown.",
+    );
+    expect(html).not.toContain("0 vehicles");
+    expect(html).not.toContain("lists no vehicles");
+    // No listing to warn about: the sentence above dates the last check.
+    expect(html).not.toContain("some listings may be gone");
+  });
+
+  test("says the yard has listed no vehicles since its last one left", async () => {
+    const html = plain(
+      await render(
+        dormantProps({ kind: "emptied", since: "2026-11-01T12:00:00.000Z" }),
+      ),
+    );
+    expect(html).toContain(
+      "The yard has listed no vehicles since Nov 1, 2026.",
+    );
+    expect(html).not.toContain("0 vehicles");
   });
 });

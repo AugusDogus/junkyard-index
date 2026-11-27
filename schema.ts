@@ -301,6 +301,29 @@ export const yardInventory = sqliteTable(
 );
 
 /**
+ * Yards that left `yard_inventory` because their last live vehicle departed,
+ * with what their page needs to stay up: the inventory refresh records a
+ * yard when it removes its row, drops it when the yard has live vehicles
+ * again, and purges it once DORMANT_YARD_DAYS have passed. Its page says the
+ * yard lists no vehicles until then (see DormantYard).
+ */
+export const departedYard = sqliteTable(
+  "departed_yard",
+  {
+    source: text("source").notNull(),
+    locationCode: text("location_code").notNull(),
+    locationName: text("location_name").notNull(),
+    locationCity: text("location_city").notNull(),
+    stateAbbr: text("state_abbr").notNull(),
+    lat: real("lat").notNull(),
+    lng: real("lng").notNull(),
+    inventoryUrl: text("inventory_url"),
+    departedAt: integer("departed_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.source, table.locationCode] })],
+);
+
+/**
  * Each yard's page summary (count, makes, arrivals; see YardSummary), stored
  * by the inventory refresh for the publication `built_for` names (the
  * yard_inventory row's updated_at). A cached summary that falls out of the

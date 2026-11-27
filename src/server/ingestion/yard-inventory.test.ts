@@ -1,5 +1,6 @@
 import { createClient } from "@libsql/client";
 import { expect, test } from "bun:test";
+import { DORMANT_YARD_DAYS } from "~/lib/dormant-yard";
 import { RECONCILIATION_TEST_SCHEMA } from "./durable-reconciliation-test-fixtures";
 import {
   yardInventoryRefreshStatements,
@@ -88,6 +89,94 @@ test("yard publications advance only accepted yards and survive summary refreshe
       ).rows[0]?.last_published_at,
     ).toBe(100);
     expect(yardPublicationStatement([], new Map(), 400)).toBeNull();
+  } finally {
+    client.close();
+  }
+});
+
+test("a yard whose last vehicle departed keeps its page details until it returns or DORMANT_YARD_DAYS pass", async () => {
+  const client = createClient({ url: ":memory:" });
+  const day = 24 * 60 * 60 * 1000;
+  const departed = async () =>
+    (
+      await client.execute(
+        "select source, location_code, location_name, location_city, state_abbr, inventory_url, departed_at from departed_yard order by location_code",
+      )
+    ).rows.map((row) => ({
+      source: row.source,
+      location_code: row.location_code,
+      location_name: row.location_name,
+      location_city: row.location_city,
+      state_abbr: row.state_abbr,
+      inventory_url: row.inventory_url,
+      departed_at: row.departed_at,
+    }));
+  try {
+    await client.executeMultiple(RECONCILIATION_TEST_SCHEMA);
+    for (const code of ["stays", "empties", "old"]) {
+      await client.execute({
+        sql: `insert into vehicle (vin, source, year, make, model, location_code, location_name, location_city, state, state_abbr, lat, lng, details_url, first_seen_at, last_seen_at)
+        values (?, 'pyp', 2000, 'Honda', 'Civic', ?, ?, 'City', 'California', 'CA', 34, -118, ?, 1, 1)`,
+        args: [
+          `VIN-${code}`,
+          code,
+          `Yard ${code}`,
+          `https://yard.test/${code}`,
+        ],
+      });
+    }
+    await client.batch(yardInventoryRefreshStatements(["pyp"], day), "write");
+    expect(await departed()).toEqual([]);
+
+    // "empties" and "old" lose their last live vehicle.
+    await client.execute(
+      "update vehicle set missing_since_at = 1 where location_code in ('empties', 'old')",
+    );
+    await client.batch(
+      yardInventoryRefreshStatements(["pyp"], 2 * day),
+      "write",
+    );
+    expect(
+      (
+        await client.execute(
+          "select location_code from yard_inventory order by location_code",
+        )
+      ).rows.map((row) => row.location_code),
+    ).toEqual(["stays"]);
+    expect(await departed()).toEqual(
+      ["empties", "old"].map((code) => ({
+        source: "pyp",
+        location_code: code,
+        location_name: `Yard ${code}`,
+        location_city: "City",
+        state_abbr: "CA",
+        inventory_url: `https://yard.test/${code}`,
+        departed_at: 2 * day,
+      })),
+    );
+
+    // A later refresh keeps the date it departed.
+    await client.batch(
+      yardInventoryRefreshStatements(["pyp"], 3 * day),
+      "write",
+    );
+    expect((await departed()).map((row) => row.departed_at)).toEqual([
+      2 * day,
+      2 * day,
+    ]);
+
+    // "empties" has a live vehicle again; "old" passes the window.
+    await client.execute(
+      "update vehicle set missing_since_at = null where location_code = 'empties'",
+    );
+    await client.batch(
+      yardInventoryRefreshStatements(
+        ["pyp"],
+        (2 + DORMANT_YARD_DAYS) * day + 1,
+      ),
+      "write",
+    );
+    expect(await departed()).toEqual([]);
   } finally {
     client.close();
   }

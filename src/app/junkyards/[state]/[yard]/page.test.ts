@@ -7,7 +7,9 @@ import { fileURLToPath } from "node:url";
  * read. Runs in its own process so the module mocks stay out of other test
  * files.
  */
-async function open(): Promise<{ total: number; metadata: unknown }> {
+async function open(
+  dormant: unknown = null,
+): Promise<{ total: number; dormant: unknown; metadata: unknown }> {
   const child = Bun.spawn(
     [
       process.execPath,
@@ -24,6 +26,10 @@ async function open(): Promise<{ total: number; metadata: unknown }> {
     }));
     mock.module("~/server/source-control/hidden-sources-loader", () => ({ getHiddenSources: async () => ({ list: [] }) }));
     mock.module("~/server/vehicle-models", () => ({ getMakeSlugs: async () => new Map() }));
+    mock.module("~/lib/yard-page-metadata", () => ({
+      dormantYardMetadata: (yard, dormant, make) => ({ dormant: dormant.kind, make }),
+    }));
+    const dormant = JSON.parse(process.env.YARD_DORMANT);
     const { YardInventory } = await import("~/lib/yard-inventory");
     const vehicles = (count) => Array.from({ length: count }, (_, index) => ({
       vin: "VIN" + index, year: 2004, make: "Chevrolet", model: "Silverado",
@@ -35,22 +41,29 @@ async function open(): Promise<{ total: number; metadata: unknown }> {
     const fresh = vehicles(120);
     const path = { region: { slug: "tx" }, slug: "calton", href: "/junkyards/tx/calton" };
     mock.module("~/server/yard-inventory", () => ({
-      getYardPageData: async () => ({ yard: { source: "pyp", code: "1", path }, summary: cached, publishedAt: null, nearby: [], chain: null }),
-      getYardVehiclePage: async (yard, summary, scope, page) => ({
-        summary: YardInventory.summary(fresh, fresh.map((vehicle) => vehicle.make)),
-        data: YardInventory.page(fresh, page),
-      }),
+      getYardPageData: async () => ({ yard: { source: "pyp", code: "1", path }, summary: dormant ? YardInventory.summary([], []) : cached, publishedAt: null, nearby: [], chain: null, dormant, heldMakes: [] }),
+      getYardVehiclePage: async (yard, summary, scope, page) =>
+        dormant
+          ? { summary, data: YardInventory.page([], page) }
+          : {
+              summary: YardInventory.summary(fresh, fresh.map((vehicle) => vehicle.make)),
+              data: YardInventory.page(fresh, page),
+            },
     }));
     const route = await import(process.argv[1]);
     const params = Promise.resolve({ state: "tx", yard: "calton" });
     const element = await route.default({ params });
     const view = element.props.children.props;
     const metadata = await route.generateMetadata({ params });
-    process.stdout.write(JSON.stringify({ total: view.total, metadata }));
+    process.stdout.write(JSON.stringify({ total: view.total, dormant: view.dormant, metadata }));
   `,
       fileURLToPath(new URL("./page.tsx", import.meta.url)),
     ],
-    { stdout: "pipe", stderr: "pipe" },
+    {
+      stdout: "pipe",
+      stderr: "pipe",
+      env: { ...process.env, YARD_DORMANT: JSON.stringify(dormant) },
+    },
   );
   const [output, errors, exitCode] = await Promise.all([
     new Response(child.stdout).text(),
@@ -66,7 +79,17 @@ describe("yard page", () => {
   test("its metadata counts the same read the page lists", async () => {
     expect(await open()).toEqual({
       total: 120,
+      dormant: null,
       metadata: { total: 120, page: 1 },
+    });
+  });
+
+  test("a dormant yard answers with its page, listing no vehicles and saying why", async () => {
+    const dormant = { kind: "emptied", since: "2026-11-01T12:00:00.000Z" };
+    expect(await open(dormant)).toEqual({
+      total: 0,
+      dormant,
+      metadata: { dormant: "emptied", make: null },
     });
   });
 });

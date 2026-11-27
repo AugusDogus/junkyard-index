@@ -1,3 +1,4 @@
+import type { DormantYard } from "~/lib/dormant-yard";
 import type { HiddenSources } from "~/lib/hidden-source";
 import { buildSearchUrl } from "~/lib/search-utils";
 import { YardAddress } from "~/lib/yard-address";
@@ -66,6 +67,7 @@ export function YardInventoryView({
   chain,
   filter,
   hiddenSources,
+  dormant,
 }: {
   yard: RoutedYard;
   inventory: YardInventoryPage;
@@ -93,6 +95,11 @@ export function YardInventoryView({
   hiddenSources: HiddenSources;
   /** The make this page is narrowed to, if any. */
   filter: YardMakeFilter | YardModelFilter | null;
+  /**
+   * Why the yard shows no vehicles while it keeps its page, or null when it
+   * is listed. A dormant yard's page lists none.
+   */
+  dormant: DormantYard | null;
 }) {
   const headline = YardName.headline(yard.name, yard.operator);
   const service = isIngestionSource(yard.source)
@@ -157,34 +164,40 @@ export function YardInventoryView({
           <p className="border-rule-strong bg-paper-2 text-ink mt-3 inline-block border px-2.5 py-1 text-sm font-medium">
             {serviceLabel}
           </p>
-          <p className="text-lead text-ink-2 mt-5 max-w-[48ch] leading-[1.45]">
-            <span className="text-ink font-medium tabular-nums">
-              {InventoryFormat.plural(
-                total,
-                filter ? `${filterName(filter)} vehicle` : "vehicle",
-                filter ? `${filterName(filter)} vehicles` : "vehicles",
+          {dormant ? (
+            <p className="text-lead text-ink-2 mt-5 max-w-[48ch] leading-[1.45]">
+              {dormantSummary(dormant)}
+            </p>
+          ) : (
+            <p className="text-lead text-ink-2 mt-5 max-w-[48ch] leading-[1.45]">
+              <span className="text-ink font-medium tabular-nums">
+                {InventoryFormat.plural(
+                  total,
+                  filter ? `${filterName(filter)} vehicle` : "vehicle",
+                  filter ? `${filterName(filter)} vehicles` : "vehicles",
+                )}
+              </span>{" "}
+              in the yard in {yard.city}, {yard.state}
+              {headerCount !== null && (
+                <>
+                  ,{" "}
+                  <Link
+                    className="text-signal font-medium tabular-nums underline underline-offset-4"
+                    rel="nofollow"
+                    href={buildSearchUrl(filter ? filterName(filter) : "", {
+                      arrivalWindow: "7d",
+                      salvageYards: [yard.name],
+                      sources: [yard.source],
+                      yardTypes: [],
+                    })}
+                  >
+                    {InventoryFormat.count(headerCount)} new this week
+                  </Link>
+                </>
               )}
-            </span>{" "}
-            in the yard in {yard.city}, {yard.state}
-            {headerCount !== null && (
-              <>
-                ,{" "}
-                <Link
-                  className="text-signal font-medium tabular-nums underline underline-offset-4"
-                  rel="nofollow"
-                  href={buildSearchUrl(filter ? filterName(filter) : "", {
-                    arrivalWindow: "7d",
-                    salvageYards: [yard.name],
-                    sources: [yard.source],
-                    yardTypes: [],
-                  })}
-                >
-                  {InventoryFormat.count(headerCount)} new this week
-                </Link>
-              </>
-            )}
-            .
-          </p>
+              .
+            </p>
+          )}
         </div>
         <YardContact yard={yard} chain={chain} />
       </header>
@@ -203,11 +216,13 @@ export function YardInventoryView({
               : `Page ${inventory.page}, newest first`}
           </h2>
           <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-            <FreshnessBadge
-              publishedAt={
-                publishedAt ?? (lastChecked === null ? null : checkedAt)
-              }
-            />
+            {!dormant && (
+              <FreshnessBadge
+                publishedAt={
+                  publishedAt ?? (lastChecked === null ? null : checkedAt)
+                }
+              />
+            )}
             {total > 0 && (
               <p className="text-ink text-sm font-medium tabular-nums">
                 {InventoryFormat.count(shownFrom)} to{" "}
@@ -229,9 +244,11 @@ export function YardInventoryView({
         )}
         {total === 0 ? (
           <p className="border-rule-strong text-ink-2 mt-6 border-t pt-6 text-base">
-            {publishedAt === null
-              ? "We couldn't confirm this yard's current inventory, so none is shown. Check the yard's website."
-              : "The yard lists no vehicles right now."}
+            {dormant
+              ? `${dormantSummary(dormant)} Check with the yard before you go.`
+              : publishedAt === null
+                ? "We couldn't confirm this yard's current inventory, so none is shown. Check the yard's website."
+                : "The yard lists no vehicles right now."}
           </p>
         ) : (
           <ul className="border-t-rule-strong border-b-rule divide-rule mt-6 divide-y border-t border-b">
@@ -351,6 +368,14 @@ export function YardInventoryView({
       )}
     </>
   );
+}
+
+/** What a dormant yard's page says in place of its vehicle count. */
+function dormantSummary(dormant: DormantYard): string {
+  const since = InventoryFormat.date(dormant.since);
+  return dormant.kind === "unconfirmed"
+    ? `We couldn't confirm this yard's inventory after ${since}, so none is shown.`
+    : `The yard has listed no vehicles since ${since}.`;
 }
 
 const LINK =

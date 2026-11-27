@@ -84,6 +84,7 @@ export default async function YardInventoryPage({
         checkUnknown={data.checkUnknown}
         nearby={data.nearby}
         chain={data.chain}
+        dormant={data.dormant}
       />
     </PublicPageShell>
   );

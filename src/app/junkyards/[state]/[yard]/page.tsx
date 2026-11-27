@@ -5,6 +5,7 @@ import {
   YardInventoryView,
   yardPageMetadata,
 } from "~/components/junkyards/YardInventoryView";
+import { dormantYardMetadata } from "~/lib/yard-page-metadata";
 import { YardInventory } from "~/lib/yard-inventory";
 import { getMakeSlugs } from "~/server/vehicle-models";
 import { getHiddenSources } from "~/server/source-control/hidden-sources-loader";
@@ -43,6 +44,7 @@ export async function generateMetadata({
   const loaded = await load(params);
   if (!loaded?.inventory) return {};
   const { data, summary } = loaded;
+  if (data.dormant) return dormantYardMetadata(data.yard, data.dormant, null);
   return yardPageMetadata(data.yard, summary.total, data.publishedAt, 1);
 }
 
@@ -76,6 +78,7 @@ export default async function YardPage({
         checkUnknown={data.checkUnknown}
         nearby={data.nearby}
         chain={data.chain}
+        dormant={data.dormant}
       />
     </PublicPageShell>
   );

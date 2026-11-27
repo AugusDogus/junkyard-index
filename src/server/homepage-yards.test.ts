@@ -4,7 +4,7 @@ import { drizzle } from "drizzle-orm/libsql";
 import { readFileSync } from "node:fs";
 import { HiddenSources } from "~/lib/hidden-source";
 import { yard } from "~/schema";
-import { getHomepageYards } from "./homepage-yards";
+import { getDormantYardCandidates, getHomepageYards } from "./homepage-yards";
 
 test("directory joins metadata by source and code without changing active inventory counts", async () => {
   const client = createClient({ url: ":memory:" });
@@ -175,6 +175,86 @@ test("with meeks hidden, no yard is meeks's and no website points to meeksrecycl
     const hidden = await getHomepageYards(db, HiddenSources.of(["meeks"]));
     expect(exposesMeeks(hidden)).toBe(false);
     expect(hidden.map((entry) => entry.source)).toEqual(["pyp"]);
+  } finally {
+    client.close();
+  }
+});
+
+test("dormant candidates are yards hidden only by the 7-day hide and yards whose last vehicle departed", async () => {
+  const client = createClient({ url: ":memory:" });
+  try {
+    for (const migration of [
+      "0007_yard_metadata.sql",
+      "0016_yard_inventory.sql",
+      "0021_yard_publication.sql",
+      "0036_departed_yard.sql",
+    ]) {
+      if (migration === "0016_yard_inventory.sql")
+        await client.executeMultiple(`
+          create table vehicle (source text, location_code text, location_name text,
+            location_city text, state_abbr text, lat real, lng real, missing_since_at integer,
+            details_url text);
+          insert into vehicle values
+            ('pyp', '1', 'Sun Valley', 'Sun Valley', 'CA', 34, -118, null, null),
+            ('meeks', '1', 'Meeks Recycling', 'Martinsville', 'VA', 36, -79, null, null),
+            ('row52', '7', 'Pick-n-Pull', 'Tulsa', 'OK', 36, -95, null, null);
+        `);
+      await client.executeMultiple(
+        readFileSync(
+          new URL(`../../drizzle/${migration}`, import.meta.url),
+          "utf8",
+        ),
+      );
+    }
+    await client.executeMultiple(`
+      update yard_inventory set last_published_at = 1000;
+      insert into departed_yard values
+        ('pullapart', '3', 'Montgomery', 'Montgomery', 'AL', 32, -86, null, 2000),
+        ('meeks', '2', 'Meeks Two', 'Martinsville', 'VA', 36, -79, null, 3000),
+        ('upullitne', '1', 'Retired Nebraska', 'Lincoln', 'NE', 40, -96, null, 4000);
+    `);
+    const db = drizzle(client);
+    await db.insert(yard).values({
+      source: "pullapart",
+      code: "3",
+      name: "Pull-A-Part - Montgomery",
+      city: "Montgomery",
+      state: "AL",
+      phone: "334-555-0100",
+      updatedAt: new Date(),
+    });
+    // pyp is past the 7-day hide; meeks is hidden by the owner as well.
+    const candidates = await getDormantYardCandidates(
+      db,
+      HiddenSources.of(["pyp", "meeks"]),
+      HiddenSources.of(["meeks"]),
+    );
+    expect(
+      candidates.map(({ source, code, dormant, vehicleCount }) => ({
+        source,
+        code,
+        dormant,
+        vehicleCount,
+      })),
+    ).toEqual([
+      {
+        source: "pyp",
+        code: "1",
+        dormant: { kind: "unconfirmed", since: new Date(1000).toISOString() },
+        vehicleCount: 0,
+      },
+      {
+        source: "pullapart",
+        code: "3",
+        dormant: { kind: "emptied", since: new Date(2000).toISOString() },
+        vehicleCount: 0,
+      },
+    ]);
+    // A departed yard keeps its metadata's name and contacts.
+    expect(candidates[1]).toMatchObject({
+      name: "Pull-A-Part - Montgomery",
+      phone: "334-555-0100",
+    });
   } finally {
     client.close();
   }
