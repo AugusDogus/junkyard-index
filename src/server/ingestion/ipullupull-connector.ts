@@ -1,8 +1,16 @@
 import { Data, Effect, RateLimiter } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import type { ProviderRequestGate } from "./provider-http-client";
-import { fetchIPullUPullCatalog } from "./ipullupull-client";
-import { fetchIPullUPullMedia, ipullUPullMediaKey } from "./ipullupull-media";
+import { ProviderNotReadyDeferred } from "./provider-chunk-clock";
+import {
+  fetchIPullUPullCatalog,
+  type IPullUPullRateLimited,
+} from "./ipullupull-client";
+import {
+  fetchIPullUPullMedia,
+  ipullUPullMediaKey,
+  ipullUPullPriorImageKey,
+} from "./ipullupull-media";
 import {
   ipullUPullVin,
   isUsableIPullUPullRecord,
@@ -22,6 +30,10 @@ export type IPullUPullStreamResult = ConnectorChunkResult<
   IPullUPullCursor
 >;
 export const IPULLUPULL_BATCH_SIZE = 250;
+/** One request per two seconds. Runs at one per second drew HTTP 429 from the
+ * WP Engine origin after 35 to 44 media pages (production 2026-11-20 and
+ * 2026-11-27); a full run of about 51 requests takes about two minutes. */
+export const IPULLUPULL_REQUEST_INTERVAL = "2 seconds";
 
 export class IPullUPullStreamError extends Data.TaggedError(
   "IPullUPullStreamError",
@@ -33,6 +45,18 @@ export interface IPullUPullStreamOptions<E, R> {
     vehicles: IPullUPullCanonicalVehicle[],
   ) => Effect.Effect<void, E, R>;
   onYards?: (yards: IPullUPullYard[]) => Effect.Effect<void, E, R>;
+  /** Published image URLs by `ipullUPullPriorImageKey`, read only when a 429
+   * cut the media sweep short. Absent, uncovered vehicles have no image. */
+  loadPriorImages?: Effect.Effect<ReadonlyMap<string, string>, Error>;
+}
+
+/** Nothing was accepted: the run backs off and retries this cursor. */
+function deferRateLimited(limit: IPullUPullRateLimited) {
+  return new ProviderNotReadyDeferred({
+    provider: "iPull-uPull",
+    detail: `${limit.message}, so this run backs off instead of retrying into the rate limit.`,
+    retryAfterMs: limit.retryAfterMs,
+  });
 }
 
 export function streamIPullUPullInventoryWithRequestGate<E, R>(
@@ -64,7 +88,11 @@ export function streamIPullUPullInventoryWithRequestGate<E, R>(
     };
     if (cursor === 1) return result;
     const directory = yield* loadIPullUPullDirectory(requestGate);
-    const records = yield* fetchIPullUPullCatalog(requestGate);
+    const records = yield* fetchIPullUPullCatalog(requestGate).pipe(
+      Effect.catchTag("IPullUPullRateLimited", (limit) =>
+        Effect.fail(deferRateLimited(limit)),
+      ),
+    );
     const reported = new Set(
       records
         .filter(isUsableIPullUPullRecord)
@@ -134,7 +162,22 @@ export function streamIPullUPullInventoryWithRequestGate<E, R>(
       accepted.map((record) => record["Yard City"].trim().toUpperCase()),
     );
     const metadata = yield* loadIPullUPullYards(cities, directory, requestGate);
-    const media = yield* fetchIPullUPullMedia(requestGate);
+    const catalog = yield* fetchIPullUPullMedia(requestGate);
+    if (catalog.status === "rate-limited" && catalog.pagesRead === 0)
+      return yield* deferRateLimited(catalog.limit);
+    const media = catalog.media;
+    // After progress, a 429 publishes the CSV inventory now: vehicles past the
+    // last complete page keep the image already published for their listing.
+    const priorImages =
+      catalog.status === "complete"
+        ? new Map<string, string>()
+        : yield* (
+            options.loadPriorImages ?? Effect.succeed(new Map<string, string>())
+          );
+    const uncovered =
+      catalog.status === "complete"
+        ? null
+        : `vehicles missing from the ${catalog.pagesRead} media pages read before media page ${catalog.page}${catalog.pages === null ? "" : ` of ${catalog.pages}`} answered HTTP 429 keep their published image, or none when new; the next run refreshes them`;
     const vehicles: IPullUPullCanonicalVehicle[] = [];
     const seen = new Set<string>();
     // Prefer the newest published yard timestamp, then stock number and city.
@@ -167,6 +210,18 @@ export function streamIPullUPullInventoryWithRequestGate<E, R>(
       const photo = media.get(
         ipullUPullMediaKey(record["Stock Number"], record.Vin, city),
       );
+      if (!photo && uncovered !== null) {
+        seen.add(vehicle.vin);
+        warn(uncovered);
+        vehicles.push({
+          ...vehicle,
+          imageUrl:
+            priorImages.get(
+              ipullUPullPriorImageKey(record["Stock Number"], vehicle.vin),
+            ) ?? null,
+        });
+        continue;
+      }
       if (!photo)
         return yield* new IPullUPullStreamError({
           message: `iPull-uPull media is missing CSV vehicle ${record["Stock Number"]} / ${record.Vin} / ${city}; the catalogs may have changed between requests. No batches were emitted and prior images are preserved. Retry from cursor 0.`,
@@ -218,7 +273,7 @@ export function streamIPullUPullInventory<E, R>(
   options: IPullUPullStreamOptions<E, R>,
 ) {
   return Effect.scoped(
-    RateLimiter.make({ limit: 1, interval: "1 second" }).pipe(
+    RateLimiter.make({ limit: 1, interval: IPULLUPULL_REQUEST_INTERVAL }).pipe(
       Effect.flatMap((requestGate) =>
         streamIPullUPullInventoryWithRequestGate(options, requestGate),
       ),

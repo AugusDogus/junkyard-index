@@ -117,10 +117,59 @@ test("paginates in bounded bulk requests through the shared request gate", async
       }).pipe(Effect.zipRight(request)),
     ),
   );
-  expect(media.size).toBe(97);
+  expect(media).toMatchObject({ status: "complete" });
+  expect(media.media.size).toBe(97);
   expect(requests).toBe(2);
   expect(gates).toBe(2);
 });
+
+test.each([
+  { limitedPage: 1, pagesRead: 0, cards: 0 },
+  { limitedPage: 2, pagesRead: 1, cards: 96 },
+])(
+  "stops at a 429 on page $limitedPage without retrying it and keeps the pages already read",
+  async ({ limitedPage, pagesRead, cards }) => {
+    const items = Array.from({ length: 97 }, (_, i) => ({
+      ...beetle,
+      stock: `STK${i}`,
+    }));
+    const pages: number[] = [];
+    globalThis.fetch = Object.assign(
+      async (input: RequestInfo | URL) => {
+        const page = Number(
+          new URL(String(input)).searchParams.get(
+            "ipull_inventory_pricing_page",
+          ),
+        );
+        pages.push(page);
+        if (page === limitedPage)
+          return new Response("Too Many Requests", {
+            status: 429,
+            headers: { "Retry-After": "90" },
+          });
+        return new Response(
+          mediaPage(items.slice((page - 1) * 96, page * 96), page, 97),
+          { headers: { "content-type": "text/html" } },
+        );
+      },
+      { preconnect: originalFetch.preconnect },
+    );
+    const media = await Effect.runPromise(
+      fetchIPullUPullMedia((request) => request),
+    );
+    expect(pages).toEqual(Array.from({ length: limitedPage }, (_, i) => i + 1));
+    expect(media).toMatchObject({
+      status: "rate-limited",
+      page: limitedPage,
+      pagesRead,
+      limit: {
+        context: `iPull-uPull media page ${limitedPage}`,
+        retryAfterMs: 90_000,
+      },
+    });
+    expect(media.media.size).toBe(cards);
+  },
+);
 
 test.each(["changed total", "repeated page", "later HTTP failure"])(
   "rejects %s instead of accepting incomplete enrichment",

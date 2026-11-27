@@ -27,11 +27,22 @@ invalidate its confirmed eligibility. Catalog completeness is checked against
 currently listed cities, not a historical city list. Pre-1981 identifiers are retained.
 The CSV is limited to 20,000 rows and 4 MiB. CSV, metadata, bulk media enrichment,
 and callbacks share a five-minute checkpoint budget. Requests, including retries,
-share a one-request-per-second gate. Public card `data-gallery` images join by
+share a gate of one request per two seconds. Public card `data-gallery` images join by
 stock, VIN, and yard; `data-parts` photos are not vehicle images. Media pages hold
 up to 96 cards, bounded to 4 MiB each and 20,000 total assets. Incomplete/drifting pages,
 malformed media, or missing emitted-vehicle coverage abort before callbacks;
 retry from cursor `0`. Explicit empty galleries retain null images with warnings.
+
+HTTP 429 is never retried inside a run (502/503/504 keep two quick retries). A 429
+on the CSV export or the first media page defers the chunk: nothing is emitted, and
+the run retries cursor `0` after 5 minutes or the origin's `Retry-After`, whichever
+is longer, for up to 45 minutes without progress before the next scheduled attempt.
+A 429 after at least one complete media page ends the sweep and publishes the CSV
+inventory: vehicles on the pages read get fresh photos, and the rest keep the image
+already published for the same stock and VIN (none when new), with a counted warning.
+Production on 2026-11-20 and 2026-11-27 drew 429s after 35 to 44 media pages at one
+request per second; each failure was then retried twice by the workflow step, so a
+failed run sent up to about 150 requests in three minutes instead of 51.
 Metadata comes from same-origin directory links and each yard's JSON-LD.
 
 Washington discovers yards from the inventory selector and verifies the selected

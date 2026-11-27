@@ -1,12 +1,14 @@
 import { parse } from "csv-parse/sync";
-import { Data, Effect, Schema } from "effect";
+import { Clock, Data, Effect, Schema } from "effect";
 import {
   IPULLUPULL_MAX_RESPONSE_BYTES,
   readIPullUPullResponseText,
 } from "./ipullupull-response-text";
 import {
   fetchProviderResponse,
+  parseRetryAfterMs,
   type ProviderRequestGate,
+  type ProviderRetryPolicy,
 } from "./provider-http-client";
 
 export const IPULLUPULL_INVENTORY_URL =
@@ -23,6 +25,50 @@ export class IPullUPullProviderError extends Data.TaggedError(
   override get message() {
     return `iPull-uPull catalog: ${this.cause instanceof Error ? this.cause.message : String(this.cause)}`;
   }
+}
+
+/** The origin answered HTTP 429. It is never retried within a run: the site
+ * rate limits bursts (production 2026-11-20 and 2026-11-27), so the caller
+ * backs off for at least `retryAfterMs` (0 when no Retry-After was sent). */
+export class IPullUPullRateLimited extends Data.TaggedError(
+  "IPullUPullRateLimited",
+)<{ context: string; retryAfterMs: number }> {
+  override get message() {
+    return `${this.context} answered HTTP 429${this.retryAfterMs > 0 ? ` with Retry-After ${Math.round(this.retryAfterMs / 1000)} s` : " without Retry-After"}`;
+  }
+}
+
+/** Retry policy for every iPull-uPull catalog request: brief gateway errors
+ * get two quick retries, but 429 reaches `rejectIPullUPullRateLimit`. */
+export const IPULLUPULL_RETRY: Partial<ProviderRetryPolicy> = {
+  retryLimit: 2,
+  retryableStatusCodes: [502, 503, 504],
+  retryNetworkErrors: false,
+  jitter: false,
+};
+
+/** Fails a 429 response as `IPullUPullRateLimited`, discarding its body. */
+export function rejectIPullUPullRateLimit(context: string) {
+  return (response: Response): Effect.Effect<Response, IPullUPullRateLimited> =>
+    response.status !== 429
+      ? Effect.succeed(response)
+      : Effect.flatMap(Clock.currentTimeMillis, (now) =>
+          Effect.promise(async () => {
+            await response.body?.cancel().catch(() => undefined);
+          }).pipe(
+            Effect.zipRight(
+              Effect.fail(
+                new IPullUPullRateLimited({
+                  context,
+                  retryAfterMs: parseRetryAfterMs(
+                    response.headers.get("Retry-After"),
+                    now,
+                  ),
+                }),
+              ),
+            ),
+          ),
+        );
 }
 
 export const IPullUPullRecordSchema = Schema.Struct({
@@ -88,8 +134,9 @@ export function fetchIPullUPullCatalog(requestGate?: ProviderRequestGate) {
     context: "iPull-uPull CSV export",
     headers: { Accept: "text/csv" },
     requestGate,
-    retry: { retryLimit: 2, retryNetworkErrors: false, jitter: false },
+    retry: IPULLUPULL_RETRY,
   }).pipe(
+    Effect.flatMap(rejectIPullUPullRateLimit("iPull-uPull CSV export")),
     Effect.flatMap((response) =>
       Effect.tryPromise({
         try: async (signal) => {
@@ -116,7 +163,8 @@ export function fetchIPullUPullCatalog(requestGate?: ProviderRequestGate) {
       }),
     ),
     Effect.mapError((cause) =>
-      cause instanceof IPullUPullProviderError
+      cause instanceof IPullUPullProviderError ||
+      cause instanceof IPullUPullRateLimited
         ? cause
         : new IPullUPullProviderError({ cause }),
     ),

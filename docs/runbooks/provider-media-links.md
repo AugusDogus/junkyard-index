@@ -61,8 +61,11 @@ Primary runbook: [independent yard ingestion](independent-yard-ingestion.md).
 - Accept published same-origin optimized assets or stock-scoped original uploads.
   Unknown paths, malformed galleries, partial responses, missing coverage, or
   catalog drift fail before yard/vehicle callbacks, preserving prior images.
-- Requests and retries share the one-per-second gate. Limits: 4 MiB per media
-  page, 20,000 catalog assets, and a 300-second outer checkpoint deadline.
+- Requests and retries share a gate of one request per two seconds. Limits: 4 MiB
+  per media page, 20,000 catalog assets, and a 300-second outer checkpoint deadline.
+- HTTP 429 ends the sweep without a retry. Before any complete page the chunk
+  defers; after one, vehicles not on the pages read keep their published image
+  (same stock and VIN) or none when new. See the primary runbook.
 - Observed full run: 45 media pages, 51 total requests, 62.6 seconds; 4,043 emitted,
   3,880 photos and 163 empty galleries. Cursor `0` to `1` is atomic;
   `pagesProcessed: 1` counts that checkpoint, not HTTP pages. Batches remain 250.

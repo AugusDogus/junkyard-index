@@ -93,6 +93,8 @@ export interface DurableSourceChunkDeferral<
   status: "deferred";
   cursor: DurableCursorFor<Source>;
   message: string;
+  /** The provider asked for at least this long a pause (Retry-After). */
+  retryAfterMs?: number;
 }
 
 export interface FetchedDurableSourceChunk<

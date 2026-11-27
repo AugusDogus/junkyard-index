@@ -108,7 +108,13 @@ export class ProviderCapacityDeferred extends Data.TaggedError(
  */
 export class ProviderNotReadyDeferred extends Data.TaggedError(
   "ProviderNotReadyDeferred",
-)<{ provider: string; detail: string }> {
+)<{
+  provider: string;
+  detail: string;
+  /** The provider's Retry-After: the source waits at least this long, instead
+   * of only its usual deferral delay, before retrying the chunk. */
+  retryAfterMs?: number;
+}> {
   override get message() {
     return `${this.provider} is not ready to be read: ${this.detail} Nothing from this chunk was accepted and the last validated checkpoint is preserved; the source retries this chunk after its deferral delay.`;
   }

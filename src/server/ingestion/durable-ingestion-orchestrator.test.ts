@@ -739,6 +739,39 @@ describe("chunks deferred by a deep shared host queue", () => {
     expect(waits).toEqual([300_000, 300_000, 300_000]);
   });
 
+  test("wait out a provider's longer Retry-After, never past the no-progress limit", async () => {
+    const outcomes: DurableWorkflowChunkDeferral<"row52">[] = [
+      { ...deferral, retryAfterMs: 60_000 },
+      { ...deferral, retryAfterMs: 20 * 60_000 },
+      { ...deferral, retryAfterMs: 24 * 60 * 60_000 },
+    ];
+    const waits: number[] = [];
+    const now = spyOn(Date, "now");
+    let clock = 0;
+    now.mockImplementation(() => clock);
+    try {
+      const result = await ingestDurableSource({
+        runId: "run-1",
+        initialCursor,
+        operations: {
+          sleepUntil: async (time) => {
+            waits.push(time - clock);
+            clock = time;
+          },
+          runChunk: async () =>
+            outcomes.shift() ?? { ...paused, status: "complete" },
+          markFailed: async () => {
+            throw new Error("A deferral must not fail the source");
+          },
+        },
+      });
+      expect(result.status).toBe("complete");
+    } finally {
+      now.mockRestore();
+    }
+    expect(waits).toEqual([300_000, 1_200_000, 3 * 60 * 60_000]);
+  });
+
   test("fail the source clearly once no chunk has advanced for three hours", async () => {
     const now = spyOn(Date, "now");
     let clock = 0;
@@ -819,6 +852,48 @@ describe("chunks deferred by a deep shared host queue", () => {
     }
     // The waiting run holds one of the URG group places, so it stops long
     // before the three-hour default; Nov 26 outages lasted under 5 minutes.
+    expect(chunks).toBe(10);
+  });
+
+  test("give up on an iPull-uPull rate limit after 45 minutes", async () => {
+    const cursor = getDurableSourceDefinition("ipullupull").initialCursor;
+    const now = spyOn(Date, "now");
+    let clock = 0;
+    now.mockImplementation(() => clock);
+    let chunks = 0;
+    try {
+      const result = await ingestDurableSource({
+        runId: "run-1",
+        initialCursor: cursor,
+        operations: {
+          sleepUntil: async (time) => {
+            clock = time;
+          },
+          runChunk: async () => {
+            chunks++;
+            return {
+              status: "deferred",
+              cursor,
+              message:
+                "ipullupull: iPull-uPull is not ready to be read: iPull-uPull CSV export answered HTTP 429 without Retry-After.",
+            };
+          },
+          markFailed: async (_runId, _source, message) => ({
+            cursor,
+            status: "failed",
+            count: 0,
+            pagesProcessed: 0,
+            errors: [message],
+          }),
+        },
+      });
+      expect(result.status).toBe("failed");
+      expect(result.errors[0]).toContain("No chunk advanced for 45 minutes");
+    } finally {
+      now.mockRestore();
+    }
+    // Each retry repeats the run's first few requests, so a rate limit that
+    // outlasts ten five-minute back-offs waits for the next scheduled run.
     expect(chunks).toBe(10);
   });
 });

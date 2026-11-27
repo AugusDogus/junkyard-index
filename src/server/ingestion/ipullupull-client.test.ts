@@ -115,6 +115,31 @@ test.each(responseCases)(
   },
 );
 
+test("reports a 429 export once, with its Retry-After, instead of retrying it", async () => {
+  let requests = 0;
+  globalThis.fetch = Object.assign(
+    async () => {
+      requests++;
+      return new Response("Too Many Requests", {
+        status: 429,
+        headers: { "Retry-After": "600" },
+      });
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  const result = await Effect.runPromise(
+    Effect.either(fetchIPullUPullCatalog()),
+  );
+  expect(requests).toBe(1);
+  expect(result._tag).toBe("Left");
+  if (result._tag === "Left")
+    expect(result.left).toMatchObject({
+      _tag: "IPullUPullRateLimited",
+      context: "iPull-uPull CSV export",
+      retryAfterMs: 600_000,
+    });
+});
+
 test("bounds downloaded bytes before parsing", async () => {
   globalThis.fetch = Object.assign(
     async () =>

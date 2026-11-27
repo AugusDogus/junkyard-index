@@ -1,7 +1,14 @@
 import { afterEach, expect, test } from "bun:test";
 import { Effect } from "effect";
 import { beetleImage, mediaPage } from "./fixtures/ipullupull-media";
-import { ipullUPullMediaKey } from "./ipullupull-media";
+import {
+  ipullUPullMediaKey,
+  ipullUPullPriorImageKey,
+} from "./ipullupull-media";
+import {
+  ProviderChunkClock,
+  ProviderNotReadyDeferred,
+} from "./provider-chunk-clock";
 import {
   IPULLUPULL_EXPORT_URL,
   IPULLUPULL_INVENTORY_URL,
@@ -168,6 +175,179 @@ function replaceMedia(
     { preconnect: originalFetch.preconnect },
   );
 }
+
+function rateLimit(matches: (url: URL) => boolean) {
+  const underlyingFetch = globalThis.fetch;
+  const limited: string[] = [];
+  globalThis.fetch = Object.assign(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input));
+      if (!matches(url)) return underlyingFetch(input, init);
+      limited.push(url.href);
+      return new Response("Too Many Requests", {
+        status: 429,
+        headers: { "Retry-After": "600" },
+      });
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  return limited;
+}
+
+const mediaPageNumber = (url: URL) =>
+  url.href !== IPULLUPULL_EXPORT_URL &&
+  url.href.startsWith(IPULLUPULL_INVENTORY_URL)
+    ? Number(url.searchParams.get("ipull_inventory_pricing_page"))
+    : null;
+
+test.each([
+  {
+    label: "CSV export",
+    matches: (url: URL) => url.href === IPULLUPULL_EXPORT_URL,
+  },
+  {
+    label: "first media page",
+    matches: (url: URL) => mediaPageNumber(url) === 1,
+  },
+])(
+  "a 429 on the $label defers the chunk with its Retry-After and emits nothing",
+  async ({ matches }) => {
+    const requests = mockCatalog(records);
+    const limited = rateLimit(matches);
+    let batches = 0;
+    let priorLoads = 0;
+    const error = await Effect.runPromise(
+      streamIPullUPullInventoryWithRequestGate(
+        {
+          onBatch: () =>
+            Effect.sync(() => {
+              batches++;
+            }),
+          loadPriorImages: Effect.sync(() => {
+            priorLoads++;
+            return new Map<string, string>();
+          }),
+        },
+        (request) => request,
+      ),
+    ).then(
+      () => null,
+      (cause: unknown) => cause,
+    );
+    const deferral = ProviderChunkClock.deferralOf(error);
+    expect(deferral).toBeInstanceOf(ProviderNotReadyDeferred);
+    expect(deferral).toMatchObject({ retryAfterMs: 600_000 });
+    expect(limited).toHaveLength(1);
+    expect(batches).toBe(0);
+    expect(priorLoads).toBe(0);
+    expect(
+      requests.filter((url) => mediaPageNumber(new URL(url)) !== null),
+    ).toHaveLength(0);
+  },
+);
+
+test("a 429 after media progress publishes fresh photos and keeps published ones for the rest", async () => {
+  const [fresh, refreshed, kept, unseen] = records;
+  if (!fresh || !refreshed || !kept || !unseen)
+    throw new Error("iPull-uPull fixture needs four records");
+  mockCatalog(records);
+  const partsOnly = Array.from({ length: 94 }, (_, i) => ({
+    stock: `PART${i}`,
+    vin: "",
+    city: "",
+  }));
+  const underlyingFetch = globalThis.fetch;
+  const mediaPages: number[] = [];
+  globalThis.fetch = Object.assign(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      const page = mediaPageNumber(new URL(String(input)));
+      if (page === null) return underlyingFetch(input, init);
+      mediaPages.push(page);
+      if (page === 2) return new Response("Too Many Requests", { status: 429 });
+      return new Response(
+        mediaPage(
+          [
+            ...[fresh, refreshed].map((row) => ({
+              stock: row["Stock Number"],
+              vin: row.Vin,
+              city: row["Yard City"],
+            })),
+            ...partsOnly,
+          ],
+          1,
+          98,
+        ),
+        { headers: { "content-type": "text/html" } },
+      );
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  const publishedImage =
+    "https://ipullupull.com/wp-content/uploads/ipullupull-optimized/7e/7ed282ecbe462cfe-large.webp";
+  let priorLoads = 0;
+  const vehicles: IPullUPullCanonicalVehicle[] = [];
+  const result = await Effect.runPromise(
+    streamIPullUPullInventoryWithRequestGate(
+      {
+        onBatch: (batch) =>
+          Effect.sync(() => {
+            vehicles.push(...batch);
+          }),
+        loadPriorImages: Effect.sync(() => {
+          priorLoads++;
+          return new Map([
+            [
+              ipullUPullPriorImageKey(refreshed["Stock Number"], refreshed.Vin),
+              publishedImage,
+            ],
+            [
+              ipullUPullPriorImageKey(kept["Stock Number"], kept.Vin),
+              publishedImage,
+            ],
+            // A prior image for the same VIN under another stock number is
+            // another listing's photo.
+            [ipullUPullPriorImageKey("OTHER", unseen.Vin), publishedImage],
+          ]);
+        }),
+      },
+      (request) => request,
+    ),
+  );
+  expect(mediaPages).toEqual([1, 2]);
+  expect(priorLoads).toBe(1);
+  expect(result).toMatchObject({ status: "complete", cursor: 1, count: 4 });
+  expect(
+    Object.fromEntries(
+      vehicles.map((vehicle) => [vehicle.stockNumber, vehicle.imageUrl]),
+    ),
+  ).toEqual({
+    [fresh["Stock Number"]]: beetleImage,
+    [refreshed["Stock Number"]]: beetleImage,
+    [kept["Stock Number"]]: publishedImage,
+    [unseen["Stock Number"]]: null,
+  });
+  expect(result.warnings).toContainEqual(
+    expect.stringContaining("media page 2 of 2 answered HTTP 429"),
+  );
+});
+
+test("a complete media sweep does not read published images", async () => {
+  mockCatalog(records);
+  let priorLoads = 0;
+  await Effect.runPromise(
+    streamIPullUPullInventoryWithRequestGate(
+      {
+        onBatch: () => Effect.void,
+        loadPriorImages: Effect.sync(() => {
+          priorLoads++;
+          return new Map<string, string>();
+        }),
+      },
+      (request) => request,
+    ),
+  );
+  expect(priorLoads).toBe(0);
+});
 
 test.each([false, true])(
   "ignores missing media for an older duplicate regardless of CSV order (reverse=%s)",

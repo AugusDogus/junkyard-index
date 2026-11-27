@@ -126,10 +126,12 @@ export const DEFERRED_CHUNK_DELAY_MS = 5 * 60_000;
 export const DEFERRED_SOURCE_LIMIT_MS = 3 * 60 * 60_000;
 /** Shorter no-progress limits. Chaz defers on origin 502/503/504 while its
  * run keeps one of the URG group places; Nov 26 outages lasted 44 s to
- * 4.6 min, so 45 minutes covers them without starving the group. */
+ * 4.6 min, so 45 minutes covers them without starving the group. iPull-uPull
+ * defers on HTTP 429 and each retry repeats its first requests, so a longer
+ * rate limit waits for the next scheduled run instead of probing it. */
 const DEFERRED_SOURCE_LIMIT_OVERRIDES_MS: Partial<
   Record<DurableIngestionSource, number>
-> = { chaz: 45 * 60_000 };
+> = { chaz: 45 * 60_000, ipullupull: 45 * 60_000 };
 
 export async function ingestDurableSource<
   Source extends DurableIngestionSource,
@@ -176,7 +178,14 @@ export async function ingestDurableSource<
           throw new Error(
             `Source ${source} needs a durable wait before retrying a deferred chunk: ${result.message}`,
           );
-        await sleepUntil(Date.now() + DEFERRED_CHUNK_DELAY_MS);
+        // A provider's Retry-After lengthens the pause, up to the limit.
+        await sleepUntil(
+          Date.now() +
+            Math.min(
+              Math.max(DEFERRED_CHUNK_DELAY_MS, result.retryAfterMs ?? 0),
+              deferredLimit,
+            ),
+        );
         continue;
       }
       deferredSince = null;

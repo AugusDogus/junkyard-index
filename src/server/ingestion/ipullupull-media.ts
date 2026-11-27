@@ -6,7 +6,10 @@ import {
 import {
   IPULLUPULL_INVENTORY_URL,
   IPULLUPULL_MAX_CATALOG_RECORDS,
+  IPULLUPULL_RETRY,
   IPullUPullProviderError,
+  IPullUPullRateLimited,
+  rejectIPullUPullRateLimit,
 } from "./ipullupull-client";
 import {
   fetchProviderResponse,
@@ -31,6 +34,25 @@ export function ipullUPullMediaKey(stock: string, vin: string, city: string) {
     city.trim().toUpperCase(),
   ]);
 }
+
+/** Joins a vehicle to the image already published for the same listing. */
+export function ipullUPullPriorImageKey(stock: string, vin: string) {
+  return JSON.stringify([stock.trim(), vin.trim().toUpperCase()]);
+}
+
+/** Cards by `ipullUPullMediaKey`. `rate-limited`: `page` (of `pages`, when
+ * known) answered HTTP 429 after `pagesRead` complete pages, so `media`
+ * covers only those pages. */
+export type IPullUPullMediaCatalog =
+  | { status: "complete"; media: Map<string, IPullUPullMedia> }
+  | {
+      status: "rate-limited";
+      media: Map<string, IPullUPullMedia>;
+      page: number;
+      pages: number | null;
+      pagesRead: number;
+      limit: IPullUPullRateLimited;
+    };
 
 function decode(value: string): string {
   return value.replace(
@@ -154,6 +176,7 @@ export function parseIPullUPullMediaPage(html: string, page: number) {
 }
 
 function fetchMediaPage(page: number, requestGate: ProviderRequestGate) {
+  const context = `iPull-uPull media page ${page}`;
   const url = new URL(IPULLUPULL_INVENTORY_URL);
   url.searchParams.set("ipull_inventory_pricing_perpage", String(PAGE_SIZE));
   url.searchParams.set("ipull_inventory_pricing_sort", "stock_number");
@@ -161,10 +184,11 @@ function fetchMediaPage(page: number, requestGate: ProviderRequestGate) {
   url.searchParams.set("ipull_inventory_pricing_page", String(page));
   return fetchProviderResponse({
     url: url.href,
-    context: `iPull-uPull media page ${page}`,
+    context,
     requestGate,
-    retry: { retryLimit: 2, retryNetworkErrors: false, jitter: false },
+    retry: IPULLUPULL_RETRY,
   }).pipe(
+    Effect.flatMap(rejectIPullUPullRateLimit(context)),
     Effect.flatMap((response) =>
       Effect.tryPromise({
         try: async (signal) => {
@@ -195,7 +219,9 @@ function fetchMediaPage(page: number, requestGate: ProviderRequestGate) {
   );
 }
 
-/** No per-vehicle requests. Keep all media inside the existing atomic checkpoint. */
+/** No per-vehicle requests. Keep all media inside the existing atomic checkpoint.
+ * A 429 ends the sweep without another request and returns the complete
+ * pages read before it; every other failure rejects the whole sweep. */
 export function fetchIPullUPullMedia(requestGate: ProviderRequestGate) {
   return Effect.gen(function* () {
     const media = new Map<string, IPullUPullMedia>();
@@ -205,7 +231,20 @@ export function fetchIPullUPullMedia(requestGate: ProviderRequestGate) {
       total === undefined || (page - 1) * PAGE_SIZE < total;
       page++
     ) {
-      const result = yield* fetchMediaPage(page, requestGate);
+      const fetched = yield* Effect.either(fetchMediaPage(page, requestGate));
+      if (fetched._tag === "Left") {
+        if (!(fetched.left instanceof IPullUPullRateLimited))
+          return yield* Effect.fail(fetched.left);
+        return {
+          status: "rate-limited",
+          media,
+          page,
+          pages: total === undefined ? null : Math.ceil(total / PAGE_SIZE),
+          pagesRead: page - 1,
+          limit: fetched.left,
+        } satisfies IPullUPullMediaCatalog;
+      }
+      const result = fetched.right;
       if (total !== undefined && result.total !== total)
         return yield* new IPullUPullProviderError({
           cause:
@@ -221,8 +260,9 @@ export function fetchIPullUPullMedia(requestGate: ProviderRequestGate) {
         media.set(key, item);
       }
     }
-    return media;
+    return { status: "complete", media } satisfies IPullUPullMediaCatalog;
   }).pipe(
+    Effect.map((catalog): IPullUPullMediaCatalog => catalog),
     Effect.mapError(
       (cause) =>
         new IPullUPullProviderError({

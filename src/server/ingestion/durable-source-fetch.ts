@@ -22,6 +22,7 @@ import { Effect } from "effect";
 import { streamWrenchApartInventory } from "./wrenchapart-connector";
 import { streamUpullRPartsInventory } from "./upullrparts-connector";
 import { streamIPullUPullInventory } from "./ipullupull-connector";
+import { loadIPullUPullPublishedImages } from "./ipullupull-history";
 import { streamUpullitwaInventory } from "./upullitwa-connector";
 import { streamPartsGaloreInventory } from "./partsgalore-connector";
 import { streamRtpInventory } from "./rtp-connector";
@@ -1573,6 +1574,13 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
           startCursor: cursor.catalog,
           onBatch: context.onBatch,
           onYards: context.onYards,
+          loadPriorImages: Effect.tryPromise({
+            try: () => loadIPullUPullPublishedImages(db),
+            catch: (cause) =>
+              new Error(
+                `iPull-uPull published images could not be read after a media rate limit: ${cause instanceof Error ? cause.message : String(cause)}. No batches were emitted and prior inventory is preserved; the run retries from cursor 0.`,
+              ),
+          }),
         }),
       ),
       (catalog) => ({ source: "ipullupull", catalog }),

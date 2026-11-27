@@ -28,7 +28,10 @@ import type {
   DurableSourceChunkDeferral,
   DurableSourceChunkResult,
 } from "./durable-ingestion-types";
-import { ProviderChunkClock } from "./provider-chunk-clock";
+import {
+  ProviderChunkClock,
+  ProviderNotReadyDeferred,
+} from "./provider-chunk-clock";
 import {
   getDurableSourceDefinition,
   type DurableCursorFor,
@@ -184,6 +187,10 @@ export async function runDurableSourceChunk<
           status: "deferred" as const,
           cursor: params.cursor,
           message: `${params.cursor.source}: ${deferral.message}`,
+          ...(deferral instanceof ProviderNotReadyDeferred &&
+          deferral.retryAfterMs !== undefined
+            ? { retryAfterMs: deferral.retryAfterMs }
+            : {}),
         };
       const rejection = validationRejectionKind(error);
       if (rejection === null) throw error;
