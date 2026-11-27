@@ -110,6 +110,7 @@ function props(vehicles: YardVehicle[]): Props {
     // a stale one shows none (see the staleness tests).
     checkedAt: new Date().toISOString(),
     checkUnknown: false,
+    lastArrivalAt: new Date().toISOString(),
     nearby: [],
     chain: null,
     filter: null,
@@ -219,6 +220,22 @@ describe("YardInventoryView staleness", () => {
     expect(text(html)).toContain("Last check unknown");
     expect(text(html)).not.toContain("new this week");
     expect(badges(html)).toBe(0);
+  });
+
+  test("says when a yard checked today has had no new vehicles for over a week, and still lists it", async () => {
+    const html = text(
+      await render({
+        ...props(vehicles),
+        publishedAt: new Date().toISOString(),
+        lastArrivalAt: "2026-11-01T07:00:00.000Z",
+      }),
+    ).replaceAll("&#x27;", "'");
+    expect(html).toContain(
+      "No new vehicles on the yard's list since Nov 1, 2026",
+    );
+    expect(html).toContain("Updated");
+    expect(html).not.toContain("Last checked");
+    expect(html).toContain("1 vehicle");
   });
 
   test("labels nothing while current", async () => {

@@ -297,6 +297,23 @@ describe("YardInventory.newDisplay", () => {
   });
 });
 
+describe("YardInventory.noArrivalsLabel", () => {
+  const now = Date.parse("2026-11-27T12:00:00Z");
+
+  test("says when the yard's list last gained a vehicle once that is over a week ago", () => {
+    expect(YardInventory.noArrivalsLabel("2026-11-18T08:44:00Z", now)).toBe(
+      "No new vehicles on the yard's list since Nov 18, 2026",
+    );
+  });
+
+  test("says nothing within a week of the last arrival, or when none is known", () => {
+    expect(YardInventory.noArrivalsLabel("2026-11-21T01:08:00Z", now)).toBe(
+      null,
+    );
+    expect(YardInventory.noArrivalsLabel(null, now)).toBe(null);
+  });
+});
+
 describe("YardInventory.summary", () => {
   const now = "2026-11-19T12:00:00Z";
   const make = (vin: string, name: string, availableDate: string | null) =>

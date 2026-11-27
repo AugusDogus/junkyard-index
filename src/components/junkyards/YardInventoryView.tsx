@@ -63,6 +63,7 @@ export function YardInventoryView({
   publishedAt,
   checkedAt,
   checkUnknown,
+  lastArrivalAt,
   nearby,
   chain,
   filter,
@@ -88,6 +89,8 @@ export function YardInventoryView({
   checkedAt: string | null;
   /** No run has proven a live fetch of this yard: it reads UNKNOWN_CHECK_LABEL. */
   checkUnknown: boolean;
+  /** The yard's newest first sighting (`yard_check.last_arrival_at`), if known. */
+  lastArrivalAt: string | null;
   nearby: readonly NearbyYard[];
   /** The chain the yard belongs to, when it has other yards we track. */
   chain: { name: string; href: string; yards: number } | null;
@@ -123,6 +126,10 @@ export function YardInventoryView({
   const lastChecked = checkUnknown
     ? UNKNOWN_CHECK_LABEL
     : InventoryStaleness.label(checkedAt, Date.now());
+  // A dormant yard lists nothing, so it has no list to call stale.
+  const noArrivals = dormant
+    ? null
+    : YardInventory.noArrivalsLabel(lastArrivalAt, Date.now());
   const newDisplay = YardInventory.newDisplay(newArrivals);
   // Nothing is "new" next to "Last checked": a stale yard's newest cars are
   // only new as of its last check.
@@ -222,6 +229,9 @@ export function YardInventoryView({
                   publishedAt ?? (lastChecked === null ? null : checkedAt)
                 }
               />
+            )}
+            {noArrivals !== null && (
+              <p className="text-ink-2 text-sm text-pretty">{noArrivals}</p>
             )}
             {total > 0 && (
               <p className="text-ink text-sm font-medium tabular-nums">

@@ -107,6 +107,7 @@ export default async function YardModelPage({
         publishedAt={data.publishedAt}
         checkedAt={data.checkedAt}
         checkUnknown={data.checkUnknown}
+        lastArrivalAt={data.lastArrivalAt}
         nearby={data.nearby}
         chain={data.chain}
         dormant={data.dormant}

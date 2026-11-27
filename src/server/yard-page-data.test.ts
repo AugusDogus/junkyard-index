@@ -54,7 +54,7 @@ function run(scenario: string): unknown {
       db: {
         select: () => ({
           from: () => ({
-            where: async () => [{ source: "pyp", code: "1", lastCheckedAt: new Date("2026-11-26T07:00:00Z") }],
+            where: async () => [{ source: "pyp", code: "1", lastCheckedAt: new Date("2026-11-26T07:00:00Z"), lastArrivalAt: new Date("2026-11-18T08:44:00Z") }],
           }),
         }),
       },
@@ -87,6 +87,7 @@ test("a yard page reads its region's routes, its context and its summary, never 
       publishedAt: data.publishedAt,
       checkedAt: data.checkedAt,
       checkUnknown: data.checkUnknown,
+      lastArrivalAt: data.lastArrivalAt,
       total: data.summary.total,
       // React's cache() dedupes the hidden list only inside a render.
       reads: [...new Set(globalThis.cacheReads)].sort(),
@@ -99,13 +100,14 @@ test("a yard page reads its region's routes, its context and its summary, never 
     publishedAt: "2026-11-26T07:00:00.000Z",
     checkedAt: "2026-11-26T07:00:00.000Z",
     checkUnknown: false,
+    lastArrivalAt: "2026-11-18T08:44:00.000Z",
     total: 10,
     // The routes entry also lists yards that keep a page while they show
     // no vehicles, from one site-wide entry.
     reads: [
       "dormant-yards-v1",
       "hidden-sources-v2",
-      "yard-context-v2",
+      "yard-context-v3",
       "yard-routes-v2",
       "yard-summary-v5",
     ],

@@ -132,6 +132,7 @@ export async function YardMakePage({
         publishedAt={data.publishedAt}
         checkedAt={data.checkedAt}
         checkUnknown={data.checkUnknown}
+        lastArrivalAt={data.lastArrivalAt}
         nearby={data.nearby}
         chain={data.chain}
         filter={{ name: make.name, slug: make.slug }}
