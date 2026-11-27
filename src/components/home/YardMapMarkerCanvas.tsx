@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { YardMapMarker } from "~/lib/yard-map-marker";
 import {
   YardMapMarkerPaint,
   type YardMarkerColors,
+  type YardMarkerContext,
   type YardMarkerTween,
 } from "~/lib/yard-map-marker-paint";
+import { YardMapMarkerSprites } from "~/lib/yard-map-marker-sprites";
 import { projectYardLocation } from "~/lib/yard-map-projection";
 import { YardPath } from "~/lib/yard-path";
 import type { MapYard } from "./yard-map-data";
@@ -47,6 +49,7 @@ export function YardMapMarkerCanvas({
     null,
   );
   const frame = useRef<number | null>(null);
+  const [stamp] = useState(() => YardMapMarkerSprites.create(renderSprite));
   const markers = useMemo(
     () =>
       pins.map((yard) => ({
@@ -83,6 +86,9 @@ export function YardMapMarkerCanvas({
     }
     context.setTransform(density, 0, 0, density, 0, 0);
     context.clearRect(0, 0, width, height);
+    // Sprites land on whole device pixels; copy them exactly.
+    context.imageSmoothingEnabled = false;
+    const markerColors = readColors(canvas, colors);
     const animating = YardMapMarkerPaint.frame(
       context,
       {
@@ -100,8 +106,9 @@ export function YardMapMarkerCanvas({
           .matches,
         now: performance.now(),
       },
-      readColors(canvas, colors),
+      markerColors,
       tweens.current,
+      (look) => stamp(context, look, markerColors, density),
     );
     if (animating) {
       frame.current = window.requestAnimationFrame(() => draw.current());
@@ -185,6 +192,19 @@ export function YardMapMarkerCanvas({
       }}
     />
   );
+}
+
+/** A marker sprite's canvas, `side` device pixels square. */
+function renderSprite(
+  side: number,
+  paint: (context: YardMarkerContext) => void,
+): HTMLCanvasElement {
+  const sprite = document.createElement("canvas");
+  sprite.width = side;
+  sprite.height = side;
+  const context = sprite.getContext("2d");
+  if (context) paint(context);
+  return sprite;
 }
 
 /** The theme's marker colors, read again only when the theme changes. */
