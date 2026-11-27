@@ -24,6 +24,7 @@ import {
   memo,
   startTransition,
   useCallback,
+  useDeferredValue,
   useMemo,
   useEffect,
   useLayoutEffect,
@@ -132,10 +133,14 @@ const YardMapCanvas = memo(function YardMapCanvas({
     center: [anchorLat, anchorLng],
     zoom: anchorZoom,
   } = yardMapPinAnchor(current);
-  const anchor = useMemo(
+  const liveAnchor = useMemo(
     (): YardMapView => ({ center: [anchorLat, anchorLng], zoom: anchorZoom }),
     [anchorLat, anchorLng, anchorZoom],
   );
+  // A zoom's first frame draws the map and the marker canvas; the pins
+  // follow in a background render, and their layer keeps them aligned with
+  // the map until then.
+  const anchor = useDeferredValue(liveAnchor);
   const points = useMemo(() => pins.map(projectYardLocation), [pins]);
   const activeKey = pins.some((yard) => YardPath.key(yard) === focusedKey)
     ? focusedKey
