@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { brotliDecompressSync } from "node:zlib";
+import { z } from "zod";
+import { URGIIS_TENANTS } from "./urgiis-configuration";
 import { urgiisCarry } from "./urgiis-census";
-import { urgiisDetailSeller } from "./urgiis-detail";
+import { urgiisDetailPresence, urgiisDetailSeller } from "./urgiis-detail";
 import { UrgiisTenant } from "./urgiis-tenant";
 import {
   UrgiisEntrySchema,
@@ -353,5 +357,77 @@ describe("URG IIS seller detail reuse", () => {
         day,
       ),
     ).toMatchObject({ kind: "detail", seller: "NJ12" });
+  });
+});
+
+describe("a car's detail page shows whether it is still listed", () => {
+  // Norb's pages captured November 27, 2026 under the URG gate.
+  const norbs = URGIIS_TENANTS.find((t) => t.code === "norbs");
+  if (!norbs) throw new Error("Missing Norb's qualification");
+  const captures = new Map(
+    z
+      .array(z.object({ url: z.string(), html: z.string() }).passthrough())
+      .parse(
+        JSON.parse(
+          brotliDecompressSync(
+            readFileSync(
+              new URL(
+                "./urgiis-test-fixtures/norbs-detail-probes.json.br",
+                import.meta.url,
+              ),
+            ),
+          ).toString(),
+        ),
+      )
+      .map((c) => [new URL(c.url).pathname, c.html] as const),
+  );
+  const page = (path: string) => {
+    const html = captures.get(path);
+    if (!html) throw new Error("Missing capture " + path);
+    return html;
+  };
+  const f150 = "/parts/FORD/FORD_F150_PICKUP/P21590/2020";
+  const car = { stock: "P21590", year: "2020", vins: ["1FTEX1CB9LKE09739"] };
+
+  test("part rows for the expected stock, year and VIN keep the car", () => {
+    expect(urgiisDetailPresence(page(f150), norbs, car)).toBe("listed");
+    // A card without a VIN claim is kept on its stock and year.
+    expect(
+      urgiisDetailPresence(page(f150), norbs, { ...car, vins: [""] }),
+    ).toBe("listed");
+  });
+
+  test("the native no-results message marks a sold or unknown car gone", () => {
+    expect(
+      urgiisDetailPresence(page("/parts/BUICK/LUCERNE/P21967/2006"), norbs, {
+        stock: "P21967",
+        year: "2006",
+        vins: [""],
+      }),
+    ).toBe("gone");
+    expect(
+      urgiisDetailPresence(
+        page("/parts/FORD/FORD_F150_PICKUP/Z99999/2010"),
+        norbs,
+        { stock: "Z99999", year: "2010", vins: [] },
+      ),
+    ).toBe("gone");
+  });
+
+  test("another car's rows, a timed-out model template or a truncated page are not evidence", () => {
+    for (const expected of [
+      { ...car, stock: "P21591" },
+      { ...car, year: "2019" },
+      { ...car, vins: ["1FTEW1EP0KKE06920"] },
+    ])
+      expect(() => urgiisDetailPresence(page(f150), norbs, expected)).toThrow(
+        "expected stock",
+      );
+    expect(() =>
+      urgiisDetailPresence(page("/parts/FORD/FORD_F150_PICKUP/"), norbs, car),
+    ).toThrow("neither part rows nor its native no-results message");
+    // A render the origin cut off after its part rows.
+    const cut = page(f150).replace(/<\/body>\s*<\/html>[\s\S]*$/i, "");
+    expect(() => urgiisDetailPresence(cut, norbs, car)).toThrow("truncated");
   });
 });

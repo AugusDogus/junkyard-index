@@ -38,9 +38,11 @@ export function urgiisPublication(cursor: UrgiisCursor) {
  * Each yard's result in a run's cursor, by its tenant's verdict. An accepted
  * tenant read its owner page, makes, menus and arrivals live this run and
  * reread them at closing; its census carries only model pages whose live
- * badge counts did not change, so its yards are "fetched". An accepted tenant
- * that deferred model pages reused prior listings after failed reads, so its
- * yards are "replayed". A blocked tenant
+ * badge counts did not change, so its yards are "fetched". A model whose page
+ * failed but whose prior cars were each rechecked on their detail pages this
+ * run ("revalidated") also counts as fetched. An accepted tenant that deferred
+ * model pages reused prior listings after failed reads, so its yards are
+ * "replayed". A blocked tenant
  * (a provider block or a quarantine stop; the cursor keeps only free text)
  * published nothing, so its yards are "blocked".
  */

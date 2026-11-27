@@ -76,7 +76,12 @@ export function urgiisClosingEvidence(
         observed.records.length === 0 &&
         control.count >= URGIIS_EMPTY_MODEL_MINIMUM &&
         !urgiisBrokenModelRoute(control) &&
-        !(observed.kind === "model" && observed.freshness.kind === "deferred")
+        // A deferred or revalidated model already failed its page this run.
+        !(
+          observed.kind === "model" &&
+          (observed.freshness.kind === "deferred" ||
+            observed.freshness.kind === "revalidated")
+        )
       )
         retry.push(control);
     }

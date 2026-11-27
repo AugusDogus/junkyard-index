@@ -472,20 +472,37 @@ test("a failed model whose retry could not get a shared host turn defers the chu
   // Failing the chunk would spend a step retry on a transient error the
   // deferred retry never got to repeat.
   const path = target().model.path;
-  for (const day of [
-    // A cold census has no earlier model evidence.
-    { fail: path },
-    // The earlier evidence is too old to carry.
-    { previous: baseline.cursor, fail: path, now: start + 8 * DAY },
-  ]) {
-    await expectBlocked(day, "offline repeated HTTP500");
-    const deferral = await run({ ...day, retryDeferred: true }).catch(
-      (error: unknown) => error,
-    );
-    expect(ProviderChunkClock.deferralOf(deferral)).toBeInstanceOf(
-      ProviderTurnDeferred,
-    );
-  }
+  // A cold census has no earlier model evidence.
+  const day = { fail: path };
+  await expectBlocked(day, "offline repeated HTTP500");
+  const deferral = await run({ ...day, retryDeferred: true }).catch(
+    (error: unknown) => error,
+  );
+  expect(ProviderChunkClock.deferralOf(deferral)).toBeInstanceOf(
+    ProviderTurnDeferred,
+  );
+});
+test("a failed model with evidence too old to carry counts a deferred retry toward its car recheck", async () => {
+  // Rechecking its prior cars is a safe outcome too, so contention cannot hold
+  // the chunk on this page. This fixture serves no detail pages, so the
+  // recheck fails and the tenant blocks instead of deferring every chunk.
+  const path = target().model.path;
+  const blocked = await expectBlocked(
+    {
+      previous: baseline.cursor,
+      fail: path,
+      now: start + 8 * DAY,
+      retryDeferred: true,
+    },
+    "offline repeated HTTP500",
+  );
+  // Three chunk reads of the page, then the recheck.
+  expect(
+    blocked.reads.filter((url) => url === tenant.origin + path),
+  ).toHaveLength(3);
+  expect(blocked.cursor.completed[0]).toMatchObject({
+    blocked: expect.stringContaining("rechecking its cars"),
+  });
 });
 test("first-census page failures and parse/structural drift never use a carry", async () => {
   await expectBlocked(

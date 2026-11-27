@@ -13,6 +13,8 @@ import {
   UrgiisCensus,
   urgiisCarry,
   urgiisDefer,
+  urgiisRevalidated,
+  urgiisRevalidationCars,
   urgiisModelFailureStreak,
   URGIIS_MODEL_FAILURE_STREAK,
   URGIIS_SWEEP_MS,
@@ -21,7 +23,7 @@ import {
   URGIIS_DAY_MS,
 } from "./urgiis-census";
 import { UrgiisTenant } from "./urgiis-tenant";
-import { urgiisDetailSeller } from "./urgiis-detail";
+import { urgiisDetailPresence, urgiisDetailSeller } from "./urgiis-detail";
 import { Effect, Either, Option } from "effect";
 import type { Yard } from "~/lib/yard";
 import type { CanonicalVehicle } from "./types";
@@ -254,6 +256,60 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
             result.warnings.push(`${tenant.code}: ${reason}`);
           }),
         );
+      // Read the same page again in the next chunk, before giving up on it.
+      // Nothing from the failed read is kept.
+      const readAgain = (
+        url: string,
+        attempt: number,
+        failure: string,
+        bytes: number,
+      ) =>
+        boundary("failed read checkpoint", () =>
+          UrgiisCursor.checkpoint(
+            {
+              ...cursor,
+              requests: cursor.requests + 1,
+              bytes: cursor.bytes + bytes,
+              failedReads: { url, attempts: attempt },
+            },
+            tenants,
+          ),
+        ).pipe(
+          Effect.map((next) => {
+            cursor = next;
+            unsealed = false;
+            result.pagesProcessed++;
+            result.warnings.push(
+              `${tenant.code}: ${failure} Reading ${url} again in the next chunk (attempt ${attempt + 1} of ${URGIIS_PAGE_ATTEMPTS}).`,
+            );
+          }),
+        );
+      // A Retry-After pauses this frontier: the checkpointed result to return,
+      // or undefined when the refusal gave none.
+      const pauseFor = (error: UrgiisError) =>
+        Effect.gen(function* () {
+          if (error.kind !== "blocked" || error.retryAfterMs <= 0)
+            return undefined;
+          const retryAt = (options.now ?? Date.now()) + error.retryAfterMs;
+          if (!Number.isSafeInteger(retryAt)) return undefined;
+          cursor = yield* boundary("provider cooldown checkpoint", () =>
+            UrgiisCursor.checkpoint(
+              { ...cursor, retryAt, requests: cursor.requests + 1 },
+              tenants,
+            ),
+          );
+          return {
+            ...result,
+            cursor,
+            pagesProcessed: result.pagesProcessed + 1,
+            warnings: [...result.warnings, error.message],
+          };
+        });
+      const phaseOf = (entries: readonly UrgiisEntry[]) =>
+        entries.length === urgiisTasks(entries, tenant).length &&
+        !entries.some((e) => e.kind === "model" && e.freshness.kind === "retry")
+          ? ("closing" as const)
+          : ("opening" as const);
       const tasks = urgiisTasks(cursor.entries, tenant);
       const previousTenant =
         cursor.runKind === "cold"
@@ -383,6 +439,185 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
             "Native graph incomplete at request/body limit",
           ),
         );
+      const revalidation =
+        cursor.phase === "opening" ? cursor.revalidation : undefined;
+      if (revalidation) {
+        // Recheck a failed model's prior cards, one detail page per request,
+        // before any other page. The cursor keeps the progress across chunks.
+        const index = tasks.findIndex(
+          (t) => t.kind === "model" && t.url === revalidation.url,
+        );
+        const model = tasks[index];
+        const plan = model
+          ? urgiisRevalidationCars(
+              model,
+              cursor.entries,
+              previousTenant,
+              tenant,
+            )
+          : undefined;
+        if (!model || !plan || revalidation.checked > plan.cars.length)
+          return yield* Effect.fail(
+            urgiisError(
+              "revalidation checkpoint",
+              `${revalidation.url} is being rechecked on its cars' detail pages, but the accepted census no longer holds the ${revalidation.checked} prior cards already checked. Restart this run so the tenant is read from its owner page`,
+            ),
+          );
+        // Every change below replaces this frontier in one checkpoint.
+        const frontier = cursor.entries;
+        const place = (entry: UrgiisEntry) =>
+          index < frontier.length
+            ? frontier.map((e, i) => (i === index ? entry : e))
+            : [...frontier, entry];
+        // Without a complete recheck the failed page is handled as before: its
+        // prior donors carry as deferred while young enough, or the tenant
+        // stops. `bytes` is the last request's body, or null for none.
+        const fallBack = (reason: string, bytes: number | null) =>
+          Effect.gen(function* () {
+            const deferred = urgiisDefer(
+              model,
+              frontier,
+              previousTenant,
+              now,
+              carry,
+            );
+            if (!deferred)
+              return yield* blockTenant(
+                `${model.url} ${revalidation.cause}; rechecking its cars on their detail pages failed (${reason}), and no eligible prior model evidence can be carried. Prior tenant inventory is preserved.`,
+                bytes,
+              );
+            const entries = place(deferred);
+            cursor = yield* boundary("deferred model checkpoint", () =>
+              UrgiisCursor.checkpoint(
+                {
+                  ...cursor,
+                  entries,
+                  asOf: now,
+                  requests: cursor.requests + (bytes === null ? 0 : 1),
+                  bytes: cursor.bytes + (bytes ?? 0),
+                  failedReads: undefined,
+                  revalidation: undefined,
+                  phase: phaseOf(entries),
+                },
+                tenants,
+              ),
+            );
+            unsealed = false;
+            if (bytes !== null) result.pagesProcessed++;
+            result.warnings.push(
+              `${tenant.code}: ${model.url} ${revalidation.cause}; retaining donors read at ${new Date(deferred.freshness.readAt).toISOString()} because rechecking its cars on their detail pages failed (${reason}). Retry next run; publication stops at seven days.`,
+            );
+          });
+        const car = plan.cars[revalidation.checked];
+        if (!car) {
+          const outcome = urgiisRevalidated(
+            model,
+            plan.cars,
+            revalidation.listed,
+            cursor.entries,
+            previousTenant,
+            now,
+          );
+          if (outcome.kind === "incomplete") {
+            yield* fallBack(outcome.reason, null);
+            break;
+          }
+          const entries = place(outcome.entry);
+          cursor = yield* boundary("revalidated model checkpoint", () =>
+            UrgiisCursor.checkpoint(
+              {
+                ...cursor,
+                entries,
+                asOf: now,
+                failedReads: undefined,
+                revalidation: undefined,
+                phase: phaseOf(entries),
+              },
+              tenants,
+            ),
+          );
+          unsealed = false;
+          result.warnings.push(
+            `${tenant.code}: ${model.url} ${revalidation.cause}; rechecked its ${plan.cars.length} prior cars on their detail pages: ${revalidation.listed.length} still listed, ${outcome.gone} gone${plan.unconfirmable ? `, ${plan.unconfirmable} cards without a detail link dropped` : ""}.`,
+          );
+          continue;
+        }
+        if (result.pagesProcessed >= budget) break;
+        const attempt =
+          (cursor.failedReads?.url === car.url
+            ? cursor.failedReads.attempts
+            : 0) + 1;
+        const read = yield* options.readPage(car.url, tenant).pipe(
+          Effect.map(Either.right),
+          // A failed read whose retry was deferred counts as an attempt, so
+          // contention cannot hold the recheck on one car: rereads and the
+          // fallback both checkpoint progress.
+          Effect.catchAll((error) =>
+            error instanceof ProviderTurnDeferred
+              ? Effect.fail(error)
+              : Effect.succeed(Either.left(error)),
+          ),
+          ProviderChunkClock.unlessDeferred(cursor !== resumedCursor),
+        );
+        if (Option.isNone(read)) break;
+        const response = read.value;
+        if (response._tag === "Left") {
+          const paused = yield* pauseFor(response.left);
+          if (paused) return paused;
+          yield* response.left.kind === "blocked"
+            ? blockTenant(response.left.message, 0)
+            : attempt < URGIIS_PAGE_ATTEMPTS
+              ? readAgain(car.url, attempt, response.left.message, 0)
+              : fallBack(
+                  `${car.url} failed in ${attempt} separate chunks: ${response.left.message}`,
+                  0,
+                );
+          break;
+        }
+        const raw = response.right;
+        const bytes = Buffer.byteLength(raw);
+        if (
+          !iisDeclaresSupplier(raw, tenant) &&
+          attempt < URGIIS_PAGE_ATTEMPTS
+        ) {
+          yield* readAgain(
+            car.url,
+            attempt,
+            "The page declares no supplier (var urgid), so it cannot be attributed.",
+            bytes,
+          );
+          break;
+        }
+        const presence = yield* boundary("detail page " + car.url, () =>
+          urgiisDetailPresence(raw, tenant, { ...car, vins: car.record.vins }),
+        ).pipe(Effect.either);
+        if (presence._tag === "Left") {
+          yield* fallBack(presence.left.message, bytes);
+          break;
+        }
+        const { checked, listed } = revalidation;
+        cursor = yield* boundary("revalidation checkpoint", () =>
+          UrgiisCursor.checkpoint(
+            {
+              ...cursor,
+              asOf: now,
+              requests: cursor.requests + 1,
+              bytes: cursor.bytes + bytes,
+              failedReads: undefined,
+              revalidation: {
+                ...revalidation,
+                checked: checked + 1,
+                listed:
+                  presence.right === "listed" ? [...listed, checked] : listed,
+              },
+            },
+            tenants,
+          ),
+        );
+        unsealed = false;
+        result.pagesProcessed++;
+        continue;
+      }
       const closingTasks = tasks.filter(
         (t) => t.kind === "owner" || t.kind === "makes" || t.kind === "menu",
       );
@@ -411,29 +646,46 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
         (cursor.failedReads?.url === task.url
           ? cursor.failedReads.attempts
           : 0) + 1;
-      // Read the same frontier page again in the next chunk, before giving up
-      // on the tenant. Nothing from the failed read is kept.
-      const readAgain = (failure: string, bytes: number) =>
-        boundary("failed read checkpoint", () =>
-          UrgiisCursor.checkpoint(
-            {
-              ...cursor,
-              requests: cursor.requests + 1,
-              bytes: cursor.bytes + bytes,
-              failedReads: { url: task.url, attempts: attempt },
-            },
-            tenants,
-          ),
-        ).pipe(
-          Effect.map((next) => {
-            cursor = next;
-            unsealed = false;
-            result.pagesProcessed++;
-            result.warnings.push(
-              `${tenant.code}: ${failure} Reading ${task.url} again in the next chunk (attempt ${attempt + 1} of ${URGIIS_PAGE_ATTEMPTS}).`,
-            );
-          }),
-        );
+      // A failed model page whose prior cards can be rechecked on their detail
+      // pages starts that recheck instead of deferring, and persists it before
+      // any further request. False when it cannot be rechecked.
+      const startRevalidation = (cause: string, bytes: number) =>
+        Effect.gen(function* () {
+          const plan =
+            cursor.phase === "opening"
+              ? urgiisRevalidationCars(
+                  task,
+                  cursor.entries,
+                  previousTenant,
+                  tenant,
+                )
+              : undefined;
+          if (!plan) return false;
+          cursor = yield* boundary("revalidation checkpoint", () =>
+            UrgiisCursor.checkpoint(
+              {
+                ...cursor,
+                asOf: now,
+                requests: cursor.requests + 1,
+                bytes: cursor.bytes + bytes,
+                failedReads: undefined,
+                revalidation: {
+                  url: task.url,
+                  cause: cause.slice(0, 4000),
+                  checked: 0,
+                  listed: [],
+                },
+              },
+              tenants,
+            ),
+          );
+          unsealed = false;
+          result.pagesProcessed++;
+          result.warnings.push(
+            `${tenant.code}: ${task.url} ${cause}; rechecking its ${plan.cars.length} prior cars one detail page at a time.`,
+          );
+          return true;
+        });
       const carried =
         cursor.phase === "opening" && !retrying
           ? urgiisCarry(task, cursor.entries, previousTenant, now, carry)
@@ -476,15 +728,22 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
       // A deferred turn is not a provider failure. After this chunk advanced
       // it returns the last checkpoint; before that it escapes unwrapped and
       // defers the chunk. A failed read whose retry was deferred counts as a
-      // failure only where it defers the model and carries its donors, so a
-      // failing model page cannot stall the census; elsewhere, including a
-      // model without carryable evidence, it defers too.
+      // failure only where the model can defer and carry its donors, or have
+      // its prior cars rechecked, so a failing model page cannot stall the
+      // census; elsewhere, including a model without prior evidence, it
+      // defers too.
       const carriesFailedModel =
         task.kind === "model" &&
         cursor.phase === "opening" &&
         !endsStreak &&
-        urgiisDefer(task, cursor.entries, previousTenant, now, carry) !==
-          undefined;
+        (urgiisDefer(task, cursor.entries, previousTenant, now, carry) !==
+          undefined ||
+          urgiisRevalidationCars(
+            task,
+            cursor.entries,
+            previousTenant,
+            tenant,
+          ) !== undefined);
       const read = yield* options.readPage(task.url, tenant).pipe(
         Effect.map(Either.right),
         Effect.catchAll((error) =>
@@ -500,27 +759,8 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
       const response = read.value;
       if (response._tag === "Left") {
         const failedAt = now;
-        if (
-          response.left.kind === "blocked" &&
-          response.left.retryAfterMs > 0
-        ) {
-          const retryAt =
-            (options.now ?? Date.now()) + response.left.retryAfterMs;
-          if (Number.isSafeInteger(retryAt)) {
-            cursor = yield* boundary("provider cooldown checkpoint", () =>
-              UrgiisCursor.checkpoint(
-                { ...cursor, retryAt, requests: cursor.requests + 1 },
-                tenants,
-              ),
-            );
-            return {
-              ...result,
-              cursor,
-              pagesProcessed: result.pagesProcessed + 1,
-              warnings: [...result.warnings, response.left.message],
-            };
-          }
-        }
+        const paused = yield* pauseFor(response.left);
+        if (paused) return paused;
         if (response.left.kind === "blocked") {
           yield* blockTenant(response.left.message, 0);
           break;
@@ -533,9 +773,19 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
           cursor.phase === "opening"
             ? urgiisDefer(task, cursor.entries, previousTenant, failedAt, carry)
             : undefined;
+        // Evidence too old to defer gets its chunk rereads first: a page that
+        // recovers costs one request, its recheck one per car.
+        if (
+          (deferred || attempt >= URGIIS_PAGE_ATTEMPTS) &&
+          (yield* startRevalidation(
+            `failed after retries (${response.left.message})`,
+            0,
+          ))
+        )
+          break;
         if (!deferred) {
           yield* attempt < URGIIS_PAGE_ATTEMPTS
-            ? readAgain(response.left.message, 0)
+            ? readAgain(task.url, attempt, response.left.message, 0)
             : blockTenant(
                 `${task.url} failed in ${attempt} separate chunks. ${response.left.message}`,
                 0,
@@ -567,7 +817,7 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
         unsealed = false;
         result.pagesProcessed++;
         result.warnings.push(
-          `${tenant.code}: ${task.url} failed after retries; retaining model donors read at ${new Date(deferred.freshness.readAt).toISOString()}. Retry next run; publication stops at seven days.`,
+          `${tenant.code}: ${task.url} failed after retries (${response.left.message}); retaining model donors read at ${new Date(deferred.freshness.readAt).toISOString()}. Retry next run; publication stops at seven days.`,
         );
         // Persist this failed-page frontier before any further network work.
         break;
@@ -578,6 +828,8 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
         // declared their supplier on the next read. A page that still declares
         // none on the last attempt fails the supplier check below.
         yield* readAgain(
+          task.url,
+          attempt,
           "The page declares no supplier (var urgid), so it cannot be attributed.",
           Buffer.byteLength(raw),
         );
@@ -622,6 +874,13 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
         entry.kind === "model" &&
         entry.freshness.kind === "retry"
       ) {
+        if (
+          yield* startRevalidation(
+            "remains explicitly empty after a later retry",
+            Buffer.byteLength(raw),
+          )
+        )
+          break;
         const deferred = urgiisDefer(
           task,
           cursor.entries,

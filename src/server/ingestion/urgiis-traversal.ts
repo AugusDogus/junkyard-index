@@ -64,9 +64,11 @@ const entrySchema = z.discriminatedUnion("kind", [
       ...receipt,
       kind: z.literal("model"),
       records: z.array(UrgiisRecordSchema).max(499),
+      // "revalidated": the model page failed this run, so each prior card was
+      // rechecked on its own detail page; readAt is this run's start.
       freshness: z
         .object({
-          kind: z.enum(["read", "carried", "deferred", "retry"]),
+          kind: z.enum(["read", "carried", "deferred", "retry", "revalidated"]),
           readAt: z.number().int().nonnegative(),
         })
         .strict(),
