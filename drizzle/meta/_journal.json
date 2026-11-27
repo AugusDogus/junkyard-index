@@ -253,6 +253,13 @@
       "when": 1796313600000,
       "tag": "0035_yard_make_index_and_summary",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1796400000000,
+      "tag": "0036_departed_yard",
+      "breakpoints": true
     }
   ]
 }

@@ -5,6 +5,7 @@ import {
   YardInventoryView,
   yardMakeMetadata,
 } from "~/components/junkyards/YardInventoryView";
+import { dormantYardMetadata } from "~/lib/yard-page-metadata";
 import { YardInventory } from "~/lib/yard-inventory";
 import { YardPath } from "~/lib/yard-path";
 import { findMake, getMakeSlugs } from "~/server/vehicle-models";
@@ -43,6 +44,20 @@ async function load(
   };
 }
 
+/**
+ * Whether this is the first page of a make an unconfirmed yard's hidden
+ * vehicles include: it stays up, noindexed and listing none, until the
+ * yard's inventory returns. Every other make or page of a dormant yard has
+ * nothing to show and answers 404.
+ */
+function isHeldMakePage(
+  data: { heldMakes: readonly string[] },
+  makeKey: string,
+  page: number,
+): boolean {
+  return page === 1 && data.heldMakes.includes(makeKey);
+}
+
 /** Sends /page/1 to the make's own canonical URL in one redirect. */
 export async function redirectToFirstPage(params: YardMakeParams) {
   const [data, make] = await Promise.all([
@@ -61,6 +76,14 @@ export async function yardMakePageMetadata(
   const loaded = await load(params, page);
   if (!loaded?.inventory) return {};
   const { data, make, summary } = loaded;
+  if (data.dormant) {
+    return isHeldMakePage(data, make.key, page)
+      ? dormantYardMetadata(data.yard, data.dormant, {
+          name: make.name,
+          slug: make.slug,
+        })
+      : {};
+  }
   const total = YardInventory.makeArrivals(summary, make.key).total;
   // The page answers 404 for a make the yard has none of.
   if (total === 0) return {};
@@ -89,7 +112,8 @@ export async function YardMakePage({
     permanentRedirect(YardPath.makePageHref(data.yard.path, make.slug, page));
   }
   const arrivals = YardInventory.makeArrivals(summary, make.key);
-  if (!inventory || arrivals.total === 0) notFound();
+  const held = data.dormant ? isHeldMakePage(data, make.key, page) : false;
+  if (!inventory || (arrivals.total === 0 && !held)) notFound();
 
   return (
     <PublicPageShell>
@@ -111,6 +135,7 @@ export async function YardMakePage({
         nearby={data.nearby}
         chain={data.chain}
         filter={{ name: make.name, slug: make.slug }}
+        dormant={data.dormant}
       />
     </PublicPageShell>
   );

@@ -40,6 +40,9 @@ async function open(
       YardInventoryView: () => null,
       yardMakeMetadata: (yard, make, total, publishedAt, page) => ({ make: make.slug, total, page }),
     }));
+    mock.module("~/lib/yard-page-metadata", () => ({
+      dormantYardMetadata: (yard, dormant, make) => ({ dormant: dormant.kind, make: make?.slug ?? null, robots: { index: false, follow: true } }),
+    }));
     mock.module("~/server/source-control/hidden-sources-loader", () => ({ getHiddenSources: async () => ({ list: [] }) }));
     const chevrolet = { key: "CHEVROLET", name: "Chevrolet", slug: "chevrolet" };
     const ford = { key: "FORD", name: "Ford", slug: "ford" };
@@ -58,12 +61,20 @@ async function open(
     const path = { region: { slug: "tx" }, slug: "calton", href: "/junkyards/tx/calton" };
     mock.module("~/server/yard-inventory", () => ({
       getYardPageData: async (state, yard) =>
-        state === "tx" && yard === "calton"
-          ? { yard: { source: "pyp", code: "1", path }, summary, publishedAt: null, nearby: [], chain: null }
-          : null,
+        state !== "tx"
+          ? null
+          : yard === "calton"
+            ? { yard: { source: "pyp", code: "1", path }, summary, publishedAt: null, nearby: [], chain: null, dormant: null, heldMakes: [] }
+            : yard === "held"
+              // Its source is past the 7-day hide; its 150 Chevrolets are held back.
+              ? { yard: { source: "pyp", code: "2", path }, summary: YardInventory.summary([], []), publishedAt: null, nearby: [], chain: null, dormant: { kind: "unconfirmed", since: "2026-11-01T12:00:00.000Z" }, heldMakes: ["CHEVROLET"] }
+              : null,
       getYardVehiclePage: async (yard, cached, scope, page) => ({
         summary: cached,
-        data: YardInventory.page(vehicles.filter((vehicle) => scope.kind === "yard" || scope.key === "CHEVROLET"), page),
+        data: YardInventory.page(
+          cached.total === 0 ? [] : vehicles.filter((vehicle) => scope.kind === "yard" || scope.key === "CHEVROLET"),
+          page,
+        ),
       }),
     }));
     const route = await import(process.argv[4]);
@@ -138,6 +149,24 @@ describe("yard make page N", () => {
     expect(await open("calton", "ford", "1", "first")).toEqual({
       outcome: { notFound: true },
       metadata: {},
+    });
+  });
+
+  test("keeps a held make of an unconfirmed yard up, noindexed and listing none, and 404s its other makes and pages", async () => {
+    expect(await open("held", "chevrolet", "1", "first")).toEqual({
+      outcome: { page: 1, pageCount: 1, vehicles: 0, total: 0 },
+      metadata: {
+        dormant: "unconfirmed",
+        make: "chevrolet",
+        robots: { index: false, follow: true },
+      },
+    });
+    expect(await open("held", "ford", "1", "first")).toEqual({
+      outcome: { notFound: true },
+      metadata: {},
+    });
+    expect((await open("held", "chevrolet", "2")).outcome).toEqual({
+      notFound: true,
     });
   });
 

@@ -109,6 +109,7 @@ export default async function YardModelPage({
         checkUnknown={data.checkUnknown}
         nearby={data.nearby}
         chain={data.chain}
+        dormant={data.dormant}
         filter={{
           name: make.name,
           slug: make.slug,

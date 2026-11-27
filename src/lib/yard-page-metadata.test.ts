@@ -1,6 +1,10 @@
 import { expect, test } from "bun:test";
 import { Region } from "./region";
-import { yardPageMetadata, yardMakeMetadata } from "./yard-page-metadata";
+import {
+  dormantYardMetadata,
+  yardPageMetadata,
+  yardMakeMetadata,
+} from "./yard-page-metadata";
 
 const region = Region.fromAbbr("PA");
 if (!region) throw new Error("Expected Pennsylvania");
@@ -80,4 +84,32 @@ test("yard make pages after the first name their page and range", () => {
   expect(second.title).toContain("Chevrolet at Weber Brothers Auto, Page 2");
   expect(second.description).toContain("Page 2, vehicles 101 to 200 of 271");
   expect(second.openGraph?.url).toBe(`${yard.path.href}/make/chevrolet/page/2`);
+});
+
+test("a dormant yard keeps its indexable title and says why it shows no vehicles; its make pages are noindexed", () => {
+  const unconfirmed = dormantYardMetadata(
+    yard,
+    { kind: "unconfirmed", since: "2026-11-01T12:00:00Z" },
+    null,
+  );
+  expect(unconfirmed.title).toBe(yardPageMetadata(yard, 10, null, 1).title);
+  expect(unconfirmed.description).toBe(
+    "We couldn't confirm the inventory at Weber Brothers Auto in Annville, PA after Nov 1, 2026. Its address, directions and the yards near it.",
+  );
+  expect(unconfirmed.robots).toBeUndefined();
+  expect(unconfirmed.alternates?.canonical).toBe(yard.path.href);
+
+  const emptied = dormantYardMetadata(
+    yard,
+    { kind: "emptied", since: "2026-11-01T12:00:00Z" },
+    { name: "Honda", slug: "honda" },
+  );
+  expect(emptied.title).toBe(
+    yardMakeMetadata(yard, { name: "Honda", slug: "honda" }, 10, null).title,
+  );
+  expect(emptied.description).toBe(
+    "Weber Brothers Auto in Annville, PA has listed no vehicles since Nov 1, 2026. Its address, directions and the yards near it.",
+  );
+  expect(emptied.robots).toEqual({ index: false, follow: true });
+  expect(emptied.alternates?.canonical).toBe(`${yard.path.href}/make/honda`);
 });
