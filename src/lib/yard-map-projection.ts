@@ -76,7 +76,8 @@ export type YardMapFitCss = { scale: string; x: string; y: string };
 /**
  * CSS that makes a map drawn at `drawn`, the view for a guessed size, show
  * the narrow or wide overview `getYardMapView` gives the map's real size.
- * It reads that size from the container (`cqw`, `cqh`), so it is right
+ * It reads that size from the container (`--yard-map-width` and
+ * `--yard-map-height`, from `cqw` and `cqh` in globals.css), so it is right
  * before any script measures it. The offset applies after the scale.
  */
 export function getYardMapFitCss(
@@ -87,7 +88,11 @@ export function getYardMapFitCss(
   const bounds = getYardMapBounds(locations, narrow);
   const controls = narrow ? NARROW_CONTROLS : 0;
   // Pixels per projected unit, as getYardMapView's clamped zoom gives them.
-  const fit = `clamp(0.5, min(calc((100cqw - ${32 + controls}px) / ${bounds.width}px), calc((100cqh - 32px) / ${bounds.height}px)), 32)`;
+  // tan(atan2(a, b)) is a / b as a plain number. Dividing one length by
+  // another directly needs Safari 26, so iOS 18 dropped the whole fit.
+  // Safari 18 also reads relative units inside atan2 wrong, so the
+  // container's size comes in px from registered properties (globals.css).
+  const fit = `clamp(0.5, min(tan(atan2(var(--yard-map-width) - ${32 + controls}px, ${bounds.width}px)), tan(atan2(var(--yard-map-height) - 32px, ${bounds.height}px))), 32)`;
   const center = projectYardLocation({
     lat: drawn.center[0],
     lng: drawn.center[1],
