@@ -21,6 +21,10 @@ import {
   ipullUPullDirectoryLinks,
   parseIPullUPullYard,
 } from "./ipullupull-yard-metadata";
+import {
+  ProviderChunkClock,
+  ProviderNotReadyDeferred,
+} from "./provider-chunk-clock";
 
 const fixture = await Bun.file(
   new URL("./fixtures/ipullupull-sample.csv", import.meta.url),
@@ -457,6 +461,91 @@ test("known-yard metadata failures preserve VINs and do not fail the entire cata
   expect(result.errors).toEqual([]);
   expect(result.warnings?.some((warning) => warning.includes("FRESNO"))).toBe(
     true,
+  );
+});
+
+test.each([
+  ["the locations directory", (url: string) => url.endsWith("/locations/")],
+  ["the CSV export", (url: string) => url === IPULLUPULL_EXPORT_URL],
+  ["a yard page", (url: string) => url.endsWith("/fresno-ca/")],
+  [
+    "a media page",
+    (url: string) =>
+      url.startsWith(IPULLUPULL_INVENTORY_URL) && url !== IPULLUPULL_EXPORT_URL,
+  ],
+])(
+  "HTTP 429 from %s defers the whole crawl at that request, then a later crawl publishes",
+  async (_name, refused) => {
+    mockCatalog(records);
+    const catalog = globalThis.fetch;
+    const requests: string[] = [];
+    globalThis.fetch = Object.assign(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        requests.push(url);
+        return refused(url)
+          ? new Response("Too Many Requests", { status: 429 })
+          : catalog(input, init);
+      },
+      { preconnect: originalFetch.preconnect },
+    );
+    const error: unknown = await run().then(
+      () => null,
+      (error: unknown) => error,
+    );
+    // The connector's own runner surfaces this as a chunk deferral, so the
+    // workflow step neither fails nor reruns the crawl.
+    expect(ProviderChunkClock.deferralOf(error)).toBeInstanceOf(
+      ProviderNotReadyDeferred,
+    );
+    expect(String(error)).toContain("HTTP 429");
+    // One refusal and nothing after it: no in-request retry, no later page.
+    expect(requests.filter(refused)).toHaveLength(1);
+    expect(refused(requests.at(-1) ?? "")).toBe(true);
+
+    // After the cooldown the host answers again and the crawl publishes.
+    globalThis.fetch = catalog;
+    const { result, vehicles } = await run();
+    expect(result.status).toBe("complete");
+    expect(vehicles).toHaveLength(4);
+  },
+);
+
+test("origin HTTP 503 is still retried in the request", async () => {
+  mockCatalog(records);
+  const catalog = globalThis.fetch;
+  let exports = 0;
+  globalThis.fetch = Object.assign(
+    async (input: RequestInfo | URL, init?: RequestInit) =>
+      String(input) === IPULLUPULL_EXPORT_URL && exports++ === 0
+        ? new Response("Service Unavailable", { status: 503 })
+        : catalog(input, init),
+    { preconnect: originalFetch.preconnect },
+  );
+  const { result } = await run();
+  expect(result.status).toBe("complete");
+  expect(exports).toBe(2);
+});
+
+test("an HTTP 429 deferral names the wait the host asked for", async () => {
+  mockCatalog(records);
+  const catalog = globalThis.fetch;
+  globalThis.fetch = Object.assign(
+    async (input: RequestInfo | URL, init?: RequestInit) =>
+      String(input) === IPULLUPULL_EXPORT_URL
+        ? new Response("Too Many Requests", {
+            status: 429,
+            headers: { "Retry-After": "3600" },
+          })
+        : catalog(input, init),
+    { preconnect: originalFetch.preconnect },
+  );
+  const error: unknown = await run().then(
+    () => null,
+    (error: unknown) => error,
+  );
+  expect(ProviderChunkClock.deferralOf(error)?.message).toContain(
+    "Retry-After 3600 s",
   );
 });
 

@@ -9,6 +9,11 @@ import {
   fetchProviderText,
   type ProviderRequestGate,
 } from "./provider-http-client";
+import {
+  IPULLUPULL_REQUEST_RETRY,
+  ipullUPullRateLimit,
+} from "./ipullupull-client";
+import { ProviderChunkClock } from "./provider-chunk-clock";
 
 export type IPullUPullYard = Yard & { source: "ipullupull" };
 const DIRECTORY_URL = "https://ipullupull.com/locations/";
@@ -187,12 +192,18 @@ export function parseIPullUPullYard(
 }
 
 function fetchMetadata(url: string, requestGate: ProviderRequestGate) {
+  const context = `iPull-uPull yard metadata ${url}`;
   return fetchProviderText({
     url,
-    context: `iPull-uPull yard metadata ${url}`,
+    context,
     requestGate,
-    retry: { retryLimit: 2, retryNetworkErrors: false, jitter: false },
+    retry: IPULLUPULL_REQUEST_RETRY,
+    responseError: (response) =>
+      ipullUPullRateLimit(response, context) ??
+      new Error(`${context} returned HTTP ${response.status}`),
     onResponse: (response) => {
+      // responseError turns a 429 into the deferral, whatever its headers.
+      if (response.status === 429) return;
       if (
         response.status === 206 ||
         response.headers.has("content-range") ||
@@ -208,11 +219,12 @@ function fetchMetadata(url: string, requestGate: ProviderRequestGate) {
 export function loadIPullUPullDirectory(requestGate: ProviderRequestGate) {
   return fetchMetadata(DIRECTORY_URL, requestGate).pipe(
     Effect.flatMap((html) => Effect.try(() => parseIPullUPullDirectory(html))),
-    Effect.mapError(
-      (cause) =>
-        new Error(
-          `iPull-uPull directory eligibility could not be verified: ${cause.message}. Inspect the public locations page before retrying; no catalog was accepted.`,
-        ),
+    Effect.mapError((cause) =>
+      ProviderChunkClock.isDeferral(cause)
+        ? cause
+        : new Error(
+            `iPull-uPull directory eligibility could not be verified: ${cause.message}. Inspect the public locations page before retrying; no catalog was accepted.`,
+          ),
     ),
   );
 }
@@ -229,6 +241,9 @@ export function loadIPullUPullYards(
       const url = directory.get(city);
       if (!url) continue;
       const page = yield* Effect.either(fetchMetadata(url.href, requestGate));
+      // A rate limit is not an unavailable yard page: the crawl stops here.
+      if (Either.isLeft(page) && ProviderChunkClock.isDeferral(page.left))
+        return yield* page.left;
       if (Either.isLeft(page)) {
         warnings.push(
           `iPull-uPull ${city} metadata unavailable: ${page.left.message}. Retry this yard page; observed VINs preserve prior inventory.`,
