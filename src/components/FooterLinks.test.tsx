@@ -26,3 +26,37 @@ test("the footer links the chains hub", () => {
   const html = renderToStaticMarkup(<FooterLinks />);
   expect(html).toMatch(/href="\/chains"[^>]*>Chains<\/a>/);
 });
+
+test("the footer's search link doesn't prefetch the search page, which renders on every request", async () => {
+  // Run in a child process so the next/link mock stays out of other test files.
+  const child = Bun.spawn(
+    [
+      process.execPath,
+      "--eval",
+      `
+      import { mock } from "bun:test";
+      import { createElement } from "react";
+      import { renderToStaticMarkup } from "react-dom/server";
+      const links = [];
+      mock.module("next/link", () => ({
+        default: ({ href, prefetch, children }) => {
+          links.push([href, prefetch ?? "default"]);
+          return createElement("a", { href }, children);
+        },
+      }));
+      const { FooterLinks } = await import(${JSON.stringify(new URL("./FooterLinks.tsx", import.meta.url).pathname)});
+      renderToStaticMarkup(createElement(FooterLinks));
+      process.stdout.write(JSON.stringify(Object.fromEntries(links)) + "\\n");
+    `,
+    ],
+    { stdout: "pipe", stderr: "pipe" },
+  );
+  const [output, errors, exitCode] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+  if (exitCode !== 0) throw new Error(`child exited ${exitCode}: ${errors}`);
+  const prefetch: unknown = JSON.parse(output.trim().split("\n").at(-1) ?? "");
+  expect(prefetch).toMatchObject({ "/search": false, "/map": "default" });
+});

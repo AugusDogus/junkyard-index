@@ -10,7 +10,14 @@ import { TrackedRequestYardLink } from "~/components/TrackedRequestYardLink";
 type FooterLinkReach = "header" | "account-menu";
 
 type FooterLink =
-  | { kind: "static"; href: string; label: string; alsoIn: FooterLinkReach }
+  | {
+      kind: "static";
+      href: string;
+      label: string;
+      alsoIn: FooterLinkReach;
+      /** Off for pages that render on every request, such as search. */
+      prefetch?: false;
+    }
   | { kind: "request-yard"; alsoIn: FooterLinkReach };
 
 /** The footer's links, grouped the way a station sign groups its exits. */
@@ -25,7 +32,13 @@ const FOOTER_GROUPS: readonly {
     links: [
       { kind: "static", href: "/", label: "Home", alsoIn: "header" },
       { kind: "static", href: "/map", label: "Yard map", alsoIn: "header" },
-      { kind: "static", href: "/search", label: "Search", alsoIn: "header" },
+      {
+        kind: "static",
+        href: "/search",
+        label: "Search",
+        alsoIn: "header",
+        prefetch: false,
+      },
       {
         kind: "static",
         href: "/junkyards",
@@ -113,7 +126,11 @@ export function FooterLinks() {
                 {link.kind === "request-yard" ? (
                   <TrackedRequestYardLink className={footerLinkClassName} />
                 ) : (
-                  <Link href={link.href} className={footerLinkClassName}>
+                  <Link
+                    href={link.href}
+                    prefetch={link.prefetch}
+                    className={footerLinkClassName}
+                  >
                     {link.label}
                   </Link>
                 )}
