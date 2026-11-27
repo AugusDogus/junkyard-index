@@ -61,19 +61,33 @@ engine, trim and transmission remain null. Optional fields never repair identity
 ## Durable traversal and transport
 
 `streamCitymotorsInventory` and `streamCitymotorsInventoryWithRequestGate` accept
-`startCursor`, `maxPages`, `onBatch` and optional `onYards`. One request unit is
-one serial native GET. The connector default is eight, with a 32-request
+`startCursor`, `previousCursor`, `maxPages`, `onBatch` and optional `onYards`.
+One request unit is one serial native GET; a carried donor costs none. The connector default is eight, with a 32-request
 ceiling. Durable ingestion runs three GETs per chunk so three worst-case
 requests fit the three-minute chunk limit and catalog progress is checkpointed
 every three pages. The qualified census needed 203 GETs: six opening pages, 191
-details, six closing pages. Production censuses in November 2026 need 213 GETs
-(seven opening pages, 199 details, seven closing pages), 71 chunks.
+details, six closing pages. A cold production census in November 2026 needs 213
+GETs (seven opening pages, 199 details, seven closing pages), 71 chunks.
+
+Each run reads the whole catalog and closes it, so membership is always live,
+but reads a donor's detail page only when the donor is new, its card (URL,
+title and photo) changed, its six-day sweep slice is due, or the run is cold.
+Every other donor carries its record from the census in the last accepted
+run's terminal cursor (`previousCursor`, `ModelCensus` with `unchanged-key`
+reuse, as 603 does). A donor the catalog no longer lists drops out and departs
+as usual. A run after a missed or failed day, or with an unreadable previous
+census (logged as a warning), reads every donor. A warm day reads about 14
+catalog pages and 33 donors, about 16 chunks. A photo that changes between the
+catalog and closing reads is published as null and its donor is read again on
+the next run.
 
 The cursor phases are `catalog`, `details`, `closing` and `complete`. Contiguous
 literal page links, page numbers, complete card counts, unique destinations,
 exact detail-prefix bindings, checksums and source scope validate at every
-checkpoint. Limits are 32 catalog pages, 1,024 donors, 1,088 total requests and
-1 MiB of serialized cursor data. The saved single-request replay peaks at
+checkpoint, and every carried record must equal its census evidence. Limits are
+32 catalog pages, 1,024 donors, 1,088 total requests and 4 MiB of serialized
+cursor data (an in-run cursor plus the previous census is about 0.6 MB at 199
+donors). The saved single-request replay peaks at
 278,401 bytes. `CitymotorsCursor.initial`, `.parse` and `.serialize` are the
 shared durable codec interface.
 
@@ -139,8 +153,13 @@ budget nor the three-minute limit. A busy lease, the plan's concurrent browser
 limit or a spent City Motors cap defers the chunk, which retries its cursor.
 
 City Motors is metered against its own Kernel caps (`kernel-usage.ts`):
-$0.15 a UTC day and $1.50 a month. A census costs about $0.01 to $0.04 of Kernel
-time, depending on how many donor pages the origin's cache holds.
+$0.15 a UTC day and $1.50 a month. A warm census costs about $0.01 of Kernel
+time, a cold one (every donor page) about $0.04 (November 2026: about 2,400
+browser-seconds a day before donor reuse).
+
+When a GET's 45-second budget ends, the transport aborts its in-page fetch at
+once rather than leaving it to the browser's 50-second timeout, so the resend
+never overlaps it at the origin.
 
 ## Saved verification
 
