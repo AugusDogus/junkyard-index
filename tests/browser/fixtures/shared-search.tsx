@@ -8,6 +8,7 @@ import {
 } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
 import { ServerInsertedHTMLContext } from "next/navigation";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
+import { SearchUrlOrder } from "~/lib/search-url-order";
 import {
   startTransition,
   Suspense,
@@ -147,12 +148,21 @@ const trpcClient = api.createClient({
     httpLink({ url: "http://unused.test/api/trpc", transformer: superjson }),
   ],
 });
+// push records each navigation the page starts itself, for tests to read.
 const router = {
   back() {},
   forward() {},
   refresh() {},
   hmrRefresh() {},
-  push() {},
+  push(href: string) {
+    const pushes: unknown = JSON.parse(
+      document.documentElement.dataset.routerPushes ?? "[]",
+    );
+    document.documentElement.dataset.routerPushes = JSON.stringify([
+      ...(Array.isArray(pushes) ? pushes : []),
+      href,
+    ]);
+  },
   replace() {},
   async prefetch() {},
 };
@@ -188,7 +198,10 @@ function Fixture() {
   useEffect(() => {
     const navigate = (url: string) =>
       setRouteParams(new URL(url, window.location.href).searchParams);
-    const traverse = () => navigate(window.location.href);
+    // Like Next's onPopState, Back and Forward commit in a transition, so
+    // other popstate listeners (such as nuqs resetting its queue) run first.
+    const traverse = () =>
+      startTransition(() => navigate(window.location.href));
     window.addEventListener("popstate", traverse);
     // Like Next's app router: a write carrying Next's own state (as the
     // InstantSearch router's writes do) is not seen; any other write (as
@@ -219,7 +232,7 @@ function Fixture() {
     <AppRouterContext.Provider value={router}>
       <PathnameContext.Provider value="/search">
         <SearchParamsContext.Provider value={routeParams}>
-          <NuqsAdapter>
+          <NuqsAdapter processUrlSearchParams={SearchUrlOrder.apply}>
             <QueryClientProvider client={queryClient}>
               <api.Provider client={trpcClient} queryClient={queryClient}>
                 <button

@@ -3,18 +3,19 @@ import type { YardType } from "./yard-service";
 import { describe, expect, test } from "bun:test";
 import { SearchYardSelection } from "./search-yard-selection";
 import { buildSearchUrl } from "./search-utils";
-import { createSearchRouting } from "~/components/search/search-routing";
+import { SearchUrlTestFixtures } from "~/components/search/search-url-test-fixtures";
 import { compileAlertFilters } from "./algolia-alert-search";
 import { SearchCriteria } from "./search-criteria";
 import { parseSavedSearchFilters } from "./saved-search-filters";
 
-const routing = createSearchRouting("vehicles", true, false);
+// Free search: what a visitor's page opens for these URLs.
+const FREE = {
+  vinPatternIndexReady: true,
+  canUseAdvancedFilters: false,
+  newestSortReady: true,
+};
 function restore(url: URL) {
-  return routing.stateMapping.routeToState(
-    routing.router.parseURL({
-      location: { href: url.href, search: url.search },
-    }),
-  );
+  return { vehicles: SearchUrlTestFixtures.read(url.href, FREE) };
 }
 
 describe("search yard selection", () => {
@@ -53,10 +54,7 @@ describe("search yard selection", () => {
       const state = restore(url);
       expect(state.vehicles?.refinementList).toEqual({ yardTypes: [...types] });
       const rewritten = new URL(
-        routing.router.createURL({
-          routeState: routing.stateMapping.stateToRoute(state),
-          location: { href: url.href, search: url.search },
-        }),
+        SearchUrlTestFixtures.write(url.href, FREE, state.vehicles),
       );
       expect(effective(rewritten.searchParams)).toEqual(
         SearchYardSelection.effectiveTypes(selection),
@@ -111,7 +109,9 @@ describe("search yard selection", () => {
   });
 });
 
-const expressionRouting = createSearchRouting("vehicles", true, true);
+const expressionState = (url: URL) => ({
+  vehicles: SearchUrlTestFixtures.read(url.href),
+});
 for (const expression of [
   "yardType:full_service",
   "yardType:self_service",
@@ -122,25 +122,12 @@ for (const expression of [
     const url = new URL("https://example.com/search");
     url.searchParams.set("syntax", "expression");
     url.searchParams.set("q", expression);
-    const state = expressionRouting.stateMapping.routeToState(
-      expressionRouting.router.parseURL({
-        location: { href: url.href, search: url.search },
-      }),
-    );
+    const state = expressionState(url);
     expect(state.vehicles?.refinementList).toEqual({ yardTypes: [] });
-    const rewritten = new URL(
-      expressionRouting.router.createURL({
-        routeState: expressionRouting.stateMapping.stateToRoute(state),
-        location: { href: url.href, search: url.search },
-      }),
-    );
-    expect(
-      expressionRouting.stateMapping.routeToState(
-        expressionRouting.router.parseURL({
-          location: { href: rewritten.href, search: rewritten.search },
-        }),
-      ).vehicles?.refinementList,
-    ).toEqual({ yardTypes: [] });
+    const rewritten = new URL(SearchUrlTestFixtures.write(url.href));
+    expect(expressionState(rewritten).vehicles?.refinementList).toEqual({
+      yardTypes: [],
+    });
   });
 }
 
@@ -151,11 +138,7 @@ test("quoted field-looking text and ordinary keyword searches still default to s
     "syntax=expression&q=make%3AVolvo",
   ]) {
     const url = new URL(`https://example.com/search?${search}`);
-    const state = expressionRouting.stateMapping.routeToState(
-      expressionRouting.router.parseURL({
-        location: { href: url.href, search: url.search },
-      }),
-    );
+    const state = expressionState(url);
     expect(state.vehicles?.refinementList).toEqual({
       yardTypes: ["self_service"],
     });
@@ -166,11 +149,7 @@ test("explicit URL facets remain authoritative alongside expression terms", () =
   const url = new URL(
     "https://example.com/search?syntax=expression&q=yardType%3Afull_service&yardTypes%5B%5D=self_service",
   );
-  const state = expressionRouting.stateMapping.routeToState(
-    expressionRouting.router.parseURL({
-      location: { href: url.href, search: url.search },
-    }),
-  );
+  const state = expressionState(url);
   expect(state.vehicles?.refinementList).toEqual({
     yardTypes: ["self_service"],
   });
@@ -183,11 +162,7 @@ test("a saved full-service expression and its alert retain full-service-only mat
   expect(stored.success).toBe(true);
   if (!stored.success) return;
   const url = new URL(buildSearchUrl("", stored.data), "https://example.com");
-  const state = expressionRouting.stateMapping.routeToState(
-    expressionRouting.router.parseURL({
-      location: { href: url.href, search: url.search },
-    }),
-  );
+  const state = expressionState(url);
   expect(state.vehicles?.refinementList).toEqual({ yardTypes: [] });
   const alertFilters: (string | undefined)[] = [];
   await getAlertMatchStatsWithClient(

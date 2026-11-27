@@ -5,7 +5,8 @@ import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchBox } from "react-instantsearch";
 import { SearchField } from "~/components/search/SearchField";
-import { SearchInputHistory } from "~/components/search/search-routing";
+import { SearchInputHistory } from "~/components/search/search-input-history";
+import { useSearchUrl } from "~/components/search/search-url-owner";
 import {
   hasAdvancedSearchSyntax,
   parseAdvancedSearchQuery,
@@ -37,6 +38,7 @@ export function VehicleSearchInput({
   onSearchModeChange,
 }: VehicleSearchInputProps) {
   const { query, refine } = useSearchBox();
+  const searchUrl = useSearchUrl();
   const refineRef = useRef(refine);
   const committedValue =
     vinPatternSearchReady && vinPattern ? vinPattern : query;
@@ -179,11 +181,13 @@ export function VehicleSearchInput({
       if (commit.kind === "invalid-vin") return;
       if (commit.value === committedValue) {
         pendingCommitRef.current = null;
-        if (history === "push") SearchInputHistory.submit(commit.value);
+        if (history === "push") searchUrl.submitShown();
         return;
       }
+      // The search write this commit makes checkpoints a submit.
       if (history === "replace") SearchInputHistory.begin();
-      const result = await executeSearchCommit({
+      else SearchInputHistory.submit();
+      await executeSearchCommit({
         value,
         vinPatternSearchReady: vinPatternSearchReady && !expressionMode,
         currentVinPattern: vinPattern,
@@ -195,13 +199,11 @@ export function VehicleSearchInput({
           refine: (queryValue) => refineRef.current(queryValue),
         },
       });
-      if (history === "push" && result.kind !== "invalid-vin") {
-        SearchInputHistory.submit(result.value);
-      }
     },
     [
       booleanOrSearchReady,
       committedValue,
+      searchUrl,
       validateQuery,
       expressionMode,
       onSearchModeChange,

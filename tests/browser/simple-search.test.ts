@@ -336,9 +336,18 @@ for (const viewport of VIEWPORTS) {
       expect(releasedYears.every((year) => year === String(maxYear))).toBe(
         true,
       );
-      expect((await historyWrites()).slice(written)).toEqual([
-        `pushState ${page.url()}`,
+      // nuqs pushes the released range once; Next then writes the same URL
+      // back as it commits, as it does for every URL write it sees.
+      const writes = (await historyWrites()).slice(written).map((write) => {
+        const [method = "", url = ""] = write.split(" ");
+        return [method, [...new URL(url, page.url()).searchParams]] as const;
+      });
+      expect(writes.map(([method]) => method)).toEqual([
+        "pushState",
+        "replaceState",
       ]);
+      for (const [, params] of writes)
+        expect(params).toEqual([...new URL(page.url()).searchParams]);
       expect(await page.evaluate(() => window.history.length)).toBe(before + 1);
       await page.goBack();
       await page.waitForFunction((href) => location.href === href, start.href);

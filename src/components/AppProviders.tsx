@@ -3,6 +3,7 @@
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { createContext, useContext, type ReactNode } from "react";
 import { Toaster } from "~/components/ui/sonner";
+import { SearchUrlOrder } from "~/lib/search-url-order";
 import { TRPCReactProvider } from "~/trpc/react";
 
 const InsideAppProviders = createContext(false);
@@ -16,7 +17,7 @@ const InsideAppProviders = createContext(false);
 export function AppProviders({ children }: { children: ReactNode }) {
   return (
     <InsideAppProviders.Provider value={true}>
-      <NuqsAdapter>
+      <NuqsAdapter processUrlSearchParams={SearchUrlOrder.apply}>
         <TRPCReactProvider>
           {children}
           <Toaster />

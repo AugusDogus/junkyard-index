@@ -1394,3 +1394,247 @@ for (const [from, to] of [
     }
   }, 30_000);
 }
+
+async function openFilterPanel(page: Page) {
+  await page.getByRole("button", { name: /^Filters/ }).click();
+  await page.getByRole("combobox", { name: "Distance radius" }).waitFor();
+}
+
+// Back and Forward return to searches this page already ran, which the
+// search client answers from its cache, so each costs at most one call and
+// never one for the search being left.
+test("Back and Forward across a window and a radius change search only the destination", async () => {
+  const { page } = await open("q=pagination", 1440, 900, {
+    storedLocation: phoenixZip,
+  });
+  try {
+    await openFilterPanel(page);
+    const start = page.url();
+    const length = await page.evaluate(() => history.length);
+    const window = await searchCallsDuring(page, () =>
+      page.getByRole("button", { name: "Last 7 days", exact: true }).click(),
+    );
+    expect(window.calls).toBe(1);
+    const radius = await searchCallsDuring(page, async () => {
+      await page
+        .getByRole("combobox", { name: "Distance radius" })
+        .selectOption("50");
+    });
+    expect(radius.calls).toBe(1);
+    expect(radius.requests[0]?.params.aroundRadius).toBe(80467);
+    const changed = page.url();
+    // The window adds an entry; the radius replaces it.
+    expect(await page.evaluate(() => history.length)).toBe(length + 1);
+    const chips = page.getByRole("group", { name: "Active filters" });
+    const back = await searchCallsDuring(page, async () => {
+      await page.goBack();
+    });
+    expect(page.url()).toBe(start);
+    expect(back.calls).toBeLessThanOrEqual(1);
+    for (const { params } of back.requests)
+      expect(params.aroundRadius).toBeUndefined();
+    expect(await chips.count()).toBe(0);
+    const forward = await searchCallsDuring(page, async () => {
+      await page.goForward();
+    });
+    expect(page.url()).toBe(changed);
+    expect(forward.calls).toBeLessThanOrEqual(1);
+    for (const { params } of forward.requests)
+      expect(params.aroundRadius).toBe(80467);
+    expect(await chips.getByRole("button", { name: /^Remove / }).count()).toBe(
+      2,
+    );
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
+
+test("a link clicked right after a refine still navigates, after the refine's URL write", async () => {
+  const { page } = await open("q=pagination&fixtureGuest=1");
+  try {
+    await openFilterPanel(page);
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    const pricing = page.getByRole("link", { name: "See Pricing" });
+    await pricing.waitFor();
+    await page.evaluate(() => {
+      const writes: string[] = [];
+      Reflect.set(window, "writesAfterLeaving", writes);
+      // Outermost, so it sees every write the page makes.
+      for (const method of ["pushState", "replaceState"] as const) {
+        const write = window.history[method];
+        window.history[method] = (...args) => {
+          // Next's own writes (state with __NA) do not cancel its navigation.
+          const [state] = args;
+          const next =
+            typeof state === "object" && state !== null && "__NA" in state;
+          if (document.documentElement.dataset.routerPushes && !next)
+            writes.push(String(args[2]));
+          write.apply(window.history, args);
+        };
+      }
+    });
+    // Both clicks in one task: the window's URL write is still queued.
+    await page.evaluate(() => {
+      const buttons = [...document.querySelectorAll("button")];
+      buttons.find((button) => button.textContent === "Last 7 days")?.click();
+      document
+        .querySelectorAll<HTMLAnchorElement>("a")
+        .forEach((link) => link.textContent === "See Pricing" && link.click());
+    });
+    await page.waitForFunction(
+      () => document.documentElement.dataset.routerPushes !== undefined,
+    );
+    await page.waitForTimeout(300);
+    expect(
+      JSON.parse(
+        await page.evaluate(
+          () => document.documentElement.dataset.routerPushes ?? "[]",
+        ),
+      ),
+    ).toEqual(["http://shared-search.test/pricing"]);
+    expect(new URL(page.url()).searchParams.getAll("arrivalWindow[]")).toEqual([
+      "7d",
+    ]);
+    // Nothing else writes the URL once the navigation starts: Next would
+    // cancel it.
+    expect(
+      await page.evaluate(() => Reflect.get(window, "writesAfterLeaving")),
+    ).toEqual([]);
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
+
+test("a capability remount keeps the URL and sends only its own search", async () => {
+  const query =
+    "q=toyota+venza&sort=oldest&yardTypes%5B%5D=all&minYear=2005&arrivalWindow%5B%5D=7d";
+  const { page } = await open(query);
+  try {
+    const before = page.url();
+    const length = await page.evaluate(() => history.length);
+    const remount = await searchCallsDuring(page, () =>
+      page
+        .getByRole("button", { name: "Reload capabilities", exact: true })
+        .click(),
+    );
+    // Its one search repeats the server's, which the client answers from
+    // cache, and nothing else is searched.
+    expect(remount.calls).toBeLessThanOrEqual(1);
+    for (const request of remount.requests)
+      expect(request).toMatchObject({
+        indexName: "vehicles_oldest",
+        params: { query: "toyota venza" },
+      });
+    expect(page.url()).toBe(before);
+    expect(await page.evaluate(() => history.length)).toBe(length);
+    const chips = page.getByRole("group", { name: "Active filters" });
+    expect(await chips.getByRole("button", { name: /^Remove / }).count()).toBe(
+      3,
+    );
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
+
+test("Clear all writes one URL and sends one search", async () => {
+  const { page } = await open(
+    "q=volvo+240&minYear=1963&maxYear=2000&yardTypes%5B%5D=all&sort=oldest&arrivalWindow%5B%5D=7d&radius=50",
+    1440,
+    900,
+    { storedLocation: phoenixZip },
+  );
+  try {
+    await page.evaluate(() => {
+      const writes: string[] = [];
+      Reflect.set(window, "urlWrites", writes);
+      // Outermost, so it sees every write the page makes.
+      for (const method of ["pushState", "replaceState"] as const) {
+        const write = window.history[method];
+        window.history[method] = (...args) => {
+          writes.push(String(args[2]));
+          write.apply(window.history, args);
+        };
+      }
+    });
+    const length = await page.evaluate(() => history.length);
+    const clear = await searchCallsDuring(page, () =>
+      page
+        .getByRole("group", { name: "Active filters" })
+        .getByRole("button", { name: "Clear all", exact: true })
+        .click(),
+    );
+    expect(clear.calls).toBe(1);
+    expect(await page.evaluate(() => history.length)).toBe(length + 1);
+    // Every history call (the write, and Next's own write-back as it
+    // commits) carries the one cleared URL.
+    const writes = await page.evaluate(() => {
+      const written: unknown = Reflect.get(window, "urlWrites");
+      return Array.isArray(written) ? written.map(String) : [];
+    });
+    expect(writes.length).toBeGreaterThan(0);
+    expect([
+      ...new Set(
+        writes.map((url) => new URL(url, page.url()).searchParams.toString()),
+      ),
+    ]).toEqual([new URLSearchParams("q=volvo 240&sort=oldest").toString()]);
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
+
+test("a VIN to words and back searches only the new mode", async () => {
+  const { page } = await open("q=1FADP3F29FL123456");
+  const modes = (requests: Awaited<ReturnType<typeof requestLog>>) =>
+    requests.map(({ params }) => params.query ?? "");
+  try {
+    const box = page.getByRole("searchbox").first();
+    const words = await searchCallsDuring(
+      page,
+      async () => {
+        await box.fill("civic");
+        await box.press("Enter");
+      },
+      1200,
+    );
+    expect(words.calls).toBe(1);
+    expect(new Set(modes(words.requests))).toEqual(new Set(["civic"]));
+    expect(new URL(page.url()).searchParams.get("q")).toBe("civic");
+    // Back and Forward return to searches already run, answered from cache.
+    const back = await searchCallsDuring(
+      page,
+      async () => {
+        await page.goBack();
+      },
+      1200,
+    );
+    expect(back.calls).toBeLessThanOrEqual(1);
+    expect(modes(back.requests).filter((query) => query !== "")).toEqual([]);
+    expect(new URL(page.url()).searchParams.get("q")).toBe("1FADP3F29FL123456");
+    expect(await box.inputValue()).toBe("1FADP3F29FL123456");
+    const forward = await searchCallsDuring(
+      page,
+      async () => {
+        await page.goForward();
+      },
+      1200,
+    );
+    expect(forward.calls).toBeLessThanOrEqual(1);
+    expect(
+      modes(forward.requests).filter((query) => query !== "civic"),
+    ).toEqual([]);
+    expect(await box.inputValue()).toBe("civic");
+    const vin = await searchCallsDuring(
+      page,
+      async () => {
+        await box.fill("1fadp3f29fl12345*");
+        await box.press("Enter");
+      },
+      1200,
+    );
+    expect(vin.calls).toBe(1);
+    expect(new Set(modes(vin.requests))).toEqual(new Set([""]));
+    expect(new URL(page.url()).searchParams.get("q")).toBe("1FADP3F29FL12345*");
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);

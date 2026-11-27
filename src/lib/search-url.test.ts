@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { SearchUrl } from "./search-url";
 import { buildSearchUrl } from "./search-utils";
+import { SearchUrlOrder } from "./search-url-order";
 
 const COMMA_YARDS = [
   "RTP Pick-A-Part - Hebron, KY",
@@ -324,4 +325,52 @@ describe("SearchUrl round trips", () => {
         buildSearchUrl(query, filters),
       );
     });
+});
+
+describe("SearchUrlOrder", () => {
+  test("lists every key in the order format writes them", () => {
+    const urlKeys: Partial<Record<string, string>> = SearchUrl.urlKeys;
+    const keys: readonly string[] = SearchUrlOrder.keys;
+    expect([...keys]).toEqual(
+      Object.keys(SearchUrl.parsers).map((key) => urlKeys[key] ?? key),
+    );
+  });
+
+  test("puts a nuqs write back in format order and keeps other keys after", () => {
+    // nuqs deletes and appends each list it writes, so lists drift to the end.
+    const written = new URLSearchParams(
+      "utm_source=x&q=Volvo&sort=oldest&makes[]=Saab&arrivalWindow[]=7d&yardTypes[]=all",
+    );
+    expect(SearchUrlOrder.apply(written).toString()).toBe(
+      new URLSearchParams(
+        "arrivalWindow[]=7d&q=Volvo&makes[]=Saab&yardTypes[]=all&sort=oldest&utm_source=x",
+      ).toString(),
+    );
+  });
+});
+
+describe("SearchUrl.load on server search params", () => {
+  test("reads Next's repeated and legacy keys as the browser does", () => {
+    const values = SearchUrl.load({
+      q: "Volvo",
+      "makes[]": ["Saab", "Volvo"],
+      yards: "RTP Pick-A-Part - Hebron, KY",
+      radius: "50",
+      lat: "38.25",
+      lng: "-85.76",
+    });
+    expect(values.makes).toEqual(["Saab", "Volvo"]);
+    expect(values.legacyYards).toEqual(["RTP Pick-A-Part - Hebron, KY"]);
+    expect(SearchUrl.fromValues(values)).toEqual(
+      SearchUrl.parse(
+        new URLSearchParams(
+          "q=Volvo&makes[]=Saab&makes[]=Volvo&yards=RTP+Pick-A-Part+-+Hebron%2C+KY&radius=50&lat=38.25&lng=-85.76",
+        ),
+      ),
+    );
+  });
+
+  test("ignores a radius outside the offered choices", () => {
+    expect(SearchUrl.load({ radius: "33" }).radius).toBeNull();
+  });
 });
