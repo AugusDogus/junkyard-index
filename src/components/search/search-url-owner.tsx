@@ -1,7 +1,7 @@
 "use client";
 
 import type { IndexUiState, UiState } from "instantsearch.js";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryStates } from "nuqs";
 import {
   createContext,
@@ -123,11 +123,27 @@ export function useSearchUrlOwner({
   const pending = useRef<Promise<unknown> | null>(null);
   // nuqs keeps serving a flushed write until its next write or its popstate
   // listener, which runs after Next renders Back or Forward. So once our
-  // writes land, read the URL itself, which every navigation updates first.
+  // writes land, read the URL itself, which Back, Forward and our writes
+  // update first. A navigation Next starts (a link, router.push) is the
+  // other way round: it renders the new URL, and the server props for it,
+  // before it writes the URL as it commits. So when only Next's URL moved
+  // since the last commit, read Next's.
+  const routerSearch = useSearchParams().toString();
+  const committed = useRef<{ router: string; location: string } | null>(null);
+  useLayoutEffect(() => {
+    committed.current = {
+      router: routerSearch,
+      location: window.location.search,
+    };
+  });
   const landedSearch =
     typeof window === "undefined" || pending.current
       ? null
-      : window.location.search;
+      : committed.current &&
+          committed.current.location === window.location.search &&
+          committed.current.router !== routerSearch
+        ? routerSearch
+        : window.location.search;
   const landedValues = useMemo(
     () =>
       landedSearch === null
@@ -164,6 +180,11 @@ export function useSearchUrlOwner({
   const deferred = useRef<IndexUiState | null>(null);
   const syncing = useRef(false);
   const leaving = useRef(false);
+  /**
+   * The page a link left from, once its navigation starts. Writes resume
+   * when Next commits any other URL, even one holding the same search.
+   */
+  const leftFrom = useRef<string | null>(null);
   const searchedOptions = useRef<string | null>(null);
   /**
    * Whether a search instance that just mounted must search. Server results
@@ -339,22 +360,52 @@ export function useSearchUrlOwner({
         return;
       leaving.current = true;
       const queued = pending.current;
-      if (!queued || new URL(link.href).origin !== window.location.origin)
+      if (!queued || new URL(link.href).origin !== window.location.origin) {
+        leftFrom.current = window.location.href;
         return;
+      }
       event.preventDefault();
-      void queued.finally(() => router.push(link.href));
+      // Until the queued write lands, the URL changing is not the link's.
+      leftFrom.current = null;
+      void queued.finally(() => {
+        // Back or Forward since the click cancels the link, as it would
+        // have cancelled Next's navigation.
+        if (!leaving.current) return;
+        leftFrom.current = window.location.href;
+        router.push(link.href);
+      });
     };
-    const onPopState = () => {
+    const stopLeaving = () => {
       leaving.current = false;
+      leftFrom.current = null;
+    };
+    const onPageShow = (event: PageTransitionEvent) => {
+      // Restored from the back-forward cache, the page is no longer leaving.
+      if (event.persisted) stopLeaving();
     };
     // Capture runs before Next.js's link handler starts the navigation.
     document.addEventListener("click", onClick, true);
-    window.addEventListener("popstate", onPopState);
+    window.addEventListener("popstate", stopLeaving);
+    window.addEventListener("pageshow", onPageShow);
     return () => {
       document.removeEventListener("click", onClick, true);
-      window.removeEventListener("popstate", onPopState);
+      window.removeEventListener("popstate", stopLeaving);
+      window.removeEventListener("pageshow", onPageShow);
     };
   }, [router]);
+  // Next writes the URL as a navigation commits, before layout effects run.
+  // A link that kept the search (one dropping a campaign tag, say) changes
+  // nothing SearchUrlSync applies, so the navigation ends here.
+  useLayoutEffect(() => {
+    if (
+      leaving.current &&
+      leftFrom.current !== null &&
+      window.location.href !== leftFrom.current
+    ) {
+      leaving.current = false;
+      leftFrom.current = null;
+    }
+  });
 
   return {
     owner,

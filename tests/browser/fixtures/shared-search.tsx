@@ -13,7 +13,7 @@ import {
   startTransition,
   Suspense,
   useEffect,
-  useLayoutEffect,
+  useInsertionEffect,
   useState,
   type ReactNode,
 } from "react";
@@ -34,6 +34,9 @@ const arrivalReferenceTime =
   typeof document === "undefined"
     ? Date.now()
     : Number(document.documentElement.dataset.arrivalReferenceTime);
+// fixtureLinkTo renders a link that navigates through the router, as a Next
+// Link does.
+const fixtureLinkTo = params.get("fixtureLinkTo");
 const knownYardNames = ["RTP Pick-A-Part - Hebron, KY"];
 const isLoggedIn = params.get("fixtureGuest") !== "1";
 // With fixtureUserAgent, the page's own decision runs on the non-fixture params.
@@ -148,7 +151,10 @@ const trpcClient = api.createClient({
     httpLink({ url: "http://unused.test/api/trpc", transformer: superjson }),
   ],
 });
-// push records each navigation the page starts itself, for tests to read.
+// Set once the fixture mounts: a Next navigation to another /search URL.
+let navigateSearch = (_href: string) => {};
+// push records each navigation the page starts, for tests to read, and
+// navigates to /search URLs as Next's router would.
 const router = {
   back() {},
   forward() {},
@@ -162,6 +168,8 @@ const router = {
       ...(Array.isArray(pushes) ? pushes : []),
       href,
     ]);
+    if (new URL(href, window.location.href).pathname === "/search")
+      navigateSearch(href);
   },
   replace() {},
   async prefetch() {},
@@ -184,20 +192,48 @@ function isNextHistoryState(state: unknown) {
   return typeof state === "object" && state !== null && "__NA" in state;
 }
 
+/** The router's state: its URL, and the server props rendered for it. */
+type FixtureRoute = {
+  params: URLSearchParams;
+  /** push for a navigation the router starts, as a Link click does. */
+  history: "push" | "replace";
+  /** The server's clock, which each page it renders reads anew. */
+  arrivalReferenceTime: number;
+};
+
 function Fixture() {
-  const [routeParams, setRouteParams] = useState(params);
+  const [route, setRoute] = useState<FixtureRoute>({
+    params,
+    history: "replace",
+    arrivalReferenceTime,
+  });
   // Like Next's HistoryUpdater: every committed router state writes its URL
-  // back, over any write the router did not see.
-  useLayoutEffect(() => {
-    window.history.replaceState(
-      nextHistoryState,
-      "",
-      `/search?${routeParams.toString()}`,
-    );
-  }, [routeParams]);
+  // back, over any write the router did not see, before layout effects run.
+  useInsertionEffect(() => {
+    const url = `/search?${route.params.toString()}`;
+    if (
+      route.history === "push" &&
+      url !== `${window.location.pathname}${window.location.search}`
+    )
+      window.history.pushState(nextHistoryState, "", url);
+    else window.history.replaceState(nextHistoryState, "", url);
+  }, [route]);
   useEffect(() => {
     const navigate = (url: string) =>
-      setRouteParams(new URL(url, window.location.href).searchParams);
+      setRoute((current) => ({
+        params: new URL(url, window.location.href).searchParams,
+        history: "replace",
+        arrivalReferenceTime: current.arrivalReferenceTime,
+      }));
+    // The server renders the page again for the new URL, with its own clock.
+    navigateSearch = (href) =>
+      startTransition(() =>
+        setRoute({
+          params: new URL(href, window.location.href).searchParams,
+          history: "push",
+          arrivalReferenceTime: Date.now(),
+        }),
+      );
     // Like Next's onPopState, Back and Forward commit in a transition, so
     // other popstate listeners (such as nuqs resetting its queue) run first.
     const traverse = () =>
@@ -231,7 +267,7 @@ function Fixture() {
   return (
     <AppRouterContext.Provider value={router}>
       <PathnameContext.Provider value="/search">
-        <SearchParamsContext.Provider value={routeParams}>
+        <SearchParamsContext.Provider value={route.params}>
           <NuqsAdapter processUrlSearchParams={SearchUrlOrder.apply}>
             <QueryClientProvider client={queryClient}>
               <api.Provider client={trpcClient} queryClient={queryClient}>
@@ -268,11 +304,25 @@ function Fixture() {
                 >
                   Switch plan
                 </button>
+                {fixtureLinkTo !== null && (
+                  <a
+                    href={fixtureLinkTo}
+                    onClick={(event) => {
+                      // Like Next's Link: a handler that already prevented
+                      // the click keeps it.
+                      if (event.defaultPrevented) return;
+                      event.preventDefault();
+                      router.push(event.currentTarget.href);
+                    }}
+                  >
+                    Fixture link
+                  </a>
+                )}
                 {/* The same body src/app/search/page.tsx renders. */}
                 <SearchPageBody>
                   <Suspense>
                     <SearchPageContent
-                      arrivalReferenceTime={arrivalReferenceTime}
+                      arrivalReferenceTime={route.arrivalReferenceTime}
                       isLoggedIn={isLoggedIn}
                       initialIsMobile={params.get("fixtureMobile") === "1"}
                       knownYardNames={knownYardNames}
@@ -280,7 +330,7 @@ function Fixture() {
                       searchKey={searchKey}
                       inventoryCheck={{
                         dates: { sources: {}, yards: {} },
-                        now: arrivalReferenceTime,
+                        now: route.arrivalReferenceTime,
                       }}
                     />
                     <HydrationMarker />
