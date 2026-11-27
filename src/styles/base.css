@@ -11,6 +11,13 @@ html,
 body {
   overflow-x: clip;
 }
+/* Menus and dialogs lock scrolling with overflow: hidden on body. Because html
+   clips its own overflow, body's overflow no longer passes to the viewport, so
+   hidden would make body a scroll container and unstick the sticky header and
+   search bar from the page that is still scrolled. Clip never makes one. */
+html body[data-scroll-locked] {
+  overflow: clip !important;
+}
 html {
   scrollbar-color: var(--color-ink-3) var(--color-paper);
   scroll-padding-top: 7rem;

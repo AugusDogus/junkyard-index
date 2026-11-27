@@ -394,3 +394,39 @@ test("closing the account menu returns focus to its trigger after keyboard use o
     await closePage(page);
   }
 }, 20_000);
+
+for (const width of [390, 1440]) {
+  test(`an open account menu keeps the sticky header in view after scrolling: ${width}px`, async () => {
+    const page = await openHeader("/junkyards/texas?signed-in=1", width);
+    try {
+      // A long page, scrolled, as on /search before opening a menu.
+      await page.evaluate(() => {
+        // The header's parent, so its sticky range covers the whole page.
+        // React never rewrites the root's own style.
+        const root = document.getElementById("root");
+        if (root) root.style.minHeight = "5000px";
+        window.scrollTo(0, 600);
+      });
+      expect(await page.evaluate(() => window.scrollY)).toBe(600);
+      // Open by keyboard: a pointer click would first scroll the trigger into view.
+      await page
+        .getByRole("button", { name: "HT", exact: true })
+        .evaluate((trigger) =>
+          (trigger as HTMLElement).focus({ preventScroll: true }),
+        );
+      await page.keyboard.press("Enter");
+      await page.getByRole("menu").first().waitFor();
+      expect(
+        await page.evaluate(() => "scrollLocked" in document.body.dataset),
+      ).toBe(true);
+      // Scroll locking must not turn body into the header's scroll container.
+      const header = await page.evaluate(() => {
+        const box = document.querySelector("header")?.getBoundingClientRect();
+        return { top: box?.top, scrollY: window.scrollY };
+      });
+      expect(header).toEqual({ top: 0, scrollY: 600 });
+    } finally {
+      await closePage(page);
+    }
+  }, 20_000);
+}
