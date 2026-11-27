@@ -6,6 +6,7 @@ import {
   PathnameContext,
   SearchParamsContext,
 } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
+import Link from "next/link";
 import { ServerInsertedHTMLContext } from "next/navigation";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { SearchUrlOrder } from "~/lib/search-url-order";
@@ -25,6 +26,10 @@ import { SearchPageContent } from "~/components/search/SearchPageContent";
 import type { SearchKeyGrant } from "~/lib/search-key-grant";
 import { SearchServerRender } from "~/lib/search-server-render";
 import { api, type RouterOutputs } from "~/trpc/react";
+import {
+  FixtureAppRouter,
+  type FixtureNavigation,
+} from "./next-app-router-instance";
 import { serverSearches } from "./shared-search-client";
 
 const params = new URLSearchParams(
@@ -34,9 +39,10 @@ const arrivalReferenceTime =
   typeof document === "undefined"
     ? Date.now()
     : Number(document.documentElement.dataset.arrivalReferenceTime);
-// fixtureLinkTo renders a link that navigates through the router, as a Next
-// Link does.
+// fixtureLinkTo renders a Next Link to that URL. fixtureLinks=1 renders one
+// of each kind of link the search page must leave alone.
 const fixtureLinkTo = params.get("fixtureLinkTo");
+const fixtureLinks = params.get("fixtureLinks") === "1";
 const knownYardNames = ["RTP Pick-A-Part - Hebron, KY"];
 const isLoggedIn = params.get("fixtureGuest") !== "1";
 // With fixtureUserAgent, the page's own decision runs on the non-fixture params.
@@ -151,27 +157,66 @@ const trpcClient = api.createClient({
     httpLink({ url: "http://unused.test/api/trpc", transformer: superjson }),
   ],
 });
-// Set once the fixture mounts: a Next navigation to another /search URL.
-let navigateSearch = (_href: string) => {};
-// push records each navigation the page starts, for tests to read, and
-// navigates to /search URLs as Next's router would.
+// Set once the fixture mounts: commits a navigation to another /search URL.
+let navigateSearch = (_navigation: FixtureNavigation) => {};
+// Set in the browser: the app's real onRouterTransitionStart.
+let routerTransitionStart = (_href: string, _type: "push" | "replace") => {};
+/** How long the fixture's server takes to answer a client navigation. */
+const NAVIGATION_RESPONSE_MS = 200;
+// The navigation the router is waiting on the server for.
+let pendingNavigation: FixtureNavigation | null = null;
+function record(
+  key: "routerPushes" | "routerNavigations" | "discardedNavigations",
+  entry: unknown,
+) {
+  const entries: unknown = JSON.parse(
+    document.documentElement.dataset[key] ?? "[]",
+  );
+  document.documentElement.dataset[key] = JSON.stringify([
+    ...(Array.isArray(entries) ? entries : []),
+    entry,
+  ]);
+}
+/**
+ * Like Next's router (app-router-instance.ts, action-queue.ts): it reports a
+ * navigation to onRouterTransitionStart, then commits it once the server
+ * answers, unless a history write it did not make, or Back or Forward, lands
+ * first and discards it. routerNavigations records each one committed;
+ * only /search renders here, so another page leaves this one as it is.
+ */
+function startNavigation(navigation: FixtureNavigation) {
+  const started = {
+    ...navigation,
+    href: new URL(navigation.href, window.location.href).href,
+  };
+  routerTransitionStart(navigation.href, navigation.type);
+  pendingNavigation = started;
+  setTimeout(() => {
+    if (pendingNavigation !== started) return;
+    pendingNavigation = null;
+    record("routerNavigations", started);
+    if (new URL(started.href).pathname === "/search") navigateSearch(started);
+    if (started.scroll) window.scrollTo(0, 0);
+  }, NAVIGATION_RESPONSE_MS);
+}
+function discardNavigation() {
+  if (pendingNavigation) record("discardedNavigations", pendingNavigation);
+  pendingNavigation = null;
+}
+FixtureAppRouter.onNavigate(startNavigation);
+// push also records each push the page itself makes, for tests to read.
 const router = {
   back() {},
   forward() {},
   refresh() {},
   hmrRefresh() {},
-  push(href: string) {
-    const pushes: unknown = JSON.parse(
-      document.documentElement.dataset.routerPushes ?? "[]",
-    );
-    document.documentElement.dataset.routerPushes = JSON.stringify([
-      ...(Array.isArray(pushes) ? pushes : []),
-      href,
-    ]);
-    if (new URL(href, window.location.href).pathname === "/search")
-      navigateSearch(href);
+  push(href: string, options?: { scroll?: boolean }) {
+    record("routerPushes", href);
+    startNavigation({ href, type: "push", scroll: options?.scroll ?? true });
   },
-  replace() {},
+  replace(href: string, options?: { scroll?: boolean }) {
+    startNavigation({ href, type: "replace", scroll: options?.scroll ?? true });
+  },
   async prefetch() {},
 };
 
@@ -226,18 +271,20 @@ function Fixture() {
         arrivalReferenceTime: current.arrivalReferenceTime,
       }));
     // The server renders the page again for the new URL, with its own clock.
-    navigateSearch = (href) =>
+    navigateSearch = ({ href, type }) =>
       startTransition(() =>
         setRoute({
-          params: new URL(href, window.location.href).searchParams,
-          history: "push",
+          params: new URL(href).searchParams,
+          history: type,
           arrivalReferenceTime: Date.now(),
         }),
       );
     // Like Next's onPopState, Back and Forward commit in a transition, so
     // other popstate listeners (such as nuqs resetting its queue) run first.
-    const traverse = () =>
+    const traverse = () => {
+      discardNavigation();
       startTransition(() => navigate(window.location.href));
+    };
     window.addEventListener("popstate", traverse);
     // Like Next's app router: a write carrying Next's own state (as the
     // InstantSearch router's writes do) is not seen; any other write (as
@@ -255,6 +302,7 @@ function Fixture() {
         if (isNextHistoryState(data))
           return original.call(window.history, data, unused, url);
         original.call(window.history, nextHistoryState, unused, url);
+        discardNavigation();
         const href = url ? String(url) : window.location.href;
         startTransition(() => navigate(href));
       };
@@ -305,18 +353,26 @@ function Fixture() {
                   Switch plan
                 </button>
                 {fixtureLinkTo !== null && (
-                  <a
-                    href={fixtureLinkTo}
-                    onClick={(event) => {
-                      // Like Next's Link: a handler that already prevented
-                      // the click keeps it.
-                      if (event.defaultPrevented) return;
-                      event.preventDefault();
-                      router.push(event.currentTarget.href);
-                    }}
-                  >
-                    Fixture link
-                  </a>
+                  <Link href={fixtureLinkTo}>Fixture link</Link>
+                )}
+                {fixtureLinks && (
+                  <nav aria-label="Fixture links">
+                    <Link href="/pricing">Pricing link</Link>
+                    <Link href="/search?q=replaced" replace>
+                      Replace link
+                    </Link>
+                    <Link
+                      href="/search?q=pagination&sort=oldest"
+                      scroll={false}
+                    >
+                      Keep scroll link
+                    </Link>
+                    <Link href="/pricing" target="_blank">
+                      New tab link
+                    </Link>
+                    {/* A route outside the app router, as /api/* is. */}
+                    <a href="/api/fixture-export">Plain link</a>
+                  </nav>
                 )}
                 {/* The same body src/app/search/page.tsx renders. */}
                 <SearchPageBody>
@@ -367,6 +423,7 @@ if (typeof document === "undefined") {
   // The app's real client instrumentation, so tests can end a page view the
   // way a client navigation does.
   const { onRouterTransitionStart } = await import("~/instrumentation-client");
+  routerTransitionStart = onRouterTransitionStart;
   Reflect.set(window, "fixtureRouterTransitionStart", onRouterTransitionStart);
   hydrateRoot(root, <Fixture />);
   // Page load in browser tests means the streamed search has hydrated.

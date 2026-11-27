@@ -24,6 +24,28 @@ export async function bundleSharedSearchFixture(target: "bun" | "browser") {
             ).text(),
             loader: "ts",
           }));
+          // Next's own Link, as Next resolves it for the app router. It
+          // navigates through a stand-in for the router it would call.
+          builder.onResolve({ filter: /^next\/link$/ }, () => ({
+            path: resolve("node_modules/next/dist/client/app-dir/link.js"),
+          }));
+          builder.onLoad(
+            {
+              filter:
+                /next\/dist\/client\/components\/app-router-instance\.js$/,
+            },
+            () => ({
+              contents: `export * from ${JSON.stringify(resolve("tests/browser/fixtures/next-app-router-instance.ts"))};`,
+              loader: "js",
+            }),
+          );
+          builder.onLoad(
+            { filter: /next\/dist\/client\/components\/links\.js$/ },
+            () => ({
+              contents: `export * from ${JSON.stringify(resolve("tests/browser/fixtures/next-links.ts"))};`,
+              loader: "js",
+            }),
+          );
           builder.onResolve({ filter: /^algoliasearch\/lite$/ }, () => ({
             path: resolve("tests/browser/fixtures/shared-search-client.ts"),
           }));

@@ -4,6 +4,10 @@
 import { Analytics } from "~/lib/analytics";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { ErrorReporting } from "~/lib/error-reporting";
+import {
+  RouterTransitions,
+  type RouterTransition,
+} from "~/lib/router-transitions";
 import { SearchQueryMeter, searchQueryMeter } from "~/lib/search-query-meter";
 
 ErrorReporting.start();
@@ -19,7 +23,14 @@ const reportSearchQueries = SearchQueryMeter.reportPageViews({
   document,
 });
 
-/** Client navigations end the previous page view. */
-export function onRouterTransitionStart() {
+/**
+ * Client navigations end the previous page view, and stop the search page's
+ * URL writes, which would cancel them (`RouterTransitions`).
+ */
+export function onRouterTransitionStart(
+  href: string,
+  type: RouterTransition["type"],
+) {
   reportSearchQueries();
+  RouterTransitions.start({ href, type });
 }

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { z } from "zod";
 import tailwind from "@tailwindcss/postcss";
 import postcss from "postcss";
-import type { Browser, Page } from "playwright-core";
+import type { Browser, Locator, Page } from "playwright-core";
 import { closePage, createPage, launchBrowser } from "./browser-page";
 import {
   bundleSharedSearchFixture,
@@ -600,7 +600,7 @@ test("the shipped client meters searches and page-view ends report them", async 
     // A client navigation ends the page view through Next's hook.
     await page.evaluate(() => {
       const hook: unknown = Reflect.get(window, "fixtureRouterTransitionStart");
-      if (typeof hook === "function") hook();
+      if (typeof hook === "function") hook(location.href, "push");
     });
     const [navigation] = await analyticsEvents(page, "search_queries_metered");
     expect(navigation?.properties).toMatchObject({ path: "/search" });
@@ -1449,61 +1449,193 @@ test("Back and Forward across a window and a radius change search only the desti
   }
 }, 30_000);
 
-test("a link clicked right after a refine still navigates, after the refine's URL write", async () => {
-  const { page } = await open("q=pagination&fixtureGuest=1");
+const navigationLogSchema = z.array(
+  z.object({
+    href: z.string(),
+    type: z.enum(["push", "replace"]),
+    scroll: z.boolean(),
+  }),
+);
+/** Client navigations the fixture's router committed, or discarded. */
+async function navigations(
+  page: Page,
+  key: "routerNavigations" | "discardedNavigations" = "routerNavigations",
+) {
+  return navigationLogSchema.parse(
+    JSON.parse(
+      await page.evaluate(
+        (name) => document.documentElement.dataset[name] ?? "[]",
+        key,
+      ),
+    ),
+  );
+}
+
+/**
+ * Clicks Last 7 days, then the link named `link` `delayMs` later (0: in the
+ * same task), while the window's URL write is still queued.
+ */
+async function refineThenClick(page: Page, link: string, delayMs = 0) {
+  await page.evaluate(
+    ([name, delay]) =>
+      new Promise<void>((resolve, reject) => {
+        const click = () => {
+          const anchor = [
+            ...document.querySelectorAll<HTMLAnchorElement>("a"),
+          ].find((candidate) => candidate.textContent === name);
+          if (!anchor) return reject(new Error(`No link named ${name}`));
+          anchor.click();
+          resolve();
+        };
+        [...document.querySelectorAll("button")]
+          .find((button) => button.textContent === "Last 7 days")
+          ?.click();
+        if (delay === 0) click();
+        else setTimeout(click, delay);
+      }),
+    [link, delayMs] as const,
+  );
+}
+
+// #345: Next cancels a client navigation when a history write it did not
+// make lands, and a refine queues one. The navigation must commit, as the
+// Link asked for it, and the queued write must not land under it.
+for (const [delayMs, query, link] of [
+  [0, "q=pagination&fixtureGuest=1", "See Pricing"],
+  [0, "q=pagination&fixtureLinks=1", "Pricing link"],
+  [20, "q=pagination&fixtureLinks=1", "Pricing link"],
+] as const)
+  test(`${link} clicked ${delayMs ? `${delayMs} ms after` : "in the same task as"} a refine still navigates`, async () => {
+    const { page } = await open(query);
+    try {
+      await openFilterPanel(page);
+      await page.getByRole("link", { name: link, exact: true }).waitFor();
+      await refineThenClick(page, link, delayMs);
+      await page.waitForFunction(
+        () => document.documentElement.dataset.routerNavigations !== undefined,
+        undefined,
+        { timeout: 5000 },
+      );
+      await page.waitForTimeout(300);
+      expect(await navigations(page)).toEqual([
+        {
+          href: "http://shared-search.test/pricing",
+          type: "push",
+          scroll: true,
+        },
+      ]);
+      expect(await navigations(page, "discardedNavigations")).toEqual([]);
+    } finally {
+      await closePage(page);
+    }
+  }, 30_000);
+
+test("a Link with replace, clicked right after a refine, replaces the entry", async () => {
+  const { page } = await open("q=pagination&fixtureLinks=1");
   try {
     await openFilterPanel(page);
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    const pricing = page.getByRole("link", { name: "See Pricing" });
-    await pricing.waitFor();
-    await page.evaluate(() => {
-      const writes: string[] = [];
-      Reflect.set(window, "writesAfterLeaving", writes);
-      // Outermost, so it sees every write the page makes.
-      for (const method of ["pushState", "replaceState"] as const) {
-        const write = window.history[method];
-        window.history[method] = (...args) => {
-          // Next's own writes (state with __NA) do not cancel its navigation.
-          const [state] = args;
-          const next =
-            typeof state === "object" && state !== null && "__NA" in state;
-          if (document.documentElement.dataset.routerPushes && !next)
-            writes.push(String(args[2]));
-          write.apply(window.history, args);
-        };
-      }
-    });
-    // Both clicks in one task: the window's URL write is still queued.
-    await page.evaluate(() => {
-      const buttons = [...document.querySelectorAll("button")];
-      buttons.find((button) => button.textContent === "Last 7 days")?.click();
-      document
-        .querySelectorAll<HTMLAnchorElement>("a")
-        .forEach((link) => link.textContent === "See Pricing" && link.click());
-    });
+    const length = await page.evaluate(() => history.length);
+    await refineThenClick(page, "Replace link");
     await page.waitForFunction(
-      () => document.documentElement.dataset.routerPushes !== undefined,
+      () => new URLSearchParams(location.search).get("q") === "replaced",
     );
     await page.waitForTimeout(300);
-    expect(
-      JSON.parse(
-        await page.evaluate(
-          () => document.documentElement.dataset.routerPushes ?? "[]",
-        ),
-      ),
-    ).toEqual(["http://shared-search.test/pricing"]);
-    expect(new URL(page.url()).searchParams.getAll("arrivalWindow[]")).toEqual([
-      "7d",
+    expect(await navigations(page)).toEqual([
+      {
+        href: "http://shared-search.test/search?q=replaced",
+        type: "replace",
+        scroll: true,
+      },
     ]);
-    // Nothing else writes the URL once the navigation starts: Next would
-    // cancel it.
-    expect(
-      await page.evaluate(() => Reflect.get(window, "writesAfterLeaving")),
-    ).toEqual([]);
+    expect(await navigations(page, "discardedNavigations")).toEqual([]);
+    expect(await page.evaluate(() => history.length)).toBe(length);
   } finally {
     await closePage(page);
   }
 }, 30_000);
+
+test("a Link with scroll={false}, clicked right after a refine, keeps the scroll position", async () => {
+  const { page } = await open("q=pagination&fixtureLinks=1");
+  try {
+    await openFilterPanel(page);
+    await page.evaluate(() => window.scrollTo(0, 400));
+    const scrollY = await page.evaluate(() => window.scrollY);
+    expect(scrollY).toBeGreaterThan(0);
+    await refineThenClick(page, "Keep scroll link");
+    await page.waitForFunction(
+      () => new URLSearchParams(location.search).get("sort") === "oldest",
+    );
+    await page.waitForTimeout(300);
+    expect(await navigations(page)).toEqual([
+      {
+        href: "http://shared-search.test/search?q=pagination&sort=oldest",
+        type: "push",
+        scroll: false,
+      },
+    ]);
+    expect(await page.evaluate(() => window.scrollY)).toBe(scrollY);
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
+
+test("a plain link to a route outside the app, clicked right after a refine, loads that route", async () => {
+  const { page } = await open("q=pagination&fixtureLinks=1");
+  try {
+    await page.route("http://shared-search.test/api/fixture-export", (route) =>
+      route.fulfill({ contentType: "text/plain", body: "fixture export" }),
+    );
+    await openFilterPanel(page);
+    const loaded = page.waitForURL(
+      "http://shared-search.test/api/fixture-export",
+      {
+        timeout: 5000,
+      },
+    );
+    // The router never sees it: the page it recorded navigations on unloads.
+    await refineThenClick(page, "Plain link");
+    await loaded;
+    expect(await page.textContent("body")).toBe("fixture export");
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
+
+// Clicks Next leaves to the browser start no client navigation, so the page
+// keeps writing its URL.
+const BROWSER_CLICKS: [string, string, Parameters<Locator["click"]>[0]][] = [
+  ["a Ctrl click", "Pricing link", { modifiers: ["ControlOrMeta"] }],
+  ["a middle click", "Pricing link", { button: "middle" }],
+  ["a target=_blank link", "New tab link", {}],
+];
+for (const [label, link, click] of BROWSER_CLICKS)
+  test(`${label} right after a refine leaves the page writing its URL`, async () => {
+    const { page } = await open("q=pagination&fixtureLinks=1");
+    try {
+      // The browser opens these in a new tab, which this test does not need.
+      page.context().on("page", (opened) => void opened.close());
+      await openFilterPanel(page);
+      await page
+        .getByRole("button", { name: "Last 7 days", exact: true })
+        .click();
+      await page.getByRole("link", { name: link, exact: true }).click(click);
+      await page.waitForFunction(() =>
+        new URLSearchParams(location.search).has("arrivalWindow[]"),
+      );
+      await page
+        .getByRole("button", { name: "Last 24 hours", exact: true })
+        .click();
+      await page.waitForFunction(
+        () =>
+          new URLSearchParams(location.search).get("arrivalWindow[]") === "24h",
+      );
+      await page.waitForTimeout(300);
+      expect(new URL(page.url()).pathname).toBe("/search");
+      expect(await navigations(page)).toEqual([]);
+    } finally {
+      await closePage(page);
+    }
+  }, 30_000);
 
 test("a capability remount keeps the URL and sends only its own search", async () => {
   const query =
