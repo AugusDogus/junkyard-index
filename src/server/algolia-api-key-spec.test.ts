@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { Acl } from "algoliasearch";
+import { z } from "zod";
 import { AlgoliaDeployment } from "~/lib/algolia-deployment";
 import { ALGOLIA_SEARCH_INDEX_NAMES, SEARCH_CONFIG } from "~/lib/constants";
 import { AlgoliaApiKeySpec } from "./algolia-api-key-spec";
@@ -54,6 +55,37 @@ describe("AlgoliaApiKeySpec.forRole", () => {
     // Nov 21-27, 2026 site peak: 104 calls (171 queries) from one IP in an hour.
     expect(maxQueriesPerIPPerHour).toBeGreaterThanOrEqual(171 * 2);
   });
+
+  test.each(["preview", "development"])(
+    "keeps production's indices when the shell has VERCEL_ENV=%p",
+    (vercelEnv) => {
+      // Index names are fixed when the modules load, so each env gets its
+      // own process. A pulled .env.local can set VERCEL_ENV for the script.
+      const env: Record<string, string | undefined> = {
+        ...process.env,
+        VERCEL_ENV: vercelEnv,
+      };
+      delete env.NEXT_PUBLIC_VERCEL_ENV;
+      const result = Bun.spawnSync(
+        [
+          process.execPath,
+          "--eval",
+          `const { AlgoliaApiKeySpec } = await import("./src/server/algolia-api-key-spec.ts");
+          console.log(JSON.stringify(AlgoliaApiKeySpec.forRole("server").indexes));`,
+        ],
+        { cwd: process.cwd(), env },
+      );
+      expect(result.stderr.toString()).toBe("");
+      const indexes = z
+        .array(z.string())
+        .parse(JSON.parse(result.stdout.toString()));
+      expect(indexes).toContain("vehicles");
+      expect(indexes).toContain("vehicles_newest");
+      expect(indexes).toContain("preview_vehicles");
+      expect(indexes).toContain("development_vehicles");
+      expect(indexes).toEqual([...AlgoliaApiKeySpec.forRole("server").indexes]);
+    },
+  );
 
   test("the server key has no per-IP limit, since functions share egress IPs", () => {
     const spec = AlgoliaApiKeySpec.forRole("server");
@@ -128,10 +160,33 @@ describe("AlgoliaApiKeySpec.retired and settingsOf", () => {
     expect(decision.kind).toBe("refused");
   });
 
+  test.each([...AlgoliaApiKeySpec.roles])(
+    "refuses the %p key this script created",
+    (role) => {
+      const created = AlgoliaApiKeySpec.parse({
+        ...SHARED_KEY,
+        ...AlgoliaApiKeySpec.forRole(role),
+      });
+      const decision = AlgoliaApiKeySpec.retireDecision(created, SECURED_KEY);
+      expect(decision.kind).toBe("refused");
+    },
+  );
+
   test("allows the search key once browsers receive secured keys", () => {
     expect(AlgoliaApiKeySpec.retireDecision(before, SECURED_KEY)).toEqual({
       kind: "allowed",
     });
+  });
+
+  test("a written key matches Algolia's answer that omits unset limits and reorders lists", () => {
+    const written = AlgoliaApiKeySpec.settingsOf(before);
+    const answer = AlgoliaApiKeySpec.parse({
+      ...SHARED_KEY,
+      acl: [...SHARED_KEY.acl].reverse(),
+    });
+    expect(AlgoliaApiKeySpec.hasSettings(answer, written)).toBe(true);
+    const retired = AlgoliaApiKeySpec.retired(before, new Date());
+    expect(AlgoliaApiKeySpec.hasSettings(answer, retired)).toBe(false);
   });
 
   test("restoring writes back exactly the settings the key had", () => {

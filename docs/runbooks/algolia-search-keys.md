@@ -82,6 +82,11 @@ read -s -x ALGOLIA_ADMIN_API_KEY
      Sentry show no Algolia 403. One owner search on `/search` (desktop and
      phone) is the only real search this needs.
    - `bun scripts/algolia-search-keys.ts show` lists the two new keys.
+   - `vercel env ls production` shows `ALGOLIA_SEARCH_API_KEY` updated just
+     now, not only `ALGOLIA_SEARCH_PARENT_API_KEY`. The checks above pass
+     with the old server key too, since it still works until step 5, and
+     `retire` can only see the browser key. If the server key was missed,
+     step 5 breaks server renders and alerts.
 
    Undo before step 5: Instant Rollback in the Vercel dashboard (the previous
    deployment keeps its old env), or set `ALGOLIA_SEARCH_API_KEY` back to the
