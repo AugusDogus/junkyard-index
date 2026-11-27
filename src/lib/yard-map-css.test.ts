@@ -224,7 +224,8 @@ function mathCalls(value: string): string[] {
   return calls;
 }
 
-// Around 450 yards across the US, Alaska and Hawaii.
+// Six yards at the edges of the US, Alaska and Hawaii, so the wide and
+// narrow overviews frame different bounds.
 const yards = [
   { lat: 47.6, lng: -122.3 },
   { lat: 25.8, lng: -80.2 },
