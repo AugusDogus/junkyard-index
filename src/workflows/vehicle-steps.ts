@@ -217,8 +217,9 @@ export async function runDurableSourceChunkStep<
       console.error("Failed to report vehicle source retry", reportError);
     }
     return throwRetryableStepError(
-      `Vehicle source chunk ${cursor.source}/${JSON.stringify(cursor)}`,
+      `Vehicle source chunk ${cursor.source}`,
       error,
+      `Cursor: ${JSON.stringify(cursor)}`,
     );
   });
   if (result.status === "deferred") {
