@@ -1,33 +1,43 @@
 "use client";
 
 import { AlertCircle, CheckCircle, Send, Warehouse } from "lucide-react";
-import { useState } from "react";
+import dynamic from "next/dynamic";
+import { useCallback, useState } from "react";
 import { Analytics } from "~/lib/analytics";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { api } from "~/trpc/react";
 
+// The auth client loads after the page hydrates, as in the header, which
+// reads the same session.
+const SessionEmail = dynamic(
+  () => import("./SessionEmail").then((module) => module.SessionEmail),
+  { ssr: false },
+);
+
 type FormState =
   | { kind: "idle" | "submitting" | "success" }
   | { kind: "error"; message: string };
 
-export function RequestYardForm({
-  initialEmail = "",
-}: {
-  initialEmail?: string;
-}) {
+export function RequestYardForm() {
   const [formState, setFormState] = useState<FormState>({ kind: "idle" });
   const [yardName, setYardName] = useState("");
   const [website, setWebsite] = useState("");
-  const [email, setEmail] = useState(initialEmail);
+  const [accountEmail, setAccountEmail] = useState("");
+  const [email, setEmail] = useState("");
+  // Fill in the account's email unless the visitor already typed one.
+  const fillAccountEmail = useCallback((loaded: string) => {
+    setAccountEmail(loaded);
+    setEmail((typed) => typed || loaded);
+  }, []);
 
   const createRequest = api.yardRequests.create.useMutation({
     onSuccess: () => {
       setFormState({ kind: "success" });
       setYardName("");
       setWebsite("");
-      setEmail(initialEmail);
+      setEmail(accountEmail);
     },
     onError: (error) => {
       const fieldErrors = error.data?.zodError?.fieldErrors;
@@ -58,6 +68,7 @@ export function RequestYardForm({
 
   return (
     <>
+      <SessionEmail onEmail={fillAccountEmail} />
       <div className="mb-8 text-center">
         <div className="bg-primary/10 mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full">
           <Warehouse className="text-signal h-6 w-6" />
