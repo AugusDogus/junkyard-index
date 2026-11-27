@@ -32,7 +32,13 @@ const FOOTER_GROUPS: readonly {
         label: "Junkyards",
         alsoIn: "header",
       },
-      { kind: "static", href: "/chains", label: "Chains", alsoIn: "header" },
+      {
+        kind: "static",
+        href: "/chains",
+        label: "Chains",
+        // The phone header row has no room for another link.
+        alsoIn: "account-menu",
+      },
       {
         kind: "static",
         href: "/cars",
