@@ -46,6 +46,20 @@ describe("ErrorText.core", () => {
     );
   });
 
+  test("drops the chunk wrapper and the cursor after the cause", () => {
+    expect(
+      ErrorText.core(
+        `beavers ingestion failed: Step "step//./src/workflows/vehicle-steps//runDurableSourceChunkStep" failed after 2 retries: Vehicle source chunk beavers failed: Beaver's request failed.\nCursor: {"source":"beavers","phase":"route"}`,
+      ),
+    ).toBe("Beaver's request failed.");
+    // An excerpt cut inside the cursor still yields the whole cause.
+    expect(
+      ErrorText.core(
+        'Vehicle source chunk beavers failed: Beaver\'s request failed.\nCursor: {"source":"bea',
+      ),
+    ).toBe("Beaver's request failed.");
+  });
+
   test("reads the message of a tagged error object", () => {
     expect(
       ErrorText.core(

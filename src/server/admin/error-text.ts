@@ -6,10 +6,14 @@ const messagesSchema = z.array(z.string());
 const taggedErrorSchema = z.object({ message: z.string() });
 
 // `<source> ingestion failed: Step "..." failed after N retries: ` and
-// `Vehicle source chunk <source>/{...} failed: ` wrap most source failures.
+// `Vehicle source chunk <source> failed: ` wrap most source failures. Chunk
+// failures stored before Nov 27, 2026 put the cursor JSON before the cause
+// (`Vehicle source chunk <source>/{...} failed: `); newer ones put a bounded
+// `\nCursor: {...}` after it.
 const STEP_WRAPPER = /^.*?Step "[^"]*" failed after \d+ retries: /s;
-const CHUNK_WRAPPER = /^Vehicle source chunk [^/]+\/\{.*?\} failed: /s;
-// A chunk wrapper whose cause was cut off: only its cursor JSON remains.
+const CHUNK_WRAPPER = /^Vehicle source chunk [^/\s]+(?:\/\{.*?\})? failed: /s;
+const CHUNK_CURSOR = /\nCursor: \{.*$/s;
+// An old chunk wrapper whose cause was cut off: only its cursor JSON remains.
 const UNCLOSED_CHUNK_WRAPPER = /^Vehicle source chunk [^/]+\/\{/;
 const UNCLOSED_CHUNK_MESSAGE =
   "A step of the run failed. The cause is in the full error text.";
@@ -92,7 +96,8 @@ export const ErrorText = {
   core(message: string): string {
     const unwrapped = message
       .replace(STEP_WRAPPER, "")
-      .replace(CHUNK_WRAPPER, "");
+      .replace(CHUNK_WRAPPER, "")
+      .replace(CHUNK_CURSOR, "");
     if (UNCLOSED_CHUNK_WRAPPER.test(unwrapped)) return UNCLOSED_CHUNK_MESSAGE;
     const tagged = taggedErrorSchema.safeParse(parseJson(unwrapped));
     if (tagged.success) return tagged.data.message;
