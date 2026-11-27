@@ -48,6 +48,7 @@ function Fixture() {
             imageUrl: photo,
             indexedAt: `2026-11-${String(10 + index).padStart(2, "0")}T00:00:00.000Z`,
             lastChecked: null,
+            yardHref: "/junkyards/california/lkq-pick-your-part-anaheim",
           }))}
         />
       </section>

@@ -19,6 +19,7 @@ test("links every state hub, the directory, and the chains hub as plain anchors"
         { region: region("KY"), yards: 3 },
         { region: region("AB"), yards: 1 },
       ]}
+      chains={[]}
     />,
   );
   expect(html).toContain('href="/junkyards/kentucky"');
@@ -26,5 +27,26 @@ test("links every state hub, the directory, and the chains hub as plain anchors"
   expect(html).toContain('href="/junkyards/alberta"');
   expect(html).toContain('href="/junkyards"');
   expect(html).toContain('href="/chains"');
+  expect(html).not.toContain("nofollow");
+});
+
+test("links each chain hub by name with its yard count", () => {
+  const html = renderToStaticMarkup(
+    <HomeStateIndex
+      regions={[{ region: region("KY"), yards: 3 }]}
+      chains={[
+        {
+          name: "LKQ Pick Your Part",
+          href: "/chains/lkq-pick-your-part",
+          yards: 60,
+        },
+        { name: "Pick-n-Pull", href: "/chains/pick-n-pull", yards: 50 },
+      ]}
+    />,
+  );
+  expect(html).toContain('href="/chains/lkq-pick-your-part"');
+  expect(html).toContain("LKQ Pick Your Part inventory");
+  expect(html).toContain("60 yards");
+  expect(html).toContain('href="/chains/pick-n-pull"');
   expect(html).not.toContain("nofollow");
 });
