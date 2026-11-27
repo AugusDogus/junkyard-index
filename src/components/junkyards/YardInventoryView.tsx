@@ -126,10 +126,13 @@ export function YardInventoryView({
   const lastChecked = checkUnknown
     ? UNKNOWN_CHECK_LABEL
     : InventoryStaleness.label(checkedAt, Date.now());
+  // Only a current check proves what the yard's list holds: next to "Last
+  // checked" the missing arrivals may be our missed reads, not the yard's.
   // A dormant yard lists nothing, so it has no list to call stale.
-  const noArrivals = dormant
-    ? null
-    : YardInventory.noArrivalsLabel(lastArrivalAt, Date.now());
+  const noArrivals =
+    lastChecked === null && !dormant
+      ? YardInventory.noArrivalsLabel(lastArrivalAt, Date.now())
+      : null;
   const newDisplay = YardInventory.newDisplay(newArrivals);
   // Nothing is "new" next to "Last checked": a stale yard's newest cars are
   // only new as of its last check.

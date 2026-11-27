@@ -238,6 +238,22 @@ describe("YardInventoryView staleness", () => {
     expect(html).toContain("1 vehicle");
   });
 
+  test("makes no claim about the yard's list next to Last checked or Last check unknown, since we have not read it lately", async () => {
+    for (const stale of [
+      { publishedAt: daysAgo(5), checkedAt: daysAgo(5), checkUnknown: false },
+      { publishedAt: null, checkedAt: null, checkUnknown: true },
+    ]) {
+      const html = text(
+        await render({
+          ...props(vehicles),
+          ...stale,
+          lastArrivalAt: daysAgo(9),
+        }),
+      );
+      expect(html).not.toContain("No new vehicles");
+    }
+  });
+
   test("labels nothing while current", async () => {
     const html = text(
       await render({
@@ -292,5 +308,26 @@ describe("YardInventoryView dormant yards", () => {
       "The yard has listed no vehicles since Nov 1, 2026.",
     );
     expect(html).not.toContain("0 vehicles");
+  });
+
+  test("makes no claim about new vehicles on a dormant yard read today whose last arrival is over a week old", async () => {
+    const kinds: NonNullable<Props["dormant"]>[] = [
+      { kind: "emptied", since: "2026-11-01T12:00:00.000Z" },
+      { kind: "unconfirmed", since: "2026-11-01T12:00:00.000Z" },
+    ];
+    for (const dormant of kinds) {
+      const html = plain(
+        await render({
+          ...dormantProps(dormant),
+          publishedAt: new Date().toISOString(),
+          checkedAt: new Date().toISOString(),
+          lastArrivalAt: "2026-10-20T07:00:00.000Z",
+          newArrivals: props([vehicle("VIN00001", "2026-11-18T00:00:00.000Z")])
+            .newArrivals,
+        }),
+      );
+      expect(html).not.toContain("No new vehicles");
+      expect(html).not.toContain("new this week");
+    }
   });
 });
