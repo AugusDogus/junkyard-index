@@ -124,6 +124,8 @@ function frame(
       x > view.width + MARGIN_PX ||
       y > view.height + MARGIN_PX
     ) {
+      // Unseen, it has no size to ease from: it returns at its size then.
+      tweens.delete(marker.key);
       return;
     }
     const selected = marker.key === view.selectedKey;

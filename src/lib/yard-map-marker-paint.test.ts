@@ -197,6 +197,27 @@ describe("YardMapMarkerPaint.frame", () => {
     });
   });
 
+  test("a yard that changes size off the canvas returns at its new size", () => {
+    const tweens = new Map<string, YardMarkerTween>();
+    const radius = (overrides: Partial<YardMarkerFrame>) => {
+      const { context, arcs } = recordingContext();
+      YardMapMarkerPaint.frame(
+        context,
+        view(["dot", "dot", "dot"], overrides),
+        colors,
+        tweens,
+      );
+      return outer(arcs).find((arc) => arc.x === 200)?.radius;
+    };
+    // `b` drawn as a dot, then panned 1000px off the canvas while a zoom
+    // makes it a pin, then panned back.
+    expect(radius({ now: 1000 })).toBe(4);
+    radius({ sizes: ["pin", "pin", "pin"], center: { x: 1500, y: 300 } });
+    for (const now of [1016, 1032, 1200]) {
+      expect(radius({ sizes: ["pin", "pin", "pin"], now })).toBe(6);
+    }
+  });
+
   test("a frame timed before its tween started stays between the two sizes", () => {
     // A tween starts in a layout effect with performance.now(); the next
     // requestAnimationFrame can carry an earlier timestamp. Unclamped, the
