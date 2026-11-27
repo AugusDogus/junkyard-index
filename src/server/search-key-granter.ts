@@ -39,7 +39,7 @@ function create(deps: Dependencies) {
       if (!warnedUnsecured) {
         warnedUnsecured = true;
         deps.warn(
-          "ALGOLIA_SEARCH_PARENT_API_KEY is not set, so browsers receive the unrestricted ALGOLIA_SEARCH_API_KEY and the free-tier page cap is enforced only in the browser. Search still works. Create a search-only parent key with maxQueriesPerIPPerHour in the Algolia dashboard and set ALGOLIA_SEARCH_PARENT_API_KEY to enforce it.",
+          "ALGOLIA_SEARCH_PARENT_API_KEY is not set, so browsers receive the unrestricted ALGOLIA_SEARCH_API_KEY and the free-tier page cap is enforced only in the browser. Search still works. Create the parent key and set ALGOLIA_SEARCH_PARENT_API_KEY by following docs/runbooks/algolia-search-keys.md.",
         );
       }
       // Only the browser's own filter leaves hidden sources out then.
