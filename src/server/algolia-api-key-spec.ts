@@ -2,7 +2,6 @@ import { createHash } from "node:crypto";
 import type { Acl } from "algoliasearch";
 import { z } from "zod";
 import { AlgoliaDeployment } from "~/lib/algolia-deployment";
-import { ALGOLIA_SEARCH_INDEX_NAMES } from "~/lib/constants";
 
 /**
  * The search keys the app holds, by what they are for:
@@ -44,11 +43,22 @@ export type AlgoliaApiKey = AlgoliaApiKeySettings & {
 const BROWSER_MAX_QUERIES_PER_HOUR = 400;
 const BROWSER_MAX_HITS_PER_QUERY = 100;
 
+// Base names of ALGOLIA_SEARCH_INDEX_NAMES. That list already carries this
+// process's VERCEL_ENV prefix, which a pulled .env.local can set for the
+// script, so the keys are built from the base names instead.
+const SEARCH_INDEX_BASE_NAMES = [
+  "vehicles",
+  "vehicles_oldest",
+  "vehicles_year_desc",
+  "vehicles_year_asc",
+  "vehicles_newest",
+] as const;
+
 // Previews and development deployments search the same app under their own
 // prefix, so one key per role serves every deployment.
 const SEARCH_INDEXES = (["production", "preview", "development"] as const)
   .flatMap((deployment) =>
-    ALGOLIA_SEARCH_INDEX_NAMES.map((name) =>
+    SEARCH_INDEX_BASE_NAMES.map((name) =>
       AlgoliaDeployment.indexName(deployment, name),
     ),
   )
@@ -156,6 +166,27 @@ function settingsOf(key: AlgoliaApiKey): AlgoliaApiKeySettings {
 }
 
 /**
+ * Whether Algolia's answer for a key holds `settings`. Algolia leaves unset
+ * limits out of its answer (`parse` reads them as 0 or empty) and may list
+ * ACLs in its own order, so lists compare as sets.
+ */
+function hasSettings(key: AlgoliaApiKey, settings: AlgoliaApiKeySettings) {
+  const sameSet = (a: readonly string[], b: readonly string[]) =>
+    a.length === b.length && a.every((item) => b.includes(item));
+  const actual = settingsOf(key);
+  return (
+    sameSet(actual.acl, settings.acl) &&
+    sameSet(actual.indexes, settings.indexes) &&
+    sameSet(actual.referers, settings.referers) &&
+    actual.description === settings.description &&
+    actual.maxHitsPerQuery === settings.maxHitsPerQuery &&
+    actual.maxQueriesPerIPPerHour === settings.maxQueriesPerIPPerHour &&
+    actual.queryParameters === settings.queryParameters &&
+    actual.validity === settings.validity
+  );
+}
+
+/**
  * Settings that stop a leaked key from reading any index this app searches,
  * while keeping it in place so `settingsOf(before)` restores it in one call.
  */
@@ -190,6 +221,15 @@ function retireDecision(
       reason: `key ${fingerprint(target.value)} has ACL ${target.acl.join(",")}, not a search-only key. Only the leaked search key is retired this way.`,
     };
   }
+  const role = roles.find(
+    (candidate) => forRole(candidate).description === target.description,
+  );
+  if (role !== undefined) {
+    return {
+      kind: "refused",
+      reason: `key ${fingerprint(target.value)} is the ${role} key this script created, which the site uses now. Pass the leaked key's fingerprint (run show).`,
+    };
+  }
   if (!isSecured(browserKey)) {
     return {
       kind: "refused",
@@ -211,6 +251,7 @@ export const AlgoliaApiKeySpec = {
   fingerprint,
   summary,
   settingsOf,
+  hasSettings,
   retired,
   retireDecision,
   isSecured,

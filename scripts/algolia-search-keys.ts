@@ -4,6 +4,7 @@ import { PRODUCTION_ALGOLIA_APP_ID } from "../src/lib/algolia-deployment";
 import {
   type AlgoliaApiKey,
   type AlgoliaApiKeyRole,
+  type AlgoliaApiKeySettings,
   AlgoliaApiKeySpec,
 } from "../src/server/algolia-api-key-spec";
 
@@ -42,6 +43,29 @@ const client = algoliasearch(PRODUCTION_ALGOLIA_APP_ID, adminKey);
 async function listKeys(): Promise<AlgoliaApiKey[]> {
   const { keys } = await client.listApiKeys();
   return keys.map((key) => AlgoliaApiKeySpec.parse(key));
+}
+
+/**
+ * Polls until Algolia's answer for `value` holds `settings`. The SDK's own
+ * `waitForApiKey` update check compares fields strictly, so it never sees
+ * limits Algolia leaves out of its answer (0, empty) and retries until it
+ * throws after the update already applied.
+ */
+async function waitForSettings(
+  value: string,
+  settings: AlgoliaApiKeySettings,
+): Promise<AlgoliaApiKey> {
+  for (let attempt = 1; attempt <= 30; attempt++) {
+    const key = {
+      ...AlgoliaApiKeySpec.parse(await client.getApiKey({ key: value })),
+      value,
+    };
+    if (AlgoliaApiKeySpec.hasSettings(key, settings)) return key;
+    await Bun.sleep(Math.min(attempt * 200, 2_000));
+  }
+  return fail(
+    `Algolia accepted the update of key ${AlgoliaApiKeySpec.fingerprint(value)}, but its settings did not show it after 30 reads (about 50 s). Run show to see its current settings before retrying.`,
+  );
 }
 
 function print(label: string, key: AlgoliaApiKey) {
@@ -128,7 +152,10 @@ async function retire(fingerprint: string, backupPath: string) {
   }
   writeSecretFile(backupPath, JSON.stringify(target, null, 2));
   print("before", target);
-  const settings: ApiKey = AlgoliaApiKeySpec.retired(target, new Date());
+  const settings = AlgoliaApiKeySpec.retired(
+    target,
+    new Date(),
+  ) satisfies ApiKey;
   await client
     .updateApiKey({ key: target.value, apiKey: settings })
     .catch((error: unknown) =>
@@ -136,15 +163,7 @@ async function retire(fingerprint: string, backupPath: string) {
         `Algolia refused the update: ${error instanceof Error ? error.message : String(error)}. The key is unchanged; ${backupPath} holds its current settings. If Algolia does not allow editing the default Search-Only key, regenerate it in the dashboard instead (docs/runbooks/algolia-search-keys.md, step 5).`,
       ),
     );
-  await client.waitForApiKey({
-    key: target.value,
-    operation: "update",
-    apiKey: settings,
-  });
-  print("after", {
-    ...AlgoliaApiKeySpec.parse(await client.getApiKey({ key: target.value })),
-    value: target.value,
-  });
+  print("after", await waitForSettings(target.value, settings));
   console.log(
     `Retired. Undo: bun scripts/algolia-search-keys.ts restore ${backupPath}`,
   );
@@ -154,17 +173,9 @@ async function restore(backupPath: string) {
   const before = AlgoliaApiKeySpec.parse(
     JSON.parse(readFileSync(backupPath, "utf8")),
   );
-  const settings: ApiKey = AlgoliaApiKeySpec.settingsOf(before);
+  const settings = AlgoliaApiKeySpec.settingsOf(before) satisfies ApiKey;
   await client.updateApiKey({ key: before.value, apiKey: settings });
-  await client.waitForApiKey({
-    key: before.value,
-    operation: "update",
-    apiKey: settings,
-  });
-  print("restored", {
-    ...AlgoliaApiKeySpec.parse(await client.getApiKey({ key: before.value })),
-    value: before.value,
-  });
+  print("restored", await waitForSettings(before.value, settings));
 }
 
 const [command, first, second] = process.argv.slice(2);
