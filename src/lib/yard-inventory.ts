@@ -252,6 +252,19 @@ export const YardInventory = {
     return inWeek(vehicle.addedAt, referenceTime);
   },
 
+  /**
+   * "No new vehicles on the yard's list since …" once the yard's newest
+   * first sighting (`yard_check.last_arrival_at`) is over a week old, or null.
+   * A yard we read every day can still list nothing new when its own feed
+   * stopped updating; this says so instead of letting "Updated" imply a live
+   * list. The yard stays listed either way.
+   */
+  noArrivalsLabel(lastArrivalAt: string | null, now: number): string | null {
+    if (lastArrivalAt === null || now - Date.parse(lastArrivalAt) <= WEEK_MS)
+      return null;
+    return `No new vehicles on the yard's list since ${InventoryFormat.date(lastArrivalAt)}`;
+  },
+
   /** How many of `vehicles` are new, as `isNew` counts them. */
   newCount(
     vehicles: readonly Pick<YardVehicle, "addedAt" | "addedBy">[],

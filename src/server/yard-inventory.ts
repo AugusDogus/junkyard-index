@@ -462,6 +462,8 @@ type YardContext = {
   publishedAt: string | null;
   checkedAt: string | null;
   checkUnknown: boolean;
+  /** The yard's newest first sighting, from its one yard_check row. */
+  lastArrivalAt: string | null;
   nearby: { yard: RoutedYard; miles: number }[];
   chain: { name: string; href: string; yards: number } | null;
   /** Why the yard shows no vehicles, or null when it is listed. */
@@ -485,6 +487,7 @@ const getYardContext = cacheShownInventory(
           source: yardCheck.source,
           code: yardCheck.locationCode,
           lastCheckedAt: yardCheck.lastCheckedAt,
+          lastArrivalAt: yardCheck.lastArrivalAt,
         })
         .from(yardCheck)
         .where(
@@ -527,6 +530,7 @@ const getYardContext = cacheShownInventory(
         yard.code,
       ),
       checkUnknown: checkDates.yards[key] === null,
+      lastArrivalAt: checks[0]?.lastArrivalAt?.toISOString() ?? null,
       nearby: routed
         .filter((other) => other.path.href !== yard.path.href)
         .map((other) => ({
@@ -541,7 +545,7 @@ const getYardContext = cacheShownInventory(
       dormant: dormantYard?.dormant ?? null,
     };
   },
-  ["yard-context-v2", ...RETIRED_INGESTION_SOURCES],
+  ["yard-context-v3", ...RETIRED_INGESTION_SOURCES],
 );
 
 /** The summary of a yard that shows no vehicles. */
