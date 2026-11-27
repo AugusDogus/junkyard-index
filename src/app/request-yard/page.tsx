@@ -1,16 +1,13 @@
-import { headers } from "next/headers";
 import { PageShell } from "~/components/PageShell";
 import { RequestYardForm } from "~/components/request-yard/RequestYardForm";
-import { auth } from "~/lib/auth";
 
-export default async function RequestYardPage() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
+// Every footer links here, so the page reads nothing from the request and
+// is served from the CDN. The form fills in a signed-in visitor's email in
+// the browser.
+export default function RequestYardPage() {
   return (
-    <PageShell>
-      <RequestYardForm initialEmail={session?.user?.email} />
+    <PageShell rendering="static">
+      <RequestYardForm />
     </PageShell>
   );
 }
