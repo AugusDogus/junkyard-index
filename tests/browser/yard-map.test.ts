@@ -209,12 +209,40 @@ function markerCenters(page: Page) {
       const box = pin.getBoundingClientRect();
       return {
         name: (pin.getAttribute("aria-label") ?? "").split(",")[0] ?? "",
-        size: pin.getAttribute("data-size"),
         x: box.left + box.width / 2,
         y: box.top + box.height / 2,
       };
     }),
   );
+}
+
+/**
+ * How wide the marker canvas draws through each point, in CSS pixels, once
+ * it has replaced the server's static dots: 8 for a dot, 12 for a pin, plus
+ * a pixel of antialiasing.
+ */
+async function drawnWidths(page: Page, points: { x: number; y: number }[]) {
+  await page.locator(".yard-map-dots").waitFor({ state: "detached" });
+  return page.evaluate((points) => {
+    const canvas =
+      document.querySelector<HTMLCanvasElement>(".yard-map-markers");
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) throw new Error("The marker canvas is missing.");
+    const box = canvas.getBoundingClientRect();
+    const ratio = canvas.width / box.width;
+    return points.map(({ x, y }) => {
+      const row = Math.round((y - box.top) * ratio);
+      const { data } = context.getImageData(0, row, canvas.width, 1);
+      const drawn = (column: number) => (data[column * 4 + 3] ?? 0) > 0;
+      const column = Math.round((x - box.left) * ratio);
+      if (!drawn(column)) return 0;
+      let left = column;
+      let right = column;
+      while (left > 0 && drawn(left - 1)) left--;
+      while (right < canvas.width - 1 && drawn(right + 1)) right++;
+      return (right - left + 1) / ratio;
+    });
+  }, points);
 }
 
 test("every yard is drawn, and a tap on stacked dots lists the yards under it", async () => {
@@ -229,7 +257,10 @@ test("every yard is drawn, and a tap on stacked dots lists the yards under it", 
     // The fixture's 40 yards sit half a degree apart on one meridian.
     const markers = await markerCenters(page);
     expect(markers).toHaveLength(40);
-    expect(markers.every((marker) => marker.size === "dot")).toBe(true);
+    for (const width of await drawnWidths(page, markers)) {
+      expect(width).toBeGreaterThanOrEqual(8);
+      expect(width).toBeLessThan(10);
+    }
 
     const target = markers.find((marker) => marker.name === "Yard 20");
     if (!target) throw new Error("Yard 20 has no marker.");
@@ -284,7 +315,13 @@ test("a tap on a pin standing clear opens its card directly", async () => {
       exact: true,
     });
     await pin.waitFor();
-    expect(await pin.getAttribute("data-size")).toBe("pin");
+    const box = await pin.boundingBox();
+    if (!box) throw new Error("Yard 10's pin has no box.");
+    const [width] = await drawnWidths(page, [
+      { x: box.x + box.width / 2, y: box.y + box.height / 2 },
+    ]);
+    expect(width).toBeGreaterThanOrEqual(12);
+    expect(width).toBeLessThan(14);
     await pin.click();
     await page.getByRole("button", { name: "Close yard details" }).waitFor();
     expect(await page.getByRole("list", { name: /yards here$/ }).count()).toBe(
