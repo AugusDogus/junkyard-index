@@ -119,6 +119,12 @@ function formatError(error: unknown): string {
 /** Pause before retrying a chunk deferred by a deep shared host queue, so the
  * source leaves the queue while it drains. */
 export const DEFERRED_CHUNK_DELAY_MS = 5 * 60_000;
+/** Longer pauses. iPull-uPull defers only on HTTP 429, and its one chunk is
+ * the whole ~51-request crawl. Its limit outlasted two-hour reruns on Nov 27,
+ * so a five-minute pause would re-send the crawl into it dozens of times. */
+const DEFERRED_CHUNK_DELAY_OVERRIDES_MS: Partial<
+  Record<DurableIngestionSource, number>
+> = { ipullupull: 60 * 60_000 };
 /** A source whose chunks keep deferring (no shared host turn, provider
  * capacity or credit refusal) for this long, with no chunk advancing in
  * between, fails instead of deferring again. Prior
@@ -126,10 +132,13 @@ export const DEFERRED_CHUNK_DELAY_MS = 5 * 60_000;
 export const DEFERRED_SOURCE_LIMIT_MS = 3 * 60 * 60_000;
 /** Shorter no-progress limits. Chaz defers on origin 502/503/504 while its
  * run keeps one of the URG group places; Nov 26 outages lasted 44 s to
- * 4.6 min, so 45 minutes covers them without starving the group. */
+ * 4.6 min, so 45 minutes covers them without starving the group.
+ * iPull-uPull crawls twice per run, an hour apart: saved-search alerts wait
+ * for every source's last daily attempt, so a three-hour hold on each of its
+ * three daily runs would delay them by about nine hours. */
 const DEFERRED_SOURCE_LIMIT_OVERRIDES_MS: Partial<
   Record<DurableIngestionSource, number>
-> = { chaz: 45 * 60_000 };
+> = { chaz: 45 * 60_000, ipullupull: 60 * 60_000 };
 
 export async function ingestDurableSource<
   Source extends DurableIngestionSource,
@@ -147,6 +156,8 @@ export async function ingestDurableSource<
   let deferredSince: number | null = null;
   const deferredLimit =
     DEFERRED_SOURCE_LIMIT_OVERRIDES_MS[source] ?? DEFERRED_SOURCE_LIMIT_MS;
+  const deferredDelay =
+    DEFERRED_CHUNK_DELAY_OVERRIDES_MS[source] ?? DEFERRED_CHUNK_DELAY_MS;
   try {
     while (true) {
       if (
@@ -176,7 +187,7 @@ export async function ingestDurableSource<
           throw new Error(
             `Source ${source} needs a durable wait before retrying a deferred chunk: ${result.message}`,
           );
-        await sleepUntil(Date.now() + DEFERRED_CHUNK_DELAY_MS);
+        await sleepUntil(Date.now() + deferredDelay);
         continue;
       }
       deferredSince = null;

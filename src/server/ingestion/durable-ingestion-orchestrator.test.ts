@@ -821,6 +821,94 @@ describe("chunks deferred by a deep shared host queue", () => {
     // before the three-hour default; Nov 26 outages lasted under 5 minutes.
     expect(chunks).toBe(10);
   });
+
+  describe("an iPull-uPull rate limit", () => {
+    const ipullCursor = getDurableSourceDefinition("ipullupull").initialCursor;
+    const rateLimited: DurableWorkflowChunkDeferral<"ipullupull"> = {
+      status: "deferred",
+      cursor: ipullCursor,
+      message:
+        "ipullupull: iPull-uPull is not ready to be read: iPull-uPull media page 44 answered HTTP 429 Too Many Requests.",
+    };
+
+    test("cools down for an hour before crawling again, then publishes", async () => {
+      const outcomes = [rateLimited];
+      const waits: number[] = [];
+      const now = spyOn(Date, "now");
+      let clock = 0;
+      now.mockImplementation(() => clock);
+      let chunks = 0;
+      try {
+        const result = await ingestDurableSource({
+          runId: "run-1",
+          initialCursor: ipullCursor,
+          operations: {
+            sleepUntil: async (time) => {
+              waits.push(time - clock);
+              clock = time;
+            },
+            runChunk: async () => {
+              chunks++;
+              return (
+                outcomes.shift() ?? {
+                  cursor: { source: "ipullupull", catalog: 1 },
+                  status: "complete",
+                  count: 4_014,
+                  pagesProcessed: 1,
+                  errors: [],
+                }
+              );
+            },
+            markFailed: async () => {
+              throw new Error("A rate-limit cooldown must not fail the source");
+            },
+          },
+        });
+        expect(result.status).toBe("complete");
+      } finally {
+        now.mockRestore();
+      }
+      expect(chunks).toBe(2);
+      expect(waits).toEqual([3_600_000]);
+    });
+
+    test("stops after two crawls an hour apart without a publish", async () => {
+      const now = spyOn(Date, "now");
+      let clock = 0;
+      now.mockImplementation(() => clock);
+      let chunks = 0;
+      try {
+        const result = await ingestDurableSource({
+          runId: "run-1",
+          initialCursor: ipullCursor,
+          operations: {
+            sleepUntil: async (time) => {
+              clock = time;
+            },
+            runChunk: async () => {
+              chunks++;
+              return rateLimited;
+            },
+            markFailed: async (_runId, _source, message) => ({
+              cursor: ipullCursor,
+              status: "failed",
+              count: 0,
+              pagesProcessed: 0,
+              errors: [message],
+            }),
+          },
+        });
+        expect(result.status).toBe("failed");
+        expect(result.errors[0]).toContain("HTTP 429");
+        expect(result.errors[0]).toContain("No chunk advanced for 60 minutes");
+      } finally {
+        now.mockRestore();
+      }
+      // Crawls at 0 and 60 minutes, about 51 requests each, instead of 37
+      // crawls five minutes apart over three hours.
+      expect(chunks).toBe(2);
+    });
+  });
 });
 
 describe("an unreadable publication mode", () => {

@@ -5,8 +5,13 @@ import {
   readIPullUPullResponseText,
 } from "./ipullupull-response-text";
 import {
+  ProviderChunkClock,
+  ProviderNotReadyDeferred,
+} from "./provider-chunk-clock";
+import {
   fetchProviderResponse,
   type ProviderRequestGate,
+  type ProviderRetryPolicy,
 } from "./provider-http-client";
 
 export const IPULLUPULL_INVENTORY_URL =
@@ -14,6 +19,40 @@ export const IPULLUPULL_INVENTORY_URL =
 export const IPULLUPULL_EXPORT_URL = `${IPULLUPULL_INVENTORY_URL}?ipull_export=1&slug=inventory-pricing&type=inventory&format=csv`;
 export const IPULLUPULL_MAX_CATALOG_RECORDS = 20_000;
 export const IPULLUPULL_MAX_CATALOG_BYTES = IPULLUPULL_MAX_RESPONSE_BYTES;
+
+/**
+ * The host answers HTTP 429 after about 40 to 50 requests of a crawl
+ * (production Nov 20 and Nov 27, 2026), and the limit can last hours. Retrying
+ * the request, or rerunning the step, only sends more requests into it, so a
+ * 429 is not retried here: it defers the whole atomic chunk, and the source
+ * crawls again after its rate-limit cooldown. Origin 502/503/504 still retry.
+ */
+export const IPULLUPULL_REQUEST_RETRY = {
+  retryLimit: 2,
+  retryNetworkErrors: false,
+  jitter: false,
+  retryableStatusCodes: [502, 503, 504],
+} as const satisfies Partial<ProviderRetryPolicy>;
+
+/** The chunk deferral for a rate-limited `response`, or null for any other
+ * status. */
+export function ipullUPullRateLimit(response: Response, context: string) {
+  if (response.status !== 429) return null;
+  const retryAfter = response.headers.get("Retry-After");
+  return new ProviderNotReadyDeferred({
+    provider: "iPull-uPull",
+    detail: `${context} answered HTTP 429 Too Many Requests${retryAfter === null ? "" : ` (Retry-After ${retryAfter}${/^\d+$/.test(retryAfter) ? " s" : ""})`}. The crawl stopped at this refusal without retrying it.`,
+  });
+}
+
+/** `response` unchanged, or its rate-limit deferral. */
+export function refuseIPullUPullRateLimit(
+  response: Response,
+  context: string,
+): Effect.Effect<Response, ProviderNotReadyDeferred> {
+  const rateLimit = ipullUPullRateLimit(response, context);
+  return rateLimit ? Effect.fail(rateLimit) : Effect.succeed(response);
+}
 
 export class IPullUPullProviderError extends Data.TaggedError(
   "IPullUPullProviderError",
@@ -88,8 +127,11 @@ export function fetchIPullUPullCatalog(requestGate?: ProviderRequestGate) {
     context: "iPull-uPull CSV export",
     headers: { Accept: "text/csv" },
     requestGate,
-    retry: { retryLimit: 2, retryNetworkErrors: false, jitter: false },
+    retry: IPULLUPULL_REQUEST_RETRY,
   }).pipe(
+    Effect.flatMap((response) =>
+      refuseIPullUPullRateLimit(response, "iPull-uPull CSV export"),
+    ),
     Effect.flatMap((response) =>
       Effect.tryPromise({
         try: async (signal) => {
@@ -116,7 +158,8 @@ export function fetchIPullUPullCatalog(requestGate?: ProviderRequestGate) {
       }),
     ),
     Effect.mapError((cause) =>
-      cause instanceof IPullUPullProviderError
+      cause instanceof IPullUPullProviderError ||
+      ProviderChunkClock.isDeferral(cause)
         ? cause
         : new IPullUPullProviderError({ cause }),
     ),

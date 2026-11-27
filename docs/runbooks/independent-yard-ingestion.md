@@ -33,6 +33,13 @@ up to 96 cards, bounded to 4 MiB each and 20,000 total assets. Incomplete/drifti
 malformed media, or missing emitted-vehicle coverage abort before callbacks;
 retry from cursor `0`. Explicit empty galleries retain null images with warnings.
 Metadata comes from same-origin directory links and each yard's JSON-LD.
+HTTP 429 on any iPull-uPull request is never retried in the request or step: it
+defers the chunk, and the run crawls again from cursor `0` an hour later. A
+second refusal fails the run with prior inventory preserved; the daily schedule
+retries a failed source two hours later, up to three runs a day, so a
+rate-limited day sends at most six crawls (about 300 requests). Production runs
+drew 429 after 40 to 50 requests (Nov 20 and 27, 2026), and immediate retries
+met the same limit. Do not start extra runs by hand while it is rate-limited.
 
 Washington discovers yards from the inventory selector and verifies the selected
 yard on every response. Follow validated Next links, never short-page heuristics.

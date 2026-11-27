@@ -6,8 +6,11 @@ import {
 import {
   IPULLUPULL_INVENTORY_URL,
   IPULLUPULL_MAX_CATALOG_RECORDS,
+  IPULLUPULL_REQUEST_RETRY,
   IPullUPullProviderError,
+  refuseIPullUPullRateLimit,
 } from "./ipullupull-client";
+import { ProviderChunkClock } from "./provider-chunk-clock";
 import {
   fetchProviderResponse,
   type ProviderRequestGate,
@@ -163,8 +166,11 @@ function fetchMediaPage(page: number, requestGate: ProviderRequestGate) {
     url: url.href,
     context: `iPull-uPull media page ${page}`,
     requestGate,
-    retry: { retryLimit: 2, retryNetworkErrors: false, jitter: false },
+    retry: IPULLUPULL_REQUEST_RETRY,
   }).pipe(
+    Effect.flatMap((response) =>
+      refuseIPullUPullRateLimit(response, `iPull-uPull media page ${page}`),
+    ),
     Effect.flatMap((response) =>
       Effect.tryPromise({
         try: async (signal) => {
@@ -223,11 +229,12 @@ export function fetchIPullUPullMedia(requestGate: ProviderRequestGate) {
     }
     return media;
   }).pipe(
-    Effect.mapError(
-      (cause) =>
-        new IPullUPullProviderError({
-          cause: `Media enrichment unavailable: ${cause.message}. No vehicle updates were emitted; prior images are preserved. Inspect the public catalog and retry from cursor 0.`,
-        }),
+    Effect.mapError((cause) =>
+      ProviderChunkClock.isDeferral(cause)
+        ? cause
+        : new IPullUPullProviderError({
+            cause: `Media enrichment unavailable: ${cause.message}. No vehicle updates were emitted; prior images are preserved. Inspect the public catalog and retry from cursor 0.`,
+          }),
     ),
   );
 }
