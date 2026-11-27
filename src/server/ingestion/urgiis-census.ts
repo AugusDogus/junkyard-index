@@ -10,7 +10,7 @@ import {
   type UrgiisEntry,
   type UrgiisTask,
 } from "./urgiis-traversal";
-import type { UrgiisRecord } from "./urgiis-schema";
+import { URGIIS_EMPTY_MODEL_MINIMUM, type UrgiisRecord } from "./urgiis-schema";
 
 export const URGIIS_DAY_MS = 24 * 60 * 60 * 1000;
 export const URGIIS_SWEEP_MS = 7 * URGIIS_DAY_MS;
@@ -142,6 +142,21 @@ export function urgiisSweepDue(
     day - readDay >= slices - (Math.floor(index / slices) % 4)
   );
 }
+type UrgiisModelTask = Extract<UrgiisTask, { kind: "model" }>;
+/** Whether an arrivals or model card names this model, by its native donor
+ * link or its make/model label. */
+function modelDonor(task: UrgiisModelTask) {
+  const prefix = task.url.replace(/\/$/, "") + "/";
+  return (record: UrgiisRecord) =>
+    record.destinations.some((url) => url.startsWith(prefix)) ||
+    record.titles.some(
+      (title) =>
+        title === task.make.label + " " + task.model.label ||
+        (title === task.model.label &&
+          (task.model.label === task.make.label ||
+            task.model.label.startsWith(task.make.label + " "))),
+    );
+}
 export function urgiisCarry(
   task: UrgiisTask,
   entries: readonly UrgiisEntry[],
@@ -204,16 +219,7 @@ export function urgiisCarry(
   const arrivals = entries.find((e) => e.kind === "arrivals");
   // An arrivals-only donor already published yesterday is also known. Its
   // continued presence must not force the same unchanged page read every day.
-  const prefix = task.url.replace(/\/$/, "") + "/";
-  const belongs = (record: UrgiisRecord) =>
-    record.destinations.some((url) => url.startsWith(prefix)) ||
-    record.titles.some(
-      (title) =>
-        title === task.make.label + " " + task.model.label ||
-        (title === task.model.label &&
-          (task.model.label === task.make.label ||
-            task.model.label.startsWith(task.make.label + " "))),
-    );
+  const belongs = modelDonor(task);
   const previousArrivals = previous.entries.flatMap((e) =>
     e.kind === "arrivals" ? e.records.filter(belongs) : [],
   );
@@ -251,10 +257,173 @@ export function urgiisModelFailureStreak(entries: readonly UrgiisEntry[]) {
   let streak = 0;
   for (let i = entries.length - 1; i >= 0; i--) {
     const entry = entries[i];
-    if (entry?.kind !== "model" || entry.freshness.kind === "read") break;
+    // A revalidated model read its cars' detail pages, so the site answered.
+    if (
+      entry?.kind !== "model" ||
+      entry.freshness.kind === "read" ||
+      entry.freshness.kind === "revalidated"
+    )
+      break;
     if (entry.freshness.kind !== "carried") streak++;
   }
   return streak;
+}
+/** The native detail page of one prior card: its single owned
+ * /pathStyle/MAKE/MODEL/STOCK/YEAR link, naming the card's stock and year. */
+function detailPage(
+  record: UrgiisRecord,
+  task: UrgiisModelTask,
+  tenant: UrgiisTenant,
+) {
+  const destinations = [...new Set(record.destinations)];
+  const raw = destinations.length === 1 ? (destinations[0] ?? "") : "";
+  const url = URL.parse(raw);
+  const year = record.years.length === 1 ? record.years[0] : undefined;
+  if (
+    !url ||
+    !year ||
+    !record.stock ||
+    raw.includes("\\") ||
+    url.origin !== tenant.origin ||
+    url.search ||
+    url.hash ||
+    url.username ||
+    url.password
+  )
+    return undefined;
+  const [root, style, make, model, stock, last, ...rest] =
+    url.pathname.split("/");
+  let decoded: string | undefined;
+  try {
+    decoded = stock === undefined ? undefined : decodeURIComponent(stock);
+  } catch {
+    return undefined;
+  }
+  return root === "" &&
+    style === tenant.pathStyle &&
+    make === task.make.path.split("/")[2] &&
+    model &&
+    decoded === record.stock &&
+    last === year &&
+    !rest.length
+    ? { url: url.href, stock: record.stock, year }
+    : undefined;
+}
+export interface UrgiisRevalidationCar {
+  record: UrgiisRecord;
+  url: string;
+  stock: string;
+  year: string;
+}
+/**
+ * The prior cards of a model whose page failed this run, each with the detail
+ * page that shows whether that car is still listed. Norb's backend gives up
+ * after about 17 seconds on its largest model pages and renders "No Results
+ * Found", while each car's detail page answers in under six seconds and
+ * renders "No Results.." once the car is gone (probed November 27, 2026).
+ *
+ * Needs the same prior model evidence as a deferral, of any age: each kept
+ * card is confirmed by its own page this run. New cars still come only from
+ * the arrivals page, so an overflowed arrivals window, which requires a full
+ * census, rules this out, as do seller-attributed tenants, whose detail pages
+ * are separate seller evidence. Cards without a detail link (no stock) cannot
+ * be confirmed and are dropped; they are counted in `unconfirmable`.
+ */
+export function urgiisRevalidationCars(
+  task: UrgiisTask,
+  entries: readonly UrgiisEntry[],
+  previous: UrgiisTenantCensus | undefined,
+  tenant: UrgiisTenant,
+) {
+  const before = previousModel(task, previous);
+  if (
+    !before ||
+    task.kind !== "model" ||
+    tenant.attribution.kind === "seller" ||
+    task.model.count >= 500 ||
+    urgiisArrivalsCoverage(entries, previous).kind === "overflow"
+  )
+    return undefined;
+  const cars = before.entry.records.flatMap((record) => {
+    const detail = detailPage(record, task, tenant);
+    return detail ? [{ record, ...detail }] : [];
+  });
+  // With no car to recheck there is no new evidence; defer as before.
+  if (!cars.length) return undefined;
+  return {
+    cars,
+    unconfirmable: before.entry.records.length - cars.length,
+  };
+}
+/** Most a revalidated model's still-listed cars plus its new arrivals may
+ * differ from its live badge. Fresh Norb's model reads on November 27, 2026
+ * differed from their badges by at most four cards. */
+const revalidationAllowance = (badge: number) =>
+  Math.max(3, Math.ceil(badge * 0.02));
+/**
+ * The model entry for cars confirmed on their detail pages, at indexes
+ * `listed` of `cars`. A page with a failed read can look like a gone car, and
+ * a car entered outside the arrivals window is unseen, so the cars still
+ * listed plus this model's current arrivals must match its live badge within
+ * {@link revalidationAllowance}.
+ */
+export function urgiisRevalidated(
+  task: UrgiisTask,
+  cars: readonly UrgiisRevalidationCar[],
+  listed: readonly number[],
+  entries: readonly UrgiisEntry[],
+  previous: UrgiisTenantCensus | undefined,
+  now: number,
+):
+  | { kind: "revalidated"; entry: UrgiisEntry; gone: number }
+  | { kind: "incomplete"; reason: string } {
+  const before = previousModel(task, previous);
+  if (!before || task.kind !== "model")
+    return {
+      kind: "incomplete",
+      reason: "its prior model evidence is no longer available",
+    };
+  const kept = listed.flatMap((i) => {
+    const car = cars[i];
+    return car ? [car.record] : [];
+  });
+  // This model's current arrivals join its evidence, so they are rechecked
+  // on their own detail pages after they leave the arrivals window.
+  const arrivals = entries.find((e) => e.kind === "arrivals");
+  const seen = new Set(kept.map(urgiisDonorIdentity));
+  const records = [
+    ...kept,
+    ...(arrivals?.kind === "arrivals"
+      ? arrivals.records.filter(modelDonor(task)).filter((record) => {
+          const identity = urgiisDonorIdentity(record);
+          if (seen.has(identity)) return false;
+          seen.add(identity);
+          return true;
+        })
+      : []),
+  ];
+  const count = records.length;
+  const badge = task.model.count;
+  const allowance = revalidationAllowance(badge);
+  if (
+    Math.abs(count - badge) > allowance ||
+    count >= 500 ||
+    (kept.length === 0 && badge >= URGIIS_EMPTY_MODEL_MINIMUM)
+  )
+    return {
+      kind: "incomplete",
+      reason: `its detail pages and arrivals list ${count} cars, but its live badge advertises ${badge} (allowed difference ${allowance})`,
+    };
+  return {
+    kind: "revalidated",
+    entry: {
+      ...before.entry,
+      bytes: 0,
+      records,
+      freshness: { kind: "revalidated", readAt: now },
+    },
+    gone: cars.length - kept.length,
+  };
 }
 export function urgiisDefer(
   task: UrgiisTask,

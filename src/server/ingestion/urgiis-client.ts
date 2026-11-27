@@ -110,7 +110,8 @@ export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
     ) &&
       !iisBrowsePath(url, 1, tenant) &&
       !iisBrowsePath(url, 2, tenant) &&
-      !(tenant.attribution.kind === "seller" && iisBrowsePath(url, 4, tenant)))
+      // Car detail pages: seller evidence, or a failed model's recheck.
+      !iisBrowsePath(url, 4, tenant))
   )
     return Effect.fail(
       urgiisError(

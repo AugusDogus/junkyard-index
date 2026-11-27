@@ -70,6 +70,18 @@ const working = {
     })
     .strict()
     .optional(),
+  // A failed model page whose prior cards are being rechecked on their detail
+  // pages: `checked` cards so far, of which those at `listed` are still listed.
+  revalidation: z
+    .object({
+      url: z.string().max(2000),
+      // Why the page failed, for the warning if the recheck cannot finish.
+      cause: z.string().min(1).max(4000),
+      checked: z.number().int().min(0).max(499),
+      listed: z.array(z.number().int().min(0).max(498)).max(499),
+    })
+    .strict()
+    .optional(),
 };
 const schema = z.discriminatedUnion("phase", [
   z.object({ ...working, phase: z.literal("opening") }).strict(),
@@ -193,12 +205,31 @@ function checkpoint(
       )
     )
       throw new Error("IIS pending empty model must be retried before closing");
+    if (state.revalidation) {
+      const { url, checked, listed } = state.revalidation;
+      const index = tasks.findIndex((t) => t.kind === "model" && t.url === url);
+      const entry = state.entries[index];
+      if (
+        state.phase !== "opening" ||
+        state.runKind === "cold" ||
+        index < 0 ||
+        (index !== state.entries.length &&
+          !(entry?.kind === "model" && entry.freshness.kind === "retry")) ||
+        listed.some(
+          (n, i) => n >= checked || (i > 0 && n <= (listed[i - 1] ?? -1)),
+        )
+      )
+        throw new Error(
+          "IIS checkpoint revalidates a model that is not its failed frontier or pending retry, or lists unchecked cars",
+        );
+    }
     state.entries.forEach((entry, i) => {
       if (
         state.runKind === "cold" &&
         ((entry.kind === "model" &&
           (entry.freshness.kind === "carried" ||
-            entry.freshness.kind === "deferred")) ||
+            entry.freshness.kind === "deferred" ||
+            entry.freshness.kind === "revalidated")) ||
           (entry.kind === "detail" && entry.bytes === 0))
       )
         throw new Error("IIS cold census cannot carry prior model evidence");
@@ -250,7 +281,10 @@ function checkpoint(
               ? e.bytes > 0 && e.freshness.readAt < state.startedAt
               : e.freshness.kind === "read"
                 ? e.freshness.readAt < state.startedAt || e.bytes === 0
-                : e.bytes !== 0)),
+                : // Revalidated detail bodies are counted on the cursor.
+                  e.bytes !== 0 ||
+                  (e.freshness.kind === "revalidated" &&
+                    e.freshness.readAt < state.startedAt))),
       )
     )
       throw new Error("IIS model freshness is inconsistent with its run");
