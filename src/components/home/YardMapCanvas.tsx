@@ -22,6 +22,7 @@ import {
   type CSSProperties,
   type MouseEvent,
   memo,
+  startTransition,
   useCallback,
   useMemo,
   useEffect,
@@ -38,6 +39,13 @@ import {
   projectYardLocation,
   type YardMapView,
 } from "~/lib/yard-map-projection";
+
+/**
+ * Interactive pins mounted per task once the map has its real size. Mounting
+ * all 450 in one task blocked the main thread past a long task on a phone;
+ * the canvas draws every yard meanwhile.
+ */
+const PIN_BATCH = 64;
 
 const YardMapCanvas = memo(function YardMapCanvas({
   yards,
@@ -234,6 +242,19 @@ const YardMapCanvas = memo(function YardMapCanvas({
     [placed, selected, activeKey, activate, registerPin, hoverYard],
   );
 
+  const [mountedPins, setMountedPins] = useState(0);
+  useEffect(() => {
+    if (!size.measured || mountedPins >= pins.length) return;
+    const timeout = window.setTimeout(() =>
+      startTransition(() => setMountedPins((count) => count + PIN_BATCH)),
+    );
+    return () => window.clearTimeout(timeout);
+  }, [size.measured, mountedPins, pins.length]);
+  const mountedPinElements = useMemo(
+    () => pinElements.slice(0, mountedPins),
+    [pinElements, mountedPins],
+  );
+
   // Back and shared links return to the same view. Before paint, so a
   // client-side Back never shows the overview first.
   useLayoutEffect(() => {
@@ -428,9 +449,10 @@ const YardMapCanvas = memo(function YardMapCanvas({
               {markersDrawn ? null : (
                 <YardMapStaticDots pins={pins} view={anchor} />
               )}
-              {/* Interactive pins mount at the map's real size, so the
-              server's HTML and the first style pass stay light. */}
-              {size.measured ? pinElements : null}
+              {/* Interactive pins mount in batches at the map's real
+              size, so the server's HTML, hydration and the first style
+              pass stay light. */}
+              {mountedPinElements}
             </YardMapPinLayer>
           </Map>
         </YardMapTilesReady.Provider>
