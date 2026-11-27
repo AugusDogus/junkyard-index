@@ -281,6 +281,25 @@
   cursor: grabbing;
 }
 
+/* The map's size in px for getYardMapFitCss. Registered, so 100cqw computes
+   here against .yard-map; Safari 18 cannot read cqw inside atan2 itself. */
+@property --yard-map-width {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
+@property --yard-map-height {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
+.yard-map-frame {
+  --yard-map-width: 100cqw;
+  --yard-map-height: 100cqh;
+}
+
 /* Pins take their cursor from the layer, not the map, so the map's cursor
    changing on every press does not restyle hundreds of pins. */
 .yard-map-pin-layer {
