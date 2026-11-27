@@ -100,13 +100,16 @@ function shape(
  * changes (dot to pin, hover, selection) eases there over `GROW_MS`; the
  * tween's progress is clamped to [0, 1], since a frame's time can precede
  * a tween started later in the same frame. Returns whether a tween is still
- * running, so the caller draws another frame.
+ * running, so the caller draws another frame. `stamp` draws each marker,
+ * by default as its `shape`.
  */
 function frame(
   context: YardMarkerContext,
   view: YardMarkerFrame,
   colors: YardMarkerColors,
   tweens: Map<string, YardMarkerTween>,
+  stamp: (look: YardMarkerLook) => void = (look) =>
+    shape(context, look, colors),
 ): boolean {
   const scale = 2 ** (view.zoom - 2);
   const snap = (value: number) =>
@@ -137,11 +140,8 @@ function frame(
         ? HOVER_SCALE
         : 1;
     const target = base * emphasis;
-    const tween = tweens.get(marker.key) ?? {
-      from: target,
-      to: target,
-      start: 0,
-    };
+    const known = tweens.get(marker.key);
+    const tween = known ?? { from: target, to: target, start: 0 };
     const progress = view.reduceMotion
       ? 1
       : Math.max(0, Math.min(1, (view.now - tween.start) / GROW_MS));
@@ -150,14 +150,10 @@ function frame(
       tweens.set(marker.key, { from: size, to: target, start: view.now });
       animating ||= !view.reduceMotion;
     } else {
-      tweens.set(marker.key, tween);
+      if (!known) tweens.set(marker.key, tween);
       if (progress < 1) animating = true;
     }
-    shape(
-      context,
-      { x: snap(x), y: snap(y), size, emphasis, selected },
-      colors,
-    );
+    stamp({ x: snap(x), y: snap(y), size, emphasis, selected });
   };
 
   // The hovered and then the open yard sit above their neighbors.
