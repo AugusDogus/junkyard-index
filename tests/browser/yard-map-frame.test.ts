@@ -37,23 +37,39 @@ afterAll(async () => {
   await browser?.close();
 });
 
-/** Each pin's center on screen, by its label. */
+/** Each pin's center on screen. */
 function pinCenters(page: Page) {
   return page.locator(".yard-map-pin").evaluateAll((pins) =>
     pins.map((pin) => {
       const box = pin.getBoundingClientRect();
-      return {
-        label: pin.getAttribute("aria-label") ?? "",
-        x: Math.round(box.left + box.width / 2),
-        y: Math.round(box.top + box.height / 2),
-      };
+      return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
     }),
   );
 }
 
+/** Each static dot's center on screen, from its path's `M x y` moves. */
+function dotCenters(page: Page) {
+  return page.locator(".yard-map-dots").evaluate((svg) => {
+    const matrix = svg instanceof SVGSVGElement ? svg.getScreenCTM() : null;
+    if (!matrix) throw new Error("The static dots have no screen position.");
+    // The halo paths repeat the ink paths' dots.
+    return [...svg.querySelectorAll("path:not(.yard-map-dots-halo)")].flatMap(
+      (path) =>
+        [
+          ...(path.getAttribute("d") ?? "").matchAll(/M(-?[\d.]+) (-?[\d.]+)/g),
+        ].map(([, x, y]) => {
+          const point = new DOMPoint(Number(x), Number(y)).matrixTransform(
+            matrix,
+          );
+          return { x: point.x, y: point.y };
+        }),
+    );
+  });
+}
+
 /**
- * Pin positions from the server's HTML before any script runs, then after
- * hydration measures the real size.
+ * Marker positions from the server's static dots before any script runs,
+ * then the pins' once hydration measures the real size.
  */
 async function framesAcrossHydration(props: YardMapFixtureProps) {
   const page = await createPage(browser, {
@@ -82,16 +98,21 @@ async function framesAcrossHydration(props: YardMapFixtureProps) {
       });
     });
     await page.goto("http://yard-map.test/", { waitUntil: "commit" });
-    await page.locator(".yard-map-pin").first().waitFor();
+    await page.locator(".yard-map-dots").waitFor();
     await page.waitForFunction(() =>
       [...document.styleSheets].some((sheet) =>
         sheet.href?.endsWith("/app.css"),
       ),
     );
-    const before = await pinCenters(page);
+    const before = await dotCenters(page);
 
     releaseScript();
     await page.waitForFunction(() => document.body.dataset.hydrated === "");
+    // The pins mount in batches after hydration.
+    await page.waitForFunction(
+      (count) => document.querySelectorAll(".yard-map-pin").length === count,
+      before.length,
+    );
     await page.evaluate(
       () =>
         new Promise((resolve) =>
@@ -114,17 +135,15 @@ for (const [name, props] of [
 ] as const) {
   test(`${name} keeps its framing through hydration`, async () => {
     const { before, after } = await framesAcrossHydration(props);
-    expect(after.map((pin) => pin.label)).toEqual(
-      before.map((pin) => pin.label),
-    );
-    for (const [index, pin] of after.entries()) {
-      const earlier = before[index];
-      expect(Math.abs(pin.x - (earlier?.x ?? Number.NaN))).toBeLessThanOrEqual(
-        2,
+    expect(after).toHaveLength(before.length);
+    // Every pin lands on a dot the server drew, each dot used once.
+    const unmatched = [...before];
+    for (const pin of after) {
+      const index = unmatched.findIndex(
+        (dot) => Math.abs(dot.x - pin.x) <= 2 && Math.abs(dot.y - pin.y) <= 2,
       );
-      expect(Math.abs(pin.y - (earlier?.y ?? Number.NaN))).toBeLessThanOrEqual(
-        2,
-      );
+      expect(index).toBeGreaterThanOrEqual(0);
+      unmatched.splice(index, 1);
     }
   }, 20_000);
 }
