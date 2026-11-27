@@ -1,7 +1,7 @@
 "use client";
 
 import type { IndexUiState, UiState } from "instantsearch.js";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useQueryStates } from "nuqs";
 import {
   createContext,
@@ -20,7 +20,7 @@ import {
   type SearchUrlValues,
   type SearchUrlWrite,
 } from "~/lib/search-url";
-import { YardMapUrl } from "~/lib/yard-map-url";
+import { RouterTransitions } from "~/lib/router-transitions";
 import {
   SearchInputHistory,
   type SearchHistoryWrite,
@@ -114,7 +114,6 @@ export function useSearchUrlOwner({
    */
   routedOptions: string;
 }) {
-  const router = useRouter();
   const [queuedValues, setValues] = useQueryStates(SearchUrl.parsers, {
     urlKeys: SearchUrl.urlKeys,
     // A deep write would render the server page again for every refinement.
@@ -179,10 +178,15 @@ export function useSearchUrlOwner({
   // A VIN switch searches once Configure filters by the new VIN.
   const deferred = useRef<IndexUiState | null>(null);
   const syncing = useRef(false);
+  /**
+   * Set while a navigation Next started is in flight. Next cancels it if a
+   * history write it did not make lands, and every nuqs write is one, so no
+   * write lands, not even one queued before it started.
+   */
   const leaving = useRef(false);
   /**
-   * The page a link left from, once its navigation starts. Writes resume
-   * when Next commits any other URL, even one holding the same search.
+   * The page a navigation left from. Writes resume when Next commits any
+   * other URL, even one holding the same search.
    */
   const leftFrom = useRef<string | null>(null);
   const searchedOptions = useRef<string | null>(null);
@@ -199,6 +203,10 @@ export function useSearchUrlOwner({
     [routedOptions],
   );
 
+  // One function for every write, so nuqs runs it once per flush.
+  const flushUnlessLeaving = useCallback((flush: () => void) => {
+    if (!leaving.current) flush();
+  }, []);
   const current = useCallback(
     () => SearchUrl.fromValues(written.current, rendered.current.yards),
     [],
@@ -209,14 +217,16 @@ export function useSearchUrlOwner({
       const previous = "previous" in history ? history.previous : null;
       const sent = setValues(write, {
         history: history.history,
-        // Runs as nuqs flushes, just before it pushes the submitted search:
-        // live previews replaced the entry from before typing.
+        // Runs as nuqs flushes. Once a navigation starts, the write never
+        // lands. Otherwise, just before it pushes the submitted search, the
+        // entry from before typing comes back: live previews replaced it.
         startTransition: previous
           ? (flush) => {
+              if (leaving.current) return;
               window.history.replaceState(window.history.state, "", previous);
               flush();
             }
-          : undefined,
+          : flushUnlessLeaving,
       });
       pending.current = sent;
       void sent.finally(() => {
@@ -224,7 +234,7 @@ export function useSearchUrlOwner({
       });
       return sent;
     },
-    [setValues],
+    [flushUnlessLeaving, setValues],
   );
 
   /**
@@ -336,63 +346,39 @@ export function useSearchUrlOwner({
     [current, send, values, writeUiState],
   );
 
-  // Next cancels a navigation in flight when a history write it did not
-  // make lands, and every nuqs write is one. A click on a link that leaves
-  // the page stops writes, and lets a queued one land before navigating.
+  // Next reports each navigation it starts (a Link, router.push) before it
+  // requests the page. Clicks it leaves to the browser start none, and a
+  // navigation to this same URL changes nothing to protect.
   useEffect(() => {
-    const onClick = (event: MouseEvent) => {
-      const link =
-        event.target instanceof Element
-          ? event.target.closest<HTMLAnchorElement>("a[href]")
-          : null;
-      if (
-        !link ||
-        !YardMapUrl.leavesPage(
-          event,
-          {
-            href: link.href,
-            target: link.target,
-            download: link.hasAttribute("download"),
-          },
-          window.location.href,
-        )
-      )
-        return;
-      leaving.current = true;
-      const queued = pending.current;
-      if (!queued || new URL(link.href).origin !== window.location.origin) {
-        leftFrom.current = window.location.href;
-        return;
-      }
-      event.preventDefault();
-      // Until the queued write lands, the URL changing is not the link's.
-      leftFrom.current = null;
-      void queued.finally(() => {
-        // Back or Forward since the click cancels the link, as it would
-        // have cancelled Next's navigation.
-        if (!leaving.current) return;
-        leftFrom.current = window.location.href;
-        router.push(link.href);
-      });
-    };
     const stopLeaving = () => {
       leaving.current = false;
       leftFrom.current = null;
     };
+    const unsubscribe = RouterTransitions.subscribe(({ href, type }) => {
+      if (type === "traverse") return;
+      const here = new URL(window.location.href);
+      const destination = new URL(href, here);
+      if (
+        destination.origin === here.origin &&
+        destination.pathname === here.pathname &&
+        destination.search === here.search
+      )
+        return;
+      leaving.current = true;
+      leftFrom.current = here.href;
+    });
     const onPageShow = (event: PageTransitionEvent) => {
       // Restored from the back-forward cache, the page is no longer leaving.
       if (event.persisted) stopLeaving();
     };
-    // Capture runs before Next.js's link handler starts the navigation.
-    document.addEventListener("click", onClick, true);
     window.addEventListener("popstate", stopLeaving);
     window.addEventListener("pageshow", onPageShow);
     return () => {
-      document.removeEventListener("click", onClick, true);
+      unsubscribe();
       window.removeEventListener("popstate", stopLeaving);
       window.removeEventListener("pageshow", onPageShow);
     };
-  }, [router]);
+  }, []);
   // Next writes the URL as a navigation commits, before layout effects run.
   // A link that kept the search (one dropping a campaign tag, say) changes
   // nothing SearchUrlSync applies, so the navigation ends here.
