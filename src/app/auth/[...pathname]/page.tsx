@@ -1,15 +1,19 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { PublicPageShell } from "~/components/junkyards/PublicPageShell";
-import { auth } from "~/lib/auth";
-import { ReturnTo } from "~/lib/return-to";
 import { sitePageUrl } from "~/lib/site-metadata";
 import { AuthCard } from "~/components/auth/AuthCard";
 import { ForgotPasswordForm } from "~/components/auth/ForgotPasswordForm";
 import { ResetPasswordForm } from "~/components/auth/ResetPasswordForm";
+import { SignedInRedirect } from "~/components/auth/SignedInRedirect";
 import { SignInForm } from "~/components/auth/SignInForm";
 import { SignUpForm } from "~/components/auth/SignUpForm";
+
+// Every header links here with its page as the return path, so crawlers
+// request a new URL per page. The pages read nothing from the request:
+// the CDN serves one prerender per route whatever the query, and the forms
+// read the return path in the browser.
+export const dynamicParams = true;
 
 type AuthRoute = "sign-in" | "sign-up" | "forgot-password" | "reset-password";
 
@@ -41,7 +45,10 @@ const routeConfig: Record<
 
 interface AuthPageProps {
   params: Promise<{ pathname: string[] }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export function generateStaticParams(): { pathname: string[] }[] {
+  return Object.keys(routeConfig).map((route) => ({ pathname: [route] }));
 }
 
 function getRoute(pathname: string[]): AuthRoute {
@@ -65,29 +72,27 @@ export async function generateMetadata({
   return { title: titles[route], ...sitePageUrl(`/auth/${route}`) };
 }
 
-export default async function AuthPage({
-  params,
-  searchParams,
-}: AuthPageProps) {
+export default async function AuthPage({ params }: AuthPageProps) {
   const route = getRoute((await params).pathname);
-  if (route === "sign-in" || route === "sign-up") {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (session) {
-      const returnTo = ReturnTo.parse((await searchParams).returnTo);
-      // Unknown auth routes also fall back to sign-in, so exclude the whole shell.
-      redirect(returnTo.startsWith("/auth/") ? "/search" : returnTo);
-    }
-  }
-
   const { title, description, Form } = routeConfig[route];
+  const signInOrUp = route === "sign-in" || route === "sign-up";
   return (
     <PublicPageShell>
+      {signInOrUp && <SignedInRedirect />}
       <AuthCard
         title={title}
         description={description}
-        view={route === "sign-in" || route === "sign-up" ? route : undefined}
+        view={signInOrUp ? route : undefined}
       >
-        <Form />
+        {/* The reset form reads its token from the URL, so it renders in
+        the browser. */}
+        {route === "reset-password" ? (
+          <Suspense>
+            <Form />
+          </Suspense>
+        ) : (
+          <Form />
+        )}
       </AuthCard>
     </PublicPageShell>
   );

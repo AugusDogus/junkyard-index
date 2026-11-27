@@ -2,7 +2,7 @@
 
 import { Analytics } from "~/lib/analytics";
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { signIn, signUp } from "~/lib/auth-client";
@@ -14,13 +14,12 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Alert, AlertDescription } from "~/components/ui/alert";
 import { DiscordIcon } from "~/components/ui/icons";
+import { AuthSwitchLink } from "./AuthSwitchLink";
 import { PasswordVisibilityButton } from "./PasswordVisibilityButton";
 import { AlertCircle } from "lucide-react";
 
 export function SignUpForm() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const returnTo = ReturnTo.parse(searchParams.get("returnTo"));
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -62,7 +61,7 @@ export function SignUpForm() {
         Analytics.capture(AnalyticsEvents.SIGN_UP_SUCCEEDED, {
           method: "email",
         });
-        router.push(returnTo);
+        router.push(ReturnTo.fromSearch(window.location.search));
         router.refresh();
       }
     } catch (err) {
@@ -91,7 +90,7 @@ export function SignUpForm() {
     try {
       await signIn.social({
         provider: "discord",
-        callbackURL: returnTo,
+        callbackURL: ReturnTo.fromSearch(window.location.search),
         requestSignUp: true,
         additionalData: { termsVersion: TERMS_METADATA.version },
       });
@@ -207,12 +206,7 @@ export function SignUpForm() {
 
       <div className="text-muted-foreground text-center text-sm">
         Already have an account?{" "}
-        <Link
-          href={`/auth/sign-in?returnTo=${encodeURIComponent(returnTo)}`}
-          className="text-signal hover:underline"
-        >
-          Sign in
-        </Link>
+        <AuthSwitchLink route="sign-in">Sign in</AuthSwitchLink>
       </div>
     </form>
   );
