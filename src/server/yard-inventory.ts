@@ -38,7 +38,6 @@ import { and, eq } from "drizzle-orm";
 import { yardCheck, yardInventory } from "~/schema";
 import { YardCheck } from "~/lib/yard-check";
 import { DormantYard } from "~/lib/dormant-yard";
-import { SourceControlRepository } from "~/server/source-control/source-control-repository";
 import { YardSummaryStore } from "./yard-summary-store";
 import { YardVehicles } from "./yard-vehicles";
 
@@ -414,16 +413,15 @@ export type DormantRoutedYard = RoutedYard & { dormant: DormantYard };
  * Every yard that keeps a page while it shows no vehicles, with its path:
  * one small entry for the whole site, read by yard pages that resolve a URL
  * no listed yard has, and by the sitemap. A miss reads the directory query
- * (about 800 rows), the owner's hidden sources and the dormant candidates
- * (usually a handful of rows).
+ * (about 800 rows) and the dormant candidates with the owner's hidden
+ * sources (usually a handful of rows).
  */
 export const getDormantYards = cacheShownInventory(
   async (hidden): Promise<DormantRoutedYard[]> => {
-    const [listed, ownerHidden] = await Promise.all([
+    const [listed, candidates] = await Promise.all([
       getHomepageYards(db, hidden),
-      SourceControlRepository.hiddenSources(db),
+      getDormantYardCandidates(db, hidden),
     ]);
-    const candidates = await getDormantYardCandidates(db, hidden, ownerHidden);
     return DormantYard.pages(listed, candidates, Date.now());
   },
   ["dormant-yards-v1", ...RETIRED_INGESTION_SOURCES],

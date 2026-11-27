@@ -14,6 +14,7 @@ import { HiddenSources } from "~/lib/hidden-source";
 import { RETIRED_INGESTION_SOURCES } from "~/lib/ingestion-source";
 import { getYardDetails } from "~/lib/yard-details";
 import { YardPath } from "~/lib/yard-path";
+import { SourceControlRepository } from "~/server/source-control/source-control-repository";
 import { departedYard, yardInventory, yard as yardTable } from "~/schema";
 
 type YardRow = {
@@ -81,16 +82,16 @@ export async function getHomepageYards(
 
 /**
  * Yards that show no vehicles but may keep their page (see DormantYard):
- * those of sources hidden only by the automatic 7-day hide (`hidden` minus
- * `ownerHidden`), since their last accepted publication, and those whose
- * last vehicle departed, since then. Yards of retired sources and of
- * sources the owner hid are left out.
+ * those of sources in `hidden` only by the automatic 7-day hide, since their
+ * last accepted publication, and those whose last vehicle departed, since
+ * then. Yards of retired sources and of sources the owner hid from /admin
+ * are left out.
  */
 export async function getDormantYardCandidates(
   database: LibSQLDatabase,
   hidden: HiddenSources,
-  ownerHidden: HiddenSources,
 ) {
+  const ownerHidden = await SourceControlRepository.hiddenSources(database);
   const autoHidden = hidden.list.filter(
     (source) => !HiddenSources.has(ownerHidden, source),
   );

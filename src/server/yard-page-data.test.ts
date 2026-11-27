@@ -38,6 +38,7 @@ function run(scenario: string): unknown {
       yard("row52", "9", "Far Away", "Denver", "CO", 39.7, -105),
     ];
     mock.module("~/server/homepage-yards", () => ({
+      getDormantYardCandidates: async () => [],
       getHomepageYards: async () => {
         globalThis.directoryReads++;
         const paths = YardPath.assign(yards);
@@ -99,10 +100,13 @@ test("a yard page reads its region's routes, its context and its summary, never 
     checkedAt: "2026-11-26T07:00:00.000Z",
     checkUnknown: false,
     total: 10,
+    // The routes entry also lists yards that keep a page while they show
+    // no vehicles, from one site-wide entry.
     reads: [
+      "dormant-yards-v1",
       "hidden-sources-v2",
-      "yard-context-v1",
-      "yard-routes-v1",
+      "yard-context-v2",
+      "yard-routes-v2",
       "yard-summary-v5",
     ],
   });
@@ -128,6 +132,6 @@ test("an unknown region or yard reads no cache entry for the yard", () => {
     garbageReads: 0,
     missing: null,
     constructor: null,
-    reads: ["hidden-sources-v2", "yard-routes-v1"],
+    reads: ["dormant-yards-v1", "hidden-sources-v2", "yard-routes-v2"],
   });
 });
