@@ -147,13 +147,22 @@ export const SearchOwnedUrlParams = {
   },
 } as const;
 
+/**
+ * nuqs 2.10 takes a `pushState` it did not make for a navigation and drops
+ * the writes it has not yet seen Next acknowledge, so its hooks fall back to
+ * the old URL for a render (a VIN `q` then searches its old mode again). The
+ * search's own pushes carry nuqs's internal marker, which it strips before
+ * calling the browser, so they do not reset its queue.
+ */
+const NUQS_OWN_WRITE = "__nuqs__";
+
 function pushSubmittedSearch(previous: string, url: string) {
   if (previous === url) {
     window.history.replaceState(window.history.state, "", url);
     return;
   }
   window.history.replaceState(window.history.state, "", previous);
-  window.history.pushState(window.history.state, "", url);
+  window.history.pushState(window.history.state, NUQS_OWN_WRITE, url);
 }
 
 export const SearchInputHistory = {
@@ -207,7 +216,7 @@ export const SearchInputHistory = {
       window.history.replaceState(window.history.state, "", url);
     } else {
       inputHistory.delete(window);
-      window.history.pushState(window.history.state, "", url);
+      window.history.pushState(window.history.state, NUQS_OWN_WRITE, url);
     }
   },
 } as const;

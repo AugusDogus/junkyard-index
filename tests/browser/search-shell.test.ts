@@ -1341,3 +1341,56 @@ for (const { label, width, height } of [
     }
   }, 30_000);
 }
+
+// A VIN search keeps its VIN in `q` while InstantSearch searches "". Switching
+// to or from one must search the new mode only, not flash back to the old one.
+for (const [from, to] of [
+  ["1FADP3F29FL123456", "civic"],
+  ["civic", "1FADP3F29FL123456"],
+] as const) {
+  test(`submitting ${to} over ${from} never searches the old mode again`, async () => {
+    const { page } = await open(`q=${from}`);
+    try {
+      const box = page.getByRole("searchbox").first();
+      await searchCallsDuring(
+        page,
+        async () => {
+          await box.fill(to);
+          await box.press("Enter");
+        },
+        1200,
+      );
+      const searches = z
+        .array(
+          z.object({
+            params: z.object({
+              query: z.string().optional(),
+              filters: z.string().optional(),
+            }),
+          }),
+        )
+        .parse(
+          JSON.parse(
+            await page.evaluate(
+              () => document.documentElement.dataset.searchQueryLog ?? "[]",
+            ),
+          ),
+        )
+        .map(({ params }) => ({
+          query: params.query ?? "",
+          vin: params.filters?.includes("vinPositionTokens") ?? false,
+        }));
+      const toVin = to !== "civic";
+      const isNew = (search: { query: string; vin: boolean }) =>
+        toVin === search.vin && search.query === (toVin ? "" : "civic");
+      const first = searches.findIndex(isNew);
+      expect(first).toBeGreaterThanOrEqual(0);
+      expect(searches.slice(first).filter((search) => !isNew(search))).toEqual(
+        [],
+      );
+      expect(new URL(page.url()).searchParams.get("q")).toBe(to);
+    } finally {
+      await closePage(page);
+    }
+  }, 30_000);
+}

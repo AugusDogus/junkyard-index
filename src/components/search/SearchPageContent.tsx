@@ -1273,22 +1273,17 @@ function AlgoliaSearchInner({
         // then writes that URL back over route writes it did not see. So
         // write a changed route first, and let nuqs replace its entry.
         const clearedRoute = instantSearch.createURL();
-        const clearOwned = (history: "push" | "replace") =>
-          setArea(
-            {
-              legacyArrivalWindow: null,
-              arrivalWindow: null,
-              radius: null,
-              lat: null,
-              lng: null,
-            },
-            { history },
-          );
-        if (clearedRoute === route) return clearOwned("push");
-        writeRoute(clearedRoute);
-        // nuqs takes any other pushState for a navigation and drops its queued
-        // writes in a microtask that push queues. Queue these after that one.
-        return Promise.resolve().then(() => clearOwned("replace"));
+        if (clearedRoute !== route) writeRoute(clearedRoute);
+        return setArea(
+          {
+            legacyArrivalWindow: null,
+            arrivalWindow: null,
+            radius: null,
+            lat: null,
+            lng: null,
+          },
+          { history: clearedRoute === route ? "push" : "replace" },
+        );
       });
       // Clearing a window, or a radius around an origin, changes Configure,
       // which then searches. A radius without an origin was never sent.
