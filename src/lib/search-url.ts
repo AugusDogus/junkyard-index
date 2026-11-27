@@ -176,7 +176,7 @@ function parse(
   params: URLSearchParams,
   knownYardNames: readonly string[] = [],
 ): SearchUrl {
-  return fromValues(load(params), knownYardNames, params);
+  return fromValues(load(params), knownYardNames);
 }
 
 /** `values` once nuqs applies `write` to them. */
@@ -195,7 +195,6 @@ function merge(
 function fromValues(
   loaded: SearchUrlValues,
   knownYardNames: readonly string[] = [],
-  params = new URLSearchParams(serialize(loaded)),
 ): SearchUrl {
   const url: SearchUrl = {};
   const arrivalWindow = ArrivalWindow.parse(
@@ -226,7 +225,13 @@ function fromValues(
   if (Object.keys(facets).length) url.facets = facets;
   if (loaded.minYear !== null) url.minYear = loaded.minYear;
   if (loaded.maxYear !== null) url.maxYear = loaded.maxYear;
-  const selection = SearchYardSelection.fromUrl(params);
+  // As for facets, an empty repeated key falls back to the legacy one.
+  const selection = SearchYardSelection.fromValues(
+    loaded.yardTypes.length
+      ? loaded.yardTypes
+      : SearchFilterUrl.splitLegacy(loaded.legacyYardTypes),
+    loaded.syntax ? (loaded.q ?? "") : null,
+  );
   if (selection.kind !== "default")
     url.yardTypes = SearchYardSelection.effectiveTypes(selection);
   if (loaded.sort) url.sort = loaded.sort;

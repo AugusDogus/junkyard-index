@@ -374,3 +374,88 @@ describe("SearchUrl.load on server search params", () => {
     expect(SearchUrl.load({ radius: "33" }).radius).toBeNull();
   });
 });
+
+/** Deterministic 32-bit PRNG (mulberry32) so every seed replays exactly. */
+function random(seed: number) {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Keys and values a /search URL can carry, including empty, legacy, repeated
+// and unreadable ones that no app path writes.
+const URL_PARTS: [string, readonly string[]][] = [
+  [
+    "q",
+    [
+      "",
+      "Volvo 240",
+      "1FADP3F29FL123456",
+      "yardType:full_service",
+      "yardType:self_service OR make:Saab",
+    ],
+  ],
+  ["syntax", ["", "expression", "lucene"]],
+  ["yardTypes[]", ["", "all", "self_service", "full_service", "bogus"]],
+  [
+    "yardTypes",
+    [
+      "",
+      "all",
+      "self_service",
+      "full_service",
+      "full_service,self_service",
+      "bogus",
+    ],
+  ],
+  ["makes[]", ["", "Saab", "Example, Motors"]],
+  ["makes", ["", "Saab", "Saab,Volvo"]],
+  ["yards[]", ["", "RTP Pick-A-Part - Hebron, KY"]],
+  ["yards", ["", "RTP Pick-A-Part - Hebron, KY", "Fixture yard,Other yard"]],
+  ["arrivalWindow[]", ["", "7d", "1y"]],
+  ["arrivalWindow", ["", "24h"]],
+  ["lat", ["", "38.25", "91"]],
+  ["lng", ["", "-85.76"]],
+  ["radius", ["", "50", "33"]],
+  ["minYear", ["", "1975", "abc"]],
+  ["maxYear", ["", "1993"]],
+  ["sort", ["", "oldest"]],
+];
+
+describe("SearchUrl.parse and fromValues(load())", () => {
+  test("read every URL the same way", () => {
+    const next = random(365);
+    const pick = <T>(items: readonly T[]): T => {
+      const item = items[Math.floor(next() * items.length)];
+      if (item === undefined) throw new Error("pick() needs a non-empty list");
+      return item;
+    };
+    const known = ["RTP Pick-A-Part - Hebron, KY"];
+    for (let run = 0; run < 20_000; run++) {
+      const params = new URLSearchParams();
+      const count = Math.floor(next() * 8);
+      for (let i = 0; i < count; i++) {
+        const [key, values] = pick(URL_PARTS);
+        params.append(key, pick(values));
+      }
+      const parsed = SearchUrl.parse(params, known);
+      const loaded = SearchUrl.fromValues(SearchUrl.load(params), known);
+      expect({ url: params.toString(), read: loaded }).toEqual({
+        url: params.toString(),
+        read: parsed,
+      });
+      expect(SearchUrl.format("", loaded)).toBe(SearchUrl.format("", parsed));
+    }
+  });
+
+  test("an empty yardTypes[] next to a legacy yardTypes reads the legacy one", () => {
+    const params = new URLSearchParams("yardTypes%5B%5D=&yardTypes=all");
+    expect(SearchUrl.parse(params).yardTypes).toEqual([]);
+    expect(SearchUrl.fromValues(SearchUrl.load(params)).yardTypes).toEqual([]);
+  });
+});

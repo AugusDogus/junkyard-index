@@ -9,7 +9,20 @@ export type SearchYardSelection =
   | { kind: "expression"; types: YardType[] };
 
 function fromUrl(params: URLSearchParams): SearchYardSelection {
-  const values = SearchFilterUrl.read(params, "yardTypes");
+  return fromValues(
+    SearchFilterUrl.read(params, "yardTypes"),
+    params.get("syntax") === "expression" ? (params.get("q") ?? "") : null,
+  );
+}
+
+/**
+ * The selection for the yard type values a URL holds, and the expression it
+ * searches (null for a words search), whose yard types apply when it has none.
+ */
+function fromValues(
+  values: readonly string[],
+  expression: string | null,
+): SearchYardSelection {
   if (values.includes("all")) return { kind: "explicit", types: [] };
   const types = [
     ...new Set(
@@ -20,10 +33,7 @@ function fromUrl(params: URLSearchParams): SearchYardSelection {
     ),
   ];
   if (types.length) return { kind: "explicit", types };
-  const terms =
-    params.get("syntax") === "expression"
-      ? expressionTypes(params.get("q") ?? "")
-      : [];
+  const terms = expression === null ? [] : expressionTypes(expression);
   return terms.length
     ? { kind: "expression", types: terms }
     : { kind: "default" };
@@ -78,6 +88,7 @@ function suggestion(
 
 export const SearchYardSelection = {
   fromUrl,
+  fromValues,
   expressionTypes,
   fromSaved,
   effectiveTypes,
